@@ -1,4 +1,4 @@
-desc:MIDI Human Looper v0.3
+desc:MIDI Human Looper v0.3.1
 
 // Free-time MIDI looper prototype for REAPER JSFX.
 // Workflow:
@@ -88,10 +88,10 @@ local(seconds, best_score, bars, bpm, score, target_bpm, i)
 (
   loop_len_samples > 0 ? (
     seconds = loop_len_samples / srate;
-    best_score = 1e20;
+    best_score = 1000000000;
     target_bpm = 120;
 
-    // v0.2: evaluate every bar count from 1 to 16.
+    // v0.3.1: evaluate every bar count from 1 to 16.
     // 4/4 assumption for now.
     i = 1;
     loop(16,
@@ -395,7 +395,7 @@ analysis_done ? (
   gfx_setfont(1, "Arial", 13);
   gfx_x = 20;
   gfx_y = 308;
-  gfx_drawstr("4/4 assumed | v0.2 duration-based inference");
+  gfx_drawstr("4/4 assumed | v0.3.1 duration-based inference");
 ) : (
   gfx_setfont(1, "Arial", 13);
   gfx_x = 20;

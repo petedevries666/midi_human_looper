@@ -1,6 +1,8 @@
-desc:MIDI Human Looper v0.8.2
+desc:MIDI Human Looper v0.8.3
 
 // Free-time MIDI looper prototype for REAPER JSFX.
+// v0.8.3:
+// - isolate GUI row index from @block playback globals to stop layer labels flickering
 // v0.8.2:
 // - fix GUI layer loop: layer index was never incremented, so all four rows were actually layer 1
 // - prevents OVR/CLR/mute/solo rows from all targeting layer 1
@@ -77,7 +79,7 @@ prev_readyplay=0;
 prev_abortstop=0;
 prev_clear=0;
 
-function layer_count(layer)
+function layer_count(gui_layer)
 local(addr)
 (
   addr = COUNT_BASE + layer;
@@ -98,12 +100,12 @@ local(addr)
   addr;
 );
 
-function clear_layer(layer)
+function clear_layer(gui_layer)
 (
   set_layer_count(layer,0);
-  mem[MUTE_BASE+layer]=0;
-  mem[SOLO_BASE+layer]=0;
-  mem[VEL_BASE+layer]=1;
+  mem[MUTE_BASE+gui_layer]=0;
+  mem[SOLO_BASE+gui_layer]=0;
+  mem[VEL_BASE+gui_layer]=1;
 );
 
 function clear_all()
@@ -129,7 +131,7 @@ local(i)
 function store_event(layer, ts, st, d1, d2, offs)
 local(count,base)
 (
-  count=layer_count(layer);
+  count=layer_count(gui_layer);
   count < MAX_EVENTS_PER_LAYER ? (
     base=layer_base(layer,count);
     mem[base]=ts;
@@ -198,7 +200,7 @@ function layer_audible(layer)
 local(soloing)
 (
   soloing=any_solo();
-  soloing ? (mem[SOLO_BASE+layer] > 0.5) : (mem[MUTE_BASE+layer] < 0.5);
+  soloing ? (mem[SOLO_BASE+gui_layer] > 0.5) : (mem[MUTE_BASE+gui_layer] < 0.5);
 );
 
 function quant_grid_samples()
@@ -351,7 +353,7 @@ state==STATE_PLAYING && loop_len_samples>0 ? (
     layer=0;
     loop(LAYERS,
       layer_audible(layer) ? (
-        count=layer_count(layer);
+        count=layer_count(gui_layer);
         i=0;
         loop(count,
           base=layer_base(layer,i);
@@ -374,7 +376,7 @@ state==STATE_PLAYING && loop_len_samples>0 ? (
             out_d2=mem[base+3]&127;
 
             ((out_status&240)==144 && out_d2>0) ? (
-              velmul=slider9*mem[VEL_BASE+layer];
+              velmul=slider9*mem[VEL_BASE+gui_layer];
               out_d2=floor(out_d2*velmul+0.5);
               out_d2=max(1,min(127,out_d2));
             );
@@ -524,29 +526,29 @@ gfx_setfont(1,"Arial",16);
 gfx_x=20; gfx_y=126; gfx_drawstr("LAYERS");
 
 rowy=154;
-layer=0;
+gui_layer=0;
 loop(LAYERS,
   gfx_set(0.78,0.78,0.78,1);
   gfx_setfont(1,"Arial",15);
   gfx_x=20; gfx_y=rowy+9;
   gfx_drawstr("L");
-  gfx_drawnumber(layer+1,0);
+  gfx_drawnumber(gui_layer+1,0);
 
   mx=65; sx=112; ox=159; cx=252;
-  smallbtn(mx,rowy,38,34,"M",mem[MUTE_BASE+layer]>0.5);
-  smallbtn(sx,rowy,38,34,"S",mem[SOLO_BASE+layer]>0.5);
-  smallbtn(ox,rowy,82,34,"OVR",overdub_armed && overdub_layer==layer || overdub_active && overdub_layer==layer);
+  smallbtn(mx,rowy,38,34,"M",mem[MUTE_BASE+gui_layer]>0.5);
+  smallbtn(sx,rowy,38,34,"S",mem[SOLO_BASE+gui_layer]>0.5);
+  smallbtn(ox,rowy,82,34,"OVR",overdub_armed && overdub_layer==gui_layer || overdub_active && overdub_layer==gui_layer);
   smallbtn(cx,rowy,58,34,"CLR",0);
 
-  hit(mx,rowy,38,34) ? mem[MUTE_BASE+layer]=1-mem[MUTE_BASE+layer];
-  hit(sx,rowy,38,34) ? mem[SOLO_BASE+layer]=1-mem[SOLO_BASE+layer];
+  hit(mx,rowy,38,34) ? mem[MUTE_BASE+gui_layer]=1-mem[MUTE_BASE+gui_layer];
+  hit(sx,rowy,38,34) ? mem[SOLO_BASE+gui_layer]=1-mem[SOLO_BASE+gui_layer];
 
   hit(ox,rowy,82,34) && state==STATE_PLAYING ? (
-    overdub_active && overdub_layer==layer ? (
+    overdub_active && overdub_layer==gui_layer ? (
       overdub_active=0;
       overdub_pos=0;
     ) : (
-      overdub_layer=layer;
+      overdub_layer=gui_layer;
       overdub_armed=1;
       overdub_active=0;
     );
@@ -554,29 +556,29 @@ loop(LAYERS,
 
   hit(cx,rowy,58,34) ? (
     panic_pending=1;
-    clear_layer(layer);
+    clear_layer(gui_layer);
   );
 
   // velocity mini slider, x=330..510 maps 0.2..3.0
   vx=330; vw=180; vy=rowy+8;
   gfx_set(0.22,0.22,0.22,1); gfx_rect(vx,vy,vw,18,1);
-  vnorm=(mem[VEL_BASE+layer]-0.2)/2.8;
+  vnorm=(mem[VEL_BASE+gui_layer]-0.2)/2.8;
   vnorm=max(0,min(1,vnorm));
   gfx_set(0.7,0.7,0.7,1); gfx_rect(vx,vy,vw*vnorm,18,1);
   mouse_cap&1 && mouse_x>=vx && mouse_x<vx+vw && mouse_y>=vy && mouse_y<vy+18 ? (
-    mem[VEL_BASE+layer]=0.2+2.8*((mouse_x-vx)/vw);
+    mem[VEL_BASE+gui_layer]=0.2+2.8*((mouse_x-vx)/vw);
   );
   gfx_setfont(1,"Arial",13);
   gfx_x=522; gfx_y=rowy+9;
   gfx_drawstr("x");
-  gfx_drawnumber(mem[VEL_BASE+layer],2);
+  gfx_drawnumber(mem[VEL_BASE+gui_layer],2);
 
   gfx_x=610; gfx_y=rowy+9;
   gfx_drawstr("ev ");
-  gfx_drawnumber(layer_count(layer),0);
+  gfx_drawnumber(layer_count(gui_layer),0);
 
   rowy+=48;
-  layer+=1;
+  gui_layer+=1;
 );
 
 gfx_setfont(1,"Arial",14);

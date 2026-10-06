@@ -1,4 +1,4 @@
-desc:MIDI Human Looper v0.5
+desc:MIDI Human Looper v0.5.1
 
 // Free-time MIDI looper prototype for REAPER JSFX.
 // Workflow:
@@ -128,7 +128,8 @@ local(seconds, best_score, bars, bpm, score, target_bpm, i)
 function send_all_notes_off()
 local(ch, note)
 (
-  // Must run from @block. Use explicit 4-argument midisend syntax.
+  // Graceful stop: release keys, don't kill voices.
+  // Kontakt/envelopes can therefore play their natural release tails.
   ch = 0;
   loop(16,
     note = 0;
@@ -136,9 +137,8 @@ local(ch, note)
       midisend(0, 128 | ch, note, 0);
       note += 1;
     );
-    midisend(0, 176 | ch, 64, 0);   // sustain pedal OFF
-    midisend(0, 176 | ch, 123, 0);  // all notes off
-    midisend(0, 176 | ch, 120, 0);  // all sound off
+    // Release sustain so pedal-held notes can also enter their release stage.
+    midisend(0, 176 | ch, 64, 0);
     ch += 1;
   );
 );
@@ -413,7 +413,7 @@ analysis_done ? (
   gfx_setfont(1, "Arial", 13);
   gfx_x = 20;
   gfx_y = 308;
-  gfx_drawstr("4/4 assumed | v0.5 duration-based inference");
+  gfx_drawstr("4/4 assumed | v0.5.1 duration-based inference");
 ) : (
   gfx_setfont(1, "Arial", 13);
   gfx_x = 20;

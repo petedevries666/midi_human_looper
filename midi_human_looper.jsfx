@@ -1,6 +1,10 @@
-desc:MIDI Human Looper v1.3.2
+desc:MIDI Human Looper v1.3.3
 
 // Free-time MIDI looper prototype for REAPER JSFX.
+// v1.3.3:
+// - cross-layer choke now releases only notes actually owned by active ONE SHOT voices
+// - no more 2048-note panic burst when switching phrase layers
+// - sustain-off is sent only on channels whose ONE SHOT group currently owns sustain
 // v1.3.2:
 // - overlapping same-layer ONE SHOT voices now use MIDI note reference counting
 // - an older voice Note Off cannot kill a note still held by a newer retrigger
@@ -385,16 +389,25 @@ local(ch,note)
 );
 
 function release_phrase_notes()
-local(ch,note)
+local(ch,note,key)
 (
+  // Targeted choke for ONE SHOT voices only.
+  // Release exactly the notes that our ownership table says are still sounding.
   ch=0;
   loop(16,
     note=0;
     loop(128,
-      midisend(0,128|ch,note,0);
+      key=NOTE_REF_BASE + ch*128 + note;
+      mem[key]>0 ? (
+        midisend(0,128|ch,note,0);
+        mem[key]=0;
+      );
       note+=1;
     );
-    midisend(0,176|ch,64,0);
+    mem[SUSTAIN_REF_BASE+ch]>0 ? (
+      midisend(0,176|ch,64,0);
+      mem[SUSTAIN_REF_BASE+ch]=0;
+    );
     ch+=1;
   );
 );
@@ -545,10 +558,6 @@ trigger_request>=0 ? (
   requested_layer!=last_trigger_layer ? (
     last_trigger_layer>=0 ? (
       release_phrase_notes();
-      ri=0;
-      loop(NOTE_REF_SIZE, mem[NOTE_REF_BASE+ri]=0; ri+=1;);
-      ri=0;
-      loop(16, mem[SUSTAIN_REF_BASE+ri]=0; ri+=1;);
       vi=0;
       loop(MAX_ONCE_VOICES,
         mem[VOICE_ACTIVE_BASE+vi]=0;
@@ -571,10 +580,6 @@ trigger_request>=0 ? (
   );
   voice_slot<0 ? (
     release_phrase_notes();
-    ri=0;
-    loop(NOTE_REF_SIZE, mem[NOTE_REF_BASE+ri]=0; ri+=1;);
-    ri=0;
-    loop(16, mem[SUSTAIN_REF_BASE+ri]=0; ri+=1;);
     vi=0;
     loop(MAX_ONCE_VOICES,
       mem[VOICE_ACTIVE_BASE+vi]=0;

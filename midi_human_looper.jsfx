@@ -1,6 +1,9 @@
-desc:MIDI Human Looper v1.2.2
+desc:MIDI Human Looper v1.2.3
 
 // Free-time MIDI looper prototype for REAPER JSFX.
+// v1.2.3:
+// - fix rapid ONE SHOT retrigger race: soft-kill is now sent immediately from the audio block
+// - GUI only queues trigger requests; MIDI Note Off / CC64 cleanup happens before the new phrase attack
 // v1.2.2:
 // - ONE SHOT layers are monophonic as a phrase group: triggering another ONCE soft-kills the previous one
 // - previous phrase receives graceful Note Offs + sustain-off, then the new phrase starts
@@ -113,6 +116,7 @@ current_patch = 1;
 save_flash = 0;
 save_flash_patch = 0;
 last_trigger_layer = -1;
+trigger_request = -1;
 
 i=0;
 loop(LAYERS,
@@ -488,6 +492,34 @@ panic_pending ? (
   panic_pending=0;
 );
 
+// Process ONE SHOT trigger atomically in the audio thread.
+// This avoids @gfx/@block races when TRIG is hit very rapidly.
+trigger_request>=0 ? (
+  requested_layer=trigger_request;
+  trigger_request=-1;
+
+  // Release currently sounding phrase NOW, before any new Note On can be emitted.
+  release_phrase_notes();
+
+  kill_i=0;
+  loop(LAYERS,
+    mem[TRIG_BASE+kill_i]=0;
+    mem[ONCEPOS_BASE+kill_i]=0;
+    kill_i+=1;
+  );
+
+  last_trigger_layer==requested_layer ? (
+    mem[REPEAT_BASE+requested_layer]+=1;
+  ) : (
+    last_trigger_layer>=0 ? mem[REPEAT_BASE+last_trigger_layer]=0;
+    mem[REPEAT_BASE+requested_layer]=0;
+    last_trigger_layer=requested_layer;
+  );
+
+  mem[ONCEPOS_BASE+requested_layer]=0;
+  mem[TRIG_BASE+requested_layer]=1;
+);
+
 while (
   midirecv(offset,msg1,msg23) ?
   (
@@ -631,7 +663,7 @@ loop(LAYERS,
     mem[ONCEPOS_BASE+once_layer]>=max(1,mem[LEN_BASE+once_layer]) ? (
       mem[TRIG_BASE+once_layer]=0;
       mem[ONCEPOS_BASE+once_layer]=0;
-      panic_pending=1;
+      release_phrase_notes();
     );
   );
   once_layer+=1;
@@ -830,28 +862,8 @@ loop(LAYERS,
   );
 
   hit(trigx,rowy,62,34) && mem[MODE_BASE+gui_layer]>=0.5 && layer_count(gui_layer)>0 ? (
-    // ONE SHOT phrases behave as one exclusive phrase group.
-    // Retriggering the same phrase or triggering another phrase gracefully
-    // releases the currently sounding ONCE phrase before the new attack.
-    kill_i=0;
-    loop(LAYERS,
-      mem[MODE_BASE+kill_i]>=0.5 && mem[TRIG_BASE+kill_i]>0.5 ? (
-        mem[TRIG_BASE+kill_i]=0;
-        mem[ONCEPOS_BASE+kill_i]=0;
-        panic_pending=1;
-      );
-      kill_i+=1;
-    );
-
-    last_trigger_layer==gui_layer ? (
-      mem[REPEAT_BASE+gui_layer]+=1;
-    ) : (
-      last_trigger_layer>=0 ? mem[REPEAT_BASE+last_trigger_layer]=0;
-      mem[REPEAT_BASE+gui_layer]=0;
-      last_trigger_layer=gui_layer;
-    );
-    mem[ONCEPOS_BASE+gui_layer]=0;
-    mem[TRIG_BASE+gui_layer]=1;
+    // Queue only. @block performs kill + restart atomically before playback.
+    trigger_request=gui_layer;
   );
 
   // velocity mini slider

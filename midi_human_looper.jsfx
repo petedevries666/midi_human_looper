@@ -1,4 +1,4 @@
-desc:MIDI Human Looper v0.6.1
+desc:MIDI Human Looper v0.6.2
 
 // Free-time MIDI looper prototype for REAPER JSFX.
 // Workflow:
@@ -26,7 +26,7 @@ slider4:0<0,1,1>-CLEAR (use GUI button)-
 slider5:120<30,240,0.1>BPM DETECTED
 slider6:4<1,16,1>BARS DETECTED
 slider7:0<0,1,1{RAW,QUANTIZE}>QUANTIZE (reserved)
-slider8:16<1,16,1>MIDI OUT CHANNEL
+slider8:1<1,16,1>MIDI OUT CHANNEL
 slider9:1<0.2,3,0.01>VELOCITY MULTIPLIER
 
 @init
@@ -427,7 +427,7 @@ analysis_done ? (
   gfx_setfont(1, "Arial", 13);
   gfx_x = 20;
   gfx_y = 308;
-  gfx_drawstr("4/4 assumed | v0.6.1 duration-based inference");
+  gfx_drawstr("4/4 assumed | v0.6.2 duration-based inference");
 ) : (
   gfx_setfont(1, "Arial", 13);
   gfx_x = 20;

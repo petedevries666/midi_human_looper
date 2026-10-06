@@ -1,6 +1,9 @@
-desc:MIDI Human Looper v0.8.4
+desc:MIDI Human Looper v0.8.5
 
 // Free-time MIDI looper prototype for REAPER JSFX.
+// v0.8.5:
+// - fix playback event count still reading gui_layer instead of current audio layer
+// - restore complete master-loop playback
 // v0.8.4:
 // - repair accidental v0.8.3 global replacement inside audio-engine functions
 // - GUI uses gui_layer only; audio engine uses layer only
@@ -356,7 +359,7 @@ state==STATE_PLAYING && loop_len_samples>0 ? (
     layer=0;
     loop(LAYERS,
       layer_audible(layer) ? (
-        count=layer_count(gui_layer);
+        count=layer_count(layer);
         i=0;
         loop(count,
           base=layer_base(layer,i);

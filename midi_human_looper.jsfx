@@ -1,4 +1,4 @@
-desc:MIDI Human Looper v0.2
+desc:MIDI Human Looper v0.3
 
 // Free-time MIDI looper prototype for REAPER JSFX.
 // Workflow:
@@ -15,10 +15,10 @@ desc:MIDI Human Looper v0.2
 // - clearer detected info in the UI
 // - loop can be stopped and restarted without re-recording
 
-slider1:0<0,1,1{OFF,READY}>READY
-slider2:0<0,1,1{OFF,PLAY}>PLAY / FINISH
-slider3:0<0,1,1{OFF,STOP}>STOP
-slider4:0<0,1,1{OFF,CLEAR}>CLEAR
+slider1:0<0,1,1>-READY (use GUI button)-
+slider2:0<0,1,1>-PLAY (use GUI button)-
+slider3:0<0,1,1>-STOP (use GUI button)-
+slider4:0<0,1,1>-CLEAR (use GUI button)-
 slider5:120<30,240,0.1>BPM DETECTED
 slider6:4<1,16,1>BARS DETECTED
 slider7:0<0,1,1{RAW,QUANTIZE}>QUANTIZE (reserved)
@@ -274,11 +274,77 @@ state == STATE_PLAYING && loop_len_samples > 0 && event_count > 0 ? (
 
 state == STATE_RECORDING ? record_sample_pos += samplesblock;
 
-@gfx 560 300
+@gfx 560 360
+
+function hit(x,y,w,h)
+(
+  mouse_cap & 1 && !(last_mouse_cap & 1) &&
+  mouse_x >= x && mouse_x < x+w &&
+  mouse_y >= y && mouse_y < y+h
+);
+
+function button(x,y,w,h,label,active)
+(
+  active ? gfx_set(0.35,0.35,0.35,1) : gfx_set(0.18,0.18,0.18,1);
+  gfx_rect(x,y,w,h,1);
+  gfx_set(0.8,0.8,0.8,1);
+  gfx_rect(x,y,w,h,0);
+  gfx_setfont(1,"Arial",16);
+  gfx_measurestr(label,tw,th);
+  gfx_x=x+(w-tw)/2;
+  gfx_y=y+(h-th)/2;
+  gfx_drawstr(label);
+);
+
+bx=20; by=18; bw=115; bh=42; gap=10;
+
+button(bx,by,bw,bh,"READY",state==STATE_READY || state==STATE_RECORDING);
+button(bx+bw+gap,by,bw,bh,"PLAY",state==STATE_PLAYING);
+button(bx+(bw+gap)*2,by,bw,bh,"STOP",state==STATE_STOPPED);
+button(bx+(bw+gap)*3,by,bw,bh,"CLEAR",0);
+
+hit(bx,by,bw,bh) ? (
+  event_count=0; record_sample_pos=0; loop_len_samples=0; play_sample_pos=0;
+  started=0; analysis_done=0; state=STATE_READY;
+);
+
+hit(bx+bw+gap,by,bw,bh) ? (
+  state==STATE_RECORDING ? (
+    loop_len_samples=record_sample_pos;
+    loop_len_samples<1 ? loop_len_samples=1;
+    infer_tempo();
+    play_sample_pos=0;
+    state=STATE_PLAYING;
+  ) : state==STATE_STOPPED && loop_len_samples>0 && event_count>0 ? (
+    play_sample_pos=0;
+    state=STATE_PLAYING;
+  );
+);
+
+hit(bx+(bw+gap)*2,by,bw,bh) ? (
+  state==STATE_PLAYING ? (
+    send_all_notes_off();
+    play_sample_pos=0;
+    state=STATE_STOPPED;
+  ) : state==STATE_RECORDING ? (
+    send_all_notes_off();
+    event_count=0; record_sample_pos=0; loop_len_samples=0;
+    analysis_done=0; state=STATE_IDLE;
+  ) : state==STATE_READY ? state=STATE_IDLE;
+);
+
+hit(bx+(bw+gap)*3,by,bw,bh) ? (
+  send_all_notes_off();
+  clear_loop();
+);
+
+last_mouse_cap=mouse_cap;
+
+gfx_set(0.8,0.8,0.8,1);
 
 gfx_setfont(1, "Arial", 22);
 gfx_x = 20;
-gfx_y = 18;
+gfx_y = 78;
 
 state == STATE_IDLE ? gfx_drawstr("IDLE") :
 state == STATE_READY ? gfx_drawstr("READY - waiting for first Note On") :
@@ -289,12 +355,12 @@ state == STATE_STOPPED ? gfx_drawstr("STOPPED - loop stored");
 gfx_setfont(1, "Arial", 16);
 
 gfx_x = 20;
-gfx_y = 62;
+gfx_y = 112;
 gfx_drawstr("Events: ");
 gfx_drawnumber(event_count,0);
 
 gfx_x = 20;
-gfx_y = 92;
+gfx_y = 142;
 state == STATE_RECORDING ? (
   gfx_drawstr("Recording length: ");
   gfx_drawnumber(record_sample_pos / srate,3);
@@ -309,30 +375,30 @@ analysis_done ? (
   gfx_setfont(1, "Arial", 24);
 
   gfx_x = 20;
-  gfx_y = 132;
+  gfx_y = 182;
   gfx_drawstr("DETECTED");
 
   gfx_setfont(1, "Arial", 21);
 
   gfx_x = 20;
-  gfx_y = 170;
+  gfx_y = 220;
   gfx_drawstr("Tempo: ");
   gfx_drawnumber(slider5,2);
   gfx_drawstr(" BPM");
 
   gfx_x = 20;
-  gfx_y = 205;
+  gfx_y = 255;
   gfx_drawstr("Length: ");
   gfx_drawnumber(slider6,0);
   slider6 == 1 ? gfx_drawstr(" bar") : gfx_drawstr(" bars");
 
   gfx_setfont(1, "Arial", 13);
   gfx_x = 20;
-  gfx_y = 248;
+  gfx_y = 308;
   gfx_drawstr("4/4 assumed | v0.2 duration-based inference");
 ) : (
   gfx_setfont(1, "Arial", 13);
   gfx_x = 20;
-  gfx_y = 150;
+  gfx_y = 200;
   gfx_drawstr("READY -> first note starts capture -> PLAY closes loop");
 );

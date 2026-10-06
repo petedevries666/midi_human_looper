@@ -1,4 +1,4 @@
-desc:MIDI Human Looper v0.6
+desc:MIDI Human Looper v0.6.1
 
 // Free-time MIDI looper prototype for REAPER JSFX.
 // Workflow:
@@ -16,6 +16,7 @@ desc:MIDI Human Looper v0.6
 // - loop can be stopped and restarted without re-recording
 // v0.4:
 // - live MIDI always passes through, including while the loop is playing
+// - recording stores the full incoming MIDI stream, including sustain CC64
 // - STOP/CLEAR send explicit Note Off for all 128 notes on all 16 channels
 
 slider1:0<0,1,1>-READY (use GUI button)-
@@ -247,6 +248,8 @@ while (
       store_event(0, msg1, d1, d2, offset);
     ) :
     state == STATE_RECORDING ? (
+      // Store the complete MIDI stream while recording:
+      // notes, sustain pedal (CC64), other CCs, pitch bend, aftertouch, etc.
       store_event(record_sample_pos + offset, msg1, d1, d2, offset);
     );
 
@@ -424,7 +427,7 @@ analysis_done ? (
   gfx_setfont(1, "Arial", 13);
   gfx_x = 20;
   gfx_y = 308;
-  gfx_drawstr("4/4 assumed | v0.6 duration-based inference");
+  gfx_drawstr("4/4 assumed | v0.6.1 duration-based inference");
 ) : (
   gfx_setfont(1, "Arial", 13);
   gfx_x = 20;

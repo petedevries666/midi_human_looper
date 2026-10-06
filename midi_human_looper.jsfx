@@ -1,6 +1,11 @@
-desc:MIDI Human Looper v1.0
+desc:MIDI Human Looper v1.1
 
 // Free-time MIDI looper prototype for REAPER JSFX.
+// v1.1:
+// - click L1/L2/L3/L4 to ARM that layer for fresh phrase recording
+// - armed layer is highlighted red and main transport returns to READY
+// - each layer now stores its own phrase length for independent ONE SHOT recording/playback
+// - recording another layer no longer destroys the other stored phrases
 // v1.0:
 // - per-layer playback mode: LOOP or ONCE
 // - per-layer TRIG button launches ONCE phrases independently
@@ -83,7 +88,8 @@ VEL_BASE = SOLO_BASE + LAYERS;
 MODE_BASE = VEL_BASE + LAYERS;
 TRIG_BASE = MODE_BASE + LAYERS;
 ONCEPOS_BASE = TRIG_BASE + LAYERS;
-WORK_MEM_SIZE = ONCEPOS_BASE + LAYERS;
+LEN_BASE = ONCEPOS_BASE + LAYERS;
+WORK_MEM_SIZE = LEN_BASE + LAYERS;
 PATCH_HEADER_SIZE = 12;
 PATCH_DATA_SIZE = PATCH_HEADER_SIZE + WORK_MEM_SIZE;
 PATCH1_BASE = WORK_MEM_SIZE + 64;
@@ -103,6 +109,7 @@ loop(LAYERS,
   mem[MODE_BASE+i]=0; // 0 LOOP, 1 ONCE
   mem[TRIG_BASE+i]=0;
   mem[ONCEPOS_BASE+i]=0;
+  mem[LEN_BASE+i]=0;
   i+=1;
 );
 
@@ -151,6 +158,7 @@ function clear_layer(layer)
   mem[VEL_BASE+layer]=1;
   mem[TRIG_BASE+layer]=0;
   mem[ONCEPOS_BASE+layer]=0;
+  mem[LEN_BASE+layer]=0;
 );
 
 function clear_all()
@@ -168,6 +176,7 @@ local(i)
   overdub_armed=0;
   overdub_active=0;
   overdub_pos=0;
+  record_layer=0;
   state=STATE_IDLE;
   slider6=120;
   slider7=4;
@@ -241,6 +250,17 @@ local(pb,j,valid,oldslot)
     state = loop_len_samples>0 ? STATE_STOPPED : STATE_IDLE;
     current_patch=slot;
   );
+);
+
+function arm_layer(layer)
+(
+  panic_pending=1;
+  record_layer=layer;
+  record_sample_pos=0;
+  play_sample_pos=0;
+  overdub_armed=0;
+  overdub_active=0;
+  state=STATE_READY;
 );
 
 function store_event(layer, ts, st, d1, d2, offs)
@@ -388,11 +408,14 @@ clear_now=slider3;
     state=STATE_READY;
   ) :
   state==STATE_RECORDING ? (
-    loop_len_samples=record_sample_pos;
-    loop_len_samples<1 ? loop_len_samples=1;
-    infer_tempo();
+    phrase_len=max(1,record_sample_pos);
+    mem[LEN_BASE+record_layer]=phrase_len;
+    (record_layer==0 || loop_len_samples<=0) ? (
+      loop_len_samples=phrase_len;
+      infer_tempo();
+    );
     play_sample_pos=0;
-    state=STATE_PLAYING;
+    state=STATE_STOPPED;
   );
   slider1=0;
 );
@@ -442,12 +465,13 @@ while (
     is_note_on=(status==144 && d2>0);
 
     state==STATE_READY && is_note_on ? (
+      clear_layer(record_layer);
       state=STATE_RECORDING;
       record_sample_pos=0;
-      store_event(0,0,msg1,d1,d2,offset);
+      store_event(record_layer,0,msg1,d1,d2,offset);
     ) :
     state==STATE_RECORDING ? (
-      store_event(0,record_sample_pos+offset,msg1,d1,d2,offset);
+      store_event(record_layer,record_sample_pos+offset,msg1,d1,d2,offset);
     ) :
     overdub_active ? (
       store_event(overdub_layer,overdub_pos+offset,msg1,d1,d2,offset);
@@ -527,6 +551,7 @@ state==STATE_PLAYING && loop_len_samples>0 ? (
       play_sample_pos=0;
 
       overdub_active ? (
+        mem[LEN_BASE+overdub_layer]=loop_len_samples;
         overdub_active=0;
         overdub_pos=0;
       ) :
@@ -571,7 +596,7 @@ loop(LAYERS,
       i+=1;
     );
     mem[ONCEPOS_BASE+once_layer]=once_end;
-    mem[ONCEPOS_BASE+once_layer]>=loop_len_samples ? (
+    mem[ONCEPOS_BASE+once_layer]>=max(1,mem[LEN_BASE+once_layer]) ? (
       mem[TRIG_BASE+once_layer]=0;
       mem[ONCEPOS_BASE+once_layer]=0;
     );
@@ -624,7 +649,7 @@ bx=20; by=18; bw=160; bh=44; gap=12;
 
 rp_label="READY";
 state==STATE_RECORDING ? rp_label="PLAY";
-loop_len_samples>0 && state!=STATE_RECORDING && state!=STATE_PLAYING ? rp_label="PLAY";
+loop_len_samples>0 && state==STATE_STOPPED ? rp_label="PLAY";
 button(bx,by,bw,bh,rp_label,state==STATE_READY || state==STATE_RECORDING || state==STATE_PLAYING);
 
 as_label="ABORT";
@@ -668,11 +693,14 @@ hit(bx,by,bw,bh) ? (
     state=STATE_READY;
   ) :
   state==STATE_RECORDING ? (
-    loop_len_samples=record_sample_pos;
-    loop_len_samples<1 ? loop_len_samples=1;
-    infer_tempo();
+    phrase_len=max(1,record_sample_pos);
+    mem[LEN_BASE+record_layer]=phrase_len;
+    (record_layer==0 || loop_len_samples<=0) ? (
+      loop_len_samples=phrase_len;
+      infer_tempo();
+    );
     play_sample_pos=0;
-    state=STATE_PLAYING;
+    state=STATE_STOPPED;
   );
 );
 
@@ -680,11 +708,13 @@ hit(bx+bw+gap,by,bw,bh) ? (
   state==STATE_READY ? state=STATE_IDLE :
   state==STATE_RECORDING ? (
     panic_pending=1;
-    clear_layer(0);
+    clear_layer(record_layer);
     record_sample_pos=0;
-    loop_len_samples=0;
-    analysis_done=0;
-    state=STATE_IDLE;
+    record_layer==0 ? (
+      loop_len_samples=0;
+      analysis_done=0;
+    );
+    state=loop_len_samples>0 ? STATE_STOPPED : STATE_IDLE;
   ) :
   state==STATE_PLAYING ? (
     panic_pending=1;
@@ -704,7 +734,11 @@ gfx_set(0.82,0.82,0.82,1);
 gfx_setfont(1,"Arial",21);
 gfx_x=330; gfx_y=82;
 state==STATE_IDLE ? gfx_drawstr("IDLE") :
-state==STATE_READY ? gfx_drawstr("READY - waiting for first Note On") :
+state==STATE_READY ? (
+  gfx_drawstr("READY L");
+  gfx_drawnumber(record_layer+1,0);
+  gfx_drawstr(" - waiting for first Note On");
+) :
 state==STATE_RECORDING ? gfx_drawstr("RECORDING MASTER LOOP") :
 state==STATE_PLAYING ? (
   overdub_active ? gfx_drawstr("LOOPING + OVERDUB") :
@@ -720,11 +754,13 @@ gfx_x=20; gfx_y=126; gfx_drawstr("LAYERS");
 rowy=154;
 gui_layer=0;
 loop(LAYERS,
-  gfx_set(0.78,0.78,0.78,1);
+  (state==STATE_READY && record_layer==gui_layer) ? gfx_set(1,0.18,0.12,1) : gfx_set(0.78,0.78,0.78,1);
   gfx_setfont(1,"Arial",15);
   gfx_x=20; gfx_y=rowy+9;
   gfx_drawstr("L");
   gfx_drawnumber(gui_layer+1,0);
+
+  hit(16,rowy,40,34) ? arm_layer(gui_layer);
 
   mx=65; sx=112; ox=159; cx=252; modex=318; trigx=400;
   smallbtn(mx,rowy,38,34,"M",mem[MUTE_BASE+gui_layer]>0.5);
@@ -800,7 +836,7 @@ gfx_x=20; gfx_y=390;
 gfx_drawstr("Quantize uses detected tempo; 0% = raw timing, 100% = full grid.");
 
 gfx_x=20; gfx_y=418;
-gfx_drawstr("Overdub arms on next loop boundary and records one complete cycle.");
+gfx_drawstr("Click L1-L4 to ARM a layer (red), then first Note On starts recording.");
 
 gfx_x=20; gfx_y=446;
 gfx_drawstr("MIDI channel: use parameter ORIGINAL or force 1..16 | global velocity parameter x0.2..x3");

@@ -1,6 +1,9 @@
-desc:MIDI Human Looper v0.9.1
+desc:MIDI Human Looper v0.9.2
 
 // Free-time MIDI looper prototype for REAPER JSFX.
+// v0.9.2:
+// - READY becomes PLAY when a stored loop exists; PLAY restarts it without clearing
+// - SAVE gives visible confirmation for the selected patch
 // v0.9.1:
 // - patch buttons always switch slots; empty slots start as clean editable patches
 // - switching patches auto-saves current slot in RAM before loading the other slot
@@ -74,6 +77,8 @@ PATCH2_BASE = PATCH1_BASE + PATCH_DATA_SIZE;
 patch_valid1 = 0;
 patch_valid2 = 0;
 current_patch = 1;
+save_flash = 0;
+save_flash_patch = 0;
 
 i=0;
 loop(LAYERS,
@@ -172,6 +177,8 @@ local(pb,j)
   );
   slot==1 ? patch_valid1=1 : patch_valid2=1;
   current_patch=slot;
+  save_flash_patch=slot;
+  save_flash=srate*1.5;
 );
 
 function load_patch(slot)
@@ -348,7 +355,11 @@ clear_now=slider3;
 );
 
 (readyplay_now>0.5 && prev_readyplay<=0.5) ? (
-  state==STATE_IDLE || state==STATE_STOPPED ? (
+  state==STATE_STOPPED && loop_len_samples>0 ? (
+    play_sample_pos=0;
+    state=STATE_PLAYING;
+  ) :
+  state==STATE_IDLE ? (
     clear_layer(0);
     record_layer=0;
     record_sample_pos=0;
@@ -394,6 +405,9 @@ prev_abortstop=slider2;
 prev_clear=slider3;
 
 @block
+
+save_flash>0 ? save_flash-=samplesblock;
+save_flash<0 ? save_flash=0;
 
 panic_pending ? (
   send_all_notes_off();
@@ -552,7 +566,8 @@ bx=20; by=18; bw=160; bh=44; gap=12;
 
 rp_label="READY";
 state==STATE_RECORDING ? rp_label="PLAY";
-button(bx,by,bw,bh,rp_label,state==STATE_READY || state==STATE_RECORDING);
+state==STATE_STOPPED && loop_len_samples>0 ? rp_label="PLAY";
+button(bx,by,bw,bh,rp_label,state==STATE_READY || state==STATE_RECORDING || state==STATE_PLAYING);
 
 as_label="ABORT";
 state==STATE_PLAYING || state==STATE_STOPPED ? as_label="STOP";
@@ -571,6 +586,15 @@ hit(20,py,70,30) ? load_patch(1);
 hit(96,py,52,30) ? save_patch(1);
 hit(170,py,70,30) ? load_patch(2);
 hit(246,py,52,30) ? save_patch(2);
+
+save_flash>0 ? (
+  gfx_set(0.82,0.82,0.82,1);
+  gfx_setfont(1,"Arial",13);
+  gfx_x=310; gfx_y=84;
+  gfx_drawstr("PATCH ");
+  gfx_drawnumber(save_flash_patch,0);
+  gfx_drawstr(" SAVED");
+);
 
 hit(bx,by,bw,bh) ? (
   state==STATE_IDLE || state==STATE_STOPPED ? (

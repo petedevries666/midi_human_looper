@@ -1,6 +1,9 @@
-desc:MIDI Human Looper v0.8.1
+desc:MIDI Human Looper v0.8.2
 
 // Free-time MIDI looper prototype for REAPER JSFX.
+// v0.8.2:
+// - fix GUI layer loop: layer index was never incremented, so all four rows were actually layer 1
+// - prevents OVR/CLR/mute/solo rows from all targeting layer 1
 // v0.8.1:
 // - fix JSFX function-variable scope corrupting the GUI layer index / wrong layer operations
 // - stabilize layer addressing before further overdub work
@@ -573,6 +576,7 @@ loop(LAYERS,
   gfx_drawnumber(layer_count(layer),0);
 
   rowy+=48;
+  layer+=1;
 );
 
 gfx_setfont(1,"Arial",14);

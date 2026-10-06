@@ -1,6 +1,9 @@
-desc:MIDI Human Looper v0.9
+desc:MIDI Human Looper v0.9.1
 
 // Free-time MIDI looper prototype for REAPER JSFX.
+// v0.9.1:
+// - patch buttons always switch slots; empty slots start as clean editable patches
+// - switching patches auto-saves current slot in RAM before loading the other slot
 // v0.9:
 // - two complete patch slots with LOAD + SAVE
 // - patch stores all four MIDI layers, loop timing, mute/solo/velocity and global playback parameters
@@ -172,26 +175,38 @@ local(pb,j)
 );
 
 function load_patch(slot)
-local(pb,j,valid)
+local(pb,j,valid,oldslot)
 (
-  valid = slot==1 ? patch_valid1 : patch_valid2;
-  valid ? (
-    pb = slot==1 ? PATCH1_BASE : PATCH2_BASE;
+  oldslot=current_patch;
+  oldslot!=slot ? (
+    save_patch(oldslot);
+    valid = slot==1 ? patch_valid1 : patch_valid2;
     panic_pending=1;
-    j=0;
-    loop(WORK_MEM_SIZE,
-      mem[j]=mem[pb+PATCH_HEADER_SIZE+j];
-      j+=1;
+    valid ? (
+      pb = slot==1 ? PATCH1_BASE : PATCH2_BASE;
+      j=0;
+      loop(WORK_MEM_SIZE,
+        mem[j]=mem[pb+PATCH_HEADER_SIZE+j];
+        j+=1;
+      );
+      loop_len_samples=mem[pb+0];
+      analysis_done=mem[pb+1];
+      slider4=mem[pb+2];
+      slider5=mem[pb+3];
+      slider6=mem[pb+4];
+      slider7=mem[pb+5];
+      slider8=mem[pb+6];
+      slider9=mem[pb+7];
+      record_layer=mem[pb+8];
+    ) : (
+      clear_all();
+      slider4=0;
+      slider5=0;
+      slider6=120;
+      slider7=4;
+      slider8=0;
+      slider9=1;
     );
-    loop_len_samples=mem[pb+0];
-    analysis_done=mem[pb+1];
-    slider4=mem[pb+2];
-    slider5=mem[pb+3];
-    slider6=mem[pb+4];
-    slider7=mem[pb+5];
-    slider8=mem[pb+6];
-    slider9=mem[pb+7];
-    record_layer=mem[pb+8];
     record_sample_pos=0;
     play_sample_pos=0;
     overdub_armed=0;

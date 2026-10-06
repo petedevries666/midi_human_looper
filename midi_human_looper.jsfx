@@ -1,6 +1,11 @@
-desc:MIDI Human Looper v1.1
+desc:MIDI Human Looper v1.2
 
 // Free-time MIDI looper prototype for REAPER JSFX.
+// v1.2:
+// - per-layer retrigger velocity decay for ONE SHOT phrases
+// - consecutive TRIGs of the same layer progressively reduce Note On velocity
+// - triggering another layer resets the chain; returning starts at full velocity
+// - DECAY mini control per layer: 100% = no decay
 // v1.1:
 // - click L1/L2/L3/L4 to ARM that layer for fresh phrase recording
 // - armed layer is highlighted red and main transport returns to READY
@@ -89,7 +94,9 @@ MODE_BASE = VEL_BASE + LAYERS;
 TRIG_BASE = MODE_BASE + LAYERS;
 ONCEPOS_BASE = TRIG_BASE + LAYERS;
 LEN_BASE = ONCEPOS_BASE + LAYERS;
-WORK_MEM_SIZE = LEN_BASE + LAYERS;
+DECAY_BASE = LEN_BASE + LAYERS;
+REPEAT_BASE = DECAY_BASE + LAYERS;
+WORK_MEM_SIZE = REPEAT_BASE + LAYERS;
 PATCH_HEADER_SIZE = 12;
 PATCH_DATA_SIZE = PATCH_HEADER_SIZE + WORK_MEM_SIZE;
 PATCH1_BASE = WORK_MEM_SIZE + 64;
@@ -99,6 +106,7 @@ patch_valid2 = 0;
 current_patch = 1;
 save_flash = 0;
 save_flash_patch = 0;
+last_trigger_layer = -1;
 
 i=0;
 loop(LAYERS,
@@ -110,6 +118,8 @@ loop(LAYERS,
   mem[TRIG_BASE+i]=0;
   mem[ONCEPOS_BASE+i]=0;
   mem[LEN_BASE+i]=0;
+  mem[DECAY_BASE+i]=0.8;
+  mem[REPEAT_BASE+i]=0;
   i+=1;
 );
 
@@ -159,6 +169,7 @@ function clear_layer(layer)
   mem[TRIG_BASE+layer]=0;
   mem[ONCEPOS_BASE+layer]=0;
   mem[LEN_BASE+layer]=0;
+  mem[REPEAT_BASE+layer]=0;
 );
 
 function clear_all()
@@ -587,7 +598,7 @@ loop(LAYERS,
         out_d1=mem[base+2]&127;
         out_d2=mem[base+3]&127;
         ((out_status&240)==144 && out_d2>0) ? (
-          velmul=slider9*mem[VEL_BASE+once_layer];
+          velmul=slider9*mem[VEL_BASE+once_layer]*pow(mem[DECAY_BASE+once_layer],mem[REPEAT_BASE+once_layer]);
           out_d2=floor(out_d2*velmul+0.5);
           out_d2=max(1,min(127,out_d2));
         );
@@ -797,12 +808,19 @@ loop(LAYERS,
   );
 
   hit(trigx,rowy,62,34) && mem[MODE_BASE+gui_layer]>=0.5 && layer_count(gui_layer)>0 ? (
+    last_trigger_layer==gui_layer ? (
+      mem[REPEAT_BASE+gui_layer]+=1;
+    ) : (
+      last_trigger_layer>=0 ? mem[REPEAT_BASE+last_trigger_layer]=0;
+      mem[REPEAT_BASE+gui_layer]=0;
+      last_trigger_layer=gui_layer;
+    );
     mem[ONCEPOS_BASE+gui_layer]=0;
     mem[TRIG_BASE+gui_layer]=1;
   );
 
   // velocity mini slider
-  vx=475; vw=120; vy=rowy+8;
+  vx=475; vw=82; vy=rowy+3;
   gfx_set(0.22,0.22,0.22,1); gfx_rect(vx,vy,vw,18,1);
   vnorm=(mem[VEL_BASE+gui_layer]-0.2)/2.8;
   vnorm=max(0,min(1,vnorm));
@@ -811,11 +829,26 @@ loop(LAYERS,
     mem[VEL_BASE+gui_layer]=0.2+2.8*((mouse_x-vx)/vw);
   );
   gfx_setfont(1,"Arial",13);
-  gfx_x=603; gfx_y=rowy+9;
+  gfx_x=563; gfx_y=rowy+2;
   gfx_drawstr("x");
   gfx_drawnumber(mem[VEL_BASE+gui_layer],2);
 
-  gfx_x=675; gfx_y=rowy+9;
+  // retrigger velocity decay: 0.20..1.00, displayed as percent
+  dx=475; dw=82; dy=rowy+23;
+  gfx_set(0.22,0.22,0.22,1); gfx_rect(dx,dy,dw,9,1);
+  dnorm=(mem[DECAY_BASE+gui_layer]-0.2)/0.8;
+  dnorm=max(0,min(1,dnorm));
+  gfx_set(0.7,0.7,0.7,1); gfx_rect(dx,dy,dw*dnorm,9,1);
+  mouse_cap&1 && mouse_x>=dx && mouse_x<dx+dw && mouse_y>=dy-3 && mouse_y<dy+13 ? (
+    mem[DECAY_BASE+gui_layer]=0.2+0.8*((mouse_x-dx)/dw);
+  );
+  gfx_setfont(1,"Arial",10);
+  gfx_x=563; gfx_y=rowy+20;
+  gfx_drawstr("D ");
+  gfx_drawnumber(mem[DECAY_BASE+gui_layer]*100,0);
+  gfx_drawstr("%");
+
+  gfx_x=675; gfx_y=rowy+2;
   gfx_drawstr("ev ");
   gfx_drawnumber(layer_count(gui_layer),0);
 

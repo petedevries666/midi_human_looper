@@ -1,6 +1,9 @@
-desc:MIDI Human Looper v0.8.3
+desc:MIDI Human Looper v0.8.4
 
 // Free-time MIDI looper prototype for REAPER JSFX.
+// v0.8.4:
+// - repair accidental v0.8.3 global replacement inside audio-engine functions
+// - GUI uses gui_layer only; audio engine uses layer only
 // v0.8.3:
 // - isolate GUI row index from @block playback globals to stop layer labels flickering
 // v0.8.2:
@@ -79,7 +82,7 @@ prev_readyplay=0;
 prev_abortstop=0;
 prev_clear=0;
 
-function layer_count(gui_layer)
+function layer_count(layer)
 local(addr)
 (
   addr = COUNT_BASE + layer;
@@ -100,12 +103,12 @@ local(addr)
   addr;
 );
 
-function clear_layer(gui_layer)
+function clear_layer(layer)
 (
   set_layer_count(layer,0);
-  mem[MUTE_BASE+gui_layer]=0;
-  mem[SOLO_BASE+gui_layer]=0;
-  mem[VEL_BASE+gui_layer]=1;
+  mem[MUTE_BASE+layer]=0;
+  mem[SOLO_BASE+layer]=0;
+  mem[VEL_BASE+layer]=1;
 );
 
 function clear_all()
@@ -131,7 +134,7 @@ local(i)
 function store_event(layer, ts, st, d1, d2, offs)
 local(count,base)
 (
-  count=layer_count(gui_layer);
+  count=layer_count(layer);
   count < MAX_EVENTS_PER_LAYER ? (
     base=layer_base(layer,count);
     mem[base]=ts;
@@ -200,7 +203,7 @@ function layer_audible(layer)
 local(soloing)
 (
   soloing=any_solo();
-  soloing ? (mem[SOLO_BASE+gui_layer] > 0.5) : (mem[MUTE_BASE+gui_layer] < 0.5);
+  soloing ? (mem[SOLO_BASE+layer] > 0.5) : (mem[MUTE_BASE+layer] < 0.5);
 );
 
 function quant_grid_samples()
@@ -376,7 +379,7 @@ state==STATE_PLAYING && loop_len_samples>0 ? (
             out_d2=mem[base+3]&127;
 
             ((out_status&240)==144 && out_d2>0) ? (
-              velmul=slider9*mem[VEL_BASE+gui_layer];
+              velmul=slider9*mem[VEL_BASE+layer];
               out_d2=floor(out_d2*velmul+0.5);
               out_d2=max(1,min(127,out_d2));
             );

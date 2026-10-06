@@ -1,6 +1,9 @@
-desc:MIDI Human Looper v1.2
+desc:MIDI Human Looper v1.2.1
 
 // Free-time MIDI looper prototype for REAPER JSFX.
+// v1.2.1:
+// - ONE SHOT retrigger now releases notes/sustain from the previous trigger before restarting
+// - ONE SHOT natural end also releases notes/sustain to prevent hanging notes
 // v1.2:
 // - per-layer retrigger velocity decay for ONE SHOT phrases
 // - consecutive TRIGs of the same layer progressively reduce Note On velocity
@@ -330,6 +333,21 @@ local(ch,note)
   );
 );
 
+function release_phrase_notes()
+local(ch,note)
+(
+  ch=0;
+  loop(16,
+    note=0;
+    loop(128,
+      midisend(0,128|ch,note,0);
+      note+=1;
+    );
+    midisend(0,176|ch,64,0);
+    ch+=1;
+  );
+);
+
 function any_solo()
 local(li,res)
 (
@@ -610,6 +628,7 @@ loop(LAYERS,
     mem[ONCEPOS_BASE+once_layer]>=max(1,mem[LEN_BASE+once_layer]) ? (
       mem[TRIG_BASE+once_layer]=0;
       mem[ONCEPOS_BASE+once_layer]=0;
+      panic_pending=1;
     );
   );
   once_layer+=1;
@@ -808,6 +827,9 @@ loop(LAYERS,
   );
 
   hit(trigx,rowy,62,34) && mem[MODE_BASE+gui_layer]>=0.5 && layer_count(gui_layer)>0 ? (
+    // A retrigger can cut a phrase before its stored Note Off / sustain-off arrives.
+    // Release the previous sounding phrase first, then restart cleanly.
+    mem[TRIG_BASE+gui_layer]>0.5 ? panic_pending=1;
     last_trigger_layer==gui_layer ? (
       mem[REPEAT_BASE+gui_layer]+=1;
     ) : (

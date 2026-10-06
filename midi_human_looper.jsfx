@@ -1,4 +1,4 @@
-desc:MIDI Human Looper v0.3.1
+desc:MIDI Human Looper v0.4
 
 // Free-time MIDI looper prototype for REAPER JSFX.
 // Workflow:
@@ -14,6 +14,9 @@ desc:MIDI Human Looper v0.3.1
 // - supports 1..16 bar inference, including 2 / 3 / 4 / 5 / etc.
 // - clearer detected info in the UI
 // - loop can be stopped and restarted without re-recording
+// v0.4:
+// - live MIDI always passes through, including while the loop is playing
+// - STOP/CLEAR send explicit Note Off for all 128 notes on all 16 channels
 
 slider1:0<0,1,1>-READY (use GUI button)-
 slider2:0<0,1,1>-PLAY (use GUI button)-
@@ -122,11 +125,19 @@ local(seconds, best_score, bars, bpm, score, target_bpm, i)
 );
 
 function send_all_notes_off()
-local(ch)
+local(ch, note)
 (
+  // Belt + suspenders: explicit Note Off for every note/channel,
+  // then CC123 All Notes Off and CC120 All Sound Off.
   ch = 0;
   loop(16,
+    note = 0;
+    loop(128,
+      midisend(0, 128 | ch, note);
+      note += 1;
+    );
     midisend(0, 176 | ch, 123);
+    midisend(0, 176 | ch, 120);
     ch += 1;
   );
 );
@@ -231,8 +242,8 @@ while (
       store_event(record_sample_pos + offset, msg1, d1, d2, offset);
     );
 
-    // Live MIDI passthrough while not looping.
-    state != STATE_PLAYING ? midisend(offset, msg1, msg23);
+    // Live MIDI passthrough ALWAYS: you can play over the stored loop.
+    midisend(offset, msg1, msg23);
     1;
   );
   0;
@@ -395,7 +406,7 @@ analysis_done ? (
   gfx_setfont(1, "Arial", 13);
   gfx_x = 20;
   gfx_y = 308;
-  gfx_drawstr("4/4 assumed | v0.3.1 duration-based inference");
+  gfx_drawstr("4/4 assumed | v0.4 duration-based inference");
 ) : (
   gfx_setfont(1, "Arial", 13);
   gfx_x = 20;

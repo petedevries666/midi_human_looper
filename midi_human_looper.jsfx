@@ -1,4 +1,4 @@
-desc:MIDI Human Looper v0.1
+desc:MIDI Human Looper v0.2
 
 // Free-time MIDI looper prototype for REAPER JSFX.
 // Workflow:
@@ -6,22 +6,23 @@ desc:MIDI Human Looper v0.1
 // 2. Recording starts on the first incoming Note On.
 // 3. Press PLAY exactly where the loop should end.
 // 4. The captured MIDI loops immediately.
-// 5. A simple tempo/bar inference estimates BPM from total loop length.
+// 5. STOP halts playback without deleting the loop.
+// 6. The plugin shows detected BPM + bars after analysis.
 //
-// v0.1 goals:
-// - no DAW tempo dependency for capture
-// - sample-accurate event timestamps
-// - MIDI passthrough while idle/recording
-// - exact loop end defined by PLAY button
-// - basic BPM + bar-count estimate
+// v0.2:
+// - STOP button
+// - supports 1..16 bar inference, including 2 / 3 / 4 / 5 / etc.
+// - clearer detected info in the UI
+// - loop can be stopped and restarted without re-recording
 
 slider1:0<0,1,1{OFF,READY}>READY
 slider2:0<0,1,1{OFF,PLAY}>PLAY / FINISH
-slider3:0<0,1,1{OFF,CLEAR}>CLEAR
-slider4:120<30,240,0.1>BPM DETECTED
-slider5:4<1,16,1>BARS DETECTED
-slider6:0<0,1,1{RAW,QUANTIZE}>QUANTIZE (reserved)
-slider7:16<1,16,1>MIDI OUT CHANNEL
+slider3:0<0,1,1{OFF,STOP}>STOP
+slider4:0<0,1,1{OFF,CLEAR}>CLEAR
+slider5:120<30,240,0.1>BPM DETECTED
+slider6:4<1,16,1>BARS DETECTED
+slider7:0<0,1,1{RAW,QUANTIZE}>QUANTIZE (reserved)
+slider8:16<1,16,1>MIDI OUT CHANNEL
 
 @init
 
@@ -29,6 +30,7 @@ STATE_IDLE = 0;
 STATE_READY = 1;
 STATE_RECORDING = 2;
 STATE_PLAYING = 3;
+STATE_STOPPED = 4;
 
 state = STATE_IDLE;
 
@@ -47,8 +49,11 @@ record_sample_pos = 0;
 loop_len_samples = 0;
 play_sample_pos = 0;
 started = 0;
+analysis_done = 0;
+
 prev_ready = 0;
 prev_play = 0;
+prev_stop = 0;
 prev_clear = 0;
 
 function clear_loop()
@@ -58,9 +63,10 @@ function clear_loop()
   loop_len_samples = 0;
   play_sample_pos = 0;
   started = 0;
+  analysis_done = 0;
   state = STATE_IDLE;
-  slider4 = 120;
-  slider5 = 4;
+  slider5 = 120;
+  slider6 = 4;
 );
 
 function store_event(ts, st, d1, d2, offs)
@@ -85,45 +91,60 @@ local(seconds, best_score, bars, bpm, score, target_bpm, i)
     best_score = 1e20;
     target_bpm = 120;
 
-    // Assume 4/4 for v0.1.
-    // Try plausible loop lengths and choose the candidate BPM
-    // closest to 120 BPM while staying inside 30..240 BPM.
-    i = 0;
-    loop(6,
-      bars = (i == 0 ? 1 :
-             i == 1 ? 2 :
-             i == 2 ? 4 :
-             i == 3 ? 8 :
-             i == 4 ? 12 : 16);
-
+    // v0.2: evaluate every bar count from 1 to 16.
+    // 4/4 assumption for now.
+    i = 1;
+    loop(16,
+      bars = i;
       bpm = (bars * 4 * 60) / seconds;
 
       (bpm >= 30 && bpm <= 240) ? (
+        // Temporary heuristic:
+        // prefer a musically plausible BPM close to 120.
         score = abs(bpm - target_bpm);
+
+        // Slightly prefer common short loop sizes when scores are close,
+        // but still allow odd bar counts such as 3, 5, 7, etc.
+        (bars == 2 || bars == 4 || bars == 8) ? score -= 0.75;
+
         score < best_score ? (
           best_score = score;
-          slider4 = bpm;
-          slider5 = bars;
+          slider5 = bpm;
+          slider6 = bars;
         );
       );
 
       i += 1;
     );
+
+    analysis_done = 1;
+  );
+);
+
+function send_all_notes_off()
+local(ch)
+(
+  ch = 0;
+  loop(16,
+    midisend(0, 176 | ch, 123);
+    ch += 1;
   );
 );
 
 @slider
 
-// Edge-trigger buttons so a slider/button press acts once.
 ready_now = slider1;
 play_now = slider2;
-clear_now = slider3;
+stop_now = slider3;
+clear_now = slider4;
 
 (clear_now > 0.5 && prev_clear <= 0.5) ? (
+  send_all_notes_off();
   clear_loop();
   slider1 = 0;
   slider2 = 0;
   slider3 = 0;
+  slider4 = 0;
 );
 
 (ready_now > 0.5 && prev_ready <= 0.5) ? (
@@ -132,8 +153,11 @@ clear_now = slider3;
   loop_len_samples = 0;
   play_sample_pos = 0;
   started = 0;
+  analysis_done = 0;
   state = STATE_READY;
+
   slider2 = 0;
+  slider3 = 0;
 );
 
 (play_now > 0.5 && prev_play <= 0.5) ? (
@@ -147,22 +171,49 @@ clear_now = slider3;
     play_sample_pos = 0;
     state = STATE_PLAYING;
     slider1 = 0;
+  ) :
+  state == STATE_STOPPED && loop_len_samples > 0 && event_count > 0 ? (
+    // Restart an already captured loop from its beginning.
+    play_sample_pos = 0;
+    state = STATE_PLAYING;
   );
+
   slider2 = 0;
+);
+
+(stop_now > 0.5 && prev_stop <= 0.5) ? (
+  state == STATE_PLAYING ? (
+    send_all_notes_off();
+    play_sample_pos = 0;
+    state = STATE_STOPPED;
+  ) :
+  state == STATE_RECORDING ? (
+    // STOP during recording cancels this take but keeps plugin alive.
+    send_all_notes_off();
+    event_count = 0;
+    record_sample_pos = 0;
+    loop_len_samples = 0;
+    analysis_done = 0;
+    state = STATE_IDLE;
+  ) :
+  state == STATE_READY ? (
+    state = STATE_IDLE;
+  );
+
+  slider3 = 0;
 );
 
 prev_ready = slider1;
 prev_play = slider2;
-prev_clear = slider3;
+prev_stop = slider3;
+prev_clear = slider4;
 
 @block
 
-// Receive all incoming MIDI for this audio block.
 while (
   midirecv(offset, msg1, msg23) ?
   (
     status = msg1 & 240;
-    chan = msg1 & 15;
     d1 = msg23 & 127;
     d2 = (msg23 / 256) & 127;
 
@@ -177,7 +228,6 @@ while (
       store_event(0, msg1, d1, d2, offset);
     ) :
     state == STATE_RECORDING ? (
-      // Preserve exact position inside this block.
       store_event(record_sample_pos + offset, msg1, d1, d2, offset);
     );
 
@@ -189,7 +239,6 @@ while (
 );
 
 // Playback captured events.
-// We may wrap once or more if the loop is shorter than the current audio block.
 state == STATE_PLAYING && loop_len_samples > 0 && event_count > 0 ? (
   block_remaining = samplesblock;
   block_cursor = 0;
@@ -205,7 +254,7 @@ state == STATE_PLAYING && loop_len_samples > 0 && event_count > 0 ? (
       evt_t >= play_sample_pos && evt_t < play_sample_pos + segment ? (
         out_offs = block_cursor + (evt_t - play_sample_pos);
 
-        out_chan = max(1,min(16,slider7)) - 1;
+        out_chan = max(1,min(16,slider8)) - 1;
         out_status = (mem[base+1] & 240) | out_chan;
         out_msg23 = (mem[base+2] & 127) | ((mem[base+3] & 127) * 256);
 
@@ -225,46 +274,65 @@ state == STATE_PLAYING && loop_len_samples > 0 && event_count > 0 ? (
 
 state == STATE_RECORDING ? record_sample_pos += samplesblock;
 
-@gfx 520 240
+@gfx 560 300
 
 gfx_setfont(1, "Arial", 22);
 gfx_x = 20;
-gfx_y = 20;
+gfx_y = 18;
 
 state == STATE_IDLE ? gfx_drawstr("IDLE") :
 state == STATE_READY ? gfx_drawstr("READY - waiting for first Note On") :
 state == STATE_RECORDING ? gfx_drawstr("RECORDING FREE TIME") :
-state == STATE_PLAYING ? gfx_drawstr("LOOPING");
+state == STATE_PLAYING ? gfx_drawstr("LOOPING") :
+state == STATE_STOPPED ? gfx_drawstr("STOPPED - loop stored");
 
 gfx_setfont(1, "Arial", 16);
+
 gfx_x = 20;
-gfx_y = 65;
+gfx_y = 62;
 gfx_drawstr("Events: ");
 gfx_drawnumber(event_count,0);
 
 gfx_x = 20;
-gfx_y = 95;
-gfx_drawstr("Detected BPM: ");
-gfx_drawnumber(slider4,2);
-
-gfx_x = 20;
-gfx_y = 125;
-gfx_drawstr("Detected bars: ");
-gfx_drawnumber(slider5,0);
-
-gfx_x = 20;
-gfx_y = 155;
+gfx_y = 92;
 state == STATE_RECORDING ? (
-  gfx_drawstr("Length: ");
+  gfx_drawstr("Recording length: ");
   gfx_drawnumber(record_sample_pos / srate,3);
   gfx_drawstr(" s");
-) : state == STATE_PLAYING ? (
+) : loop_len_samples > 0 ? (
   gfx_drawstr("Loop length: ");
   gfx_drawnumber(loop_len_samples / srate,3);
   gfx_drawstr(" s");
 );
 
-gfx_x = 20;
-gfx_y = 195;
-gfx_setfont(1, "Arial", 13);
-gfx_drawstr("v0.1: READY -> first note starts capture -> PLAY closes loop");
+analysis_done ? (
+  gfx_setfont(1, "Arial", 24);
+
+  gfx_x = 20;
+  gfx_y = 132;
+  gfx_drawstr("DETECTED");
+
+  gfx_setfont(1, "Arial", 21);
+
+  gfx_x = 20;
+  gfx_y = 170;
+  gfx_drawstr("Tempo: ");
+  gfx_drawnumber(slider5,2);
+  gfx_drawstr(" BPM");
+
+  gfx_x = 20;
+  gfx_y = 205;
+  gfx_drawstr("Length: ");
+  gfx_drawnumber(slider6,0);
+  slider6 == 1 ? gfx_drawstr(" bar") : gfx_drawstr(" bars");
+
+  gfx_setfont(1, "Arial", 13);
+  gfx_x = 20;
+  gfx_y = 248;
+  gfx_drawstr("4/4 assumed | v0.2 duration-based inference");
+) : (
+  gfx_setfont(1, "Arial", 13);
+  gfx_x = 20;
+  gfx_y = 150;
+  gfx_drawstr("READY -> first note starts capture -> PLAY closes loop");
+);

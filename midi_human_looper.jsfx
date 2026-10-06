@@ -1,6 +1,9 @@
-desc:MIDI Human Looper v1.3
+desc:MIDI Human Looper v1.3.1
 
 // Free-time MIDI looper prototype for REAPER JSFX.
+// v1.3.1:
+// - fix ONE SHOT poly voice memory: JSFX memory is limited to ~1M slots and patch banks already occupy the high range
+// - voice pool now lives directly after patch banks instead of hardcoded address 700000
 // v1.3:
 // - same-layer ONE SHOT retriggers now overlap polyphonically instead of restarting/cutting
 // - switching to a different ONE SHOT layer soft-kills all voices from the previous phrase group
@@ -92,10 +95,6 @@ STATE_PLAYING = 3;
 STATE_STOPPED = 4;
 
 MAX_ONCE_VOICES = 12;
-VOICE_ACTIVE_BASE = 700000;
-VOICE_LAYER_BASE = VOICE_ACTIVE_BASE + MAX_ONCE_VOICES;
-VOICE_POS_BASE = VOICE_LAYER_BASE + MAX_ONCE_VOICES;
-VOICE_GAIN_BASE = VOICE_POS_BASE + MAX_ONCE_VOICES;
 
 state = STATE_IDLE;
 
@@ -120,6 +119,12 @@ PATCH_HEADER_SIZE = 12;
 PATCH_DATA_SIZE = PATCH_HEADER_SIZE + WORK_MEM_SIZE;
 PATCH1_BASE = WORK_MEM_SIZE + 64;
 PATCH2_BASE = PATCH1_BASE + PATCH_DATA_SIZE;
+
+// Runtime ONE SHOT voices must not overlap the large serialized patch banks.
+VOICE_ACTIVE_BASE = PATCH2_BASE + PATCH_DATA_SIZE + 64;
+VOICE_LAYER_BASE = VOICE_ACTIVE_BASE + MAX_ONCE_VOICES;
+VOICE_POS_BASE = VOICE_LAYER_BASE + MAX_ONCE_VOICES;
+VOICE_GAIN_BASE = VOICE_POS_BASE + MAX_ONCE_VOICES;
 patch_valid1 = 0;
 patch_valid2 = 0;
 current_patch = 1;

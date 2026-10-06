@@ -1,6 +1,10 @@
-desc:MIDI Human Looper v1.2.3
+desc:MIDI Human Looper v1.3
 
 // Free-time MIDI looper prototype for REAPER JSFX.
+// v1.3:
+// - same-layer ONE SHOT retriggers now overlap polyphonically instead of restarting/cutting
+// - switching to a different ONE SHOT layer soft-kills all voices from the previous phrase group
+// - velocity decay is applied per successive overlapping voice
 // v1.2.3:
 // - fix rapid ONE SHOT retrigger race: soft-kill is now sent immediately from the audio block
 // - GUI only queues trigger requests; MIDI Note Off / CC64 cleanup happens before the new phrase attack
@@ -87,6 +91,12 @@ STATE_RECORDING = 2;
 STATE_PLAYING = 3;
 STATE_STOPPED = 4;
 
+MAX_ONCE_VOICES = 12;
+VOICE_ACTIVE_BASE = 700000;
+VOICE_LAYER_BASE = VOICE_ACTIVE_BASE + MAX_ONCE_VOICES;
+VOICE_POS_BASE = VOICE_LAYER_BASE + MAX_ONCE_VOICES;
+VOICE_GAIN_BASE = VOICE_POS_BASE + MAX_ONCE_VOICES;
+
 state = STATE_IDLE;
 
 LAYERS = 4;
@@ -117,6 +127,14 @@ save_flash = 0;
 save_flash_patch = 0;
 last_trigger_layer = -1;
 trigger_request = -1;
+vi=0;
+loop(MAX_ONCE_VOICES,
+  mem[VOICE_ACTIVE_BASE+vi]=0;
+  mem[VOICE_LAYER_BASE+vi]=0;
+  mem[VOICE_POS_BASE+vi]=0;
+  mem[VOICE_GAIN_BASE+vi]=1;
+  vi+=1;
+);
 
 i=0;
 loop(LAYERS,
@@ -493,31 +511,48 @@ panic_pending ? (
 );
 
 // Process ONE SHOT trigger atomically in the audio thread.
-// This avoids @gfx/@block races when TRIG is hit very rapidly.
+// Same layer = add an overlapping voice. Different layer = soft choke previous phrase group.
 trigger_request>=0 ? (
   requested_layer=trigger_request;
   trigger_request=-1;
 
-  // Release currently sounding phrase NOW, before any new Note On can be emitted.
-  release_phrase_notes();
-
-  kill_i=0;
-  loop(LAYERS,
-    mem[TRIG_BASE+kill_i]=0;
-    mem[ONCEPOS_BASE+kill_i]=0;
-    kill_i+=1;
-  );
-
-  last_trigger_layer==requested_layer ? (
-    mem[REPEAT_BASE+requested_layer]+=1;
-  ) : (
-    last_trigger_layer>=0 ? mem[REPEAT_BASE+last_trigger_layer]=0;
+  requested_layer!=last_trigger_layer ? (
+    last_trigger_layer>=0 ? (
+      release_phrase_notes();
+      vi=0;
+      loop(MAX_ONCE_VOICES,
+        mem[VOICE_ACTIVE_BASE+vi]=0;
+        vi+=1;
+      );
+      mem[REPEAT_BASE+last_trigger_layer]=0;
+    );
     mem[REPEAT_BASE+requested_layer]=0;
     last_trigger_layer=requested_layer;
+  ) : (
+    mem[REPEAT_BASE+requested_layer]+=1;
   );
 
-  mem[ONCEPOS_BASE+requested_layer]=0;
-  mem[TRIG_BASE+requested_layer]=1;
+  // Find a free voice. If all are busy, recycle the oldest slot safely.
+  voice_slot=-1;
+  vi=0;
+  loop(MAX_ONCE_VOICES,
+    voice_slot<0 && mem[VOICE_ACTIVE_BASE+vi]<0.5 ? voice_slot=vi;
+    vi+=1;
+  );
+  voice_slot<0 ? (
+    release_phrase_notes();
+    vi=0;
+    loop(MAX_ONCE_VOICES,
+      mem[VOICE_ACTIVE_BASE+vi]=0;
+      vi+=1;
+    );
+    voice_slot=0;
+  );
+
+  mem[VOICE_ACTIVE_BASE+voice_slot]=1;
+  mem[VOICE_LAYER_BASE+voice_slot]=requested_layer;
+  mem[VOICE_POS_BASE+voice_slot]=0;
+  mem[VOICE_GAIN_BASE+voice_slot]=pow(mem[DECAY_BASE+requested_layer],mem[REPEAT_BASE+requested_layer]);
 );
 
 while (
@@ -631,18 +666,20 @@ state==STATE_PLAYING && loop_len_samples>0 ? (
 
 
 
-// independent ONE SHOT phrase players
-once_layer=0;
-loop(LAYERS,
-  mem[MODE_BASE+once_layer]>=0.5 && mem[TRIG_BASE+once_layer]>0.5 && layer_count(once_layer)>0 ? (
-    once_start=mem[ONCEPOS_BASE+once_layer];
+// polyphonic ONE SHOT voice pool
+vi=0;
+loop(MAX_ONCE_VOICES,
+  mem[VOICE_ACTIVE_BASE+vi]>0.5 ? (
+    once_layer=mem[VOICE_LAYER_BASE+vi];
+    once_start=mem[VOICE_POS_BASE+vi];
     once_end=once_start+samplesblock;
+    phrase_end=max(1,mem[LEN_BASE+once_layer]);
     count=layer_count(once_layer);
     i=0;
     loop(count,
       base=layer_base(once_layer,i);
       evt_t=mem[base];
-      evt_t>=once_start && evt_t<once_end ? (
+      evt_t>=once_start && evt_t<once_end && evt_t<phrase_end ? (
         out_offs=evt_t-once_start;
         slider8==0 ? out_status=mem[base+1]&255 : (
           out_chan=max(1,min(16,slider8))-1;
@@ -651,7 +688,7 @@ loop(LAYERS,
         out_d1=mem[base+2]&127;
         out_d2=mem[base+3]&127;
         ((out_status&240)==144 && out_d2>0) ? (
-          velmul=slider9*mem[VEL_BASE+once_layer]*pow(mem[DECAY_BASE+once_layer],mem[REPEAT_BASE+once_layer]);
+          velmul=slider9*mem[VEL_BASE+once_layer]*mem[VOICE_GAIN_BASE+vi];
           out_d2=floor(out_d2*velmul+0.5);
           out_d2=max(1,min(127,out_d2));
         );
@@ -659,14 +696,14 @@ loop(LAYERS,
       );
       i+=1;
     );
-    mem[ONCEPOS_BASE+once_layer]=once_end;
-    mem[ONCEPOS_BASE+once_layer]>=max(1,mem[LEN_BASE+once_layer]) ? (
-      mem[TRIG_BASE+once_layer]=0;
-      mem[ONCEPOS_BASE+once_layer]=0;
-      release_phrase_notes();
+    mem[VOICE_POS_BASE+vi]=once_end;
+    mem[VOICE_POS_BASE+vi]>=phrase_end ? (
+      mem[VOICE_ACTIVE_BASE+vi]=0;
+      mem[VOICE_POS_BASE+vi]=0;
+      // Do not global-release here: another overlapping voice of the same phrase may still be sounding.
     );
   );
-  once_layer+=1;
+  vi+=1;
 );
 
 state==STATE_RECORDING ? record_sample_pos+=samplesblock;
@@ -833,7 +870,8 @@ loop(LAYERS,
   smallbtn(ox,rowy,82,34,"OVR",overdub_armed && overdub_layer==gui_layer || overdub_active && overdub_layer==gui_layer);
   smallbtn(cx,rowy,58,34,"CLR",0);
   smallbtn(modex,rowy,72,34,mem[MODE_BASE+gui_layer]<0.5 ? "LOOP" : "ONCE",mem[MODE_BASE+gui_layer]>=0.5);
-  smallbtn(trigx,rowy,62,34,"TRIG",mem[TRIG_BASE+gui_layer]>0.5);
+  voice_lit=0; vi=0; loop(MAX_ONCE_VOICES, mem[VOICE_ACTIVE_BASE+vi]>0.5 && mem[VOICE_LAYER_BASE+vi]==gui_layer ? voice_lit=1; vi+=1;);
+  smallbtn(trigx,rowy,62,34,"TRIG",voice_lit);
 
   hit(mx,rowy,38,34) ? mem[MUTE_BASE+gui_layer]=1-mem[MUTE_BASE+gui_layer];
   hit(sx,rowy,38,34) ? mem[SOLO_BASE+gui_layer]=1-mem[SOLO_BASE+gui_layer];

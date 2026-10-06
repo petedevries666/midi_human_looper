@@ -1,6 +1,9 @@
-desc:MIDI Human Looper v0.9.2
+desc:MIDI Human Looper v0.9.3
 
 // Free-time MIDI looper prototype for REAPER JSFX.
+// v0.9.3:
+// - stored-loop transport is now non-destructive: PLAY/STOP can never re-arm recording
+// - recording becomes available again only after CLEAR ALL (or an empty patch)
 // v0.9.2:
 // - READY becomes PLAY when a stored loop exists; PLAY restarts it without clearing
 // - SAVE gives visible confirmation for the selected patch
@@ -355,11 +358,11 @@ clear_now=slider3;
 );
 
 (readyplay_now>0.5 && prev_readyplay<=0.5) ? (
-  state==STATE_STOPPED && loop_len_samples>0 ? (
+  loop_len_samples>0 && (state==STATE_STOPPED || state==STATE_IDLE) ? (
     play_sample_pos=0;
     state=STATE_PLAYING;
   ) :
-  state==STATE_IDLE ? (
+  state==STATE_IDLE && loop_len_samples<=0 ? (
     clear_layer(0);
     record_layer=0;
     record_sample_pos=0;
@@ -566,7 +569,7 @@ bx=20; by=18; bw=160; bh=44; gap=12;
 
 rp_label="READY";
 state==STATE_RECORDING ? rp_label="PLAY";
-state==STATE_STOPPED && loop_len_samples>0 ? rp_label="PLAY";
+loop_len_samples>0 && state!=STATE_RECORDING && state!=STATE_PLAYING ? rp_label="PLAY";
 button(bx,by,bw,bh,rp_label,state==STATE_READY || state==STATE_RECORDING || state==STATE_PLAYING);
 
 as_label="ABORT";

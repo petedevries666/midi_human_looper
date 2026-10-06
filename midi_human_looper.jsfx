@@ -1,33 +1,29 @@
-desc:MIDI Human Looper v0.7
+desc:MIDI Human Looper v0.8
 
 // Free-time MIDI looper prototype for REAPER JSFX.
-// Workflow:
-// 1. Press READY.
-// 2. Recording starts on the first incoming Note On.
-// 3. Press PLAY exactly where the loop should end.
-// 4. The captured MIDI loops immediately.
-// 5. STOP halts playback without deleting the loop.
-// 6. The plugin shows detected BPM + bars after analysis.
+// v0.8:
+// - 4 independent MIDI layers
+// - overdub records into the selected layer over exactly one loop cycle
+// - per-layer mute / solo / velocity trim
+// - quantize grid + amount (0..100%) applied non-destructively at playback
+// - full MIDI stream recorded: notes, sustain CC64, other CCs, pitch bend, aftertouch
+// - live MIDI thru remains active while looping
 //
-// v0.2:
-// - STOP button
-// - supports 1..16 bar inference, including 2 / 3 / 4 / 5 / etc.
-// - clearer detected info in the UI
-// - loop can be stopped and restarted without re-recording
-// v0.4:
-// - live MIDI always passes through, including while the loop is playing
-// - recording stores the full incoming MIDI stream, including sustain CC64
-// - STOP/CLEAR send explicit Note Off for all 128 notes on all 16 channels
+// First loop:
+// READY -> first Note On starts free-time recording -> PLAY closes the master loop.
+// Overdub:
+// while PLAYING, arm OVR on a layer -> recording starts at next loop boundary,
+// records exactly one full loop into that layer, then returns to PLAY automatically.
 
-slider1:0<0,1,1>-READY (use GUI button)-
-slider2:0<0,1,1>-PLAY (use GUI button)-
-slider3:0<0,1,1>-STOP (use GUI button)-
-slider4:0<0,1,1>-CLEAR (use GUI button)-
-slider5:120<30,240,0.1>BPM DETECTED
-slider6:4<1,16,1>BARS DETECTED
-slider7:0<0,1,1{RAW,QUANTIZE}>QUANTIZE (reserved)
+slider1:0<0,1,1>-READY/PLAY (GUI)-
+slider2:0<0,1,1>-ABORT/STOP (GUI)-
+slider3:0<0,1,1>-CLEAR ALL (GUI)-
+slider4:0<0,1,1{1,1/2,1/4,1/8,1/16,1/32}>QUANTIZE GRID
+slider5:0<0,100,1>QUANTIZE AMOUNT (%)
+slider6:120<30,240,0.1>BPM DETECTED
+slider7:4<1,16,1>BARS DETECTED
 slider8:0<0,16,1{ORIGINAL,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16}>MIDI OUT CHANNEL
-slider9:1<0.2,3,0.01>VELOCITY MULTIPLIER
+slider9:1<0.2,3,0.01>GLOBAL VELOCITY
 
 @init
 
@@ -39,404 +35,554 @@ STATE_STOPPED = 4;
 
 state = STATE_IDLE;
 
-MAX_EVENTS = 8192;
+LAYERS = 4;
+MAX_EVENTS_PER_LAYER = 4096;
 EV_SIZE = 5;
+LAYER_STRIDE = MAX_EVENTS_PER_LAYER * EV_SIZE;
 
-// memory layout per event:
-// +0 timestamp in samples
-// +1 status
-// +2 data1
-// +3 data2
-// +4 original event offset (reserved)
+// per-layer arrays live after event memory
+COUNT_BASE = LAYERS * LAYER_STRIDE;
+MUTE_BASE = COUNT_BASE + LAYERS;
+SOLO_BASE = MUTE_BASE + LAYERS;
+VEL_BASE = SOLO_BASE + LAYERS;
 
-event_count = 0;
+i=0;
+loop(LAYERS,
+  mem[COUNT_BASE+i]=0;
+  mem[MUTE_BASE+i]=0;
+  mem[SOLO_BASE+i]=0;
+  mem[VEL_BASE+i]=1;
+  i+=1;
+);
+
 record_sample_pos = 0;
 loop_len_samples = 0;
 play_sample_pos = 0;
-started = 0;
 analysis_done = 0;
 panic_pending = 0;
 
-prev_ready = 0;
-prev_play = 0;
-prev_stop = 0;
-prev_clear = 0;
+record_layer = 0;
+overdub_armed = 0;
+overdub_active = 0;
+overdub_layer = 1;
+overdub_pos = 0;
 
-function clear_loop()
+prev_readyplay=0;
+prev_abortstop=0;
+prev_clear=0;
+
+function layer_count(layer)
 (
-  event_count = 0;
-  record_sample_pos = 0;
-  loop_len_samples = 0;
-  play_sample_pos = 0;
-  started = 0;
-  analysis_done = 0;
-  state = STATE_IDLE;
-  slider5 = 120;
-  slider6 = 4;
+  mem[COUNT_BASE+layer];
 );
 
-function store_event(ts, st, d1, d2, offs)
-local(base)
+function set_layer_count(layer,count)
 (
-  event_count < MAX_EVENTS ? (
-    base = event_count * EV_SIZE;
-    mem[base] = ts;
-    mem[base+1] = st;
-    mem[base+2] = d1;
-    mem[base+3] = d2;
-    mem[base+4] = offs;
-    event_count += 1;
+  mem[COUNT_BASE+layer]=count;
+);
+
+function layer_base(layer, idx)
+(
+  layer*LAYER_STRIDE + idx*EV_SIZE;
+);
+
+function clear_layer(layer)
+local(i)
+(
+  set_layer_count(layer,0);
+  mem[MUTE_BASE+layer]=0;
+  mem[SOLO_BASE+layer]=0;
+  mem[VEL_BASE+layer]=1;
+);
+
+function clear_all()
+local(i)
+(
+  i=0;
+  loop(LAYERS,
+    clear_layer(i);
+    i+=1;
+  );
+  record_sample_pos=0;
+  loop_len_samples=0;
+  play_sample_pos=0;
+  analysis_done=0;
+  overdub_armed=0;
+  overdub_active=0;
+  overdub_pos=0;
+  state=STATE_IDLE;
+  slider6=120;
+  slider7=4;
+);
+
+function store_event(layer, ts, st, d1, d2, offs)
+local(count,base)
+(
+  count=layer_count(layer);
+  count < MAX_EVENTS_PER_LAYER ? (
+    base=layer_base(layer,count);
+    mem[base]=ts;
+    mem[base+1]=st;
+    mem[base+2]=d1;
+    mem[base+3]=d2;
+    mem[base+4]=offs;
+    set_layer_count(layer,count+1);
   );
 );
 
 function infer_tempo()
-local(seconds, best_score, bars, bpm, score, target_bpm, i)
+local(seconds,best_score,bars,bpm,score,target_bpm,i)
 (
   loop_len_samples > 0 ? (
-    seconds = loop_len_samples / srate;
-    best_score = 1000000000;
-    target_bpm = 120;
-
-    // v0.3.1: evaluate every bar count from 1 to 16.
-    // 4/4 assumption for now.
-    i = 1;
+    seconds=loop_len_samples/srate;
+    best_score=1000000000;
+    target_bpm=120;
+    i=1;
     loop(16,
-      bars = i;
-      bpm = (bars * 4 * 60) / seconds;
-
-      (bpm >= 30 && bpm <= 240) ? (
-        // Temporary heuristic:
-        // prefer a musically plausible BPM close to 120.
-        score = abs(bpm - target_bpm);
-
-        // Slightly prefer common short loop sizes when scores are close,
-        // but still allow odd bar counts such as 3, 5, 7, etc.
-        (bars == 2 || bars == 4 || bars == 8) ? score -= 0.75;
-
-        score < best_score ? (
-          best_score = score;
-          slider5 = bpm;
-          slider6 = bars;
+      bars=i;
+      bpm=(bars*4*60)/seconds;
+      (bpm>=30 && bpm<=240) ? (
+        score=abs(bpm-target_bpm);
+        (bars==2 || bars==4 || bars==8) ? score-=0.75;
+        score<best_score ? (
+          best_score=score;
+          slider6=bpm;
+          slider7=bars;
         );
       );
-
-      i += 1;
+      i+=1;
     );
-
-    analysis_done = 1;
+    analysis_done=1;
   );
 );
 
 function send_all_notes_off()
-local(ch, note)
+local(ch,note)
 (
-  // Graceful stop: release keys, don't kill voices.
-  // Kontakt/envelopes can therefore play their natural release tails.
-  ch = 0;
+  ch=0;
   loop(16,
-    note = 0;
+    note=0;
     loop(128,
-      midisend(0, 128 | ch, note, 0);
-      note += 1;
+      midisend(0,128|ch,note,0);
+      note+=1;
     );
-    // Release sustain so pedal-held notes can also enter their release stage.
-    midisend(0, 176 | ch, 64, 0);
-    ch += 1;
+    midisend(0,176|ch,64,0);
+    ch+=1;
+  );
+);
+
+function any_solo()
+local(i,res)
+(
+  res=0;
+  i=0;
+  loop(LAYERS,
+    mem[SOLO_BASE+i] > 0.5 ? res=1;
+    i+=1;
+  );
+  res;
+);
+
+function layer_audible(layer)
+local(soloing)
+(
+  soloing=any_solo();
+  soloing ? (mem[SOLO_BASE+layer] > 0.5) : (mem[MUTE_BASE+layer] < 0.5);
+);
+
+function quant_grid_samples()
+local(beats_per_grid)
+(
+  // slider4: 0=1 bar,1=1/2,2=1/4,3=1/8,4=1/16,5=1/32
+  // derive grid from detected BPM. If analysis is unavailable, return 0.
+  analysis_done && slider6 > 0 ? (
+    slider4==0 ? beats_per_grid=4 :
+    slider4==1 ? beats_per_grid=2 :
+    slider4==2 ? beats_per_grid=1 :
+    slider4==3 ? beats_per_grid=0.5 :
+    slider4==4 ? beats_per_grid=0.25 :
+                 beats_per_grid=0.125;
+    (60/slider6)*srate*beats_per_grid;
+  ) : 0;
+);
+
+function quantize_ts(ts)
+local(grid,q,target)
+(
+  slider5 <= 0 ? ts : (
+    // same mapping as quant_grid_samples(), written inline to avoid hidden side effects
+    analysis_done && slider6 > 0 ? (
+      slider4==0 ? grid=(60/slider6)*srate*4 :
+      slider4==1 ? grid=(60/slider6)*srate*2 :
+      slider4==2 ? grid=(60/slider6)*srate :
+      slider4==3 ? grid=(60/slider6)*srate*0.5 :
+      slider4==4 ? grid=(60/slider6)*srate*0.25 :
+                   grid=(60/slider6)*srate*0.125;
+      grid > 0 ? (
+        q=floor(ts/grid+0.5);
+        target=q*grid;
+        ts + (target-ts)*(slider5/100);
+      ) : ts;
+    ) : ts;
   );
 );
 
 @slider
 
-ready_now = slider1;
-play_now = slider2;
-stop_now = slider3;
-clear_now = slider4;
+readyplay_now=slider1;
+abortstop_now=slider2;
+clear_now=slider3;
 
-(clear_now > 0.5 && prev_clear <= 0.5) ? (
-  panic_pending = 1;
-  clear_loop();
-  slider1 = 0;
-  slider2 = 0;
-  slider3 = 0;
-  slider4 = 0;
+(clear_now>0.5 && prev_clear<=0.5) ? (
+  panic_pending=1;
+  clear_all();
+  slider1=0; slider2=0; slider3=0;
 );
 
-(ready_now > 0.5 && prev_ready <= 0.5) ? (
-  event_count = 0;
-  record_sample_pos = 0;
-  loop_len_samples = 0;
-  play_sample_pos = 0;
-  started = 0;
-  analysis_done = 0;
-  state = STATE_READY;
-
-  slider2 = 0;
-  slider3 = 0;
-);
-
-(play_now > 0.5 && prev_play <= 0.5) ? (
-  state == STATE_RECORDING ? (
-    // PLAY defines the exact loop boundary at the start of this audio block.
-    loop_len_samples = record_sample_pos;
-    loop_len_samples < 1 ? loop_len_samples = 1;
-
-    infer_tempo();
-
-    play_sample_pos = 0;
-    state = STATE_PLAYING;
-    slider1 = 0;
+(readyplay_now>0.5 && prev_readyplay<=0.5) ? (
+  state==STATE_IDLE || state==STATE_STOPPED ? (
+    clear_layer(0);
+    record_layer=0;
+    record_sample_pos=0;
+    loop_len_samples=0;
+    play_sample_pos=0;
+    analysis_done=0;
+    state=STATE_READY;
   ) :
-  state == STATE_STOPPED && loop_len_samples > 0 && event_count > 0 ? (
-    // Restart an already captured loop from its beginning.
-    play_sample_pos = 0;
-    state = STATE_PLAYING;
-  );
-
-  slider2 = 0;
-);
-
-(stop_now > 0.5 && prev_stop <= 0.5) ? (
-  state == STATE_PLAYING ? (
-    panic_pending = 1;
-    play_sample_pos = 0;
-    state = STATE_STOPPED;
-  ) :
-  state == STATE_RECORDING ? (
-    // STOP during recording cancels this take but keeps plugin alive.
-    panic_pending = 1;
-    event_count = 0;
-    record_sample_pos = 0;
-    loop_len_samples = 0;
-    analysis_done = 0;
-    state = STATE_IDLE;
-  ) :
-  state == STATE_READY ? (
-    state = STATE_IDLE;
-  );
-
-  slider3 = 0;
-);
-
-prev_ready = slider1;
-prev_play = slider2;
-prev_stop = slider3;
-prev_clear = slider4;
-
-@block
-
-// MIDI output belongs in the audio/MIDI thread. The GUI only requests a panic.
-panic_pending ? (
-  send_all_notes_off();
-  panic_pending = 0;
-);
-
-while (
-  midirecv(offset, msg1, msg23) ?
-  (
-    status = msg1 & 240;
-    d1 = msg23 & 127;
-    d2 = (msg23 / 256) & 127;
-
-    is_note_on = (status == 144 && d2 > 0);
-
-    state == STATE_READY && is_note_on ? (
-      state = STATE_RECORDING;
-      started = 1;
-      record_sample_pos = 0;
-
-      // First Note On becomes sample zero.
-      store_event(0, msg1, d1, d2, offset);
-    ) :
-    state == STATE_RECORDING ? (
-      // Store the complete MIDI stream while recording:
-      // notes, sustain pedal (CC64), other CCs, pitch bend, aftertouch, etc.
-      store_event(record_sample_pos + offset, msg1, d1, d2, offset);
-    );
-
-    // Live MIDI passthrough ALWAYS: you can play over the stored loop.
-    midisend(offset, msg1, msg23);
-    1;
-  );
-  0;
-);
-
-// Playback captured events.
-state == STATE_PLAYING && loop_len_samples > 0 && event_count > 0 ? (
-  block_remaining = samplesblock;
-  block_cursor = 0;
-
-  while(block_remaining > 0) (
-    segment = min(block_remaining, loop_len_samples - play_sample_pos);
-
-    i = 0;
-    loop(event_count,
-      base = i * EV_SIZE;
-      evt_t = mem[base];
-
-      evt_t >= play_sample_pos && evt_t < play_sample_pos + segment ? (
-        out_offs = block_cursor + (evt_t - play_sample_pos);
-
-        // ORIGINAL preserves the channel captured with each MIDI event.
-        // 1..16 forces every replayed event onto the selected channel.
-        slider8 == 0 ? (
-          out_status = mem[base+1] & 255;
-        ) : (
-          out_chan = max(1,min(16,slider8)) - 1;
-          out_status = (mem[base+1] & 240) | out_chan;
-        );
-        out_d1 = mem[base+2] & 127;
-        out_d2 = mem[base+3] & 127;
-
-        // Velocity multiplier applies only to Note On velocity.
-        // Note Off / CC / other MIDI data are left untouched.
-        ((out_status & 240) == 144 && out_d2 > 0) ? (
-          out_d2 = floor(out_d2 * slider9 + 0.5);
-          out_d2 = max(1, min(127, out_d2));
-        );
-
-        out_msg23 = out_d1 | (out_d2 * 256);
-
-        midisend(out_offs, out_status, out_msg23);
-      );
-
-      i += 1;
-    );
-
-    play_sample_pos += segment;
-    block_cursor += segment;
-    block_remaining -= segment;
-
-    play_sample_pos >= loop_len_samples ? play_sample_pos = 0;
-  );
-);
-
-state == STATE_RECORDING ? record_sample_pos += samplesblock;
-
-@gfx 560 360
-
-function hit(x,y,w,h)
-(
-  mouse_cap & 1 && !(last_mouse_cap & 1) &&
-  mouse_x >= x && mouse_x < x+w &&
-  mouse_y >= y && mouse_y < y+h
-);
-
-function button(x,y,w,h,label,active)
-(
-  active ? gfx_set(0.35,0.35,0.35,1) : gfx_set(0.18,0.18,0.18,1);
-  gfx_rect(x,y,w,h,1);
-  gfx_set(0.8,0.8,0.8,1);
-  gfx_rect(x,y,w,h,0);
-  gfx_setfont(1,"Arial",16);
-  gfx_measurestr(label,tw,th);
-  gfx_x=x+(w-tw)/2;
-  gfx_y=y+(h-th)/2;
-  gfx_drawstr(label);
-);
-
-bx=20; by=18; bw=115; bh=42; gap=10;
-
-button(bx,by,bw,bh,"READY",state==STATE_READY || state==STATE_RECORDING);
-button(bx+bw+gap,by,bw,bh,"PLAY",state==STATE_PLAYING);
-button(bx+(bw+gap)*2,by,bw,bh,"STOP",state==STATE_STOPPED);
-button(bx+(bw+gap)*3,by,bw,bh,"CLEAR",0);
-
-hit(bx,by,bw,bh) ? (
-  event_count=0; record_sample_pos=0; loop_len_samples=0; play_sample_pos=0;
-  started=0; analysis_done=0; state=STATE_READY;
-);
-
-hit(bx+bw+gap,by,bw,bh) ? (
   state==STATE_RECORDING ? (
     loop_len_samples=record_sample_pos;
     loop_len_samples<1 ? loop_len_samples=1;
     infer_tempo();
     play_sample_pos=0;
     state=STATE_PLAYING;
-  ) : state==STATE_STOPPED && loop_len_samples>0 && event_count>0 ? (
+  );
+  slider1=0;
+);
+
+(abortstop_now>0.5 && prev_abortstop<=0.5) ? (
+  state==STATE_READY ? (
+    state=STATE_IDLE;
+  ) :
+  state==STATE_RECORDING ? (
+    panic_pending=1;
+    clear_layer(record_layer);
+    record_sample_pos=0;
+    loop_len_samples=0;
+    analysis_done=0;
+    state=STATE_IDLE;
+  ) :
+  state==STATE_PLAYING ? (
+    panic_pending=1;
+    play_sample_pos=0;
+    overdub_armed=0;
+    overdub_active=0;
+    state=STATE_STOPPED;
+  );
+  slider2=0;
+);
+
+prev_readyplay=slider1;
+prev_abortstop=slider2;
+prev_clear=slider3;
+
+@block
+
+panic_pending ? (
+  send_all_notes_off();
+  panic_pending=0;
+);
+
+while (
+  midirecv(offset,msg1,msg23) ?
+  (
+    status=msg1&240;
+    d1=msg23&127;
+    d2=(msg23/256)&127;
+    is_note_on=(status==144 && d2>0);
+
+    state==STATE_READY && is_note_on ? (
+      state=STATE_RECORDING;
+      record_sample_pos=0;
+      store_event(0,0,msg1,d1,d2,offset);
+    ) :
+    state==STATE_RECORDING ? (
+      store_event(0,record_sample_pos+offset,msg1,d1,d2,offset);
+    ) :
+    overdub_active ? (
+      store_event(overdub_layer,overdub_pos+offset,msg1,d1,d2,offset);
+    );
+
+    // live MIDI always passes through
+    midisend(offset,msg1,msg23);
+    1;
+  );
+  0;
+);
+
+// arm -> active exactly at the next wrap
+state==STATE_PLAYING && overdub_armed && !overdub_active ? (
+  play_sample_pos==0 ? (
+    clear_layer(overdub_layer);
+    overdub_pos=0;
+    overdub_active=1;
+    overdub_armed=0;
+  );
+);
+
+// playback all audible layers
+state==STATE_PLAYING && loop_len_samples>0 ? (
+  block_remaining=samplesblock;
+  block_cursor=0;
+
+  while(block_remaining>0) (
+    segment=min(block_remaining,loop_len_samples-play_sample_pos);
+
+    layer=0;
+    loop(LAYERS,
+      layer_audible(layer) ? (
+        count=layer_count(layer);
+        i=0;
+        loop(count,
+          base=layer_base(layer,i);
+          evt_t=mem[base];
+          evt_q=quantize_ts(evt_t);
+          evt_q>=loop_len_samples ? evt_q-=loop_len_samples;
+          evt_q<0 ? evt_q+=loop_len_samples;
+
+          evt_q>=play_sample_pos && evt_q<play_sample_pos+segment ? (
+            out_offs=block_cursor+(evt_q-play_sample_pos);
+
+            slider8==0 ? (
+              out_status=mem[base+1]&255;
+            ) : (
+              out_chan=max(1,min(16,slider8))-1;
+              out_status=(mem[base+1]&240)|out_chan;
+            );
+
+            out_d1=mem[base+2]&127;
+            out_d2=mem[base+3]&127;
+
+            ((out_status&240)==144 && out_d2>0) ? (
+              velmul=slider9*mem[VEL_BASE+layer];
+              out_d2=floor(out_d2*velmul+0.5);
+              out_d2=max(1,min(127,out_d2));
+            );
+
+            out_msg23=out_d1|(out_d2*256);
+            midisend(out_offs,out_status,out_msg23);
+          );
+
+          i+=1;
+        );
+      );
+      layer+=1;
+    );
+
+    play_sample_pos+=segment;
+    block_cursor+=segment;
+    block_remaining-=segment;
+
+    play_sample_pos>=loop_len_samples ? (
+      play_sample_pos=0;
+
+      overdub_active ? (
+        overdub_active=0;
+        overdub_pos=0;
+      ) :
+      overdub_armed ? (
+        clear_layer(overdub_layer);
+        overdub_pos=0;
+        overdub_active=1;
+        overdub_armed=0;
+      );
+    );
+  );
+);
+
+state==STATE_RECORDING ? record_sample_pos+=samplesblock;
+overdub_active ? (
+  overdub_pos+=samplesblock;
+  overdub_pos>=loop_len_samples ? overdub_pos=loop_len_samples-1;
+);
+
+@gfx 760 520
+
+function hit(x,y,w,h)
+(
+  mouse_cap&1 && !(last_mouse_cap&1) &&
+  mouse_x>=x && mouse_x<x+w &&
+  mouse_y>=y && mouse_y<y+h
+);
+
+function button(x,y,w,h,label,active)
+(
+  active ? gfx_set(0.38,0.38,0.38,1) : gfx_set(0.18,0.18,0.18,1);
+  gfx_rect(x,y,w,h,1);
+  gfx_set(0.8,0.8,0.8,1);
+  gfx_rect(x,y,w,h,0);
+  gfx_setfont(1,"Arial",15);
+  gfx_measurestr(label,tw,th);
+  gfx_x=x+(w-tw)/2;
+  gfx_y=y+(h-th)/2;
+  gfx_drawstr(label);
+);
+
+function smallbtn(x,y,w,h,label,active)
+(
+  active ? gfx_set(0.45,0.45,0.45,1) : gfx_set(0.16,0.16,0.16,1);
+  gfx_rect(x,y,w,h,1);
+  gfx_set(0.75,0.75,0.75,1);
+  gfx_rect(x,y,w,h,0);
+  gfx_setfont(1,"Arial",12);
+  gfx_measurestr(label,tw,th);
+  gfx_x=x+(w-tw)/2;
+  gfx_y=y+(h-th)/2;
+  gfx_drawstr(label);
+);
+
+bx=20; by=18; bw=160; bh=44; gap=12;
+
+rp_label="READY";
+state==STATE_RECORDING ? rp_label="PLAY";
+button(bx,by,bw,bh,rp_label,state==STATE_READY || state==STATE_RECORDING);
+
+as_label="ABORT";
+state==STATE_PLAYING || state==STATE_STOPPED ? as_label="STOP";
+button(bx+bw+gap,by,bw,bh,as_label,state==STATE_STOPPED);
+
+button(bx+(bw+gap)*2,by,110,bh,"CLEAR ALL",0);
+
+hit(bx,by,bw,bh) ? (
+  state==STATE_IDLE || state==STATE_STOPPED ? (
+    clear_layer(0);
+    record_layer=0;
+    record_sample_pos=0;
+    loop_len_samples=0;
+    play_sample_pos=0;
+    analysis_done=0;
+    state=STATE_READY;
+  ) :
+  state==STATE_RECORDING ? (
+    loop_len_samples=record_sample_pos;
+    loop_len_samples<1 ? loop_len_samples=1;
+    infer_tempo();
     play_sample_pos=0;
     state=STATE_PLAYING;
   );
 );
 
-hit(bx+(bw+gap)*2,by,bw,bh) ? (
+hit(bx+bw+gap,by,bw,bh) ? (
+  state==STATE_READY ? state=STATE_IDLE :
+  state==STATE_RECORDING ? (
+    panic_pending=1;
+    clear_layer(0);
+    record_sample_pos=0;
+    loop_len_samples=0;
+    analysis_done=0;
+    state=STATE_IDLE;
+  ) :
   state==STATE_PLAYING ? (
-    panic_pending = 1;
+    panic_pending=1;
     play_sample_pos=0;
+    overdub_armed=0;
+    overdub_active=0;
     state=STATE_STOPPED;
-  ) : state==STATE_RECORDING ? (
-    panic_pending = 1;
-    event_count=0; record_sample_pos=0; loop_len_samples=0;
-    analysis_done=0; state=STATE_IDLE;
-  ) : state==STATE_READY ? state=STATE_IDLE;
+  );
 );
 
-hit(bx+(bw+gap)*3,by,bw,bh) ? (
-  panic_pending = 1;
-  clear_loop();
+hit(bx+(bw+gap)*2,by,110,bh) ? (
+  panic_pending=1;
+  clear_all();
 );
+
+gfx_set(0.82,0.82,0.82,1);
+gfx_setfont(1,"Arial",21);
+gfx_x=20; gfx_y=82;
+state==STATE_IDLE ? gfx_drawstr("IDLE") :
+state==STATE_READY ? gfx_drawstr("READY - waiting for first Note On") :
+state==STATE_RECORDING ? gfx_drawstr("RECORDING MASTER LOOP") :
+state==STATE_PLAYING ? (
+  overdub_active ? gfx_drawstr("LOOPING + OVERDUB") :
+  overdub_armed ? gfx_drawstr("LOOPING - OVERDUB ARMED") :
+                  gfx_drawstr("LOOPING")
+) :
+state==STATE_STOPPED ? gfx_drawstr("STOPPED - loop stored");
+
+// layer mixer
+gfx_setfont(1,"Arial",16);
+gfx_x=20; gfx_y=126; gfx_drawstr("LAYERS");
+
+rowy=154;
+layer=0;
+loop(LAYERS,
+  gfx_set(0.78,0.78,0.78,1);
+  gfx_setfont(1,"Arial",15);
+  gfx_x=20; gfx_y=rowy+9;
+  gfx_drawstr("L");
+  gfx_drawnumber(layer+1,0);
+
+  mx=65; sx=112; ox=159; cx=252;
+  smallbtn(mx,rowy,38,34,"M",mem[MUTE_BASE+layer]>0.5);
+  smallbtn(sx,rowy,38,34,"S",mem[SOLO_BASE+layer]>0.5);
+  smallbtn(ox,rowy,82,34,"OVR",overdub_armed && overdub_layer==layer || overdub_active && overdub_layer==layer);
+  smallbtn(cx,rowy,58,34,"CLR",0);
+
+  hit(mx,rowy,38,34) ? mem[MUTE_BASE+layer]=1-mem[MUTE_BASE+layer];
+  hit(sx,rowy,38,34) ? mem[SOLO_BASE+layer]=1-mem[SOLO_BASE+layer];
+
+  hit(ox,rowy,82,34) && state==STATE_PLAYING ? (
+    overdub_active && overdub_layer==layer ? (
+      overdub_active=0;
+      overdub_pos=0;
+    ) : (
+      overdub_layer=layer;
+      overdub_armed=1;
+      overdub_active=0;
+    );
+  );
+
+  hit(cx,rowy,58,34) ? (
+    panic_pending=1;
+    clear_layer(layer);
+  );
+
+  // velocity mini slider, x=330..510 maps 0.2..3.0
+  vx=330; vw=180; vy=rowy+8;
+  gfx_set(0.22,0.22,0.22,1); gfx_rect(vx,vy,vw,18,1);
+  vnorm=(mem[VEL_BASE+layer]-0.2)/2.8;
+  vnorm=max(0,min(1,vnorm));
+  gfx_set(0.7,0.7,0.7,1); gfx_rect(vx,vy,vw*vnorm,18,1);
+  mouse_cap&1 && mouse_x>=vx && mouse_x<vx+vw && mouse_y>=vy && mouse_y<vy+18 ? (
+    mem[VEL_BASE+layer]=0.2+2.8*((mouse_x-vx)/vw);
+  );
+  gfx_setfont(1,"Arial",13);
+  gfx_x=522; gfx_y=rowy+9;
+  gfx_drawstr("x");
+  gfx_drawnumber(mem[VEL_BASE+layer],2);
+
+  gfx_x=610; gfx_y=rowy+9;
+  gfx_drawstr("ev ");
+  gfx_drawnumber(layer_count(layer),0);
+
+  rowy+=48;
+);
+
+gfx_setfont(1,"Arial",14);
+gfx_x=20; gfx_y=360;
+gfx_drawstr("Quantize amount: ");
+gfx_drawnumber(slider5,0);
+gfx_drawstr("%  |  BPM: ");
+gfx_drawnumber(slider6,2);
+gfx_drawstr("  |  Bars: ");
+gfx_drawnumber(slider7,0);
+
+gfx_x=20; gfx_y=390;
+gfx_drawstr("Quantize uses detected tempo; 0% = raw timing, 100% = full grid.");
+
+gfx_x=20; gfx_y=418;
+gfx_drawstr("Overdub arms on next loop boundary and records one complete cycle.");
+
+gfx_x=20; gfx_y=446;
+gfx_drawstr("MIDI channel: use parameter ORIGINAL or force 1..16 | global velocity parameter x0.2..x3");
 
 last_mouse_cap=mouse_cap;
-
-gfx_set(0.8,0.8,0.8,1);
-
-gfx_setfont(1, "Arial", 22);
-gfx_x = 20;
-gfx_y = 78;
-
-state == STATE_IDLE ? gfx_drawstr("IDLE") :
-state == STATE_READY ? gfx_drawstr("READY - waiting for first Note On") :
-state == STATE_RECORDING ? gfx_drawstr("RECORDING FREE TIME") :
-state == STATE_PLAYING ? gfx_drawstr("LOOPING") :
-state == STATE_STOPPED ? gfx_drawstr("STOPPED - loop stored");
-
-gfx_setfont(1, "Arial", 16);
-
-gfx_x = 20;
-gfx_y = 112;
-gfx_drawstr("Events: ");
-gfx_drawnumber(event_count,0);
-
-gfx_x = 20;
-gfx_y = 142;
-state == STATE_RECORDING ? (
-  gfx_drawstr("Recording length: ");
-  gfx_drawnumber(record_sample_pos / srate,3);
-  gfx_drawstr(" s");
-) : loop_len_samples > 0 ? (
-  gfx_drawstr("Loop length: ");
-  gfx_drawnumber(loop_len_samples / srate,3);
-  gfx_drawstr(" s");
-);
-
-analysis_done ? (
-  gfx_setfont(1, "Arial", 24);
-
-  gfx_x = 20;
-  gfx_y = 182;
-  gfx_drawstr("DETECTED");
-
-  gfx_setfont(1, "Arial", 21);
-
-  gfx_x = 20;
-  gfx_y = 220;
-  gfx_drawstr("Tempo: ");
-  gfx_drawnumber(slider5,2);
-  gfx_drawstr(" BPM");
-
-  gfx_x = 20;
-  gfx_y = 255;
-  gfx_drawstr("Length: ");
-  gfx_drawnumber(slider6,0);
-  slider6 == 1 ? gfx_drawstr(" bar") : gfx_drawstr(" bars");
-
-  gfx_setfont(1, "Arial", 13);
-  gfx_x = 20;
-  gfx_y = 308;
-  gfx_drawstr("4/4 assumed | v0.7 duration-based inference");
-) : (
-  gfx_setfont(1, "Arial", 13);
-  gfx_x = 20;
-  gfx_y = 200;
-  gfx_drawstr("READY -> first note starts capture -> PLAY closes loop");
-);

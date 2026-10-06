@@ -1,4 +1,4 @@
-desc:MIDI Human Looper v0.4
+desc:MIDI Human Looper v0.4.1
 
 // Free-time MIDI looper prototype for REAPER JSFX.
 // Workflow:
@@ -125,7 +125,7 @@ local(seconds, best_score, bars, bpm, score, target_bpm, i)
 );
 
 function send_all_notes_off()
-local(ch, note)
+local(ch, note, msg23)
 (
   // Belt + suspenders: explicit Note Off for every note/channel,
   // then CC123 All Notes Off and CC120 All Sound Off.
@@ -133,11 +133,15 @@ local(ch, note)
   loop(16,
     note = 0;
     loop(128,
-      midisend(0, 128 | ch, note);
+      // JSFX midisend packs data1 + data2 into msg23.
+      // Previous version accidentally sent only data1 as msg23.
+      msg23 = note; // note number + velocity 0
+      midisend(0, 128 | ch, msg23);
       note += 1;
     );
-    midisend(0, 176 | ch, 123);
-    midisend(0, 176 | ch, 120);
+    // CC messages also need controller + value packed in msg23.
+    midisend(0, 176 | ch, 123); // CC123, value 0
+    midisend(0, 176 | ch, 120); // CC120, value 0
     ch += 1;
   );
 );
@@ -406,7 +410,7 @@ analysis_done ? (
   gfx_setfont(1, "Arial", 13);
   gfx_x = 20;
   gfx_y = 308;
-  gfx_drawstr("4/4 assumed | v0.4 duration-based inference");
+  gfx_drawstr("4/4 assumed | v0.4.1 duration-based inference");
 ) : (
   gfx_setfont(1, "Arial", 13);
   gfx_x = 20;

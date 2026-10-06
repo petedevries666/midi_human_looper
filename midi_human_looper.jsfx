@@ -1,6 +1,9 @@
-desc:MIDI Human Looper v0.8
+desc:MIDI Human Looper v0.8.1
 
 // Free-time MIDI looper prototype for REAPER JSFX.
+// v0.8.1:
+// - fix JSFX function-variable scope corrupting the GUI layer index / wrong layer operations
+// - stabilize layer addressing before further overdub work
 // v0.8:
 // - 4 independent MIDI layers
 // - overdub records into the selected layer over exactly one loop cycle
@@ -72,22 +75,27 @@ prev_abortstop=0;
 prev_clear=0;
 
 function layer_count(layer)
+local(addr)
 (
-  mem[COUNT_BASE+layer];
+  addr = COUNT_BASE + layer;
+  mem[addr];
 );
 
 function set_layer_count(layer,count)
+local(addr)
 (
-  mem[COUNT_BASE+layer]=count;
+  addr = COUNT_BASE + layer;
+  mem[addr] = count;
 );
 
 function layer_base(layer, idx)
+local(addr)
 (
-  layer*LAYER_STRIDE + idx*EV_SIZE;
+  addr = layer * LAYER_STRIDE + idx * EV_SIZE;
+  addr;
 );
 
 function clear_layer(layer)
-local(i)
 (
   set_layer_count(layer,0);
   mem[MUTE_BASE+layer]=0;
@@ -172,13 +180,13 @@ local(ch,note)
 );
 
 function any_solo()
-local(i,res)
+local(li,res)
 (
   res=0;
-  i=0;
+  li=0;
   loop(LAYERS,
-    mem[SOLO_BASE+i] > 0.5 ? res=1;
-    i+=1;
+    mem[SOLO_BASE+li] > 0.5 ? res=1;
+    li+=1;
   );
   res;
 );

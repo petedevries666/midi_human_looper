@@ -1,6 +1,10 @@
-desc:MIDI Human Looper v1.3.1
+desc:MIDI Human Looper v1.3.2
 
 // Free-time MIDI looper prototype for REAPER JSFX.
+// v1.3.2:
+// - overlapping same-layer ONE SHOT voices now use MIDI note reference counting
+// - an older voice Note Off cannot kill a note still held by a newer retrigger
+// - sustain pedal OFF is also reference-counted across overlapping voices
 // v1.3.1:
 // - fix ONE SHOT poly voice memory: JSFX memory is limited to ~1M slots and patch banks already occupy the high range
 // - voice pool now lives directly after patch banks instead of hardcoded address 700000
@@ -125,6 +129,13 @@ VOICE_ACTIVE_BASE = PATCH2_BASE + PATCH_DATA_SIZE + 64;
 VOICE_LAYER_BASE = VOICE_ACTIVE_BASE + MAX_ONCE_VOICES;
 VOICE_POS_BASE = VOICE_LAYER_BASE + MAX_ONCE_VOICES;
 VOICE_GAIN_BASE = VOICE_POS_BASE + MAX_ONCE_VOICES;
+
+// Runtime ownership counters for overlapping ONE SHOT MIDI voices.
+// MIDI has no voice ID: multiple Note Ons for the same channel/note share one Note Off.
+// We therefore emit the physical Note Off only when the last logical owner releases it.
+NOTE_REF_BASE = VOICE_GAIN_BASE + MAX_ONCE_VOICES;
+NOTE_REF_SIZE = 16 * 128;
+SUSTAIN_REF_BASE = NOTE_REF_BASE + NOTE_REF_SIZE;
 patch_valid1 = 0;
 patch_valid2 = 0;
 current_patch = 1;
@@ -139,6 +150,16 @@ loop(MAX_ONCE_VOICES,
   mem[VOICE_POS_BASE+vi]=0;
   mem[VOICE_GAIN_BASE+vi]=1;
   vi+=1;
+);
+ri=0;
+loop(NOTE_REF_SIZE,
+  mem[NOTE_REF_BASE+ri]=0;
+  ri+=1;
+);
+ri=0;
+loop(16,
+  mem[SUSTAIN_REF_BASE+ri]=0;
+  ri+=1;
 );
 
 i=0;
@@ -524,6 +545,10 @@ trigger_request>=0 ? (
   requested_layer!=last_trigger_layer ? (
     last_trigger_layer>=0 ? (
       release_phrase_notes();
+      ri=0;
+      loop(NOTE_REF_SIZE, mem[NOTE_REF_BASE+ri]=0; ri+=1;);
+      ri=0;
+      loop(16, mem[SUSTAIN_REF_BASE+ri]=0; ri+=1;);
       vi=0;
       loop(MAX_ONCE_VOICES,
         mem[VOICE_ACTIVE_BASE+vi]=0;
@@ -546,6 +571,10 @@ trigger_request>=0 ? (
   );
   voice_slot<0 ? (
     release_phrase_notes();
+    ri=0;
+    loop(NOTE_REF_SIZE, mem[NOTE_REF_BASE+ri]=0; ri+=1;);
+    ri=0;
+    loop(16, mem[SUSTAIN_REF_BASE+ri]=0; ri+=1;);
     vi=0;
     loop(MAX_ONCE_VOICES,
       mem[VOICE_ACTIVE_BASE+vi]=0;
@@ -692,12 +721,33 @@ loop(MAX_ONCE_VOICES,
         );
         out_d1=mem[base+2]&127;
         out_d2=mem[base+3]&127;
-        ((out_status&240)==144 && out_d2>0) ? (
+        msg_type=out_status&240;
+        msg_chan=out_status&15;
+        note_key=NOTE_REF_BASE + msg_chan*128 + out_d1;
+
+        (msg_type==144 && out_d2>0) ? (
           velmul=slider9*mem[VEL_BASE+once_layer]*mem[VOICE_GAIN_BASE+vi];
           out_d2=floor(out_d2*velmul+0.5);
           out_d2=max(1,min(127,out_d2));
+          mem[note_key]+=1;
+          midisend(out_offs,out_status,out_d1|(out_d2*256));
+        ) :
+        ((msg_type==128) || (msg_type==144 && out_d2==0)) ? (
+          mem[note_key]=max(0,mem[note_key]-1);
+          // Only the final logical owner is allowed to release the physical MIDI note.
+          mem[note_key]<=0 ? midisend(out_offs,128|msg_chan,out_d1);
+        ) :
+        (msg_type==176 && out_d1==64) ? (
+          out_d2>=64 ? (
+            mem[SUSTAIN_REF_BASE+msg_chan]+=1;
+            midisend(out_offs,out_status,out_d1|(out_d2*256));
+          ) : (
+            mem[SUSTAIN_REF_BASE+msg_chan]=max(0,mem[SUSTAIN_REF_BASE+msg_chan]-1);
+            mem[SUSTAIN_REF_BASE+msg_chan]<=0 ? midisend(out_offs,out_status,out_d1);
+          );
+        ) : (
+          midisend(out_offs,out_status,out_d1|(out_d2*256));
         );
-        midisend(out_offs,out_status,out_d1|(out_d2*256));
       );
       i+=1;
     );

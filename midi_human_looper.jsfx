@@ -1,4 +1,4 @@
-desc:MIDI Human Looper v0.4.1
+desc:MIDI Human Looper v0.5
 
 // Free-time MIDI looper prototype for REAPER JSFX.
 // Workflow:
@@ -53,6 +53,7 @@ loop_len_samples = 0;
 play_sample_pos = 0;
 started = 0;
 analysis_done = 0;
+panic_pending = 0;
 
 prev_ready = 0;
 prev_play = 0;
@@ -125,23 +126,19 @@ local(seconds, best_score, bars, bpm, score, target_bpm, i)
 );
 
 function send_all_notes_off()
-local(ch, note, msg23)
+local(ch, note)
 (
-  // Belt + suspenders: explicit Note Off for every note/channel,
-  // then CC123 All Notes Off and CC120 All Sound Off.
+  // Must run from @block. Use explicit 4-argument midisend syntax.
   ch = 0;
   loop(16,
     note = 0;
     loop(128,
-      // JSFX midisend packs data1 + data2 into msg23.
-      // Previous version accidentally sent only data1 as msg23.
-      msg23 = note; // note number + velocity 0
-      midisend(0, 128 | ch, msg23);
+      midisend(0, 128 | ch, note, 0);
       note += 1;
     );
-    // CC messages also need controller + value packed in msg23.
-    midisend(0, 176 | ch, 123); // CC123, value 0
-    midisend(0, 176 | ch, 120); // CC120, value 0
+    midisend(0, 176 | ch, 64, 0);   // sustain pedal OFF
+    midisend(0, 176 | ch, 123, 0);  // all notes off
+    midisend(0, 176 | ch, 120, 0);  // all sound off
     ch += 1;
   );
 );
@@ -154,7 +151,7 @@ stop_now = slider3;
 clear_now = slider4;
 
 (clear_now > 0.5 && prev_clear <= 0.5) ? (
-  send_all_notes_off();
+  panic_pending = 1;
   clear_loop();
   slider1 = 0;
   slider2 = 0;
@@ -198,13 +195,13 @@ clear_now = slider4;
 
 (stop_now > 0.5 && prev_stop <= 0.5) ? (
   state == STATE_PLAYING ? (
-    send_all_notes_off();
+    panic_pending = 1;
     play_sample_pos = 0;
     state = STATE_STOPPED;
   ) :
   state == STATE_RECORDING ? (
     // STOP during recording cancels this take but keeps plugin alive.
-    send_all_notes_off();
+    panic_pending = 1;
     event_count = 0;
     record_sample_pos = 0;
     loop_len_samples = 0;
@@ -224,6 +221,12 @@ prev_stop = slider3;
 prev_clear = slider4;
 
 @block
+
+// MIDI output belongs in the audio/MIDI thread. The GUI only requests a panic.
+panic_pending ? (
+  send_all_notes_off();
+  panic_pending = 0;
+);
 
 while (
   midirecv(offset, msg1, msg23) ?
@@ -338,18 +341,18 @@ hit(bx+bw+gap,by,bw,bh) ? (
 
 hit(bx+(bw+gap)*2,by,bw,bh) ? (
   state==STATE_PLAYING ? (
-    send_all_notes_off();
+    panic_pending = 1;
     play_sample_pos=0;
     state=STATE_STOPPED;
   ) : state==STATE_RECORDING ? (
-    send_all_notes_off();
+    panic_pending = 1;
     event_count=0; record_sample_pos=0; loop_len_samples=0;
     analysis_done=0; state=STATE_IDLE;
   ) : state==STATE_READY ? state=STATE_IDLE;
 );
 
 hit(bx+(bw+gap)*3,by,bw,bh) ? (
-  send_all_notes_off();
+  panic_pending = 1;
   clear_loop();
 );
 
@@ -410,7 +413,7 @@ analysis_done ? (
   gfx_setfont(1, "Arial", 13);
   gfx_x = 20;
   gfx_y = 308;
-  gfx_drawstr("4/4 assumed | v0.4.1 duration-based inference");
+  gfx_drawstr("4/4 assumed | v0.5 duration-based inference");
 ) : (
   gfx_setfont(1, "Arial", 13);
   gfx_x = 20;

@@ -1,7 +1,12 @@
-desc:MIDI Human Looper v1.12.0
+desc:MIDI Human Looper v1.13.0
 options:gmem=MIDI_HUMAN_LOOPER
 
 // Free-time MIDI phrase instrument prototype for REAPER JSFX.
+// v1.13.0:
+// - add per-instrument NOTE MODE: POLY / BASS / LAST / LEGATO
+// - BASS always outputs the lowest currently held source note
+// - LAST uses last-note priority; LEGATO uses last-note priority with note-on-before-note-off transitions
+// - mono filtering happens before the existing post-ARP, so extracted bass/lead notes can still be arpeggiated
 // v1.12.0:
 // - phrase modes are now LOOP / ONCE / HOLD
 // - HOLD preserves the recorded attack/strum timing but suppresses recorded Note Offs
@@ -347,7 +352,8 @@ CUSTOM_PRESET_BASE = INST_EXP_BEND_BASE + EXP_TOTAL*EXP_POINTS;
 NAME_CHARS=16;
 PHRASE_NAME_BASE = CUSTOM_PRESET_BASE + CUSTOM_PRESETS*CUSTOM_PRESET_STRIDE;
 INSTR_NAME_BASE = PHRASE_NAME_BASE + LAYERS*NAME_CHARS;
-WORK_MEM_SIZE = INSTR_NAME_BASE + INSTRUMENTS*NAME_CHARS;
+INST_NOTE_MODE_BASE = INSTR_NAME_BASE + INSTRUMENTS*NAME_CHARS; // 0 POLY, 1 BASS, 2 LAST, 3 LEGATO
+WORK_MEM_SIZE = INST_NOTE_MODE_BASE + INSTRUMENTS;
 PATCH_HEADER_SIZE = 12;
 PATCH_DATA_SIZE = PATCH_HEADER_SIZE + WORK_MEM_SIZE;
 PATCH1_BASE = WORK_MEM_SIZE + 64;
@@ -378,7 +384,12 @@ ARP_GATE_REMAIN_BASE = ARP_STEP_REMAIN_BASE + INSTRUMENTS;
 ARP_SOURCE_COUNT_BASE = ARP_GATE_REMAIN_BASE + INSTRUMENTS;
 EXP_LAST_VALUE_BASE = ARP_SOURCE_COUNT_BASE + INSTRUMENTS*128;
 ARP_CURSOR_BASE = EXP_LAST_VALUE_BASE + EXP_TOTAL;
-HOLD_ACTIVE_BASE = ARP_CURSOR_BASE + INSTRUMENTS; // actually LAYERS slots below; runtime only
+HOLD_ACTIVE_BASE = ARP_CURSOR_BASE + INSTRUMENTS; // LAYERS runtime slots
+MONO_HELD_COUNT_BASE = HOLD_ACTIVE_BASE + LAYERS;
+MONO_HELD_VEL_BASE = MONO_HELD_COUNT_BASE + INSTRUMENTS*128;
+MONO_ORDER_BASE = MONO_HELD_VEL_BASE + INSTRUMENTS*128;
+MONO_ACTIVE_NOTE_BASE = MONO_ORDER_BASE + INSTRUMENTS*128;
+MONO_ACTIVE_CH_BASE = MONO_ACTIVE_NOTE_BASE + INSTRUMENTS;
 // patch_valid1 / patch_valid2 / current_patch are serialized state.
 // Do NOT clear them here: REAPER may call @init after @serialize.
 (patch_valid1<=0 && patch_valid2<=0 && (current_patch<1 || current_patch>2)) ? current_patch=1;
@@ -390,6 +401,7 @@ io_status = 0;
 last_trigger_layer = -1;
 trigger_request = -1;
 hold_stop_request = -1;
+mono_order_counter = 0;
 phrase_page = 0;
 PHRASES_PER_PAGE = 6;
 PHRASE_PAGES = 3;
@@ -463,6 +475,16 @@ loop(INSTRUMENTS,
   mem[INST_ARP_GATE_BASE+ii]=0.5;
   mem[INST_ARP_HOLD_BASE+ii]=0;
   mem[INST_ARP_MODE_BASE+ii]=0;
+  mem[INST_NOTE_MODE_BASE+ii]=0;
+  mem[MONO_ACTIVE_NOTE_BASE+ii]=-1;
+  mem[MONO_ACTIVE_CH_BASE+ii]=0;
+  nn=0;
+  loop(128,
+    mem[MONO_HELD_COUNT_BASE+ii*128+nn]=0;
+    mem[MONO_HELD_VEL_BASE+ii*128+nn]=0;
+    mem[MONO_ORDER_BASE+ii*128+nn]=0;
+    nn+=1;
+  );
   et=0;
   loop(EXP_TARGETS,
     eti=ii*EXP_TARGETS+et;
@@ -812,8 +834,90 @@ local(rate,gate,step_samples,step_rem,gate_rem,held,n,choice,pick,vel,ch,an,offs
   );
 );
 
+function route_emit_note(gi, offs, outst, note, vel, is_on, owned)
+local(ch,key)
+(
+  ch=outst&15;
+  mem[INST_ARP_ENABLED_BASE+gi]>0.5 ? (
+    arp_capture_note(gi,outst,note,vel,is_on);
+  ) : owned ? (
+    key=NOTE_REF_BASE+ch*128+note;
+    is_on ? (
+      mem[key]+=1;
+      midisend(offs,outst,note|(vel*256));
+    ) : (
+      mem[key]=max(0,mem[key]-1);
+      mem[key]<=0 ? midisend(offs,128|ch,note);
+    );
+  ) : (
+    is_on ? midisend(offs,outst,note|(vel*256)) : midisend(offs,128|ch,note);
+  );
+);
+
+function mono_desired_note(gi, mode)
+local(n,best,best_order,ord)
+(
+  best=-1;
+  mode==1 ? (
+    n=0;
+    loop(128,
+      best<0 && mem[MONO_HELD_COUNT_BASE+gi*128+n]>0 ? best=n;
+      n+=1;
+    );
+  ) : (
+    best_order=-1; n=0;
+    loop(128,
+      mem[MONO_HELD_COUNT_BASE+gi*128+n]>0 ? (
+        ord=mem[MONO_ORDER_BASE+gi*128+n];
+        ord>best_order ? (best_order=ord; best=n;);
+      );
+      n+=1;
+    );
+  );
+  best;
+);
+
+function route_mono_note(gi, offs, outst, note, vel, is_on, owned)
+local(mode,idx,desired,active,active_ch,newst,newvel)
+(
+  mode=floor(mem[INST_NOTE_MODE_BASE+gi]+0.5);
+  idx=MONO_HELD_COUNT_BASE+gi*128+note;
+  is_on ? (
+    mem[idx]+=1;
+    mem[MONO_HELD_VEL_BASE+gi*128+note]=vel;
+    mono_order_counter+=1;
+    mem[MONO_ORDER_BASE+gi*128+note]=mono_order_counter;
+  ) : (
+    mem[idx]=max(0,mem[idx]-1);
+  );
+
+  desired=mono_desired_note(gi,mode);
+  active=mem[MONO_ACTIVE_NOTE_BASE+gi];
+  active_ch=mem[MONO_ACTIVE_CH_BASE+gi]&15;
+
+  desired!=active ? (
+    desired>=0 ? (
+      newst=144|(outst&15);
+      newvel=max(1,min(127,mem[MONO_HELD_VEL_BASE+gi*128+desired]));
+      mode==3 ? (
+        // LEGATO: overlap the transition so mono synths can engage their own legato/glide behavior.
+        route_emit_note(gi,offs,newst,desired,newvel,1,owned);
+        active>=0 ? route_emit_note(gi,offs,128|active_ch,active,0,0,owned);
+      ) : (
+        active>=0 ? route_emit_note(gi,offs,128|active_ch,active,0,0,owned);
+        route_emit_note(gi,offs,newst,desired,newvel,1,owned);
+      );
+      mem[MONO_ACTIVE_NOTE_BASE+gi]=desired;
+      mem[MONO_ACTIVE_CH_BASE+gi]=outst&15;
+    ) : (
+      active>=0 ? route_emit_note(gi,offs,128|active_ch,active,0,0,owned);
+      mem[MONO_ACTIVE_NOTE_BASE+gi]=-1;
+    );
+  );
+);
+
 function send_to_instruments(offs, st, d1, d2, extra_gain)
-local(srcch,typ,ii,in_ch,out_ch,outst,outd2,matched,velmul)
+local(srcch,typ,ii,in_ch,out_ch,outst,outd2,matched,velmul,nmode)
 (
   srcch=(st&15)+1;
   typ=st&240;
@@ -827,26 +931,24 @@ local(srcch,typ,ii,in_ch,out_ch,outst,outd2,matched,velmul)
         out_ch=mem[INST_OUT_BASE+ii];
         outst=st;
         out_ch>0 ? outst=(st&240)|(max(1,min(16,out_ch))-1);
-
         outd2=d2;
+        nmode=floor(mem[INST_NOTE_MODE_BASE+ii]+0.5);
+
         (typ==144 && d2>0) ? (
           velmul=mem[INST_VEL_BASE+ii]*extra_gain;
           outd2=max(1,min(127,floor(d2*velmul+0.5)));
-          mem[INST_ARP_ENABLED_BASE+ii]>0.5 ?
-            arp_capture_note(ii,outst,d1,outd2,1) :
-            midisend(offs,outst,d1|(outd2*256));
+          nmode>0 ? route_mono_note(ii,offs,outst,d1,outd2,1,0) :
+                    route_emit_note(ii,offs,outst,d1,outd2,1,0);
         ) :
         ((typ==128) || (typ==144 && d2==0)) ? (
-          mem[INST_ARP_ENABLED_BASE+ii]>0.5 ?
-            arp_capture_note(ii,outst,d1,0,0) :
-            midisend(offs,outst,d1|(d2*256));
+          nmode>0 ? route_mono_note(ii,offs,outst,d1,0,0,0) :
+                    route_emit_note(ii,offs,outst,d1,0,0,0);
         ) :
           midisend(offs,outst,d1|(d2*256));
       );
     );
     ii+=1;
   );
-  // If every instrument route is disabled, remain fail-safe / transparent.
   matched==0 ? midisend(offs,st,d1|(d2*256));
 );
 
@@ -870,7 +972,7 @@ local(ii,out_ch,ch,lev,mod)
 );
 
 function send_once_to_instruments(offs, st, d1, d2, phrase_gain)
-local(srcch,typ,ii,in_ch,out_ch,outst,outd2,matched,velmul,msg_chan,note_key)
+local(srcch,typ,ii,in_ch,out_ch,outst,outd2,matched,velmul,msg_chan,note_key,nmode)
 (
   srcch=(st&15)+1;
   typ=st&240;
@@ -886,25 +988,17 @@ local(srcch,typ,ii,in_ch,out_ch,outst,outd2,matched,velmul,msg_chan,note_key)
         out_ch>0 ? outst=(st&240)|(max(1,min(16,out_ch))-1);
         msg_chan=outst&15;
         outd2=d2;
+        nmode=floor(mem[INST_NOTE_MODE_BASE+ii]+0.5);
+
         (typ==144 && d2>0) ? (
           velmul=mem[INST_VEL_BASE+ii]*phrase_gain;
           outd2=max(1,min(127,floor(d2*velmul+0.5)));
-          mem[INST_ARP_ENABLED_BASE+ii]>0.5 ? (
-            arp_capture_note(ii,outst,d1,outd2,1);
-          ) : (
-            note_key=NOTE_REF_BASE+msg_chan*128+d1;
-            mem[note_key]+=1;
-            midisend(offs,outst,d1|(outd2*256));
-          );
+          nmode>0 ? route_mono_note(ii,offs,outst,d1,outd2,1,1) :
+                    route_emit_note(ii,offs,outst,d1,outd2,1,1);
         ) :
         ((typ==128) || (typ==144 && d2==0)) ? (
-          mem[INST_ARP_ENABLED_BASE+ii]>0.5 ? (
-            arp_capture_note(ii,outst,d1,0,0);
-          ) : (
-            note_key=NOTE_REF_BASE+msg_chan*128+d1;
-            mem[note_key]=max(0,mem[note_key]-1);
-            mem[note_key]<=0 ? midisend(offs,128|msg_chan,d1);
-          );
+          nmode>0 ? route_mono_note(ii,offs,outst,d1,0,0,1) :
+                    route_emit_note(ii,offs,outst,d1,0,0,1);
         ) :
         (typ==176 && d1==64) ? (
           d2>=64 ? (
@@ -1042,7 +1136,10 @@ function external_patch_apply()
 local(j,n)
 (
   n=gmem[3];
-  (gmem[2]==IO_SCHEMA && n==WORK_MEM_SIZE) ? (
+  (gmem[2]==IO_SCHEMA && n>0 && n<=WORK_MEM_SIZE) ? (
+    // Patch memory only grows by appending fields, so older JSON patches remain valid prefixes.
+    j=n;
+    loop(WORK_MEM_SIZE-n, mem[j]=0; j+=1;);
     loop_len_samples=gmem[4];
     analysis_done=gmem[5];
     slider4=gmem[6];
@@ -1053,7 +1150,7 @@ local(j,n)
     slider9=gmem[11];
     record_layer=gmem[12];
     j=0;
-    loop(WORK_MEM_SIZE,
+    loop(n,
       mem[j]=gmem[IO_PAYLOAD_BASE+j];
       j+=1;
     );
@@ -1139,7 +1236,7 @@ local(ch,note)
 );
 
 function release_phrase_notes()
-local(ch,note,key)
+local(ch,note,key,mi,mn)
 (
   // Targeted choke for ONE SHOT voices only.
   // Release exactly the notes that our ownership table says are still sounding.
@@ -1159,6 +1256,19 @@ local(ch,note,key)
       mem[SUSTAIN_REF_BASE+ch]=0;
     );
     ch+=1;
+  );
+  // A phrase choke / HOLD stop also forgets mono source ownership.
+  mi=0;
+  loop(INSTRUMENTS,
+    mem[MONO_ACTIVE_NOTE_BASE+mi]=-1;
+    mn=0;
+    loop(128,
+      mem[MONO_HELD_COUNT_BASE+mi*128+mn]=0;
+      mem[MONO_HELD_VEL_BASE+mi*128+mn]=0;
+      mem[MONO_ORDER_BASE+mi*128+mn]=0;
+      mn+=1;
+    );
+    mi+=1;
   );
 );
 
@@ -1990,7 +2100,7 @@ local(asg,cnt,k,x0,y0,x1,y1,px0,py0,px1,py1)
 
 // Compact two-line instrument strip, matching the visual mockup.
 function draw_instrument_row(gi, iy)
-local(ti,ivx,ivw,ivn,ilx,ilw,imx,imw,ccx,arx,modex,holdx,rrx,rrw,grx,grw,rnorm,gnorm,boxh,tw,th)
+local(ti,ivx,ivw,ivn,ilx,ilw,imx,imw,ccx,arx,modex,holdx,rrx,rrw,grx,grw,rnorm,gnorm,boxh,tw,th,notemode)
 (
   boxh=28;
   gfx_setfont(1,"Arial",12); gfx_set(0.78,0.78,0.78,1);
@@ -2008,58 +2118,65 @@ local(ti,ivx,ivw,ivn,ilx,ilw,imx,imw,ccx,arx,modex,holdx,rrx,rrw,grx,grw,rnorm,g
   smallbtn(246,iy,48,boxh,mem[INST_ENABLED_BASE+gi]>0.5 ? "ON" : "OFF",mem[INST_ENABLED_BASE+gi]>0.5);
   hit(246,iy,48,boxh) ? mem[INST_ENABLED_BASE+gi]=1-mem[INST_ENABLED_BASE+gi];
 
-  smallbtn(306,iy,58,boxh,"",0); hit(306,iy,58,boxh) ? mem[INST_IN_BASE+gi]=(mem[INST_IN_BASE+gi]+1)%17;
-  gfx_setfont(1,"Arial",11); gfx_set(0.95,0.95,0.15,1);
-  mem[INST_IN_BASE+gi]==0 ? centered_text(306,iy,58,boxh,"ALL") : (gfx_x=331; gfx_y=iy+7; gfx_drawnumber(mem[INST_IN_BASE+gi],0););
+  notemode=floor(mem[INST_NOTE_MODE_BASE+gi]+0.5);
+  smallbtn(302,iy,92,boxh,notemode==0 ? "POLY" : notemode==1 ? "BASS" : notemode==2 ? "LAST" : "LEGATO",notemode>0);
+  hit(302,iy,92,boxh) ? (
+    mem[INST_NOTE_MODE_BASE+gi]=(notemode+1)%4;
+    panic_pending=1;
+  );
 
-  smallbtn(376,iy,68,boxh,"",0); hit(376,iy,68,boxh) ? mem[INST_OUT_BASE+gi]=(mem[INST_OUT_BASE+gi]+1)%17;
+  smallbtn(406,iy,58,boxh,"",0); hit(406,iy,58,boxh) ? mem[INST_IN_BASE+gi]=(mem[INST_IN_BASE+gi]+1)%17;
   gfx_setfont(1,"Arial",11); gfx_set(0.95,0.95,0.15,1);
-  mem[INST_OUT_BASE+gi]==0 ? centered_text(376,iy,68,boxh,"ORIG") : (gfx_x=405; gfx_y=iy+7; gfx_drawnumber(mem[INST_OUT_BASE+gi],0););
+  mem[INST_IN_BASE+gi]==0 ? centered_text(406,iy,58,boxh,"ALL") : (gfx_x=431; gfx_y=iy+7; gfx_drawnumber(mem[INST_IN_BASE+gi],0););
 
-  ivx=462; ivw=110; gfx_set(0.20,0.20,0.20,1); gfx_rect(ivx,iy+5,ivw,18,1);
+  smallbtn(476,iy,68,boxh,"",0); hit(476,iy,68,boxh) ? mem[INST_OUT_BASE+gi]=(mem[INST_OUT_BASE+gi]+1)%17;
+  gfx_setfont(1,"Arial",11); gfx_set(0.95,0.95,0.15,1);
+  mem[INST_OUT_BASE+gi]==0 ? centered_text(476,iy,68,boxh,"ORIG") : (gfx_x=505; gfx_y=iy+7; gfx_drawnumber(mem[INST_OUT_BASE+gi],0););
+
+  ivx=562; ivw=110; gfx_set(0.20,0.20,0.20,1); gfx_rect(ivx,iy+5,ivw,18,1);
   ivn=max(0,min(1,(mem[INST_VEL_BASE+gi]-0.2)/2.8)); gfx_set(0.72,0.72,0.72,1); gfx_rect(ivx,iy+5,ivw*ivn,18,1);
   ti=gi*EXP_TARGETS+EXP_T_VEL;
   mouse_cap&1&&mouse_x>=ivx&&mouse_x<ivx+ivw&&mouse_y>=iy+2&&mouse_y<iy+26 ? (mem[INST_EXP_ASSIGN_BASE+ti]>0 ? (!(last_mouse_cap&1)?exp_editor_ti=ti;) : mem[INST_VEL_BASE+gi]=0.2+2.8*((mouse_x-ivx)/ivw););
   (mouse_cap&2)&&!(last_mouse_cap&2)&&mouse_x>=ivx&&mouse_x<ivx+ivw&&mouse_y>=iy&&mouse_y<iy+28 ? (mem[INST_EXP_ASSIGN_BASE+ti]=(mem[INST_EXP_ASSIGN_BASE+ti]+1)%3; mem[EXP_LAST_VALUE_BASE+ti]=-1; mem[INST_EXP_ASSIGN_BASE+ti]>0?exp_editor_ti=ti:0;);
   draw_exp_badge(ti,ivx,iy+5,ivw,18);
 
-  ccx=590; smallbtn(ccx,iy,44,boxh,"",0); hit(ccx,iy,44,boxh)?mem[INST_LEVEL_CC_BASE+gi]=(mem[INST_LEVEL_CC_BASE+gi]+1)%128;
-  gfx_setfont(1,"Arial",11); gfx_set(0.95,0.95,0.15,1); gfx_x=607; gfx_y=iy+7; gfx_drawnumber(mem[INST_LEVEL_CC_BASE+gi],0);
+  ccx=690; smallbtn(ccx,iy,44,boxh,"",0); hit(ccx,iy,44,boxh)?mem[INST_LEVEL_CC_BASE+gi]=(mem[INST_LEVEL_CC_BASE+gi]+1)%128;
+  gfx_setfont(1,"Arial",11); gfx_set(0.95,0.95,0.15,1); gfx_x=707; gfx_y=iy+7; gfx_drawnumber(mem[INST_LEVEL_CC_BASE+gi],0);
 
-  ilx=650; ilw=110; gfx_set(0.20,0.20,0.20,1); gfx_rect(ilx,iy+5,ilw,18,1); gfx_set(0.72,0.72,0.72,1); gfx_rect(ilx,iy+5,ilw*(mem[INST_LEVEL_BASE+gi]/127),18,1);
+  ilx=750; ilw=110; gfx_set(0.20,0.20,0.20,1); gfx_rect(ilx,iy+5,ilw,18,1); gfx_set(0.72,0.72,0.72,1); gfx_rect(ilx,iy+5,ilw*(mem[INST_LEVEL_BASE+gi]/127),18,1);
   ti=gi*EXP_TARGETS+EXP_T_LEVEL;
   mouse_cap&1&&mouse_x>=ilx&&mouse_x<ilx+ilw&&mouse_y>=iy+2&&mouse_y<iy+26 ? (mem[INST_EXP_ASSIGN_BASE+ti]>0 ? (!(last_mouse_cap&1)?exp_editor_ti=ti;) : (mem[INST_LEVEL_BASE+gi]=floor(127*((mouse_x-ilx)/ilw)+.5);mem[CC_DIRTY_BASE+gi]=1;););
   (mouse_cap&2)&&!(last_mouse_cap&2)&&mouse_x>=ilx&&mouse_x<ilx+ilw&&mouse_y>=iy&&mouse_y<iy+28 ? (mem[INST_EXP_ASSIGN_BASE+ti]=(mem[INST_EXP_ASSIGN_BASE+ti]+1)%3;mem[EXP_LAST_VALUE_BASE+ti]=-1;mem[INST_EXP_ASSIGN_BASE+ti]>0?exp_editor_ti=ti:0;);
   draw_exp_badge(ti,ilx,iy+5,ilw,18);
 
-  imx=778; imw=110; gfx_set(0.20,0.20,0.20,1); gfx_rect(imx,iy+5,imw,18,1); gfx_set(0.72,0.72,0.72,1); gfx_rect(imx,iy+5,imw*(mem[INST_MOD_BASE+gi]/127),18,1);
+  imx=878; imw=110; gfx_set(0.20,0.20,0.20,1); gfx_rect(imx,iy+5,imw,18,1); gfx_set(0.72,0.72,0.72,1); gfx_rect(imx,iy+5,imw*(mem[INST_MOD_BASE+gi]/127),18,1);
   ti=gi*EXP_TARGETS+EXP_T_MOD;
   mouse_cap&1&&mouse_x>=imx&&mouse_x<imx+imw&&mouse_y>=iy+2&&mouse_y<iy+26 ? (mem[INST_EXP_ASSIGN_BASE+ti]>0 ? (!(last_mouse_cap&1)?exp_editor_ti=ti;) : (mem[INST_MOD_BASE+gi]=floor(127*((mouse_x-imx)/imw)+.5);mem[CC_DIRTY_MOD_BASE+gi]=1;););
   (mouse_cap&2)&&!(last_mouse_cap&2)&&mouse_x>=imx&&mouse_x<imx+imw&&mouse_y>=iy&&mouse_y<iy+28 ? (mem[INST_EXP_ASSIGN_BASE+ti]=(mem[INST_EXP_ASSIGN_BASE+ti]+1)%3;mem[EXP_LAST_VALUE_BASE+ti]=-1;mem[INST_EXP_ASSIGN_BASE+ti]>0?exp_editor_ti=ti:0;);
   draw_exp_badge(ti,imx,iy+5,imw,18);
 
   // ARP lives at the right. OFF collapses every secondary parameter.
-  arx=910; ti=gi*EXP_TARGETS+EXP_T_ARP_ON;
+  arx=1010; ti=gi*EXP_TARGETS+EXP_T_ARP_ON;
   smallbtn(arx,iy,56,boxh,mem[INST_ARP_ENABLED_BASE+gi]>0.5?"ARP ON":"ARP OFF",mem[INST_ARP_ENABLED_BASE+gi]>0.5);
   hit(arx,iy,56,boxh) ? (mem[INST_EXP_ASSIGN_BASE+ti]>0 ? exp_editor_ti=ti : mem[INST_ARP_ENABLED_BASE+gi]=1-mem[INST_ARP_ENABLED_BASE+gi];);
   (mouse_cap&2)&&!(last_mouse_cap&2)&&mouse_x>=arx&&mouse_x<arx+56&&mouse_y>=iy&&mouse_y<iy+28 ? (mem[INST_EXP_ASSIGN_BASE+ti]=(mem[INST_EXP_ASSIGN_BASE+ti]+1)%3;mem[EXP_LAST_VALUE_BASE+ti]=-1;mem[INST_EXP_ASSIGN_BASE+ti]>0?exp_editor_ti=ti:0;);
   draw_exp_badge(ti,arx,iy,56,boxh);
 
   mem[INST_ARP_ENABLED_BASE+gi]>0.5 ? (
-    modex=976; ti=gi*EXP_TARGETS+EXP_T_ARP_MODE;
+    modex=1076; ti=gi*EXP_TARGETS+EXP_T_ARP_MODE;
     smallbtn(modex,iy,70,boxh,mem[INST_ARP_MODE_BASE+gi]<.5?"RANDOM":mem[INST_ARP_MODE_BASE+gi]<1.5?"UP":"DOWN",0);
     hit(modex,iy,70,boxh)?(mem[INST_EXP_ASSIGN_BASE+ti]>0?exp_editor_ti=ti:mem[INST_ARP_MODE_BASE+gi]=(mem[INST_ARP_MODE_BASE+gi]+1)%3;);
     (mouse_cap&2)&&!(last_mouse_cap&2)&&mouse_x>=modex&&mouse_x<modex+70&&mouse_y>=iy&&mouse_y<iy+28?(mem[INST_EXP_ASSIGN_BASE+ti]=(mem[INST_EXP_ASSIGN_BASE+ti]+1)%3;mem[EXP_LAST_VALUE_BASE+ti]=-1;mem[INST_EXP_ASSIGN_BASE+ti]>0?exp_editor_ti=ti:0;);
     draw_exp_badge(ti,modex,iy,70,boxh);
 
-    holdx=1054; smallbtn(holdx,iy,72,boxh,mem[INST_ARP_HOLD_BASE+gi]>.5?"HOLD":"RELEASE",mem[INST_ARP_HOLD_BASE+gi]>.5);
+    holdx=1154; smallbtn(holdx,iy,72,boxh,mem[INST_ARP_HOLD_BASE+gi]>.5?"HOLD":"RELEASE",mem[INST_ARP_HOLD_BASE+gi]>.5);
     hit(holdx,iy,72,boxh)?mem[INST_ARP_HOLD_BASE+gi]=1-mem[INST_ARP_HOLD_BASE+gi];
 
-    rrx=1140; rrw=80; gfx_set(0.20,0.20,0.20,1);gfx_rect(rrx,iy+5,rrw,18,1);rnorm=max(0,min(1,(mem[INST_ARP_RATE_BASE+gi]-.25)/15.75));gfx_set(.72,.72,.72,1);gfx_rect(rrx,iy+5,rrw*rnorm,18,1);
+    rrx=1240; rrw=80; gfx_set(0.20,0.20,0.20,1);gfx_rect(rrx,iy+5,rrw,18,1);rnorm=max(0,min(1,(mem[INST_ARP_RATE_BASE+gi]-.25)/15.75));gfx_set(.72,.72,.72,1);gfx_rect(rrx,iy+5,rrw*rnorm,18,1);
     ti=gi*EXP_TARGETS+EXP_T_ARP_RATE; mouse_cap&1&&mouse_x>=rrx&&mouse_x<rrx+rrw&&mouse_y>=iy&&mouse_y<iy+28?(mem[INST_EXP_ASSIGN_BASE+ti]>0?(!(last_mouse_cap&1)?exp_editor_ti=ti;):mem[INST_ARP_RATE_BASE+gi]=.25+15.75*((mouse_x-rrx)/rrw););
     (mouse_cap&2)&&!(last_mouse_cap&2)&&mouse_x>=rrx&&mouse_x<rrx+rrw&&mouse_y>=iy&&mouse_y<iy+28?(mem[INST_EXP_ASSIGN_BASE+ti]=(mem[INST_EXP_ASSIGN_BASE+ti]+1)%3;mem[EXP_LAST_VALUE_BASE+ti]=-1;mem[INST_EXP_ASSIGN_BASE+ti]>0?exp_editor_ti=ti:0;);draw_exp_badge(ti,rrx,iy+5,rrw,18);
 
-    grx=1232; grw=80; gfx_set(.20,.20,.20,1);gfx_rect(grx,iy+5,grw,18,1);gnorm=max(.02,min(1,mem[INST_ARP_GATE_BASE+gi]));gfx_set(.72,.72,.72,1);gfx_rect(grx,iy+5,grw*gnorm,18,1);
+    grx=1332; grw=80; gfx_set(.20,.20,.20,1);gfx_rect(grx,iy+5,grw,18,1);gnorm=max(.02,min(1,mem[INST_ARP_GATE_BASE+gi]));gfx_set(.72,.72,.72,1);gfx_rect(grx,iy+5,grw*gnorm,18,1);
     ti=gi*EXP_TARGETS+EXP_T_ARP_GATE; mouse_cap&1&&mouse_x>=grx&&mouse_x<grx+grw&&mouse_y>=iy&&mouse_y<iy+28?(mem[INST_EXP_ASSIGN_BASE+ti]>0?(!(last_mouse_cap&1)?exp_editor_ti=ti;):mem[INST_ARP_GATE_BASE+gi]=max(.02,min(1,(mouse_x-grx)/grw)););
     (mouse_cap&2)&&!(last_mouse_cap&2)&&mouse_x>=grx&&mouse_x<grx+grw&&mouse_y>=iy&&mouse_y<iy+28?(mem[INST_EXP_ASSIGN_BASE+ti]=(mem[INST_EXP_ASSIGN_BASE+ti]+1)%3;mem[EXP_LAST_VALUE_BASE+ti]=-1;mem[INST_EXP_ASSIGN_BASE+ti]>0?exp_editor_ti=ti:0;);draw_exp_badge(ti,grx,iy+5,grw,18);
   );
@@ -2068,13 +2185,14 @@ local(ti,ivx,ivw,ivn,ilx,ilw,imx,imw,ccx,arx,modex,holdx,rrx,rrw,grx,grw,rnorm,g
 inst_y=152 + PHRASES_PER_PAGE*38 + 18;
 gfx_setfont(1,"Arial",16); gfx_set(0.72,0.72,0.72,1); gfx_x=20; gfx_y=inst_y; gfx_drawstr("INSTRUMENTS");
 gfx_setfont(1,"Arial",11); gfx_set(0.95,0.95,0.15,1);
-gfx_x=320;gfx_y=inst_y;gfx_drawstr("IN");
-gfx_x=393;gfx_y=inst_y;gfx_drawstr("OUT");
-gfx_x=462;gfx_y=inst_y;gfx_drawstr("VELOCITY");
-gfx_x=600;gfx_y=inst_y;gfx_drawstr("CC");
-gfx_x=650;gfx_y=inst_y;gfx_drawstr("VOLUME");
-gfx_x=778;gfx_y=inst_y;gfx_drawstr("MODULATION");
-gfx_x=910;gfx_y=inst_y;gfx_drawstr("ARP");
+gfx_x=322;gfx_y=inst_y;gfx_drawstr("MODE");
+gfx_x=420;gfx_y=inst_y;gfx_drawstr("IN");
+gfx_x=493;gfx_y=inst_y;gfx_drawstr("OUT");
+gfx_x=562;gfx_y=inst_y;gfx_drawstr("VELOCITY");
+gfx_x=700;gfx_y=inst_y;gfx_drawstr("CC");
+gfx_x=750;gfx_y=inst_y;gfx_drawstr("VOLUME");
+gfx_x=878;gfx_y=inst_y;gfx_drawstr("MODULATION");
+gfx_x=1010;gfx_y=inst_y;gfx_drawstr("ARP");
 inst_y+=24;
 draw_instrument_row(0,inst_y);
 draw_instrument_row(1,inst_y+38);

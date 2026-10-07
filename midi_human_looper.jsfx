@@ -1,7 +1,11 @@
-desc:MIDI Human Looper v1.11.0
+desc:MIDI Human Looper v1.11.1
 options:gmem=MIDI_HUMAN_LOOPER
 
 // Free-time MIDI phrase instrument prototype for REAPER JSFX.
+// v1.11.1:
+// - tighten phrase OVERDUB / CLEAR / LOOP / TRIG-STOP buttons around their labels
+// - shorten phrase VELOCITY and DECAY sliders; DECAY remains shorter than VELOCITY
+// - give DECAY the same 18px height as VELOCITY for a balanced row
 // v1.11.0:
 // - wide unified UI grid for PHRASES / INSTRUMENTS
 // - persistent editable phrase and instrument names with automatic default fallback
@@ -1736,49 +1740,49 @@ loop(PHRASES_PER_PAGE,
     );
     hit(nx,rowy,nw,28) ? (edit_name_type=1; edit_name_index=gui_layer;);
 
-    mx=262; sx=310; ox=358; clx=450; modex=526; trigx=604;
+    mx=262; sx=310; ox=358; clx=426; modex=478; trigx=528;
     smallbtn(mx,rowy,40,28,"MUTE",mem[MUTE_BASE+gui_layer]>0.5);
     smallbtn(sx,rowy,40,28,"SOLO",mem[SOLO_BASE+gui_layer]>0.5);
-    smallbtn(ox,rowy,84,28,"OVERDUB",overdub_armed && overdub_layer==gui_layer || overdub_active && overdub_layer==gui_layer);
-    smallbtn(clx,rowy,68,28,"CLEAR",0);
-    smallbtn(modex,rowy,70,28,mem[MODE_BASE+gui_layer]<0.5 ? "LOOP" : "ONCE",mem[MODE_BASE+gui_layer]>=0.5);
+    smallbtn(ox,rowy,62,28,"OVERDUB",overdub_armed && overdub_layer==gui_layer || overdub_active && overdub_layer==gui_layer);
+    smallbtn(clx,rowy,46,28,"CLEAR",0);
+    smallbtn(modex,rowy,44,28,mem[MODE_BASE+gui_layer]<0.5 ? "LOOP" : "ONCE",mem[MODE_BASE+gui_layer]>=0.5);
     voice_lit=0; vi=0; loop(MAX_ONCE_VOICES, mem[VOICE_ACTIVE_BASE+vi]>0.5 && mem[VOICE_LAYER_BASE+vi]==gui_layer ? voice_lit=1; vi+=1;);
     loop_lit=mem[MODE_BASE+gui_layer]<0.5 && mem[TRIG_BASE+gui_layer]>0.5;
-    smallbtn(trigx,rowy,62,28,loop_lit ? "STOP" : "TRIG",voice_lit || loop_lit);
+    smallbtn(trigx,rowy,44,28,loop_lit ? "STOP" : "TRIG",voice_lit || loop_lit);
 
     hit(mx,rowy,40,28) ? mem[MUTE_BASE+gui_layer]=1-mem[MUTE_BASE+gui_layer];
     hit(sx,rowy,40,28) ? mem[SOLO_BASE+gui_layer]=1-mem[SOLO_BASE+gui_layer];
-    hit(ox,rowy,84,28) && state==STATE_PLAYING ? (
+    hit(ox,rowy,62,28) && state==STATE_PLAYING ? (
       overdub_active && overdub_layer==gui_layer ? (overdub_active=0; overdub_pos=0;) :
       (overdub_layer=gui_layer; overdub_armed=1; overdub_active=0;);
     );
-    hit(clx,rowy,68,28) ? (panic_pending=1; clear_layer(gui_layer););
-    hit(modex,rowy,70,28) ? (
+    hit(clx,rowy,46,28) ? (panic_pending=1; clear_layer(gui_layer););
+    hit(modex,rowy,44,28) ? (
       mem[MODE_BASE+gui_layer]=1-mem[MODE_BASE+gui_layer];
       mem[TRIG_BASE+gui_layer]=mem[MODE_BASE+gui_layer]<0.5;
       mem[ONCEPOS_BASE+gui_layer]=0; panic_pending=1;
     );
-    hit(trigx,rowy,62,28) && layer_count(gui_layer)>0 ? (
+    hit(trigx,rowy,44,28) && layer_count(gui_layer)>0 ? (
       mem[MODE_BASE+gui_layer]>=0.5 ? trigger_request=gui_layer : (
         mem[TRIG_BASE+gui_layer]>0.5 ? (mem[TRIG_BASE+gui_layer]=0; panic_pending=1;) : mem[TRIG_BASE+gui_layer]=1;
       );
     );
 
     // phrase velocity
-    vx=680; vw=120; vy=rowy+3;
+    vx=590; vw=82; vy=rowy+3;
     gfx_set(0.22,0.22,0.22,1); gfx_rect(vx,vy,vw,18,1);
     vnorm=max(0,min(1,(mem[VEL_BASE+gui_layer]-0.2)/2.8));
     gfx_set(0.7,0.7,0.7,1); gfx_rect(vx,vy,vw*vnorm,18,1);
     mouse_cap&1 && mouse_x>=vx && mouse_x<vx+vw && mouse_y>=vy && mouse_y<vy+18 ? mem[VEL_BASE+gui_layer]=0.2+2.8*((mouse_x-vx)/vw);
-    gfx_setfont(1,"Arial",10); gfx_x=806; gfx_y=rowy+5; gfx_drawstr("VEL x"); gfx_drawnumber(mem[VEL_BASE+gui_layer],2);
+    gfx_setfont(1,"Arial",10); gfx_x=678; gfx_y=rowy+5; gfx_drawstr("VEL x"); gfx_drawnumber(mem[VEL_BASE+gui_layer],2);
 
-    dx=875; dw=110; dy=rowy+7;
-    gfx_set(0.22,0.22,0.22,1); gfx_rect(dx,dy,dw,12,1);
+    dx=755; dw=58; dy=rowy+3;
+    gfx_set(0.22,0.22,0.22,1); gfx_rect(dx,dy,dw,18,1);
     dnorm=max(0,min(1,(mem[DECAY_BASE+gui_layer]-0.2)/0.8));
-    gfx_set(0.7,0.7,0.7,1); gfx_rect(dx,dy,dw*dnorm,12,1);
-    mouse_cap&1 && mouse_x>=dx && mouse_x<dx+dw && mouse_y>=dy-3 && mouse_y<dy+15 ? mem[DECAY_BASE+gui_layer]=0.2+0.8*((mouse_x-dx)/dw);
-    gfx_setfont(1,"Arial",10); gfx_x=992; gfx_y=rowy+5; gfx_drawstr("DECAY "); gfx_drawnumber(mem[DECAY_BASE+gui_layer]*100,0); gfx_drawstr("%");
-    gfx_x=1090; gfx_y=rowy+5; gfx_drawstr("EVENTS "); gfx_drawnumber(layer_count(gui_layer),0);
+    gfx_set(0.7,0.7,0.7,1); gfx_rect(dx,dy,dw*dnorm,18,1);
+    mouse_cap&1 && mouse_x>=dx && mouse_x<dx+dw && mouse_y>=dy && mouse_y<dy+18 ? mem[DECAY_BASE+gui_layer]=0.2+0.8*((mouse_x-dx)/dw);
+    gfx_setfont(1,"Arial",10); gfx_x=819; gfx_y=rowy+5; gfx_drawstr("DECAY "); gfx_drawnumber(mem[DECAY_BASE+gui_layer]*100,0); gfx_drawstr("%");
+    gfx_x=915; gfx_y=rowy+5; gfx_drawstr("EVENTS "); gfx_drawnumber(layer_count(gui_layer),0);
 
     rowy+=38;
   );

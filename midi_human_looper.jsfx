@@ -1,6 +1,10 @@
-desc:MIDI Human Looper v1.4.15
+desc:MIDI Human Looper v1.4.16
 
 // Free-time MIDI phrase instrument prototype for REAPER JSFX.
+// v1.4.16:
+// - recall fix: restore the serialized current patch bank into working memory once at @block startup
+// - bypasses load_patch() same-slot guard and does not autosave during recall
+// - serialized patch layout remains unchanged for existing .RPP compatibility
 // v1.4.15:
 // - diagnostic hard rename clear_all -> reset_all_phrases everywhere
 // - if REAPER still reports "clear_all undefined", it is provably compiling stale source
@@ -271,6 +275,7 @@ overdub_pos = 0;
 prev_readyplay=0;
 prev_abortstop=0;
 prev_clear=0;
+restore_pending=1;
 
 function layer_count(layer)
 local(addr)
@@ -537,6 +542,35 @@ local(out_ch,ch)
   );
 );
 
+function restore_current_patch_raw()
+local(pb,j,valid)
+(
+  valid = current_patch==2 ? patch_valid2 : patch_valid1;
+  valid ? (
+    pb = current_patch==2 ? PATCH2_BASE : PATCH1_BASE;
+    j=0;
+    loop(WORK_MEM_SIZE,
+      mem[j]=mem[pb+PATCH_HEADER_SIZE+j];
+      j+=1;
+    );
+    loop_len_samples=mem[pb+0];
+    analysis_done=mem[pb+1];
+    slider4=mem[pb+2];
+    slider5=mem[pb+3];
+    slider6=mem[pb+4];
+    slider7=mem[pb+5];
+    slider8=mem[pb+6];
+    slider9=mem[pb+7];
+    record_layer=mem[pb+8];
+    record_sample_pos=0;
+    play_sample_pos=0;
+    overdub_armed=0;
+    overdub_active=0;
+    overdub_pos=0;
+    state = loop_len_samples>0 ? STATE_STOPPED : STATE_IDLE;
+  );
+);
+
 function infer_tempo()
 local(seconds,best_score,bars,bpm,score,target_bpm,i)
 (
@@ -671,6 +705,12 @@ file_mem(0,PATCH1_BASE,PATCH_DATA_SIZE*2);
 // shared engine functions from @slider and caused REAPER compile failures.
 
 @block
+
+// After REAPER has restored @serialize data, hydrate the active working state once.
+restore_pending ? (
+  restore_pending=0;
+  restore_current_patch_raw();
+);
 
 save_flash>0 ? save_flash-=samplesblock;
 save_flash<0 ? save_flash=0;

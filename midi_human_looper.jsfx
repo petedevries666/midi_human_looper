@@ -1,7 +1,10 @@
-desc:MIDI Human Looper v1.8.1
+desc:MIDI Human Looper v1.8.2
 options:gmem=MIDI_HUMAN_LOOPER
 
 // Free-time MIDI phrase instrument prototype for REAPER JSFX.
+// v1.8.2:
+// - fix frantic curve-editor switching caused by shared EEL2 globals between @block and @gfx
+// - editor now uses dedicated gfx-only target/instrument/kind variables, never the runtime et/eti indexes
 // v1.8.1:
 // - stabilize curve-editor target selection: assigned controls select only on fresh left-click
 // - prevents held mouse state from repeatedly rewriting the active target while @gfx redraws
@@ -1900,23 +1903,23 @@ gfx_x=718; gfx_y=exp_y+4; gfx_drawnumber(slider11*100,0); gfx_drawstr("%");
 
 // Multipoint editor appears after right-clicking an assigned LEVEL slider.
 exp_editor_ti>=0 ? (
-  // Snapshot the selected target once for this frame. All editor drawing/editing uses this immutable index.
-  eti=floor(exp_editor_ti+0.5);
-  egi=floor(eti/EXP_TARGETS);
-  et=eti-egi*EXP_TARGETS;
+  // Snapshot the selected targgfx_et once for this frame. All editor drawing/editing uses this immutable index.
+  gfx_gfx_eti=floor(exp_editor_ti+0.5);
+  gfx_egi=floor(gfx_gfx_eti/EXP_TARGETS);
+  gfx_et=gfx_gfx_eti-gfx_egi*EXP_TARGETS;
   cx=90; cy=exp_y+38; cw=620; ch=150;
-  gfx_set(0.10,0.10,0.10,1); gfx_rect(cx,cy,cw,ch,1);
-  gfx_set(0.35,0.35,0.35,1); gfx_rect(cx,cy,cw,ch,0);
-  gfx_setfont(1,"Arial",12);
-  gfx_x=20; gfx_y=cy; gfx_drawstr("CURVE: I"); gfx_drawnumber(egi+1,0); gfx_drawstr(" ");
-  et==EXP_T_VEL ? gfx_drawstr("VELOCITY") :
-  et==EXP_T_LEVEL ? gfx_drawstr("VOLUME") :
-  et==EXP_T_MOD ? gfx_drawstr("MODULATION") :
-  et==EXP_T_ARP_ON ? gfx_drawstr("ARP ON") :
-  et==EXP_T_ARP_MODE ? gfx_drawstr("ARP MODE") :
-  et==EXP_T_ARP_RATE ? gfx_drawstr("ARP RATE") : gfx_drawstr("ARP GATE");
+  gfx_sgfx_et(0.10,0.10,0.10,1); gfx_rect(cx,cy,cw,ch,1);
+  gfx_sgfx_et(0.35,0.35,0.35,1); gfx_rect(cx,cy,cw,ch,0);
+  gfx_sgfx_etfont(1,"Arial",12);
+  gfx_x=20; gfx_y=cy; gfx_drawstr("CURVE: I"); gfx_drawnumber(gfx_egi+1,0); gfx_drawstr(" ");
+  gfx_et==EXP_T_VEL ? gfx_drawstr("VELOCITY") :
+  gfx_et==EXP_T_LEVEL ? gfx_drawstr("VOLUME") :
+  gfx_et==EXP_T_MOD ? gfx_drawstr("MODULATION") :
+  gfx_et==EXP_T_ARP_ON ? gfx_drawstr("ARP ON") :
+  gfx_et==EXP_T_ARP_MODE ? gfx_drawstr("ARP MODE") :
+  gfx_et==EXP_T_ARP_RATE ? gfx_drawstr("ARP RATE") : gfx_drawstr("ARP GATE");
   gfx_drawstr(" <- ");
-  gfx_drawstr(mem[INST_EXP_ASSIGN_BASE+eti]==1 ? "EXP1" : "EXP2");
+  gfx_drawstr(mem[INST_EXP_ASSIGN_BASE+gfx_gfx_eti]==1 ? "EXP1" : "EXP2");
   gfx_x=20; gfx_y=cy+18; gfx_drawstr("L:add/drag");
   gfx_x=20; gfx_y=cy+34; gfx_drawstr("R:remove");
 
@@ -1924,21 +1927,21 @@ exp_editor_ti>=0 ? (
   kk=1;
   loop(4,
     gx=cx+cw*(kk/5); gy=cy+ch*(kk/5);
-    gfx_set(0.20,0.20,0.20,1);
+    gfx_sgfx_et(0.20,0.20,0.20,1);
     gfx_line(gx,cy,gx,cy+ch);
     gfx_line(cx,gy,cx+cw,gy);
     kk+=1;
   );
 
-  cnt=max(2,min(EXP_POINTS,floor(mem[INST_EXP_COUNT_BASE+eti]+0.5)));
+  cnt=max(2,min(EXP_POINTS,floor(mem[INST_EXP_COUNT_BASE+gfx_gfx_eti]+0.5)));
   // curve
   kk=0;
   loop(cnt-1,
-    x0=cx+cw*mem[INST_EXP_X_BASE+eti*EXP_POINTS+kk];
-    y0=cy+ch*(1-mem[INST_EXP_Y_BASE+eti*EXP_POINTS+kk]);
-    x1=cx+cw*mem[INST_EXP_X_BASE+eti*EXP_POINTS+kk+1];
-    y1=cy+ch*(1-mem[INST_EXP_Y_BASE+eti*EXP_POINTS+kk+1]);
-    gfx_set(0.75,0.75,0.75,1); gfx_line(x0,y0,x1,y1);
+    x0=cx+cw*mem[INST_EXP_X_BASE+gfx_gfx_eti*EXP_POINTS+kk];
+    y0=cy+ch*(1-mem[INST_EXP_Y_BASE+gfx_gfx_eti*EXP_POINTS+kk]);
+    x1=cx+cw*mem[INST_EXP_X_BASE+gfx_gfx_eti*EXP_POINTS+kk+1];
+    y1=cy+ch*(1-mem[INST_EXP_Y_BASE+gfx_gfx_eti*EXP_POINTS+kk+1]);
+    gfx_sgfx_et(0.75,0.75,0.75,1); gfx_line(x0,y0,x1,y1);
     kk+=1;
   );
 
@@ -1946,11 +1949,11 @@ exp_editor_ti>=0 ? (
   hover=-1; bestd=999999;
   kk=0;
   loop(cnt,
-    px=cx+cw*mem[INST_EXP_X_BASE+eti*EXP_POINTS+kk];
-    py=cy+ch*(1-mem[INST_EXP_Y_BASE+eti*EXP_POINTS+kk]);
+    px=cx+cw*mem[INST_EXP_X_BASE+gfx_gfx_eti*EXP_POINTS+kk];
+    py=cy+ch*(1-mem[INST_EXP_Y_BASE+gfx_gfx_eti*EXP_POINTS+kk]);
     dd=(mouse_x-px)*(mouse_x-px)+(mouse_y-py)*(mouse_y-py);
     dd<100 && dd<bestd ? (bestd=dd; hover=kk;);
-    gfx_set(0.9,0.9,0.9,1);
+    gfx_sgfx_et(0.9,0.9,0.9,1);
     gfx_rect(px-4,py-4,8,8,1);
     kk+=1;
   );
@@ -1959,11 +1962,11 @@ exp_editor_ti>=0 ? (
   (mouse_cap&2) && !(last_mouse_cap&2) && hover>=0 && cnt>2 ? (
     kk=hover;
     loop(cnt-hover-1,
-      mem[INST_EXP_X_BASE+eti*EXP_POINTS+kk]=mem[INST_EXP_X_BASE+eti*EXP_POINTS+kk+1];
-      mem[INST_EXP_Y_BASE+eti*EXP_POINTS+kk]=mem[INST_EXP_Y_BASE+eti*EXP_POINTS+kk+1];
+      mem[INST_EXP_X_BASE+gfx_gfx_eti*EXP_POINTS+kk]=mem[INST_EXP_X_BASE+gfx_gfx_eti*EXP_POINTS+kk+1];
+      mem[INST_EXP_Y_BASE+gfx_gfx_eti*EXP_POINTS+kk]=mem[INST_EXP_Y_BASE+gfx_gfx_eti*EXP_POINTS+kk+1];
       kk+=1;
     );
-    mem[INST_EXP_COUNT_BASE+eti]=cnt-1;
+    mem[INST_EXP_COUNT_BASE+gfx_gfx_eti]=cnt-1;
     exp_drag_point=-1;
   );
 
@@ -1972,15 +1975,15 @@ exp_editor_ti>=0 ? (
   mouse_x>=cx && mouse_x<=cx+cw && mouse_y>=cy && mouse_y<=cy+ch ? (
     hover>=0 ? exp_drag_point=hover : (
       cnt<EXP_POINTS ? (
-        mem[INST_EXP_X_BASE+eti*EXP_POINTS+cnt]=max(0,min(1,(mouse_x-cx)/cw));
-        mem[INST_EXP_Y_BASE+eti*EXP_POINTS+cnt]=max(0,min(1,1-(mouse_y-cy)/ch));
-        mem[INST_EXP_COUNT_BASE+eti]=cnt+1;
-        exp_sort_points(eti);
+        mem[INST_EXP_X_BASE+gfx_gfx_eti*EXP_POINTS+cnt]=max(0,min(1,(mouse_x-cx)/cw));
+        mem[INST_EXP_Y_BASE+gfx_gfx_eti*EXP_POINTS+cnt]=max(0,min(1,1-(mouse_y-cy)/ch));
+        mem[INST_EXP_COUNT_BASE+gfx_gfx_eti]=cnt+1;
+        exp_sort_points(gfx_gfx_eti);
         // re-find nearest after sort so drag continues on inserted point
         exp_drag_point=-1; bestd=999999; kk=0;
         loop(cnt+1,
-          px=cx+cw*mem[INST_EXP_X_BASE+eti*EXP_POINTS+kk];
-          py=cy+ch*(1-mem[INST_EXP_Y_BASE+eti*EXP_POINTS+kk]);
+          px=cx+cw*mem[INST_EXP_X_BASE+gfx_gfx_eti*EXP_POINTS+kk];
+          py=cy+ch*(1-mem[INST_EXP_Y_BASE+gfx_gfx_eti*EXP_POINTS+kk]);
           dd=(mouse_x-px)*(mouse_x-px)+(mouse_y-py)*(mouse_y-py);
           dd<bestd ? (bestd=dd; exp_drag_point=kk;);
           kk+=1;
@@ -1991,19 +1994,19 @@ exp_editor_ti>=0 ? (
 
   // drag selected point. Sorting happens on release so the grabbed index stays stable.
   exp_drag_point>=0 && mouse_cap&1 ? (
-    mem[INST_EXP_X_BASE+eti*EXP_POINTS+exp_drag_point]=max(0,min(1,(mouse_x-cx)/cw));
-    mem[INST_EXP_Y_BASE+eti*EXP_POINTS+exp_drag_point]=max(0,min(1,1-(mouse_y-cy)/ch));
-    mem[EXP_LAST_VALUE_BASE+eti]=-1;
+    mem[INST_EXP_X_BASE+gfx_gfx_eti*EXP_POINTS+exp_drag_point]=max(0,min(1,(mouse_x-cx)/cw));
+    mem[INST_EXP_Y_BASE+gfx_gfx_eti*EXP_POINTS+exp_drag_point]=max(0,min(1,1-(mouse_y-cy)/ch));
+    mem[EXP_LAST_VALUE_BASE+gfx_gfx_eti]=-1;
   );
   exp_drag_point>=0 && !(mouse_cap&1) ? (
-    exp_sort_points(eti);
+    exp_sort_points(gfx_gfx_eti);
     exp_drag_point=-1;
-    mem[EXP_LAST_VALUE_BASE+eti]=-1;
+    mem[EXP_LAST_VALUE_BASE+gfx_gfx_eti]=-1;
   );
 
   // live pedal cursor
-  pedalx=mem[INST_EXP_ASSIGN_BASE+eti]==1 ? slider10 : slider11;
-  gfx_set(0.55,0.55,0.55,1);
+  pedalx=mem[INST_EXP_ASSIGN_BASE+gfx_gfx_eti]==1 ? slider10 : slider11;
+  gfx_sgfx_et(0.55,0.55,0.55,1);
   gfx_line(cx+cw*pedalx,cy,cx+cw*pedalx,cy+ch);
 );
 

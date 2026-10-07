@@ -1,7 +1,11 @@
-desc:MIDI Human Looper v1.17.0
+desc:MIDI Human Looper v1.17.1
 options:gmem=MIDI_HUMAN_LOOPER
 
 // Free-time MIDI phrase instrument prototype for REAPER JSFX.
+// v1.17.1:
+// - restore the two draggable EXP TEST sliders as manual controller-source simulators
+// - EXP A TEST drives EXP 1 CODIE, EXP B TEST drives EXP 2 CODIE for mouse-only testing
+// - harden GUI transient-state initialization so controller/OPTIONS popups cannot flash on plugin launch
 // v1.17.0:
 // - add OPTIONS > CONTROLLERS with four named pedal sources and MIDI CC LEARN
 // - EXP 1 CODIE / EXP 2 CODIE / EXP 1 PIERRE / EXP 2 PIERRE each learn the next incoming CC
@@ -586,7 +590,7 @@ loop(INSTRUMENTS,
   ii+=1;
 );
 ci=0;loop(CONTROLLERS,mem[CONTROLLER_CC_BASE+ci]=-1;ci+=1;);
-ctrl_val0=0;ctrl_val1=0;ctrl_val2=0;ctrl_val3=0;controller_learn=-1;
+ctrl_val0=slider10;ctrl_val1=slider11;ctrl_val2=0;ctrl_val3=0;controller_learn=-1;
 // Custom preset slots start empty. They become part of external JSON patch data.
 cp=0;
 loop(CUSTOM_PRESETS,
@@ -1762,6 +1766,15 @@ loop(INSTRUMENTS,
 @gfx 900 720
 
 // Expression curve editor state is GUI-only, not patch data.
+// EEL variables can survive hot recompiles: reject any stale / invalid popup state before drawing.
+(exp_gui_initialized!=1 || options_open<0 || options_open>1 || controller_assign_ti>=EXP_TOTAL || controller_assign_ti<-1) ? (
+  exp_gui_initialized=0;
+  options_open=0;
+  controller_assign_ti=-1;
+  controller_learn=-1;
+);
+
+// Expression curve editor state is GUI-only, not patch data.
 exp_gui_initialized!=1 ? (
   exp_editor_ti=-1;
   exp_drag_point=-1;
@@ -2436,6 +2449,24 @@ ci=0;loop(CONTROLLERS,
   gfx_x=327;gfx_y=rowy+3;gfx_drawnumber(controller_value(ci)*100,0);gfx_drawstr("%");ci+=1;
 );
 exp_y+=CONTROLLERS*23;
+
+// Manual TEST faders remain available even with no pedals connected.
+// They simulate the first two named controller sources without changing learned CC mappings.
+testy=exp_y+4;
+gfx_setfont(1,"Arial",10);gfx_set(.72,.72,.72,1);gfx_x=20;gfx_y=testy+3;gfx_drawstr("EXP A TEST");
+ex=130;ew=190;gfx_set(.22,.22,.22,1);gfx_rect(ex,testy,ew,18,1);gfx_set(.7,.7,.7,1);gfx_rect(ex,testy,ew*slider10,18,1);
+mouse_cap&1&&mouse_x>=ex&&mouse_x<ex+ew&&mouse_y>=testy-2&&mouse_y<testy+20?(
+  slider10=max(0,min(1,(mouse_x-ex)/ew));sliderchange(512);ctrl_val0=slider10;
+);
+gfx_x=327;gfx_y=testy+3;gfx_drawnumber(slider10*100,0);gfx_drawstr("%");
+
+testy+=23;gfx_x=20;gfx_y=testy+3;gfx_drawstr("EXP B TEST");
+gfx_set(.22,.22,.22,1);gfx_rect(ex,testy,ew,18,1);gfx_set(.7,.7,.7,1);gfx_rect(ex,testy,ew*slider11,18,1);
+mouse_cap&1&&mouse_x>=ex&&mouse_x<ex+ew&&mouse_y>=testy-2&&mouse_y<testy+20?(
+  slider11=max(0,min(1,(mouse_x-ex)/ew));sliderchange(1024);ctrl_val1=slider11;
+);
+gfx_x=327;gfx_y=testy+3;gfx_drawnumber(slider11*100,0);gfx_drawstr("%");
+exp_y=testy+27;
 
 // Multipoint editor appears for any assigned instrument target.
 exp_editor_ti>=0 ? (

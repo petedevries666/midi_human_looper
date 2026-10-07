@@ -1,7 +1,11 @@
-desc:MIDI Human Looper v1.17.5
+desc:MIDI Human Looper v1.17.6
 options:gmem=MIDI_HUMAN_LOOPER
 
 // Free-time MIDI phrase instrument prototype for REAPER JSFX.
+// v1.17.6:
+// - properly reflow the whole top area instead of moving isolated labels
+// - transport row y=68, patch/file row y=108, PHRASES browser starts y=154, phrase rows y=186
+// - instrument section derives from the new phrase-row base so everything below follows cleanly
 // v1.17.5:
 // - title header is now acid yellow
 // - move transport state (IDLE/READY/RECORDING/LOOPING) out of the header onto the transport row
@@ -1916,7 +1920,7 @@ button(bx+bw+gap,by,bw,bh,as_label,state==STATE_STOPPED);
 button(bx+(bw+gap)*2,by,bw,bh,"CLEAR ALL",0);
 
 // two persistent patch slots
-py=112;
+py=108;
 smallbtn(20,py,70,30,"PATCH 1",current_patch==1);
 smallbtn(96,py,52,30,"SAVE",0);
 smallbtn(170,py,70,30,"PATCH 2",current_patch==2);
@@ -1932,18 +1936,18 @@ hit(310,py,92,30) ? external_patch_load_request(current_patch);
 save_flash>0 ? (
   gfx_set(0.82,0.82,0.82,1);
   gfx_setfont(1,"Arial",13);
-  gfx_x=420; gfx_y=120;
+  gfx_x=420; gfx_y=116;
   gfx_drawstr("PATCH ");
   gfx_drawnumber(save_flash_patch,0);
   gfx_drawstr(" SAVED");
 );
 
 gfx_setfont(1,"Arial",12);
-gfx_x=420; gfx_y=120;
+gfx_x=420; gfx_y=116;
 gmem[15]>0.5 ? gfx_drawstr("FILE I/O READY") : gfx_drawstr("RUN PATCH I/O SCRIPT");
-io_status==3 ? (gfx_x=560; gfx_y=120; gfx_drawstr("LOADED"););
-io_status==4 ? (gfx_x=560; gfx_y=120; gfx_drawstr("SAVED"););
-io_status==5 ? (gfx_x=560; gfx_y=120; gfx_drawstr("I/O ERROR"););
+io_status==3 ? (gfx_x=560; gfx_y=116; gfx_drawstr("LOADED"););
+io_status==4 ? (gfx_x=560; gfx_y=116; gfx_drawstr("SAVED"););
+io_status==5 ? (gfx_x=560; gfx_y=116; gfx_drawstr("I/O ERROR"););
 
 hit(bx,by,bw,bh) ? (
   loop_len_samples>0 && (state==STATE_STOPPED || state==STATE_IDLE) ? (
@@ -2015,15 +2019,15 @@ state==STATE_STOPPED ? gfx_drawstr("STOPPED - loop stored");
 
 // phrase browser: 6 compact rows per page
 gfx_setfont(1,"Arial",16);
-gfx_x=20; gfx_y=126; gfx_drawstr("PHRASES");
+gfx_x=20; gfx_y=158; gfx_drawstr("PHRASES");
 
-smallbtn(115,120,34,26,"<",0);
-smallbtn(154,120,88,26,phrase_page==0 ? "P1-6" : phrase_page==1 ? "P7-12" : "P13-16",1);
-smallbtn(247,120,34,26,">",0);
-hit(115,120,34,26) ? phrase_page=max(0,phrase_page-1);
-hit(247,120,34,26) ? phrase_page=min(PHRASE_PAGES-1,phrase_page+1);
+smallbtn(115,152,34,26,"<",0);
+smallbtn(154,152,88,26,phrase_page==0 ? "P1-6" : phrase_page==1 ? "P7-12" : "P13-16",1);
+smallbtn(247,152,34,26,">",0);
+hit(115,152,34,26) ? phrase_page=max(0,phrase_page-1);
+hit(247,152,34,26) ? phrase_page=min(PHRASE_PAGES-1,phrase_page+1);
 
-rowy=152;
+rowy=186;
 gui_row=0;
 loop(PHRASES_PER_PAGE,
   gui_layer=phrase_page*PHRASES_PER_PAGE+gui_row;
@@ -2449,7 +2453,7 @@ local(c,k,tx,bw,gap,addx,choicey,cw)
   );
 );
 
-inst_y=152 + PHRASES_PER_PAGE*38 + 18;
+inst_y=186 + PHRASES_PER_PAGE*38 + 18;
 gfx_setfont(1,"Arial",16); gfx_set(0.72,0.72,0.72,1); gfx_x=20; gfx_y=inst_y; gfx_drawstr("INSTRUMENTS / TRANSFORMER CHAINS");
 gfx_setfont(1,"Arial",9); gfx_set(0.46,0.46,0.46,1); gfx_x=330; gfx_y=inst_y+3; gfx_drawstr("MIDI flows left > right");
 inst_y+=30;

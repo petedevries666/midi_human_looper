@@ -1,6 +1,15 @@
-desc:MIDI Human Looper v1.3.3
+desc:MIDI Human Looper v1.4.0
 
-// Free-time MIDI looper prototype for REAPER JSFX.
+// Free-time MIDI phrase instrument prototype for REAPER JSFX.
+// v1.4.0:
+// - 16 PHRASES in line-based UI (no grid)
+// - two mouse-testable expression sources EXP A / EXP B
+// - 8 INSTRUMENT routing rows: MIDI IN -> MIDI OUT, velocity multiplier, level CC, mod-wheel CC
+// - instrument routing duplicates/remaps phrase MIDI non-destructively; ORIGINAL global output still available
+// - quantize grid slider range fixed to expose all six divisions
+// - persistence layout remains explicit and documented while external-file patch I/O is designed
+// IMPORTANT: JSFX @serialize persists with REAPER project/preset state; arbitrary writable named patch files
+// are not exposed safely by stock JSFX, so v1.4 does NOT fake external SAVE/LOAD.
 // v1.3.3:
 // - cross-layer choke now releases only notes actually owned by active ONE SHOT voices
 // - no more 2048-note panic burst when switching phrase layers
@@ -87,12 +96,14 @@ desc:MIDI Human Looper v1.3.3
 slider1:0<0,1,1>-READY/PLAY (GUI)-
 slider2:0<0,1,1>-ABORT/STOP (GUI)-
 slider3:0<0,1,1>-CLEAR ALL (GUI)-
-slider4:0<0,1,1{1,1/2,1/4,1/8,1/16,1/32}>QUANTIZE GRID
+slider4:0<0,5,1{1,1/2,1/4,1/8,1/16,1/32}>QUANTIZE GRID
 slider5:0<0,100,1>QUANTIZE AMOUNT (%)
 slider6:120<30,240,0.1>BPM DETECTED
 slider7:4<1,16,1>BARS DETECTED
 slider8:0<0,16,1{ORIGINAL,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16}>MIDI OUT CHANNEL
 slider9:1<0.2,3,0.01>GLOBAL VELOCITY
+slider10:0<0,1,0.001>EXP A (TEST)
+slider11:0<0,1,0.001>EXP B (TEST)
 
 @init
 
@@ -106,8 +117,9 @@ MAX_ONCE_VOICES = 12;
 
 state = STATE_IDLE;
 
-LAYERS = 4;
-MAX_EVENTS_PER_LAYER = 4096;
+LAYERS = 16;
+// 2048 events/phrase keeps 16 phrases + two serialized patch banks comfortably below JSFX memory ceiling.
+MAX_EVENTS_PER_LAYER = 2048;
 EV_SIZE = 5;
 LAYER_STRIDE = MAX_EVENTS_PER_LAYER * EV_SIZE;
 
@@ -122,7 +134,18 @@ ONCEPOS_BASE = TRIG_BASE + LAYERS;
 LEN_BASE = ONCEPOS_BASE + LAYERS;
 DECAY_BASE = LEN_BASE + LAYERS;
 REPEAT_BASE = DECAY_BASE + LAYERS;
-WORK_MEM_SIZE = REPEAT_BASE + LAYERS;
+
+// INSTRUMENT routing table. 8 lightweight MIDI destinations.
+// IN: 0=ALL, 1..16 source channel. OUT: 0=ORIGINAL, 1..16 destination channel.
+// LEVEL and MOD are CC values (defaults CC11 Expression and CC1 Mod Wheel).
+INSTRUMENTS = 8;
+INST_IN_BASE = REPEAT_BASE + LAYERS;
+INST_OUT_BASE = INST_IN_BASE + INSTRUMENTS;
+INST_VEL_BASE = INST_OUT_BASE + INSTRUMENTS;
+INST_LEVEL_BASE = INST_VEL_BASE + INSTRUMENTS;
+INST_MOD_BASE = INST_LEVEL_BASE + INSTRUMENTS;
+INST_ENABLED_BASE = INST_MOD_BASE + INSTRUMENTS;
+WORK_MEM_SIZE = INST_ENABLED_BASE + INSTRUMENTS;
 PATCH_HEADER_SIZE = 12;
 PATCH_DATA_SIZE = PATCH_HEADER_SIZE + WORK_MEM_SIZE;
 PATCH1_BASE = WORK_MEM_SIZE + 64;
@@ -179,6 +202,19 @@ loop(LAYERS,
   mem[DECAY_BASE+i]=0.8;
   mem[REPEAT_BASE+i]=0;
   i+=1;
+);
+
+// Instrument 1 enabled by default as transparent ALL -> ORIGINAL route.
+// Others are available but disabled until configured.
+ii=0;
+loop(INSTRUMENTS,
+  mem[INST_IN_BASE+ii]=0;
+  mem[INST_OUT_BASE+ii]=0;
+  mem[INST_VEL_BASE+ii]=1;
+  mem[INST_LEVEL_BASE+ii]=127;
+  mem[INST_MOD_BASE+ii]=0;
+  mem[INST_ENABLED_BASE+ii]=(ii==0);
+  ii+=1;
 );
 
 record_sample_pos = 0;
@@ -344,6 +380,55 @@ local(count,base)
     mem[base+3]=d2;
     mem[base+4]=offs;
     set_layer_count(layer,count+1);
+  );
+);
+
+function send_to_instruments(offs, st, d1, d2, extra_gain)
+local(srcch,typ,ii,in_ch,out_ch,outst,outd2,matched,velmul)
+(
+  srcch=(st&15)+1;
+  typ=st&240;
+  matched=0;
+  ii=0;
+  loop(INSTRUMENTS,
+    mem[INST_ENABLED_BASE+ii]>0.5 ? (
+      in_ch=mem[INST_IN_BASE+ii];
+      (in_ch==0 || in_ch==srcch) ? (
+        matched=1;
+        out_ch=mem[INST_OUT_BASE+ii];
+        outst=st;
+        out_ch>0 ? outst=(st&240)|(max(1,min(16,out_ch))-1);
+
+        outd2=d2;
+        (typ==144 && d2>0) ? (
+          velmul=mem[INST_VEL_BASE+ii]*extra_gain;
+          outd2=max(1,min(127,floor(d2*velmul+0.5)));
+        );
+        midisend(offs,outst,d1|(outd2*256));
+      );
+    );
+    ii+=1;
+  );
+  // If every instrument route is disabled, remain fail-safe / transparent.
+  matched==0 ? midisend(offs,st,d1|(d2*256));
+);
+
+function send_expression_ccs()
+local(ii,out_ch,ch,lev,mod)
+(
+  ii=0;
+  loop(INSTRUMENTS,
+    mem[INST_ENABLED_BASE+ii]>0.5 ? (
+      out_ch=mem[INST_OUT_BASE+ii];
+      ch=out_ch>0 ? max(1,min(16,out_ch))-1 : 0;
+      // EXP A currently drives LEVEL, EXP B drives MOD. These are test sources;
+      // the next mapping layer will make source/target/range freely assignable.
+      lev=max(0,min(127,floor(mem[INST_LEVEL_BASE+ii]*slider10+0.5)));
+      mod=max(0,min(127,floor(127*slider11+0.5)));
+      midisend(0,176|ch,11,lev);
+      midisend(0,176|ch,1,mod);
+    );
+    ii+=1;
   );
 );
 
@@ -615,8 +700,8 @@ while (
       store_event(overdub_layer,overdub_pos+offset,msg1,d1,d2,offset);
     );
 
-    // live MIDI always passes through
-    midisend(offset,msg1,msg23);
+    // live MIDI passes through the same instrument router as phrase playback.
+    send_to_instruments(offset,msg1,d1,d2,1);
     1;
   );
   0;
@@ -671,8 +756,8 @@ state==STATE_PLAYING && loop_len_samples>0 ? (
               out_d2=max(1,min(127,out_d2));
             );
 
-            out_msg23=out_d1|(out_d2*256);
-            midisend(out_offs,out_status,out_msg23);
+            // out_d2 already includes phrase/global velocity; instrument velocity is applied in router.
+            send_to_instruments(out_offs,out_status,out_d1,out_d2,1);
           );
 
           i+=1;
@@ -772,7 +857,7 @@ overdub_active ? (
   overdub_pos>=loop_len_samples ? overdub_pos=loop_len_samples-1;
 );
 
-@gfx 760 570
+@gfx 900 1120
 
 function hit(x,y,w,h)
 (
@@ -911,7 +996,7 @@ state==STATE_STOPPED ? gfx_drawstr("STOPPED - loop stored");
 
 // layer mixer
 gfx_setfont(1,"Arial",16);
-gfx_x=20; gfx_y=126; gfx_drawstr("LAYERS");
+gfx_x=20; gfx_y=126; gfx_drawstr("PHRASES");
 
 rowy=154;
 gui_layer=0;
@@ -919,7 +1004,7 @@ loop(LAYERS,
   (state==STATE_READY && record_layer==gui_layer) ? gfx_set(1,0.18,0.12,1) : gfx_set(0.78,0.78,0.78,1);
   gfx_setfont(1,"Arial",15);
   gfx_x=20; gfx_y=rowy+9;
-  gfx_drawstr("L");
+  gfx_drawstr("P");
   gfx_drawnumber(gui_layer+1,0);
 
   hit(16,rowy,40,34) ? arm_layer(gui_layer);
@@ -1001,22 +1086,72 @@ loop(LAYERS,
   gui_layer+=1;
 );
 
-gfx_setfont(1,"Arial",14);
-gfx_x=20; gfx_y=360;
-gfx_drawstr("Quantize amount: ");
-gfx_drawnumber(slider5,0);
-gfx_drawstr("%  |  BPM: ");
-gfx_drawnumber(slider6,2);
-gfx_drawstr("  |  Bars: ");
-gfx_drawnumber(slider7,0);
+// --- INSTRUMENTS -----------------------------------------------------------
+// Kept intentionally simple in v1.4: routing + velocity + CC baselines.
+// Click numeric channel fields to cycle. Click ON to enable/disable.
+inst_y=154 + LAYERS*48 + 18;
+gfx_setfont(1,"Arial",16);
+gfx_x=20; gfx_y=inst_y; gfx_drawstr("INSTRUMENTS   IN -> OUT   VEL    LEVEL(CC11)   MOD(CC1)");
+inst_y+=28;
+ii=0;
+loop(INSTRUMENTS,
+  gfx_setfont(1,"Arial",13);
+  gfx_x=20; gfx_y=inst_y+7; gfx_drawstr("I"); gfx_drawnumber(ii+1,0);
 
-gfx_x=20; gfx_y=390;
-gfx_drawstr("Quantize uses detected tempo; 0% = raw timing, 100% = full grid.");
+  smallbtn(52,inst_y,42,28,mem[INST_ENABLED_BASE+ii]>0.5 ? "ON" : "OFF",mem[INST_ENABLED_BASE+ii]>0.5);
+  hit(52,inst_y,42,28) ? mem[INST_ENABLED_BASE+ii]=1-mem[INST_ENABLED_BASE+ii];
 
-gfx_x=20; gfx_y=418;
-gfx_drawstr("Click L1-L4 to ARM a layer (red), then first Note On starts recording.");
+  // IN channel: 0=ALL
+  smallbtn(105,inst_y,54,28,mem[INST_IN_BASE+ii]==0 ? "ALL" : "CH",0);
+  hit(105,inst_y,54,28) ? mem[INST_IN_BASE+ii]=(mem[INST_IN_BASE+ii]+1)%17;
+  gfx_x=164; gfx_y=inst_y+7; gfx_drawnumber(mem[INST_IN_BASE+ii],0);
 
-gfx_x=20; gfx_y=446;
-gfx_drawstr("MIDI channel: use parameter ORIGINAL or force 1..16 | global velocity parameter x0.2..x3");
+  smallbtn(190,inst_y,54,28,mem[INST_OUT_BASE+ii]==0 ? "ORIG" : "OUT",0);
+  hit(190,inst_y,54,28) ? mem[INST_OUT_BASE+ii]=(mem[INST_OUT_BASE+ii]+1)%17;
+  gfx_x=249; gfx_y=inst_y+7; gfx_drawnumber(mem[INST_OUT_BASE+ii],0);
+
+  // velocity multiplier 0.2..3.0
+  ivx=285; ivw=100;
+  gfx_set(0.22,0.22,0.22,1); gfx_rect(ivx,inst_y+5,ivw,16,1);
+  ivn=(mem[INST_VEL_BASE+ii]-0.2)/2.8; ivn=max(0,min(1,ivn));
+  gfx_set(0.7,0.7,0.7,1); gfx_rect(ivx,inst_y+5,ivw*ivn,16,1);
+  mouse_cap&1 && mouse_x>=ivx && mouse_x<ivx+ivw && mouse_y>=inst_y+2 && mouse_y<inst_y+25 ? mem[INST_VEL_BASE+ii]=0.2+2.8*((mouse_x-ivx)/ivw);
+  gfx_x=392; gfx_y=inst_y+7; gfx_drawstr("x"); gfx_drawnumber(mem[INST_VEL_BASE+ii],2);
+
+  // level baseline 0..127
+  ilx=455; ilw=100;
+  gfx_set(0.22,0.22,0.22,1); gfx_rect(ilx,inst_y+5,ilw,16,1);
+  gfx_set(0.7,0.7,0.7,1); gfx_rect(ilx,inst_y+5,ilw*(mem[INST_LEVEL_BASE+ii]/127),16,1);
+  mouse_cap&1 && mouse_x>=ilx && mouse_x<ilx+ilw && mouse_y>=inst_y+2 && mouse_y<inst_y+25 ? mem[INST_LEVEL_BASE+ii]=floor(127*((mouse_x-ilx)/ilw)+0.5);
+  gfx_x=562; gfx_y=inst_y+7; gfx_drawnumber(mem[INST_LEVEL_BASE+ii],0);
+
+  // mod baseline/display, reserved for mapping layer
+  imx=610; imw=100;
+  gfx_set(0.22,0.22,0.22,1); gfx_rect(imx,inst_y+5,imw,16,1);
+  gfx_set(0.7,0.7,0.7,1); gfx_rect(imx,inst_y+5,imw*(mem[INST_MOD_BASE+ii]/127),16,1);
+  mouse_cap&1 && mouse_x>=imx && mouse_x<imx+imw && mouse_y>=inst_y+2 && mouse_y<inst_y+25 ? mem[INST_MOD_BASE+ii]=floor(127*((mouse_x-imx)/imw)+0.5);
+  gfx_x=717; gfx_y=inst_y+7; gfx_drawnumber(mem[INST_MOD_BASE+ii],0);
+
+  inst_y+=34;
+);
+
+// Mouse-test expression strips. Slider10/11 are also automatable REAPER parameters.
+exp_y=inst_y+18;
+gfx_setfont(1,"Arial",16); gfx_x=20; gfx_y=exp_y; gfx_drawstr("EXPRESSION TEST");
+exp_y+=28;
+gfx_setfont(1,"Arial",13);
+gfx_x=20; gfx_y=exp_y+4; gfx_drawstr("EXP A");
+ex=90; ew=300;
+gfx_set(0.22,0.22,0.22,1); gfx_rect(ex,exp_y,ew,20,1);
+gfx_set(0.7,0.7,0.7,1); gfx_rect(ex,exp_y,ew*slider10,20,1);
+mouse_cap&1 && mouse_x>=ex && mouse_x<ex+ew && mouse_y>=exp_y-3 && mouse_y<exp_y+23 ? (slider10=max(0,min(1,(mouse_x-ex)/ew)); sliderchange(slider10); send_expression_ccs(););
+gfx_x=400; gfx_y=exp_y+4; gfx_drawnumber(slider10*100,0); gfx_drawstr("%   -> instrument LEVEL / CC11");
+
+exp_y+=32;
+gfx_x=20; gfx_y=exp_y+4; gfx_drawstr("EXP B");
+gfx_set(0.22,0.22,0.22,1); gfx_rect(ex,exp_y,ew,20,1);
+gfx_set(0.7,0.7,0.7,1); gfx_rect(ex,exp_y,ew*slider11,20,1);
+mouse_cap&1 && mouse_x>=ex && mouse_x<ex+ew && mouse_y>=exp_y-3 && mouse_y<exp_y+23 ? (slider11=max(0,min(1,(mouse_x-ex)/ew)); sliderchange(slider11); send_expression_ccs(););
+gfx_x=400; gfx_y=exp_y+4; gfx_drawnumber(slider11*100,0); gfx_drawstr("%   -> instrument MOD / CC1");
 
 last_mouse_cap=mouse_cap;

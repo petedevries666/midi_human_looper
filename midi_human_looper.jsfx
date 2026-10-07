@@ -1,6 +1,11 @@
-desc:MIDI Human Looper v1.4.4
+desc:MIDI Human Looper v1.4.5
 
 // Free-time MIDI phrase instrument prototype for REAPER JSFX.
+// v1.4.5:
+// - compatibility rule: serialized patch-bank layout is now frozen for the v1.x prototype
+// - future features must append persistent data after existing fields, never move/reinterpret phrase/event banks
+// - PATCH_SCHEMA_VERSION is stored in previously reserved header field for forward migration
+// - loading old v1.4 patches treats missing schema marker as legacy v1 schema
 // v1.4.4:
 // - instrument controls now affect ONE SHOT playback too (previously that engine bypassed the router)
 // - route-aware note/sustain reference counting uses the final routed MIDI channel
@@ -164,6 +169,7 @@ INST_MOD_BASE = INST_LEVEL_BASE + INSTRUMENTS;
 INST_ENABLED_BASE = INST_MOD_BASE + INSTRUMENTS;
 WORK_MEM_SIZE = INST_ENABLED_BASE + INSTRUMENTS;
 PATCH_HEADER_SIZE = 12;
+PATCH_SCHEMA_VERSION = 1;
 PATCH_DATA_SIZE = PATCH_HEADER_SIZE + WORK_MEM_SIZE;
 PATCH1_BASE = WORK_MEM_SIZE + 64;
 PATCH2_BASE = PATCH1_BASE + PATCH_DATA_SIZE;
@@ -320,9 +326,9 @@ local(pb,j)
   mem[pb+6]=slider8;
   mem[pb+7]=slider9;
   mem[pb+8]=record_layer;
-  mem[pb+9]=0;
-  mem[pb+10]=0;
-  mem[pb+11]=0;
+  mem[pb+9]=PATCH_SCHEMA_VERSION;
+  mem[pb+10]=0; // reserved: future schema flags
+  mem[pb+11]=0; // reserved: future schema length/migration
   j=0;
   loop(WORK_MEM_SIZE,
     mem[pb+PATCH_HEADER_SIZE+j]=mem[j];
@@ -358,6 +364,9 @@ local(pb,j,valid,oldslot)
       slider8=mem[pb+6];
       slider9=mem[pb+7];
       record_layer=mem[pb+8];
+      loaded_schema=mem[pb+9];
+      // v1.4.4 and earlier wrote 0 here. That is our legacy v1 schema and remains valid.
+      loaded_schema<=0 ? loaded_schema=1;
     ) : (
       clear_all();
       slider4=0;

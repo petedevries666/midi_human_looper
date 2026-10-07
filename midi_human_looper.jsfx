@@ -1,7 +1,12 @@
-desc:MIDI Human Looper v1.11.2
+desc:MIDI Human Looper v1.12.0
 options:gmem=MIDI_HUMAN_LOOPER
 
 // Free-time MIDI phrase instrument prototype for REAPER JSFX.
+// v1.12.0:
+// - phrase modes are now LOOP / ONCE / HOLD
+// - HOLD preserves the recorded attack/strum timing but suppresses recorded Note Offs
+// - HOLD remains sounding after phrase end; its button becomes STOP while held
+// - triggering another ONCE/HOLD phrase chokes the previous held phrase cleanly
 // v1.11.2:
 // - LOOP control always reads TRIG; remove confusing STOP label/state
 // - empty phrases keep TRIG visible but dimmed to communicate unavailable action
@@ -373,6 +378,7 @@ ARP_GATE_REMAIN_BASE = ARP_STEP_REMAIN_BASE + INSTRUMENTS;
 ARP_SOURCE_COUNT_BASE = ARP_GATE_REMAIN_BASE + INSTRUMENTS;
 EXP_LAST_VALUE_BASE = ARP_SOURCE_COUNT_BASE + INSTRUMENTS*128;
 ARP_CURSOR_BASE = EXP_LAST_VALUE_BASE + EXP_TOTAL;
+HOLD_ACTIVE_BASE = ARP_CURSOR_BASE + INSTRUMENTS; // actually LAYERS slots below; runtime only
 // patch_valid1 / patch_valid2 / current_patch are serialized state.
 // Do NOT clear them here: REAPER may call @init after @serialize.
 (patch_valid1<=0 && patch_valid2<=0 && (current_patch<1 || current_patch>2)) ? current_patch=1;
@@ -383,6 +389,7 @@ restore_flash = 0;
 io_status = 0;
 last_trigger_layer = -1;
 trigger_request = -1;
+hold_stop_request = -1;
 phrase_page = 0;
 PHRASES_PER_PAGE = 6;
 PHRASE_PAGES = 3;
@@ -430,8 +437,9 @@ loop(LAYERS,
   mem[MUTE_BASE+i]=0;
   mem[SOLO_BASE+i]=0;
   mem[VEL_BASE+i]=1;
-  mem[MODE_BASE+i]=0; // 0 LOOP, 1 ONCE
+  mem[MODE_BASE+i]=0; // 0 LOOP, 1 ONCE, 2 HOLD
   mem[TRIG_BASE+i]=1;
+  mem[HOLD_ACTIVE_BASE+i]=0;
   mem[ONCEPOS_BASE+i]=0;
   mem[LEN_BASE+i]=0;
   mem[DECAY_BASE+i]=0.8;
@@ -534,6 +542,7 @@ function clear_layer(layer)
   mem[SOLO_BASE+layer]=0;
   mem[VEL_BASE+layer]=1;
   mem[TRIG_BASE+layer]=0;
+  mem[HOLD_ACTIVE_BASE+layer]=0;
   mem[ONCEPOS_BASE+layer]=0;
   mem[LEN_BASE+layer]=0;
   mem[REPEAT_BASE+layer]=0;
@@ -1275,7 +1284,24 @@ panic_pending ? (
   panic_pending=0;
 );
 
-// Process ONE SHOT trigger atomically in the audio thread.
+// HOLD STOP: release the currently latched phrase and clear its runtime ownership.
+hold_stop_request>=0 ? (
+  stopped_layer=hold_stop_request;
+  hold_stop_request=-1;
+  mem[HOLD_ACTIVE_BASE+stopped_layer]>0.5 ? (
+    release_phrase_notes();
+    arp_flush_nonhold_sources();
+    vi=0;
+    loop(MAX_ONCE_VOICES,
+      mem[VOICE_ACTIVE_BASE+vi]>0.5 && mem[VOICE_LAYER_BASE+vi]==stopped_layer ? mem[VOICE_ACTIVE_BASE+vi]=0;
+      vi+=1;
+    );
+    mem[HOLD_ACTIVE_BASE+stopped_layer]=0;
+    stopped_layer==last_trigger_layer ? last_trigger_layer=-1;
+  );
+);
+
+// Process ONCE / HOLD trigger atomically in the audio thread.
 // Same layer = add an overlapping voice. Different layer = soft choke previous phrase group.
 trigger_request>=0 ? (
   requested_layer=trigger_request;
@@ -1291,6 +1317,7 @@ trigger_request>=0 ? (
         vi+=1;
       );
       mem[REPEAT_BASE+last_trigger_layer]=0;
+      mem[HOLD_ACTIVE_BASE+last_trigger_layer]=0;
     );
     mem[REPEAT_BASE+requested_layer]=0;
     last_trigger_layer=requested_layer;
@@ -1320,6 +1347,7 @@ trigger_request>=0 ? (
   mem[VOICE_LAYER_BASE+voice_slot]=requested_layer;
   mem[VOICE_POS_BASE+voice_slot]=0;
   mem[VOICE_GAIN_BASE+voice_slot]=pow(mem[DECAY_BASE+requested_layer],mem[REPEAT_BASE+requested_layer]);
+  mem[MODE_BASE+requested_layer]>=1.5 ? mem[HOLD_ACTIVE_BASE+requested_layer]=1;
 );
 
 while (
@@ -1433,7 +1461,7 @@ state==STATE_PLAYING && loop_len_samples>0 ? (
 
 
 
-// polyphonic ONE SHOT voice pool
+// polyphonic ONCE / HOLD attack voice pool
 vi=0;
 loop(MAX_ONCE_VOICES,
   mem[VOICE_ACTIVE_BASE+vi]>0.5 ? (
@@ -1455,7 +1483,10 @@ loop(MAX_ONCE_VOICES,
         out_d1=mem[base+2]&127;
         out_d2=mem[base+3]&127;
         velmul=slider9*mem[VEL_BASE+once_layer]*mem[VOICE_GAIN_BASE+vi];
-        send_once_to_instruments(out_offs,out_status,out_d1,out_d2,velmul);
+        // HOLD replays the human attack exactly, but recorded Note Offs do not terminate it.
+        // STOP / next phrase performs the release.
+        is_recorded_noteoff=((out_status&240)==128) || ((out_status&240)==144 && out_d2==0);
+        !(mem[MODE_BASE+once_layer]>=1.5 && is_recorded_noteoff) ? send_once_to_instruments(out_offs,out_status,out_d1,out_d2,velmul);
       );
       i+=1;
     );
@@ -1478,8 +1509,10 @@ loop(MAX_ONCE_VOICES,
   vi+=1;
 );
 once_any_active<0.5 && last_trigger_layer>=0 ? (
-  arp_flush_nonhold_sources();
-  last_trigger_layer=-1;
+  !(mem[MODE_BASE+last_trigger_layer]>=1.5 && mem[HOLD_ACTIVE_BASE+last_trigger_layer]>0.5) ? (
+    arp_flush_nonhold_sources();
+    last_trigger_layer=-1;
+  );
 );
 
 state==STATE_RECORDING ? record_sample_pos+=samplesblock;
@@ -1748,12 +1781,12 @@ loop(PHRASES_PER_PAGE,
     smallbtn(sx,rowy,40,28,"SOLO",mem[SOLO_BASE+gui_layer]>0.5);
     smallbtn(ox,rowy,62,28,"OVERDUB",overdub_armed && overdub_layer==gui_layer || overdub_active && overdub_layer==gui_layer);
     smallbtn(clx,rowy,46,28,"CLEAR",0);
-    smallbtn(modex,rowy,44,28,mem[MODE_BASE+gui_layer]<0.5 ? "LOOP" : "ONCE",mem[MODE_BASE+gui_layer]>=0.5);
+    smallbtn(modex,rowy,44,28,mem[MODE_BASE+gui_layer]<0.5 ? "LOOP" : mem[MODE_BASE+gui_layer]<1.5 ? "ONCE" : "HOLD",mem[MODE_BASE+gui_layer]>=0.5);
     voice_lit=0; vi=0; loop(MAX_ONCE_VOICES, mem[VOICE_ACTIVE_BASE+vi]>0.5 && mem[VOICE_LAYER_BASE+vi]==gui_layer ? voice_lit=1; vi+=1;);
+    hold_lit=mem[MODE_BASE+gui_layer]>=1.5 && mem[HOLD_ACTIVE_BASE+gui_layer]>0.5;
     phrase_has_events=layer_count(gui_layer)>0;
-    // TRIG is an action, not a transport-state label. Keep it stable in LOOP and ONCE.
-    // Empty phrases still show the control, deliberately dimmed.
-    phrase_has_events ? smallbtn(trigx,rowy,44,28,"TRIG",voice_lit) : (
+    // HOLD is the one intentional exception: once latched, the same action becomes STOP.
+    phrase_has_events ? smallbtn(trigx,rowy,44,28,hold_lit ? "STOP" : "TRIG",voice_lit || hold_lit) : (
       gfx_set(0.09,0.09,0.09,1); gfx_rect(trigx,rowy,44,28,1);
       gfx_set(0.24,0.24,0.24,1); gfx_rect(trigx,rowy,44,28,0);
       gfx_setfont(1,"Arial",12); gfx_set(0.30,0.30,0.30,1);
@@ -1768,15 +1801,21 @@ loop(PHRASES_PER_PAGE,
     );
     hit(clx,rowy,46,28) ? (panic_pending=1; clear_layer(gui_layer););
     hit(modex,rowy,44,28) ? (
-      mem[MODE_BASE+gui_layer]=1-mem[MODE_BASE+gui_layer];
+      mem[MODE_BASE+gui_layer]=(floor(mem[MODE_BASE+gui_layer]+0.5)+1)%3;
       mem[TRIG_BASE+gui_layer]=mem[MODE_BASE+gui_layer]<0.5;
+      mem[HOLD_ACTIVE_BASE+gui_layer]=0;
       mem[ONCEPOS_BASE+gui_layer]=0; panic_pending=1;
     );
     hit(trigx,rowy,44,28) && layer_count(gui_layer)>0 ? (
-      mem[MODE_BASE+gui_layer]>=0.5 ? trigger_request=gui_layer : (
-        // LOOP TRIG starts/restarts the loop; stopping is not overloaded onto this button.
+      mem[MODE_BASE+gui_layer]<0.5 ? (
+        // LOOP TRIG starts/restarts the loop.
         mem[ONCEPOS_BASE+gui_layer]=0;
         mem[TRIG_BASE+gui_layer]=1;
+      ) : mem[MODE_BASE+gui_layer]<1.5 ? (
+        trigger_request=gui_layer;
+      ) : (
+        // HOLD toggles TRIG / STOP.
+        mem[HOLD_ACTIVE_BASE+gui_layer]>0.5 ? hold_stop_request=gui_layer : trigger_request=gui_layer;
       );
     );
 

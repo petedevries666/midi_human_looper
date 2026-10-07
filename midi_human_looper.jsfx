@@ -1,7 +1,12 @@
-desc:MIDI Human Looper v1.17.4
+desc:MIDI Human Looper v1.17.5
 options:gmem=MIDI_HUMAN_LOOPER
 
 // Free-time MIDI phrase instrument prototype for REAPER JSFX.
+// v1.17.5:
+// - title header is now acid yellow
+// - move transport state (IDLE/READY/RECORDING/LOOPING) out of the header onto the transport row
+// - push patch row and PHRASES browser down to eliminate top-section overlaps
+// - fix CLEAR ALL hit box to match its compact 92px button
 // v1.17.4:
 // - add hard square header: MIDI BAD MOTHERFUCKER V.1.17.4 / ANONYMALZ LIVE ENGINE
 // - compact READY / ABORT / CLEAR ALL to the same 92x30 format as OPTIONS
@@ -1890,8 +1895,8 @@ edit_name_type>0 && keychar>0 ? (
 // Hard square identity header.
 gfx_set(.055,.055,.055,1);gfx_rect(12,10,1010,48,1);
 gfx_set(.42,.42,.42,1);gfx_rect(12,10,1010,48,0);
-gfx_setfont(1,"Courier New",22,'b');gfx_set(.94,.94,.94,1);
-gfx_x=24;gfx_y=20;gfx_drawstr("MIDI BAD MOTHERFUCKER V.1.17.4");
+gfx_setfont(1,"Courier New",22,'b');gfx_set(.95,.95,.08,1);
+gfx_x=24;gfx_y=20;gfx_drawstr("MIDI BAD MOTHERFUCKER V.1.17.5");
 gfx_setfont(1,"Courier New",14,'b');gfx_set(.68,.68,.68,1);
 gfx_x=760;gfx_y=25;gfx_drawstr("ANONYMALZ LIVE ENGINE");
 
@@ -1911,7 +1916,7 @@ button(bx+bw+gap,by,bw,bh,as_label,state==STATE_STOPPED);
 button(bx+(bw+gap)*2,by,bw,bh,"CLEAR ALL",0);
 
 // two persistent patch slots
-py=108;
+py=112;
 smallbtn(20,py,70,30,"PATCH 1",current_patch==1);
 smallbtn(96,py,52,30,"SAVE",0);
 smallbtn(170,py,70,30,"PATCH 2",current_patch==2);
@@ -1927,18 +1932,18 @@ hit(310,py,92,30) ? external_patch_load_request(current_patch);
 save_flash>0 ? (
   gfx_set(0.82,0.82,0.82,1);
   gfx_setfont(1,"Arial",13);
-  gfx_x=420; gfx_y=116;
+  gfx_x=420; gfx_y=120;
   gfx_drawstr("PATCH ");
   gfx_drawnumber(save_flash_patch,0);
   gfx_drawstr(" SAVED");
 );
 
 gfx_setfont(1,"Arial",12);
-gfx_x=420; gfx_y=116;
+gfx_x=420; gfx_y=120;
 gmem[15]>0.5 ? gfx_drawstr("FILE I/O READY") : gfx_drawstr("RUN PATCH I/O SCRIPT");
-io_status==3 ? (gfx_x=560; gfx_y=116; gfx_drawstr("LOADED"););
-io_status==4 ? (gfx_x=560; gfx_y=116; gfx_drawstr("SAVED"););
-io_status==5 ? (gfx_x=560; gfx_y=116; gfx_drawstr("I/O ERROR"););
+io_status==3 ? (gfx_x=560; gfx_y=120; gfx_drawstr("LOADED"););
+io_status==4 ? (gfx_x=560; gfx_y=120; gfx_drawstr("SAVED"););
+io_status==5 ? (gfx_x=560; gfx_y=120; gfx_drawstr("I/O ERROR"););
 
 hit(bx,by,bw,bh) ? (
   loop_len_samples>0 && (state==STATE_STOPPED || state==STATE_IDLE) ? (
@@ -1986,14 +1991,14 @@ hit(bx+bw+gap,by,bw,bh) ? (
   );
 );
 
-hit(bx+(bw+gap)*2,by,110,bh) ? (
+hit(bx+(bw+gap)*2,by,bw,bh) ? (
   panic_pending=1;
   reset_all_phrases();
 );
 
 gfx_set(0.82,0.82,0.82,1);
-gfx_setfont(1,"Arial",21);
-gfx_x=540; gfx_y=30;
+gfx_setfont(1,"Courier New",13,'b');
+gfx_x=330; gfx_y=76;
 state==STATE_IDLE ? gfx_drawstr("IDLE") :
 state==STATE_READY ? (
   gfx_drawstr("READY L");

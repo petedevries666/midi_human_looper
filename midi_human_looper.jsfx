@@ -1,6 +1,10 @@
-desc:MIDI Human Looper v1.4.13
+desc:MIDI Human Looper v1.4.14
 
 // Free-time MIDI phrase instrument prototype for REAPER JSFX.
+// v1.4.14:
+// - remove obsolete transport/CLEAR execution from @slider
+// - custom GUI remains the transport controller; engine work stays in @block/@gfx
+// - compile baseline only; persistence unchanged
 // v1.4.13:
 // - JSFX scope fix per Cockos docs: shared functions live in @init
 // - @init functions are visible from @slider/@block/@gfx
@@ -659,69 +663,9 @@ file_var(0,current_patch);
 file_mem(0,PATCH1_BASE,PATCH_DATA_SIZE*2);
 
 @slider
-
-readyplay_now=slider1;
-abortstop_now=slider2;
-clear_now=slider3;
-
-(clear_now>0.5 && prev_clear<=0.5) ? (
-  panic_pending=1;
-  clear_all();
-  slider1=0; slider2=0; slider3=0;
-);
-
-(readyplay_now>0.5 && prev_readyplay<=0.5) ? (
-  loop_len_samples>0 && (state==STATE_STOPPED || state==STATE_IDLE) ? (
-    play_sample_pos=0;
-    state=STATE_PLAYING;
-  ) :
-  state==STATE_IDLE && loop_len_samples<=0 ? (
-    clear_layer(0);
-    record_layer=0;
-    record_sample_pos=0;
-    loop_len_samples=0;
-    play_sample_pos=0;
-    analysis_done=0;
-    state=STATE_READY;
-  ) :
-  state==STATE_RECORDING ? (
-    phrase_len=max(1,record_sample_pos);
-    mem[LEN_BASE+record_layer]=phrase_len;
-    (record_layer==0 || loop_len_samples<=0) ? (
-      loop_len_samples=phrase_len;
-      infer_tempo();
-    );
-    play_sample_pos=0;
-    state=STATE_STOPPED;
-  );
-  slider1=0;
-);
-
-(abortstop_now>0.5 && prev_abortstop<=0.5) ? (
-  state==STATE_READY ? (
-    state=STATE_IDLE;
-  ) :
-  state==STATE_RECORDING ? (
-    panic_pending=1;
-    clear_layer(record_layer);
-    record_sample_pos=0;
-    loop_len_samples=0;
-    analysis_done=0;
-    state=STATE_IDLE;
-  ) :
-  state==STATE_PLAYING ? (
-    panic_pending=1;
-    play_sample_pos=0;
-    overdub_armed=0;
-    overdub_active=0;
-    state=STATE_STOPPED;
-  );
-  slider2=0;
-);
-
-prev_readyplay=slider1;
-prev_abortstop=slider2;
-prev_clear=slider3;
+// Transport/CLEAR are handled by the custom @gfx UI and @block engine.
+// Keep this section intentionally empty: legacy slider-button handling called
+// shared engine functions from @slider and caused REAPER compile failures.
 
 @block
 

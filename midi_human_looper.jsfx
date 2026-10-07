@@ -1,6 +1,11 @@
-desc:MIDI Human Looper v1.4.0
+desc:MIDI Human Looper v1.4.1
 
 // Free-time MIDI phrase instrument prototype for REAPER JSFX.
+// v1.4.1:
+// - compact phrase UI: 6 phrase rows visible at once
+// - 3 phrase pages: P1-6 / P7-12 / P13-16
+// - PAGE PREV/NEXT controls keep instruments + expressions reachable on normal screens
+// - phrase rows reduced from 48px to 38px
 // v1.4.0:
 // - 16 PHRASES in line-based UI (no grid)
 // - two mouse-testable expression sources EXP A / EXP B
@@ -170,6 +175,9 @@ save_flash = 0;
 save_flash_patch = 0;
 last_trigger_layer = -1;
 trigger_request = -1;
+phrase_page = 0;
+PHRASES_PER_PAGE = 6;
+PHRASE_PAGES = 3;
 vi=0;
 loop(MAX_ONCE_VOICES,
   mem[VOICE_ACTIVE_BASE+vi]=0;
@@ -857,7 +865,7 @@ overdub_active ? (
   overdub_pos>=loop_len_samples ? overdub_pos=loop_len_samples-1;
 );
 
-@gfx 900 1120
+@gfx 900 720
 
 function hit(x,y,w,h)
 (
@@ -994,34 +1002,42 @@ state==STATE_PLAYING ? (
 ) :
 state==STATE_STOPPED ? gfx_drawstr("STOPPED - loop stored");
 
-// layer mixer
+// phrase browser: 6 compact rows per page
 gfx_setfont(1,"Arial",16);
 gfx_x=20; gfx_y=126; gfx_drawstr("PHRASES");
 
-rowy=154;
-gui_layer=0;
-loop(LAYERS,
+smallbtn(115,120,34,26,"<",0);
+smallbtn(154,120,88,26,phrase_page==0 ? "P1-6" : phrase_page==1 ? "P7-12" : "P13-16",1);
+smallbtn(247,120,34,26,">",0);
+hit(115,120,34,26) ? phrase_page=max(0,phrase_page-1);
+hit(247,120,34,26) ? phrase_page=min(PHRASE_PAGES-1,phrase_page+1);
+
+rowy=152;
+gui_row=0;
+loop(PHRASES_PER_PAGE,
+  gui_layer=phrase_page*PHRASES_PER_PAGE+gui_row;
+  gui_layer<LAYERS ? (
   (state==STATE_READY && record_layer==gui_layer) ? gfx_set(1,0.18,0.12,1) : gfx_set(0.78,0.78,0.78,1);
   gfx_setfont(1,"Arial",15);
   gfx_x=20; gfx_y=rowy+9;
   gfx_drawstr("P");
   gfx_drawnumber(gui_layer+1,0);
 
-  hit(16,rowy,40,34) ? arm_layer(gui_layer);
+  hit(16,rowy,40,28) ? arm_layer(gui_layer);
 
   mx=65; sx=112; ox=159; cx=252; modex=318; trigx=400;
-  smallbtn(mx,rowy,38,34,"M",mem[MUTE_BASE+gui_layer]>0.5);
-  smallbtn(sx,rowy,38,34,"S",mem[SOLO_BASE+gui_layer]>0.5);
-  smallbtn(ox,rowy,82,34,"OVR",overdub_armed && overdub_layer==gui_layer || overdub_active && overdub_layer==gui_layer);
-  smallbtn(cx,rowy,58,34,"CLR",0);
-  smallbtn(modex,rowy,72,34,mem[MODE_BASE+gui_layer]<0.5 ? "LOOP" : "ONCE",mem[MODE_BASE+gui_layer]>=0.5);
+  smallbtn(mx,rowy,38,28,"M",mem[MUTE_BASE+gui_layer]>0.5);
+  smallbtn(sx,rowy,38,28,"S",mem[SOLO_BASE+gui_layer]>0.5);
+  smallbtn(ox,rowy,82,28,"OVR",overdub_armed && overdub_layer==gui_layer || overdub_active && overdub_layer==gui_layer);
+  smallbtn(cx,rowy,58,28,"CLR",0);
+  smallbtn(modex,rowy,72,28,mem[MODE_BASE+gui_layer]<0.5 ? "LOOP" : "ONCE",mem[MODE_BASE+gui_layer]>=0.5);
   voice_lit=0; vi=0; loop(MAX_ONCE_VOICES, mem[VOICE_ACTIVE_BASE+vi]>0.5 && mem[VOICE_LAYER_BASE+vi]==gui_layer ? voice_lit=1; vi+=1;);
-  smallbtn(trigx,rowy,62,34,"TRIG",voice_lit);
+  smallbtn(trigx,rowy,62,28,"TRIG",voice_lit);
 
-  hit(mx,rowy,38,34) ? mem[MUTE_BASE+gui_layer]=1-mem[MUTE_BASE+gui_layer];
-  hit(sx,rowy,38,34) ? mem[SOLO_BASE+gui_layer]=1-mem[SOLO_BASE+gui_layer];
+  hit(mx,rowy,38,28) ? mem[MUTE_BASE+gui_layer]=1-mem[MUTE_BASE+gui_layer];
+  hit(sx,rowy,38,28) ? mem[SOLO_BASE+gui_layer]=1-mem[SOLO_BASE+gui_layer];
 
-  hit(ox,rowy,82,34) && state==STATE_PLAYING ? (
+  hit(ox,rowy,82,28) && state==STATE_PLAYING ? (
     overdub_active && overdub_layer==gui_layer ? (
       overdub_active=0;
       overdub_pos=0;
@@ -1032,25 +1048,25 @@ loop(LAYERS,
     );
   );
 
-  hit(cx,rowy,58,34) ? (
+  hit(cx,rowy,58,28) ? (
     panic_pending=1;
     clear_layer(gui_layer);
   );
 
-  hit(modex,rowy,72,34) ? (
+  hit(modex,rowy,72,28) ? (
     mem[MODE_BASE+gui_layer]=1-mem[MODE_BASE+gui_layer];
     mem[TRIG_BASE+gui_layer]=0;
     mem[ONCEPOS_BASE+gui_layer]=0;
     panic_pending=1;
   );
 
-  hit(trigx,rowy,62,34) && mem[MODE_BASE+gui_layer]>=0.5 && layer_count(gui_layer)>0 ? (
+  hit(trigx,rowy,62,28) && mem[MODE_BASE+gui_layer]>=0.5 && layer_count(gui_layer)>0 ? (
     // Queue only. @block performs kill + restart atomically before playback.
     trigger_request=gui_layer;
   );
 
   // velocity mini slider
-  vx=475; vw=82; vy=rowy+3;
+  vx=475; vw=82; vy=rowy+2;
   gfx_set(0.22,0.22,0.22,1); gfx_rect(vx,vy,vw,18,1);
   vnorm=(mem[VEL_BASE+gui_layer]-0.2)/2.8;
   vnorm=max(0,min(1,vnorm));
@@ -1064,7 +1080,7 @@ loop(LAYERS,
   gfx_drawnumber(mem[VEL_BASE+gui_layer],2);
 
   // retrigger velocity decay: 0.20..1.00, displayed as percent
-  dx=475; dw=82; dy=rowy+23;
+  dx=475; dw=82; dy=rowy+20;
   gfx_set(0.22,0.22,0.22,1); gfx_rect(dx,dy,dw,9,1);
   dnorm=(mem[DECAY_BASE+gui_layer]-0.2)/0.8;
   dnorm=max(0,min(1,dnorm));
@@ -1082,14 +1098,15 @@ loop(LAYERS,
   gfx_drawstr("ev ");
   gfx_drawnumber(layer_count(gui_layer),0);
 
-  rowy+=48;
-  gui_layer+=1;
+    rowy+=38;
+  );
+  gui_row+=1;
 );
 
 // --- INSTRUMENTS -----------------------------------------------------------
 // Kept intentionally simple in v1.4: routing + velocity + CC baselines.
 // Click numeric channel fields to cycle. Click ON to enable/disable.
-inst_y=154 + LAYERS*48 + 18;
+inst_y=152 + PHRASES_PER_PAGE*38 + 16;
 gfx_setfont(1,"Arial",16);
 gfx_x=20; gfx_y=inst_y; gfx_drawstr("INSTRUMENTS   IN -> OUT   VEL    LEVEL(CC11)   MOD(CC1)");
 inst_y+=28;

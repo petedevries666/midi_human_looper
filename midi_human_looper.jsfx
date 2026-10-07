@@ -1,7 +1,11 @@
-desc:MIDI Human Looper v1.17.6
+desc:MIDI Human Looper v1.17.7
 options:gmem=MIDI_HUMAN_LOOPER
 
 // Free-time MIDI phrase instrument prototype for REAPER JSFX.
+// v1.17.7:
+// - extend scrollable content height after the top-layout reflow
+// - reserve enough bottom canvas for the full expression curve editor and preset strip
+// - scrollbar can now reach the complete curve editor again
 // v1.17.6:
 // - properly reflow the whole top area instead of moving isolated labels
 // - transport row y=68, patch/file row y=108, PHRASES browser starts y=154, phrase rows y=186
@@ -1804,7 +1808,7 @@ exp_gui_initialized!=1 ? (
 
 // Small-window vertical scrolling.
 // Existing GUI is rendered unchanged into an offscreen content buffer, then a viewport is blitted.
-ui_content_h=1110;
+ui_content_h=1260;
 ui_view_h=gfx_h;
 ui_max_scroll=max(0,ui_content_h-ui_view_h);
 mouse_wheel!=0 ? (

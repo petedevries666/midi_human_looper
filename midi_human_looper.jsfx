@@ -1,7 +1,11 @@
-desc:MIDI Human Looper v1.6.1
+desc:MIDI Human Looper v1.6.2
 options:gmem=MIDI_HUMAN_LOOPER
 
 // Free-time MIDI phrase instrument prototype for REAPER JSFX.
+// v1.6.2:
+// - fix stuck POST-ARP after repeated/overlapping ONE SHOT triggers
+// - ARP source pools are now flushed when ONE SHOT voices are choked/recycled
+// - when the last ONE SHOT voice ends, non-HOLD arps release any orphaned source notes
 // v1.6.1:
 // - POST ARP now has explicit MODE ON/OFF and HOLD ON/OFF per instrument
 // - HOLD OFF follows source Note Offs and stops when no source notes remain
@@ -559,6 +563,26 @@ local(an,ch)
   mem[ARP_GATE_REMAIN_BASE+gi]=0;
 );
 
+
+function arp_flush_nonhold_sources()
+local(ai,n)
+(
+  ai=0;
+  loop(INSTRUMENTS,
+    mem[INST_ARP_ENABLED_BASE+ai]>0.5 && mem[INST_ARP_HOLD_BASE+ai]<0.5 ? (
+      n=0;
+      loop(128,
+        mem[ARP_SOURCE_COUNT_BASE+ai*128+n]=0;
+        mem[ARP_HELD_COUNT_BASE+ai*128+n]=0;
+        n+=1;
+      );
+      arp_release_instrument(ai);
+      mem[ARP_STEP_REMAIN_BASE+ai]=0;
+    );
+    ai+=1;
+  );
+);
+
 function arp_process_instrument(gi)
 local(rate,gate,step_samples,step_rem,gate_rem,held,n,choice,pick,vel,ch,an,offs)
 (
@@ -1031,6 +1055,7 @@ trigger_request>=0 ? (
   requested_layer!=last_trigger_layer ? (
     last_trigger_layer>=0 ? (
       release_phrase_notes();
+      arp_flush_nonhold_sources();
       vi=0;
       loop(MAX_ONCE_VOICES,
         mem[VOICE_ACTIVE_BASE+vi]=0;
@@ -1053,6 +1078,7 @@ trigger_request>=0 ? (
   );
   voice_slot<0 ? (
     release_phrase_notes();
+    arp_flush_nonhold_sources();
     vi=0;
     loop(MAX_ONCE_VOICES,
       mem[VOICE_ACTIVE_BASE+vi]=0;
@@ -1212,6 +1238,19 @@ loop(MAX_ONCE_VOICES,
     );
   );
   vi+=1;
+);
+
+// ONE SHOT phrases can end without a final matching Note Off after aggressive retrigger/choke.
+// Once no ONE SHOT voice remains, a non-HOLD arp must not retain those orphaned notes.
+once_any_active=0;
+vi=0;
+loop(MAX_ONCE_VOICES,
+  mem[VOICE_ACTIVE_BASE+vi]>0.5 ? once_any_active=1;
+  vi+=1;
+);
+once_any_active<0.5 && last_trigger_layer>=0 ? (
+  arp_flush_nonhold_sources();
+  last_trigger_layer=-1;
 );
 
 state==STATE_RECORDING ? record_sample_pos+=samplesblock;

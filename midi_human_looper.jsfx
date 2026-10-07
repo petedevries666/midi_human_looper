@@ -1,7 +1,10 @@
-desc:MIDI Human Looper v1.8.3
+desc:MIDI Human Looper v1.8.4
 options:gmem=MIDI_HUMAN_LOOPER
 
 // Free-time MIDI phrase instrument prototype for REAPER JSFX.
+// v1.8.4:
+// - unified EXP assignment display inside every assignable slider/control
+// - assigned controls show EXP1/EXP2 plus a tiny preview of their own multipoint curve
 // v1.8.3:
 // - repair accidental token corruption in v1.8.2 curve editor isolation
 // - dedicated curve_ti / curve_gi / curve_kind globals keep GUI indexes separate from @block
@@ -1703,6 +1706,32 @@ loop(PHRASES_PER_PAGE,
 );
 
 // --- INSTRUMENTS -----------------------------------------------------------
+// Compact assignment badge: pedal name + miniature of the target's own curve.
+function draw_exp_badge(ti, x, y, w, h)
+local(asg,cnt,k,x0,y0,x1,y1,px0,py0,px1,py1)
+(
+  asg=floor(mem[INST_EXP_ASSIGN_BASE+ti]+0.5);
+  asg>0 ? (
+    gfx_setfont(1,"Arial",8);
+    gfx_set(0.08,0.08,0.08,0.78); gfx_rect(x,y,w,h,1);
+    gfx_set(0.95,0.95,0.15,1); gfx_rect(x,y,w,h,0);
+    gfx_x=x+3; gfx_y=y+2; gfx_drawstr(asg==1 ? "EXP1" : "EXP2");
+    cnt=max(2,min(EXP_POINTS,floor(mem[INST_EXP_COUNT_BASE+ti]+0.5)));
+    k=0;
+    loop(cnt-1,
+      x0=mem[INST_EXP_X_BASE+ti*EXP_POINTS+k];
+      y0=mem[INST_EXP_Y_BASE+ti*EXP_POINTS+k];
+      x1=mem[INST_EXP_X_BASE+ti*EXP_POINTS+k+1];
+      y1=mem[INST_EXP_Y_BASE+ti*EXP_POINTS+k+1];
+      px0=x+w*0.48+(w*0.49)*x0; py0=y+h-2-(h-4)*y0;
+      px1=x+w*0.48+(w*0.49)*x1; py1=y+h-2-(h-4)*y1;
+      gfx_set(0.72,0.72,0.72,1); gfx_line(px0,py0,px1,py1);
+      k+=1;
+    );
+  );
+);
+
+
 // Compact two-line instrument strip, matching the visual mockup.
 function draw_instrument_row(gi, iy)
 local(ivx,ivw,ivn,ilx,ilw,imx,imw,ccx,arx,modex,holdx,rrx,rrw,grx,grw,rnorm,gnorm,nn,boxh,ti)
@@ -1745,6 +1774,7 @@ local(ivx,ivw,ivn,ilx,ilw,imx,imw,ccx,arx,modex,holdx,rrx,rrw,grx,grw,rnorm,gnor
     mem[INST_EXP_ASSIGN_BASE+ti]>0 ? exp_editor_ti=ti : exp_editor_ti==ti ? exp_editor_ti=-1;
   );
   gfx_setfont(1,"Arial",10); gfx_x=380; gfx_y=iy+8; gfx_drawstr("x"); gfx_drawnumber(mem[INST_VEL_BASE+gi],1);
+  ti=gi*EXP_TARGETS+EXP_T_VEL; draw_exp_badge(ti,ivx,iy+5,ivw,18);
 
   // CC number.
   ccx=423;
@@ -1782,9 +1812,7 @@ local(ivx,ivw,ivn,ilx,ilw,imx,imw,ccx,arx,modex,holdx,rrx,rrw,grx,grw,rnorm,gnor
   );
   gfx_setfont(1,"Arial",9); gfx_set(0.72,0.72,0.72,1);
   gfx_x=574; gfx_y=iy+2; gfx_drawnumber(mem[INST_LEVEL_BASE+gi],0);
-  mem[INST_EXP_ASSIGN_BASE+ti]>0 ? (
-    gfx_x=574; gfx_y=iy+13; gfx_drawstr(mem[INST_EXP_ASSIGN_BASE+ti]==1 ? "EXP1" : "EXP2");
-  );
+  draw_exp_badge(ti,ilx,iy+5,ilw,18);
 
   // MODULATION.
   imx=620; imw=92;
@@ -1802,6 +1830,7 @@ local(ivx,ivw,ivn,ilx,ilw,imx,imw,ccx,arx,modex,holdx,rrx,rrw,grx,grw,rnorm,gnor
     mem[INST_EXP_ASSIGN_BASE+ti]>0 ? exp_editor_ti=ti : exp_editor_ti==ti ? exp_editor_ti=-1;
   );
   gfx_setfont(1,"Arial",10); gfx_x=718; gfx_y=iy+8; gfx_drawnumber(mem[INST_MOD_BASE+gi],0);
+  ti=gi*EXP_TARGETS+EXP_T_MOD; draw_exp_badge(ti,imx,iy+5,imw,18);
 
   // ARP line.
   gfx_setfont(1,"Arial",11); gfx_set(0.95,0.95,0.15,1);
@@ -1814,6 +1843,7 @@ local(ivx,ivw,ivn,ilx,ilw,imx,imw,ccx,arx,modex,holdx,rrx,rrw,grx,grw,rnorm,gnor
     mem[INST_EXP_ASSIGN_BASE+ti]=(floor(mem[INST_EXP_ASSIGN_BASE+ti]+0.5)+1)%3; mem[EXP_LAST_VALUE_BASE+ti]=-1;
     mem[INST_EXP_ASSIGN_BASE+ti]>0 ? exp_editor_ti=ti : exp_editor_ti==ti ? exp_editor_ti=-1;
   );
+  draw_exp_badge(ti,arx,iy+30,48,22);
 
   modex=136; ti=gi*EXP_TARGETS+EXP_T_ARP_MODE;
   smallbtn(modex,iy+30,66,22,mem[INST_ARP_MODE_BASE+gi]<0.5 ? "RANDOM" : mem[INST_ARP_MODE_BASE+gi]<1.5 ? "UP" : "DOWN",0);
@@ -1822,6 +1852,7 @@ local(ivx,ivw,ivn,ilx,ilw,imx,imw,ccx,arx,modex,holdx,rrx,rrw,grx,grw,rnorm,gnor
     mem[INST_EXP_ASSIGN_BASE+ti]=(floor(mem[INST_EXP_ASSIGN_BASE+ti]+0.5)+1)%3; mem[EXP_LAST_VALUE_BASE+ti]=-1;
     mem[INST_EXP_ASSIGN_BASE+ti]>0 ? exp_editor_ti=ti : exp_editor_ti==ti ? exp_editor_ti=-1;
   );
+  draw_exp_badge(ti,modex,iy+30,66,22);
 
   holdx=208;
   smallbtn(holdx,iy+30,68,22,mem[INST_ARP_HOLD_BASE+gi]>0.5 ? "HOLD" : "RELEASE",mem[INST_ARP_HOLD_BASE+gi]>0.5);
@@ -1845,6 +1876,7 @@ local(ivx,ivw,ivn,ilx,ilw,imx,imw,ccx,arx,modex,holdx,rrx,rrw,grx,grw,rnorm,gnor
     mem[INST_EXP_ASSIGN_BASE+ti]>0 ? exp_editor_ti=ti : exp_editor_ti==ti ? exp_editor_ti=-1;
   );
   gfx_x=394; gfx_y=iy+35; gfx_drawnumber(mem[INST_ARP_RATE_BASE+gi],2); gfx_drawstr("x");
+  ti=gi*EXP_TARGETS+EXP_T_ARP_RATE; draw_exp_badge(ti,rrx,iy+34,rrw,12);
 
   gfx_x=443; gfx_y=iy+35; gfx_drawstr("GATE");
   grx=479; grw=72;
@@ -1860,6 +1892,7 @@ local(ivx,ivw,ivn,ilx,ilw,imx,imw,ccx,arx,modex,holdx,rrx,rrw,grx,grw,rnorm,gnor
     mem[INST_EXP_ASSIGN_BASE+ti]>0 ? exp_editor_ti=ti : exp_editor_ti==ti ? exp_editor_ti=-1;
   );
   gfx_x=557; gfx_y=iy+35; gfx_drawnumber(mem[INST_ARP_GATE_BASE+gi]*100,0); gfx_drawstr("%");
+  ti=gi*EXP_TARGETS+EXP_T_ARP_GATE; draw_exp_badge(ti,grx,iy+34,grw,12);
 );
 
 inst_y=152 + PHRASES_PER_PAGE*38 + 16;

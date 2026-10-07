@@ -1,6 +1,9 @@
-desc:MIDI Human Looper v1.4.19
+desc:MIDI Human Looper v1.4.20
 
 // Free-time MIDI phrase instrument prototype for REAPER JSFX.
+// v1.4.20:
+// - temporary RESTORE button force-loads the selected serialized patch bank
+// - useful for update/recall diagnostics; does not autosave or change patch layout
 // v1.4.19:
 // - LEVEL test now sends MIDI CC7 (Channel Volume); MOD remains CC1
 // - GUI sliders only set dirty flags; actual MIDI CC transmission happens safely in @block
@@ -1020,16 +1023,23 @@ smallbtn(20,py,70,30,"PATCH 1",current_patch==1);
 smallbtn(96,py,52,30,"SAVE",0);
 smallbtn(170,py,70,30,"PATCH 2",current_patch==2);
 smallbtn(246,py,52,30,"SAVE",0);
+smallbtn(310,py,92,30,"RESTORE",0);
 
 hit(20,py,70,30) ? load_patch(1);
 hit(96,py,52,30) ? save_patch(1);
 hit(170,py,70,30) ? load_patch(2);
 hit(246,py,52,30) ? save_patch(2);
+// Diagnostic/manual recovery: force-copy the currently selected serialized bank
+// into working RAM even when current_patch already equals that slot.
+hit(310,py,92,30) ? (
+  panic_pending=1;
+  restore_current_patch_raw();
+);
 
 save_flash>0 ? (
   gfx_set(0.82,0.82,0.82,1);
   gfx_setfont(1,"Arial",13);
-  gfx_x=310; gfx_y=84;
+  gfx_x=420; gfx_y=84;
   gfx_drawstr("PATCH ");
   gfx_drawnumber(save_flash_patch,0);
   gfx_drawstr(" SAVED");

@@ -1,7 +1,11 @@
-desc:MIDI Human Looper v1.5.0
+desc:MIDI Human Looper v1.5.1
 options:gmem=MIDI_HUMAN_LOOPER
 
 // Free-time MIDI phrase instrument prototype for REAPER JSFX.
+// v1.5.1:
+// - LEVEL MIDI CC is configurable per instrument, default CC39 for Arturia test
+// - LEVEL CC number is stored in external JSON patch memory
+// - click each row's CC button to cycle 0..127
 // v1.5.0:
 // - external JSON patch persistence via companion Lua ReaScript + named gmem bridge
 // - PATCH 1/2 select external slots; SAVE writes patch1/patch2.json; LOAD FILE reloads selected slot
@@ -217,7 +221,8 @@ INST_VEL_BASE = INST_OUT_BASE + INSTRUMENTS;
 INST_LEVEL_BASE = INST_VEL_BASE + INSTRUMENTS;
 INST_MOD_BASE = INST_LEVEL_BASE + INSTRUMENTS;
 INST_ENABLED_BASE = INST_MOD_BASE + INSTRUMENTS;
-WORK_MEM_SIZE = INST_ENABLED_BASE + INSTRUMENTS;
+INST_LEVEL_CC_BASE = INST_ENABLED_BASE + INSTRUMENTS;
+WORK_MEM_SIZE = INST_LEVEL_CC_BASE + INSTRUMENTS;
 PATCH_HEADER_SIZE = 12;
 PATCH_DATA_SIZE = PATCH_HEADER_SIZE + WORK_MEM_SIZE;
 PATCH1_BASE = WORK_MEM_SIZE + 64;
@@ -300,6 +305,7 @@ loop(INSTRUMENTS,
   mem[INST_LEVEL_BASE+ii]=127;
   mem[INST_MOD_BASE+ii]=0;
   mem[INST_ENABLED_BASE+ii]=(ii==0);
+  mem[INST_LEVEL_CC_BASE+ii]=39;
   ii+=1;
 );
 
@@ -825,7 +831,7 @@ gmem[0]==5 ? (io_status=5; gmem[0]=0;);
 ii=0;
 loop(INSTRUMENTS,
   mem[CC_DIRTY_BASE+ii]>0.5 ? (
-    send_instrument_cc(ii,7,mem[INST_LEVEL_BASE+ii]);
+    send_instrument_cc(ii,mem[INST_LEVEL_CC_BASE+ii],mem[INST_LEVEL_BASE+ii]);
     mem[CC_DIRTY_BASE+ii]=0;
   );
   mem[CC_DIRTY_MOD_BASE+ii]>0.5 ? (
@@ -1299,7 +1305,7 @@ loop(PHRASES_PER_PAGE,
 // --- INSTRUMENTS -----------------------------------------------------------
 // Explicit per-row renderer: gi is a function parameter/local, so I1/I2/I3 cannot alias.
 function draw_instrument_row(gi, iy)
-local(ivx,ivw,ivn,ilx,ilw,imx,imw)
+local(ivx,ivw,ivn,ilx,ilw,imx,imw,ccx)
 (
   gfx_setfont(1,"Arial",13);
   gfx_x=20; gfx_y=iy+7; gfx_drawstr("I"); gfx_drawnumber(gi+1,0);
@@ -1322,28 +1328,33 @@ local(ivx,ivw,ivn,ilx,ilw,imx,imw)
   mouse_cap&1 && mouse_x>=ivx && mouse_x<ivx+ivw && mouse_y>=iy+2 && mouse_y<iy+25 ? mem[INST_VEL_BASE+gi]=0.2+2.8*((mouse_x-ivx)/ivw);
   gfx_x=392; gfx_y=iy+7; gfx_drawstr("x"); gfx_drawnumber(mem[INST_VEL_BASE+gi],2);
 
-  ilx=455; ilw=100;
+  ccx=455;
+  smallbtn(ccx,iy,44,28,"CC",0);
+  hit(ccx,iy,44,28) ? mem[INST_LEVEL_CC_BASE+gi]=(mem[INST_LEVEL_CC_BASE+gi]+1)%128;
+  gfx_x=503; gfx_y=iy+7; gfx_drawnumber(mem[INST_LEVEL_CC_BASE+gi],0);
+
+  ilx=530; ilw=84;
   gfx_set(0.22,0.22,0.22,1); gfx_rect(ilx,iy+5,ilw,16,1);
   gfx_set(0.7,0.7,0.7,1); gfx_rect(ilx,iy+5,ilw*(mem[INST_LEVEL_BASE+gi]/127),16,1);
   mouse_cap&1 && mouse_x>=ilx && mouse_x<ilx+ilw && mouse_y>=iy+2 && mouse_y<iy+25 ? (
     mem[INST_LEVEL_BASE+gi]=floor(127*((mouse_x-ilx)/ilw)+0.5);
     mem[CC_DIRTY_BASE+gi]=1;
   );
-  gfx_x=562; gfx_y=iy+7; gfx_drawnumber(mem[INST_LEVEL_BASE+gi],0);
+  gfx_x=620; gfx_y=iy+7; gfx_drawnumber(mem[INST_LEVEL_BASE+gi],0);
 
-  imx=610; imw=100;
+  imx=665; imw=84;
   gfx_set(0.22,0.22,0.22,1); gfx_rect(imx,iy+5,imw,16,1);
   gfx_set(0.7,0.7,0.7,1); gfx_rect(imx,iy+5,imw*(mem[INST_MOD_BASE+gi]/127),16,1);
   mouse_cap&1 && mouse_x>=imx && mouse_x<imx+imw && mouse_y>=iy+2 && mouse_y<iy+25 ? (
     mem[INST_MOD_BASE+gi]=floor(127*((mouse_x-imx)/imw)+0.5);
     mem[CC_DIRTY_MOD_BASE+gi]=1;
   );
-  gfx_x=717; gfx_y=iy+7; gfx_drawnumber(mem[INST_MOD_BASE+gi],0);
+  gfx_x=755; gfx_y=iy+7; gfx_drawnumber(mem[INST_MOD_BASE+gi],0);
 );
 
 inst_y=152 + PHRASES_PER_PAGE*38 + 16;
 gfx_setfont(1,"Arial",16);
-gfx_x=20; gfx_y=inst_y; gfx_drawstr("INSTRUMENTS   IN -> OUT   VEL    LEVEL(CC7)    MOD(CC1)");
+gfx_x=20; gfx_y=inst_y; gfx_drawstr("INSTRUMENTS   IN -> OUT   VEL    LEVEL CC / VALUE      MOD(CC1)");
 inst_y+=28;
 draw_instrument_row(0,inst_y);
 draw_instrument_row(1,inst_y+34);
@@ -1360,7 +1371,7 @@ ex=90; ew=300;
 gfx_set(0.22,0.22,0.22,1); gfx_rect(ex,exp_y,ew,20,1);
 gfx_set(0.7,0.7,0.7,1); gfx_rect(ex,exp_y,ew*slider10,20,1);
 mouse_cap&1 && mouse_x>=ex && mouse_x<ex+ew && mouse_y>=exp_y-3 && mouse_y<exp_y+23 ? (slider10=max(0,min(1,(mouse_x-ex)/ew)); sliderchange(slider10); ii=0; loop(INSTRUMENTS, mem[CC_DIRTY_BASE+ii]=1; ii+=1;););
-gfx_x=400; gfx_y=exp_y+4; gfx_drawnumber(slider10*100,0); gfx_drawstr("%   -> instrument LEVEL / CC11");
+gfx_x=400; gfx_y=exp_y+4; gfx_drawnumber(slider10*100,0); gfx_drawstr("%   -> instrument LEVEL / selected CC");
 
 exp_y+=32;
 gfx_x=20; gfx_y=exp_y+4; gfx_drawstr("EXP B");

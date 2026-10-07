@@ -1,6 +1,11 @@
-desc:MIDI Human Looper v1.4.18
+desc:MIDI Human Looper v1.4.19
 
 // Free-time MIDI phrase instrument prototype for REAPER JSFX.
+// v1.4.19:
+// - LEVEL test now sends MIDI CC7 (Channel Volume); MOD remains CC1
+// - GUI sliders only set dirty flags; actual MIDI CC transmission happens safely in @block
+// - ORIGINAL output follows a fixed instrument IN channel when available
+// - patch memory layout unchanged, preserving v1.4.18 recall compatibility
 // v1.4.18:
 // - critical Cockos serialization fix: @init no longer clears serialized patch_valid/current_patch
 // - handles BOTH host orders: @serialize->@init and @init->@serialize
@@ -211,6 +216,8 @@ VOICE_GAIN_BASE = VOICE_POS_BASE + MAX_ONCE_VOICES;
 NOTE_REF_BASE = VOICE_GAIN_BASE + MAX_ONCE_VOICES;
 NOTE_REF_SIZE = 16 * 128;
 SUSTAIN_REF_BASE = NOTE_REF_BASE + NOTE_REF_SIZE;
+CC_DIRTY_BASE = SUSTAIN_REF_BASE + 16;
+CC_DIRTY_MOD_BASE = CC_DIRTY_BASE + INSTRUMENTS;
 // patch_valid1 / patch_valid2 / current_patch are serialized state.
 // Do NOT clear them here: REAPER may call @init after @serialize.
 (patch_valid1<=0 && patch_valid2<=0 && (current_patch<1 || current_patch>2)) ? current_patch=1;
@@ -238,6 +245,12 @@ ri=0;
 loop(16,
   mem[SUSTAIN_REF_BASE+ri]=0;
   ri+=1;
+);
+ii=0;
+loop(INSTRUMENTS,
+  mem[CC_DIRTY_BASE+ii]=0;
+  mem[CC_DIRTY_MOD_BASE+ii]=0;
+  ii+=1;
 );
 
 i=0;
@@ -480,7 +493,7 @@ local(ii,out_ch,ch,lev,mod)
       // the next mapping layer will make source/target/range freely assignable.
       lev=max(0,min(127,floor(mem[INST_LEVEL_BASE+ii]*slider10+0.5)));
       mod=max(0,min(127,floor(127*slider11+0.5)));
-      midisend(0,176|ch,11,lev);
+      midisend(0,176|ch,7,lev);
       midisend(0,176|ch,1,mod);
     );
     ii+=1;
@@ -544,11 +557,14 @@ local(srcch,typ,ii,in_ch,out_ch,outst,outd2,matched,velmul,msg_chan,note_key)
 );
 
 function send_instrument_cc(gi, cc, value)
-local(out_ch,ch)
+local(in_ch,out_ch,ch)
 (
   mem[INST_ENABLED_BASE+gi]>0.5 ? (
+    in_ch=mem[INST_IN_BASE+gi];
     out_ch=mem[INST_OUT_BASE+gi];
-    ch=out_ch>0 ? max(1,min(16,out_ch))-1 : 0;
+    // Fixed OUT wins. ORIGINAL follows a fixed IN channel; ALL+ORIGINAL uses CH1.
+    ch=out_ch>0 ? max(1,min(16,out_ch))-1 :
+       in_ch>0 ? max(1,min(16,in_ch))-1 : 0;
     midisend(0,176|ch,cc,max(0,min(127,floor(value+0.5))));
   );
 );
@@ -726,6 +742,19 @@ serialize_reading ? restore_current_patch_raw();
 // shared engine functions from @slider and caused REAPER compile failures.
 
 @block
+
+ii=0;
+loop(INSTRUMENTS,
+  mem[CC_DIRTY_BASE+ii]>0.5 ? (
+    send_instrument_cc(ii,7,mem[INST_LEVEL_BASE+ii]);
+    mem[CC_DIRTY_BASE+ii]=0;
+  );
+  mem[CC_DIRTY_MOD_BASE+ii]>0.5 ? (
+    send_instrument_cc(ii,1,mem[INST_MOD_BASE+ii]);
+    mem[CC_DIRTY_MOD_BASE+ii]=0;
+  );
+  ii+=1;
+);
 
 save_flash>0 ? save_flash-=samplesblock;
 save_flash<0 ? save_flash=0;
@@ -1206,7 +1235,7 @@ local(ivx,ivw,ivn,ilx,ilw,imx,imw)
   gfx_set(0.7,0.7,0.7,1); gfx_rect(ilx,iy+5,ilw*(mem[INST_LEVEL_BASE+gi]/127),16,1);
   mouse_cap&1 && mouse_x>=ilx && mouse_x<ilx+ilw && mouse_y>=iy+2 && mouse_y<iy+25 ? (
     mem[INST_LEVEL_BASE+gi]=floor(127*((mouse_x-ilx)/ilw)+0.5);
-    send_instrument_cc(gi,11,mem[INST_LEVEL_BASE+gi]);
+    mem[CC_DIRTY_BASE+gi]=1;
   );
   gfx_x=562; gfx_y=iy+7; gfx_drawnumber(mem[INST_LEVEL_BASE+gi],0);
 
@@ -1215,14 +1244,14 @@ local(ivx,ivw,ivn,ilx,ilw,imx,imw)
   gfx_set(0.7,0.7,0.7,1); gfx_rect(imx,iy+5,imw*(mem[INST_MOD_BASE+gi]/127),16,1);
   mouse_cap&1 && mouse_x>=imx && mouse_x<imx+imw && mouse_y>=iy+2 && mouse_y<iy+25 ? (
     mem[INST_MOD_BASE+gi]=floor(127*((mouse_x-imx)/imw)+0.5);
-    send_instrument_cc(gi,1,mem[INST_MOD_BASE+gi]);
+    mem[CC_DIRTY_MOD_BASE+gi]=1;
   );
   gfx_x=717; gfx_y=iy+7; gfx_drawnumber(mem[INST_MOD_BASE+gi],0);
 );
 
 inst_y=152 + PHRASES_PER_PAGE*38 + 16;
 gfx_setfont(1,"Arial",16);
-gfx_x=20; gfx_y=inst_y; gfx_drawstr("INSTRUMENTS   IN -> OUT   VEL    LEVEL(CC11)   MOD(CC1)");
+gfx_x=20; gfx_y=inst_y; gfx_drawstr("INSTRUMENTS   IN -> OUT   VEL    LEVEL(CC7)    MOD(CC1)");
 inst_y+=28;
 draw_instrument_row(0,inst_y);
 draw_instrument_row(1,inst_y+34);
@@ -1238,14 +1267,14 @@ gfx_x=20; gfx_y=exp_y+4; gfx_drawstr("EXP A");
 ex=90; ew=300;
 gfx_set(0.22,0.22,0.22,1); gfx_rect(ex,exp_y,ew,20,1);
 gfx_set(0.7,0.7,0.7,1); gfx_rect(ex,exp_y,ew*slider10,20,1);
-mouse_cap&1 && mouse_x>=ex && mouse_x<ex+ew && mouse_y>=exp_y-3 && mouse_y<exp_y+23 ? (slider10=max(0,min(1,(mouse_x-ex)/ew)); sliderchange(slider10); send_expression_ccs(););
+mouse_cap&1 && mouse_x>=ex && mouse_x<ex+ew && mouse_y>=exp_y-3 && mouse_y<exp_y+23 ? (slider10=max(0,min(1,(mouse_x-ex)/ew)); sliderchange(slider10); ii=0; loop(INSTRUMENTS, mem[CC_DIRTY_BASE+ii]=1; ii+=1;););
 gfx_x=400; gfx_y=exp_y+4; gfx_drawnumber(slider10*100,0); gfx_drawstr("%   -> instrument LEVEL / CC11");
 
 exp_y+=32;
 gfx_x=20; gfx_y=exp_y+4; gfx_drawstr("EXP B");
 gfx_set(0.22,0.22,0.22,1); gfx_rect(ex,exp_y,ew,20,1);
 gfx_set(0.7,0.7,0.7,1); gfx_rect(ex,exp_y,ew*slider11,20,1);
-mouse_cap&1 && mouse_x>=ex && mouse_x<ex+ew && mouse_y>=exp_y-3 && mouse_y<exp_y+23 ? (slider11=max(0,min(1,(mouse_x-ex)/ew)); sliderchange(slider11); send_expression_ccs(););
+mouse_cap&1 && mouse_x>=ex && mouse_x<ex+ew && mouse_y>=exp_y-3 && mouse_y<exp_y+23 ? (slider11=max(0,min(1,(mouse_x-ex)/ew)); sliderchange(slider11); ii=0; loop(INSTRUMENTS, mem[CC_DIRTY_MOD_BASE+ii]=1; ii+=1;););
 gfx_x=400; gfx_y=exp_y+4; gfx_drawnumber(slider11*100,0); gfx_drawstr("%   -> instrument MOD / CC1");
 
 last_mouse_cap=mouse_cap;

@@ -1,6 +1,12 @@
-desc:MIDI Human Looper v1.4.21
+desc:MIDI Human Looper v1.5.0
+options:gmem=MIDI_HUMAN_LOOPER
 
 // Free-time MIDI phrase instrument prototype for REAPER JSFX.
+// v1.5.0:
+// - external JSON patch persistence via companion Lua ReaScript + named gmem bridge
+// - PATCH 1/2 select external slots; SAVE writes patch1/patch2.json; LOAD FILE reloads selected slot
+// - @serialize no longer stores patch banks in the .RPP
+// - JSON contains complete working memory plus global loop/transport parameters
 // v1.4.21:
 // - RESTORE click now only queues a request; actual bank restore runs safely in @block
 // - state label moved away from RESTORE button
@@ -173,6 +179,12 @@ STATE_RECORDING = 2;
 STATE_PLAYING = 3;
 STATE_STOPPED = 4;
 
+// External patch I/O bridge (companion Lua ReaScript).
+// gmem[0] command: 0 idle, 1 SAVE request, 2 LOAD request, 3 LOAD ready, 4 SAVE done, 5 error.
+// gmem[1] selected slot, [2] schema, [3] WORK_MEM_SIZE, [4..] globals, payload starts at 32.
+IO_SCHEMA = 1;
+IO_PAYLOAD_BASE = 32;
+
 MAX_ONCE_VOICES = 12;
 
 state = STATE_IDLE;
@@ -232,6 +244,7 @@ save_flash = 0;
 save_flash_patch = 0;
 restore_request = 0;
 restore_flash = 0;
+io_status = 0;
 last_trigger_layer = -1;
 trigger_request = -1;
 phrase_page = 0;
@@ -578,6 +591,66 @@ local(in_ch,out_ch,ch)
   );
 );
 
+function external_patch_save_request(slot)
+local(j)
+(
+  // Copy a stable snapshot to shared memory; Lua writes JSON outside the JSFX.
+  gmem[1]=slot;
+  gmem[2]=IO_SCHEMA;
+  gmem[3]=WORK_MEM_SIZE;
+  gmem[4]=loop_len_samples;
+  gmem[5]=analysis_done;
+  gmem[6]=slider4;
+  gmem[7]=slider5;
+  gmem[8]=slider6;
+  gmem[9]=slider7;
+  gmem[10]=slider8;
+  gmem[11]=slider9;
+  gmem[12]=record_layer;
+  j=0;
+  loop(WORK_MEM_SIZE,
+    gmem[IO_PAYLOAD_BASE+j]=mem[j];
+    j+=1;
+  );
+  gmem[0]=1;
+);
+
+function external_patch_load_request(slot)
+(
+  gmem[1]=slot;
+  gmem[0]=2;
+);
+
+function external_patch_apply()
+local(j,n)
+(
+  n=gmem[3];
+  (gmem[2]==IO_SCHEMA && n==WORK_MEM_SIZE) ? (
+    loop_len_samples=gmem[4];
+    analysis_done=gmem[5];
+    slider4=gmem[6];
+    slider5=gmem[7];
+    slider6=gmem[8];
+    slider7=gmem[9];
+    slider8=gmem[10];
+    slider9=gmem[11];
+    record_layer=gmem[12];
+    j=0;
+    loop(WORK_MEM_SIZE,
+      mem[j]=gmem[IO_PAYLOAD_BASE+j];
+      j+=1;
+    );
+    record_sample_pos=0;
+    play_sample_pos=0;
+    overdub_armed=0;
+    overdub_active=0;
+    overdub_pos=0;
+    state=loop_len_samples>0 ? STATE_STOPPED : STATE_IDLE;
+    io_status=3;
+  ) : io_status=5;
+  gmem[0]=0;
+);
+
 function restore_current_patch_raw()
 local(pb,j,valid)
 (
@@ -735,15 +808,8 @@ restore_after_init ? (
 );
 
 @serialize
-serialize_reading = file_avail(0) >= 0;
-file_var(0,patch_valid1);
-file_var(0,patch_valid2);
-file_var(0,current_patch);
-file_mem(0,PATCH1_BASE,PATCH_DATA_SIZE*2);
-
-// Cockos: @serialize may run before @init. Hydrate immediately on READ,
-// because a later @init must not be relied on to preserve a pending flag.
-serialize_reading ? restore_current_patch_raw();
+// Deliberately trivial. Patch persistence is external JSON from v1.5.0 onward.
+serialize_guard=serialize_guard;
 
 @slider
 // Transport/CLEAR are handled by the custom @gfx UI and @block engine.
@@ -751,6 +817,10 @@ serialize_reading ? restore_current_patch_raw();
 // shared engine functions from @slider and caused REAPER compile failures.
 
 @block
+
+gmem[0]==3 ? external_patch_apply();
+gmem[0]==4 ? (io_status=4; gmem[0]=0;);
+gmem[0]==5 ? (io_status=5; gmem[0]=0;);
 
 ii=0;
 loop(INSTRUMENTS,
@@ -771,11 +841,6 @@ save_flash<0 ? save_flash=0;
 restore_flash>0 ? restore_flash-=samplesblock;
 restore_flash<0 ? restore_flash=0;
 
-restore_request ? (
-  restore_request=0;
-  panic_pending=1;
-  restore_current_patch_raw();
-);
 
 panic_pending ? (
   send_all_notes_off();
@@ -1038,18 +1103,13 @@ smallbtn(20,py,70,30,"PATCH 1",current_patch==1);
 smallbtn(96,py,52,30,"SAVE",0);
 smallbtn(170,py,70,30,"PATCH 2",current_patch==2);
 smallbtn(246,py,52,30,"SAVE",0);
-smallbtn(310,py,92,30,"RESTORE",0);
+smallbtn(310,py,92,30,"LOAD FILE",0);
 
-hit(20,py,70,30) ? load_patch(1);
-hit(96,py,52,30) ? save_patch(1);
-hit(170,py,70,30) ? load_patch(2);
-hit(246,py,52,30) ? save_patch(2);
-// Diagnostic/manual recovery: force-copy the currently selected serialized bank
-// into working RAM even when current_patch already equals that slot.
-hit(310,py,92,30) ? (
-  restore_request=1;
-  restore_flash=srate*1.5;
-);
+hit(20,py,70,30) ? current_patch=1;
+hit(96,py,52,30) ? external_patch_save_request(1);
+hit(170,py,70,30) ? current_patch=2;
+hit(246,py,52,30) ? external_patch_save_request(2);
+hit(310,py,92,30) ? external_patch_load_request(current_patch);
 
 save_flash>0 ? (
   gfx_set(0.82,0.82,0.82,1);
@@ -1060,12 +1120,12 @@ save_flash>0 ? (
   gfx_drawstr(" SAVED");
 );
 
-restore_flash>0 ? (
-  gfx_set(0.82,0.82,0.82,1);
-  gfx_setfont(1,"Arial",13);
-  gfx_x=420; gfx_y=84;
-  gfx_drawstr("RESTORE REQUESTED");
-);
+gfx_setfont(1,"Arial",12);
+gfx_x=420; gfx_y=84;
+gmem[15]>0.5 ? gfx_drawstr("FILE I/O READY") : gfx_drawstr("RUN PATCH I/O SCRIPT");
+io_status==3 ? (gfx_x=560; gfx_y=84; gfx_drawstr("LOADED"););
+io_status==4 ? (gfx_x=560; gfx_y=84; gfx_drawstr("SAVED"););
+io_status==5 ? (gfx_x=560; gfx_y=84; gfx_drawstr("I/O ERROR"););
 
 hit(bx,by,bw,bh) ? (
   loop_len_samples>0 && (state==STATE_STOPPED || state==STATE_IDLE) ? (

@@ -1,6 +1,10 @@
-desc:MIDI Human Looper v1.4.17
+desc:MIDI Human Looper v1.4.18
 
 // Free-time MIDI phrase instrument prototype for REAPER JSFX.
+// v1.4.18:
+// - critical Cockos serialization fix: @init no longer clears serialized patch_valid/current_patch
+// - handles BOTH host orders: @serialize->@init and @init->@serialize
+// - if @init follows a load, saved bank is rehydrated again at end of @init
 // v1.4.17:
 // - recall v2: detect @serialize READ with file_avail(0)>=0 and hydrate immediately
 // - avoids fragile restore_pending flag across REAPER's @serialize/@init ordering
@@ -207,9 +211,9 @@ VOICE_GAIN_BASE = VOICE_POS_BASE + MAX_ONCE_VOICES;
 NOTE_REF_BASE = VOICE_GAIN_BASE + MAX_ONCE_VOICES;
 NOTE_REF_SIZE = 16 * 128;
 SUSTAIN_REF_BASE = NOTE_REF_BASE + NOTE_REF_SIZE;
-patch_valid1 = 0;
-patch_valid2 = 0;
-current_patch = 1;
+// patch_valid1 / patch_valid2 / current_patch are serialized state.
+// Do NOT clear them here: REAPER may call @init after @serialize.
+(patch_valid1<=0 && patch_valid2<=0 && (current_patch<1 || current_patch>2)) ? current_patch=1;
 save_flash = 0;
 save_flash_patch = 0;
 last_trigger_layer = -1;
@@ -279,6 +283,10 @@ overdub_pos = 0;
 prev_readyplay=0;
 prev_abortstop=0;
 prev_clear=0;
+
+// If REAPER loaded @serialize BEFORE @init, @init has just reset working RAM.
+// Rehydrate the saved bank now. If @serialize runs after @init, @serialize itself hydrates it.
+(patch_valid1>0 || patch_valid2>0) ? restore_after_init=1;
 
 function layer_count(layer)
 local(addr)
@@ -695,6 +703,11 @@ local(grid,q,target)
   );
 );
 
+
+restore_after_init ? (
+  restore_after_init=0;
+  restore_current_patch_raw();
+);
 
 @serialize
 serialize_reading = file_avail(0) >= 0;

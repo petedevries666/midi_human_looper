@@ -1,6 +1,9 @@
-desc:MIDI Human Looper v1.4.7
+desc:MIDI Human Looper v1.4.8
 
 // Free-time MIDI phrase instrument prototype for REAPER JSFX.
+// v1.4.8:
+// - compile fix: @serialize no longer calls save_patch(), which is declared later in the file
+// - project-save snapshot is performed inline inside @serialize
 // v1.4.7:
 // - REAL recall fix: file_avail(0)<0 means WRITE, not fresh instance
 // - @serialize
@@ -10,7 +13,25 @@ writing = file_avail(0) < 0;
 writing ? (
   // Saving the REAPER project should always capture the state currently on screen,
   // even if the user did not press our explicit PATCH SAVE button first.
-  save_patch(current_patch);
+  pb = current_patch==2 ? PATCH2_BASE : PATCH1_BASE;
+  mem[pb+0]=loop_len_samples;
+  mem[pb+1]=analysis_done;
+  mem[pb+2]=slider4;
+  mem[pb+3]=slider5;
+  mem[pb+4]=slider6;
+  mem[pb+5]=slider7;
+  mem[pb+6]=slider8;
+  mem[pb+7]=slider9;
+  mem[pb+8]=record_layer;
+  mem[pb+9]=PATCH_SCHEMA_VERSION;
+  mem[pb+10]=0;
+  mem[pb+11]=0;
+  j=0;
+  loop(WORK_MEM_SIZE,
+    mem[pb+PATCH_HEADER_SIZE+j]=mem[j];
+    j+=1;
+  );
+  current_patch==2 ? patch_valid2=1 : patch_valid1=1;
 );
 
 file_var(0,patch_valid1);

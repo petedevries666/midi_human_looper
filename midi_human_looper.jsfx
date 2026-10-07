@@ -1,6 +1,10 @@
-desc:MIDI Human Looper v1.4.2
+desc:MIDI Human Looper v1.4.3
 
 // Free-time MIDI phrase instrument prototype for REAPER JSFX.
+// v1.4.3:
+// - REAL fix for instrument rows: JSFX user functions share undeclared variables with caller
+// - hit()/smallbtn() were clobbering GUI loop variables through x/y/w/h/label/active
+// - all GUI helper parameters are now explicitly local aliases before drawing/hit testing
 // v1.4.2:
 // - start with 3 INSTRUMENT slots instead of 8; future versions may add dynamic slots
 // - fix JSFX function-local scope in smallbtn/button: GUI row index no longer gets clobbered by drawing helpers
@@ -871,39 +875,41 @@ overdub_active ? (
 
 @gfx 900 720
 
-function hit(x,y,w,h)
+function hit(hx,hy,hw,hh)
+local(res)
 (
-  mouse_cap&1 && !(last_mouse_cap&1) &&
-  mouse_x>=x && mouse_x<x+w &&
-  mouse_y>=y && mouse_y<y+h
+  res = mouse_cap&1 && !(last_mouse_cap&1) &&
+        mouse_x>=hx && mouse_x<hx+hw &&
+        mouse_y>=hy && mouse_y<hy+hh;
+  res;
 );
 
-function button(x,y,w,h,label,active)
+function button(bx_,by_,bw_,bh_,blabel,bactive)
 local(tw,th)
 (
-  active ? gfx_set(0.38,0.38,0.38,1) : gfx_set(0.18,0.18,0.18,1);
-  gfx_rect(x,y,w,h,1);
+  bactive ? gfx_set(0.38,0.38,0.38,1) : gfx_set(0.18,0.18,0.18,1);
+  gfx_rect(bx_,by_,bw_,bh_,1);
   gfx_set(0.8,0.8,0.8,1);
-  gfx_rect(x,y,w,h,0);
+  gfx_rect(bx_,by_,bw_,bh_,0);
   gfx_setfont(1,"Arial",15);
-  gfx_measurestr(label,tw,th);
-  gfx_x=x+(w-tw)/2;
-  gfx_y=y+(h-th)/2;
-  gfx_drawstr(label);
+  gfx_measurestr(blabel,tw,th);
+  gfx_x=bx_+(bw_-tw)/2;
+  gfx_y=by_+(bh_-th)/2;
+  gfx_drawstr(blabel);
 );
 
-function smallbtn(x,y,w,h,label,active)
+function smallbtn(sx_,sy_,sw_,sh_,slabel,sactive)
 local(tw,th)
 (
-  active ? gfx_set(0.45,0.45,0.45,1) : gfx_set(0.16,0.16,0.16,1);
-  gfx_rect(x,y,w,h,1);
+  sactive ? gfx_set(0.45,0.45,0.45,1) : gfx_set(0.16,0.16,0.16,1);
+  gfx_rect(sx_,sy_,sw_,sh_,1);
   gfx_set(0.75,0.75,0.75,1);
-  gfx_rect(x,y,w,h,0);
+  gfx_rect(sx_,sy_,sw_,sh_,0);
   gfx_setfont(1,"Arial",12);
-  gfx_measurestr(label,tw,th);
-  gfx_x=x+(w-tw)/2;
-  gfx_y=y+(h-th)/2;
-  gfx_drawstr(label);
+  gfx_measurestr(slabel,tw,th);
+  gfx_x=sx_+(sw_-tw)/2;
+  gfx_y=sy_+(sh_-th)/2;
+  gfx_drawstr(slabel);
 );
 
 bx=20; by=18; bw=160; bh=44; gap=12;
@@ -1110,53 +1116,52 @@ loop(PHRASES_PER_PAGE,
 );
 
 // --- INSTRUMENTS -----------------------------------------------------------
-// Kept intentionally simple in v1.4: routing + velocity + CC baselines.
-// Click numeric channel fields to cycle. Click ON to enable/disable.
+// Explicit per-row renderer: gi is a function parameter/local, so I1/I2/I3 cannot alias.
+function draw_instrument_row(gi, iy)
+local(ivx,ivw,ivn,ilx,ilw,imx,imw)
+(
+  gfx_setfont(1,"Arial",13);
+  gfx_x=20; gfx_y=iy+7; gfx_drawstr("I"); gfx_drawnumber(gi+1,0);
+
+  smallbtn(52,iy,42,28,mem[INST_ENABLED_BASE+gi]>0.5 ? "ON" : "OFF",mem[INST_ENABLED_BASE+gi]>0.5);
+  hit(52,iy,42,28) ? mem[INST_ENABLED_BASE+gi]=1-mem[INST_ENABLED_BASE+gi];
+
+  smallbtn(105,iy,54,28,mem[INST_IN_BASE+gi]==0 ? "ALL" : "CH",0);
+  hit(105,iy,54,28) ? mem[INST_IN_BASE+gi]=(mem[INST_IN_BASE+gi]+1)%17;
+  gfx_x=164; gfx_y=iy+7; gfx_drawnumber(mem[INST_IN_BASE+gi],0);
+
+  smallbtn(190,iy,54,28,mem[INST_OUT_BASE+gi]==0 ? "ORIG" : "OUT",0);
+  hit(190,iy,54,28) ? mem[INST_OUT_BASE+gi]=(mem[INST_OUT_BASE+gi]+1)%17;
+  gfx_x=249; gfx_y=iy+7; gfx_drawnumber(mem[INST_OUT_BASE+gi],0);
+
+  ivx=285; ivw=100;
+  gfx_set(0.22,0.22,0.22,1); gfx_rect(ivx,iy+5,ivw,16,1);
+  ivn=(mem[INST_VEL_BASE+gi]-0.2)/2.8; ivn=max(0,min(1,ivn));
+  gfx_set(0.7,0.7,0.7,1); gfx_rect(ivx,iy+5,ivw*ivn,16,1);
+  mouse_cap&1 && mouse_x>=ivx && mouse_x<ivx+ivw && mouse_y>=iy+2 && mouse_y<iy+25 ? mem[INST_VEL_BASE+gi]=0.2+2.8*((mouse_x-ivx)/ivw);
+  gfx_x=392; gfx_y=iy+7; gfx_drawstr("x"); gfx_drawnumber(mem[INST_VEL_BASE+gi],2);
+
+  ilx=455; ilw=100;
+  gfx_set(0.22,0.22,0.22,1); gfx_rect(ilx,iy+5,ilw,16,1);
+  gfx_set(0.7,0.7,0.7,1); gfx_rect(ilx,iy+5,ilw*(mem[INST_LEVEL_BASE+gi]/127),16,1);
+  mouse_cap&1 && mouse_x>=ilx && mouse_x<ilx+ilw && mouse_y>=iy+2 && mouse_y<iy+25 ? mem[INST_LEVEL_BASE+gi]=floor(127*((mouse_x-ilx)/ilw)+0.5);
+  gfx_x=562; gfx_y=iy+7; gfx_drawnumber(mem[INST_LEVEL_BASE+gi],0);
+
+  imx=610; imw=100;
+  gfx_set(0.22,0.22,0.22,1); gfx_rect(imx,iy+5,imw,16,1);
+  gfx_set(0.7,0.7,0.7,1); gfx_rect(imx,iy+5,imw*(mem[INST_MOD_BASE+gi]/127),16,1);
+  mouse_cap&1 && mouse_x>=imx && mouse_x<imx+imw && mouse_y>=iy+2 && mouse_y<iy+25 ? mem[INST_MOD_BASE+gi]=floor(127*((mouse_x-imx)/imw)+0.5);
+  gfx_x=717; gfx_y=iy+7; gfx_drawnumber(mem[INST_MOD_BASE+gi],0);
+);
+
 inst_y=152 + PHRASES_PER_PAGE*38 + 16;
 gfx_setfont(1,"Arial",16);
 gfx_x=20; gfx_y=inst_y; gfx_drawstr("INSTRUMENTS   IN -> OUT   VEL    LEVEL(CC11)   MOD(CC1)");
 inst_y+=28;
-gui_inst=0;
-loop(INSTRUMENTS,
-  gfx_setfont(1,"Arial",13);
-  gfx_x=20; gfx_y=inst_y+7; gfx_drawstr("I"); gfx_drawnumber(gui_inst+1,0);
-
-  smallbtn(52,inst_y,42,28,mem[INST_ENABLED_BASE+gui_inst]>0.5 ? "ON" : "OFF",mem[INST_ENABLED_BASE+gui_inst]>0.5);
-  hit(52,inst_y,42,28) ? mem[INST_ENABLED_BASE+gui_inst]=1-mem[INST_ENABLED_BASE+gui_inst];
-
-  // IN channel: 0=ALL
-  smallbtn(105,inst_y,54,28,mem[INST_IN_BASE+gui_inst]==0 ? "ALL" : "CH",0);
-  hit(105,inst_y,54,28) ? mem[INST_IN_BASE+gui_inst]=(mem[INST_IN_BASE+gui_inst]+1)%17;
-  gfx_x=164; gfx_y=inst_y+7; gfx_drawnumber(mem[INST_IN_BASE+gui_inst],0);
-
-  smallbtn(190,inst_y,54,28,mem[INST_OUT_BASE+gui_inst]==0 ? "ORIG" : "OUT",0);
-  hit(190,inst_y,54,28) ? mem[INST_OUT_BASE+gui_inst]=(mem[INST_OUT_BASE+gui_inst]+1)%17;
-  gfx_x=249; gfx_y=inst_y+7; gfx_drawnumber(mem[INST_OUT_BASE+gui_inst],0);
-
-  // velocity multiplier 0.2..3.0
-  ivx=285; ivw=100;
-  gfx_set(0.22,0.22,0.22,1); gfx_rect(ivx,inst_y+5,ivw,16,1);
-  ivn=(mem[INST_VEL_BASE+gui_inst]-0.2)/2.8; ivn=max(0,min(1,ivn));
-  gfx_set(0.7,0.7,0.7,1); gfx_rect(ivx,inst_y+5,ivw*ivn,16,1);
-  mouse_cap&1 && mouse_x>=ivx && mouse_x<ivx+ivw && mouse_y>=inst_y+2 && mouse_y<inst_y+25 ? mem[INST_VEL_BASE+gui_inst]=0.2+2.8*((mouse_x-ivx)/ivw);
-  gfx_x=392; gfx_y=inst_y+7; gfx_drawstr("x"); gfx_drawnumber(mem[INST_VEL_BASE+gui_inst],2);
-
-  // level baseline 0..127
-  ilx=455; ilw=100;
-  gfx_set(0.22,0.22,0.22,1); gfx_rect(ilx,inst_y+5,ilw,16,1);
-  gfx_set(0.7,0.7,0.7,1); gfx_rect(ilx,inst_y+5,ilw*(mem[INST_LEVEL_BASE+gui_inst]/127),16,1);
-  mouse_cap&1 && mouse_x>=ilx && mouse_x<ilx+ilw && mouse_y>=inst_y+2 && mouse_y<inst_y+25 ? mem[INST_LEVEL_BASE+gui_inst]=floor(127*((mouse_x-ilx)/ilw)+0.5);
-  gfx_x=562; gfx_y=inst_y+7; gfx_drawnumber(mem[INST_LEVEL_BASE+gui_inst],0);
-
-  // mod baseline/display, reserved for mapping layer
-  imx=610; imw=100;
-  gfx_set(0.22,0.22,0.22,1); gfx_rect(imx,inst_y+5,imw,16,1);
-  gfx_set(0.7,0.7,0.7,1); gfx_rect(imx,inst_y+5,imw*(mem[INST_MOD_BASE+gui_inst]/127),16,1);
-  mouse_cap&1 && mouse_x>=imx && mouse_x<imx+imw && mouse_y>=inst_y+2 && mouse_y<inst_y+25 ? mem[INST_MOD_BASE+gui_inst]=floor(127*((mouse_x-imx)/imw)+0.5);
-  gfx_x=717; gfx_y=inst_y+7; gfx_drawnumber(mem[INST_MOD_BASE+gui_inst],0);
-
-  inst_y+=34;
-);
+draw_instrument_row(0,inst_y);
+draw_instrument_row(1,inst_y+34);
+draw_instrument_row(2,inst_y+68);
+inst_y+=102;
 
 // Mouse-test expression strips. Slider10/11 are also automatable REAPER parameters.
 exp_y=inst_y+18;

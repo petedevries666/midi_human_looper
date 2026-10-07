@@ -1,6 +1,9 @@
-desc:MIDI Human Looper v1.4.14
+desc:MIDI Human Looper v1.4.15
 
 // Free-time MIDI phrase instrument prototype for REAPER JSFX.
+// v1.4.15:
+// - diagnostic hard rename clear_all -> reset_all_phrases everywhere
+// - if REAPER still reports "clear_all undefined", it is provably compiling stale source
 // v1.4.14:
 // - remove obsolete transport/CLEAR execution from @slider
 // - custom GUI remains the transport controller; engine work stays in @block/@gfx
@@ -11,7 +14,7 @@ desc:MIDI Human Looper v1.4.14
 // - compile baseline only; persistence logic unchanged
 // v1.4.12:
 // - move ALL function declarations out of @init and before every executable section
-// - fixes REAPER section visibility: @slider/@block/@gfx can resolve clear_all(), clear_layer(), etc.
+// - fixes REAPER section visibility: @slider/@block/@gfx can resolve reset_all_phrases(), clear_layer(), etc.
 // - no persistence redesign in this build
 // v1.4.11:
 // - rollback to exact known-good v1.4.4 codebase after persistence experiments broke compilation
@@ -302,7 +305,7 @@ function clear_layer(layer)
   mem[REPEAT_BASE+layer]=0;
 );
 
-function clear_all()
+function reset_all_phrases()
 local(i)
 (
   i=0;
@@ -375,7 +378,7 @@ local(pb,j,valid,oldslot)
       slider9=mem[pb+7];
       record_layer=mem[pb+8];
     ) : (
-      clear_all();
+      reset_all_phrases();
       slider4=0;
       slider5=0;
       slider6=120;
@@ -996,7 +999,7 @@ hit(bx+bw+gap,by,bw,bh) ? (
 
 hit(bx+(bw+gap)*2,by,110,bh) ? (
   panic_pending=1;
-  clear_all();
+  reset_all_phrases();
 );
 
 gfx_set(0.82,0.82,0.82,1);

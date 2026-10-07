@@ -1,7 +1,11 @@
-desc:MIDI Human Looper v1.7.2
+desc:MIDI Human Looper v1.7.3
 options:gmem=MIDI_HUMAN_LOOPER
 
 // Free-time MIDI phrase instrument prototype for REAPER JSFX.
+// v1.7.3:
+// - fix EXP curve engine runtime memory overlap
+// - EXP last-value cache now lives after the full ARP source-count table
+// - EXP1/EXP2 curves can now actually drive LEVEL and emit its selected CC
 // v1.7.2:
 // - fix vertical scrolling: render UI to an offscreen buffer and blit the scrolled viewport
 // - mouse hit-testing remains in content coordinates; scrollbar stays fixed on screen
@@ -1109,7 +1113,9 @@ loop(INSTRUMENTS,
     exp_val!=mem[EXP_LAST_VALUE_BASE+ii] ? (
       mem[INST_LEVEL_BASE+ii]=exp_val;
       mem[EXP_LAST_VALUE_BASE+ii]=exp_val;
-      mem[CC_DIRTY_BASE+ii]=1;
+      // Expression is a live controller: emit the selected LEVEL CC immediately.
+      send_instrument_cc(ii,mem[INST_LEVEL_CC_BASE+ii],exp_val);
+      mem[CC_DIRTY_BASE+ii]=0;
     );
   );
   mem[CC_DIRTY_BASE+ii]>0.5 ? (
@@ -1758,14 +1764,14 @@ gfx_x=20; gfx_y=exp_y+4; gfx_drawstr("EXP1");
 ex=70; ew=250;
 gfx_set(0.22,0.22,0.22,1); gfx_rect(ex,exp_y,ew,20,1);
 gfx_set(0.7,0.7,0.7,1); gfx_rect(ex,exp_y,ew*slider10,20,1);
-mouse_cap&1 && mouse_x>=ex && mouse_x<ex+ew && mouse_y>=exp_y-3 && mouse_y<exp_y+23 ? (slider10=max(0,min(1,(mouse_x-ex)/ew)); sliderchange(slider10););
+mouse_cap&1 && mouse_x>=ex && mouse_x<ex+ew && mouse_y>=exp_y-3 && mouse_y<exp_y+23 ? (slider10=max(0,min(1,(mouse_x-ex)/ew)); sliderchange(512););
 gfx_x=328; gfx_y=exp_y+4; gfx_drawnumber(slider10*100,0); gfx_drawstr("%");
 
 gfx_x=410; gfx_y=exp_y+4; gfx_drawstr("EXP2");
 ex2=460;
 gfx_set(0.22,0.22,0.22,1); gfx_rect(ex2,exp_y,ew,20,1);
 gfx_set(0.7,0.7,0.7,1); gfx_rect(ex2,exp_y,ew*slider11,20,1);
-mouse_cap&1 && mouse_x>=ex2 && mouse_x<ex2+ew && mouse_y>=exp_y-3 && mouse_y<exp_y+23 ? (slider11=max(0,min(1,(mouse_x-ex2)/ew)); sliderchange(slider11););
+mouse_cap&1 && mouse_x>=ex2 && mouse_x<ex2+ew && mouse_y>=exp_y-3 && mouse_y<exp_y+23 ? (slider11=max(0,min(1,(mouse_x-ex2)/ew)); sliderchange(1024););
 gfx_x=718; gfx_y=exp_y+4; gfx_drawnumber(slider11*100,0); gfx_drawstr("%");
 
 // Multipoint editor appears after right-clicking an assigned LEVEL slider.

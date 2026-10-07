@@ -1,7 +1,12 @@
-desc:MIDI Human Looper v1.7.5
+desc:MIDI Human Looper v1.7.6
 options:gmem=MIDI_HUMAN_LOOPER
 
 // Free-time MIDI phrase instrument prototype for REAPER JSFX.
+// v1.7.6:
+// - redesign INSTRUMENTS section after Pierre's mockup
+// - yellow column headers and yellow ARP labels / active mode labels
+// - clearer IN / OUT numeric boxes, VELOCITY, CC, VOLUME and MODULATION columns
+// - compact ARP second line with OFF/RANDOM, RELEASE/HOLD, RATE and GATE
 // v1.7.5:
 // - curve editor follows the selected LEVEL assignment, not merely the last right-click
 // - each instrument LEVEL keeps its own independent EXP curve even when several use the same EXP source
@@ -1642,134 +1647,145 @@ loop(PHRASES_PER_PAGE,
 );
 
 // --- INSTRUMENTS -----------------------------------------------------------
-// Explicit per-row renderer: gi is a function parameter/local, so I1/I2/I3 cannot alias.
+// Compact two-line instrument strip, matching the visual mockup.
 function draw_instrument_row(gi, iy)
-local(ivx,ivw,ivn,ilx,ilw,imx,imw,ccx,arx,holdx,rrx,rrw,grx,grw,rnorm,gnorm,nn)
+local(ivx,ivw,ivn,ilx,ilw,imx,imw,ccx,arx,holdx,rrx,rrw,grx,grw,rnorm,gnorm,nn,boxh)
 (
-  gfx_setfont(1,"Arial",13);
-  gfx_x=20; gfx_y=iy+7; gfx_drawstr("I"); gfx_drawnumber(gi+1,0);
+  boxh=28;
+  gfx_setfont(1,"Arial",11);
+  gfx_set(0.72,0.72,0.72,1);
+  gfx_x=8; gfx_y=iy+8; gfx_drawstr("I"); gfx_drawnumber(gi+1,0);
 
-  smallbtn(52,iy,42,28,mem[INST_ENABLED_BASE+gi]>0.5 ? "ON" : "OFF",mem[INST_ENABLED_BASE+gi]>0.5);
-  hit(52,iy,42,28) ? mem[INST_ENABLED_BASE+gi]=1-mem[INST_ENABLED_BASE+gi];
+  // ON/OFF
+  smallbtn(41,iy,42,boxh,mem[INST_ENABLED_BASE+gi]>0.5 ? "ON" : "OFF",mem[INST_ENABLED_BASE+gi]>0.5);
+  hit(41,iy,42,boxh) ? mem[INST_ENABLED_BASE+gi]=1-mem[INST_ENABLED_BASE+gi];
 
-  smallbtn(105,iy,54,28,mem[INST_IN_BASE+gi]==0 ? "ALL" : "CH",0);
-  hit(105,iy,54,28) ? mem[INST_IN_BASE+gi]=(mem[INST_IN_BASE+gi]+1)%17;
-  gfx_x=164; gfx_y=iy+7; gfx_drawnumber(mem[INST_IN_BASE+gi],0);
+  // IN channel: large numeric box + tiny resolved value.
+  smallbtn(94,iy,54,boxh,mem[INST_IN_BASE+gi]==0 ? "ALL" : "CH",0);
+  hit(94,iy,54,boxh) ? mem[INST_IN_BASE+gi]=(mem[INST_IN_BASE+gi]+1)%17;
+  gfx_setfont(1,"Arial",18); gfx_set(0.95,0.95,0.15,1);
+  gfx_x=113; gfx_y=iy+4; mem[INST_IN_BASE+gi]==0 ? gfx_drawstr("*") : gfx_drawnumber(mem[INST_IN_BASE+gi],0);
+  gfx_setfont(1,"Arial",10); gfx_set(0.72,0.72,0.72,1);
+  gfx_x=152; gfx_y=iy+8; gfx_drawnumber(mem[INST_IN_BASE+gi],0);
 
-  smallbtn(190,iy,54,28,mem[INST_OUT_BASE+gi]==0 ? "ORIG" : "OUT",0);
-  hit(190,iy,54,28) ? mem[INST_OUT_BASE+gi]=(mem[INST_OUT_BASE+gi]+1)%17;
-  gfx_x=249; gfx_y=iy+7; gfx_drawnumber(mem[INST_OUT_BASE+gi],0);
+  // OUT channel.
+  smallbtn(178,iy,55,boxh,mem[INST_OUT_BASE+gi]==0 ? "ORIG" : "OUT",0);
+  hit(178,iy,55,boxh) ? mem[INST_OUT_BASE+gi]=(mem[INST_OUT_BASE+gi]+1)%17;
+  gfx_setfont(1,"Arial",18); gfx_set(0.95,0.95,0.15,1);
+  gfx_x=199; gfx_y=iy+4; mem[INST_OUT_BASE+gi]==0 ? gfx_drawstr("*") : gfx_drawnumber(mem[INST_OUT_BASE+gi],0);
+  gfx_setfont(1,"Arial",10); gfx_set(0.72,0.72,0.72,1);
+  gfx_x=238; gfx_y=iy+8; gfx_drawnumber(mem[INST_OUT_BASE+gi],0);
 
-  ivx=285; ivw=100;
-  gfx_set(0.22,0.22,0.22,1); gfx_rect(ivx,iy+5,ivw,16,1);
+  // VELOCITY.
+  ivx=274; ivw=100;
+  gfx_set(0.20,0.20,0.20,1); gfx_rect(ivx,iy+5,ivw,18,1);
   ivn=(mem[INST_VEL_BASE+gi]-0.2)/2.8; ivn=max(0,min(1,ivn));
-  gfx_set(0.7,0.7,0.7,1); gfx_rect(ivx,iy+5,ivw*ivn,16,1);
-  mouse_cap&1 && mouse_x>=ivx && mouse_x<ivx+ivw && mouse_y>=iy+2 && mouse_y<iy+25 ? mem[INST_VEL_BASE+gi]=0.2+2.8*((mouse_x-ivx)/ivw);
-  gfx_x=392; gfx_y=iy+7; gfx_drawstr("x"); gfx_drawnumber(mem[INST_VEL_BASE+gi],2);
+  gfx_set(0.72,0.72,0.72,1); gfx_rect(ivx,iy+5,ivw*ivn,18,1);
+  mouse_cap&1 && mouse_x>=ivx && mouse_x<ivx+ivw && mouse_y>=iy+2 && mouse_y<iy+26 ? mem[INST_VEL_BASE+gi]=0.2+2.8*((mouse_x-ivx)/ivw);
+  gfx_setfont(1,"Arial",10); gfx_x=380; gfx_y=iy+8; gfx_drawstr("x"); gfx_drawnumber(mem[INST_VEL_BASE+gi],1);
 
-  ccx=455;
-  smallbtn(ccx,iy,44,28,"CC",0);
-  // CC selector: left +1, right -1, Shift+left reset to 0.
-  hit(ccx,iy,44,28) ? (
+  // CC number.
+  ccx=423;
+  smallbtn(ccx,iy,45,boxh,"",0);
+  hit(ccx,iy,45,boxh) ? (
     mouse_cap&8 ? mem[INST_LEVEL_CC_BASE+gi]=0 :
                   mem[INST_LEVEL_CC_BASE+gi]=(mem[INST_LEVEL_CC_BASE+gi]+1)%128;
   );
-  (mouse_cap&2) && !(last_mouse_cap&2) &&
-  mouse_x>=ccx && mouse_x<ccx+44 && mouse_y>=iy && mouse_y<iy+28 ? (
+  (mouse_cap&2) && !(last_mouse_cap&2) && mouse_x>=ccx && mouse_x<ccx+45 && mouse_y>=iy && mouse_y<iy+boxh ? (
     mem[INST_LEVEL_CC_BASE+gi]=(mem[INST_LEVEL_CC_BASE+gi]+127)%128;
   );
-  gfx_x=503; gfx_y=iy+7; gfx_drawnumber(mem[INST_LEVEL_CC_BASE+gi],0);
+  gfx_setfont(1,"Arial",18); gfx_set(0.95,0.95,0.15,1);
+  gfx_x=439; gfx_y=iy+4; gfx_drawnumber(mem[INST_LEVEL_CC_BASE+gi],0);
+  gfx_setfont(1,"Arial",10); gfx_set(0.72,0.72,0.72,1);
+  gfx_x=472; gfx_y=iy+8; gfx_drawnumber(mem[INST_LEVEL_CC_BASE+gi],0);
 
-  ilx=530; ilw=84;
-  gfx_set(0.22,0.22,0.22,1); gfx_rect(ilx,iy+5,ilw,16,1);
-  gfx_set(0.7,0.7,0.7,1); gfx_rect(ilx,iy+5,ilw*(mem[INST_LEVEL_BASE+gi]/127),16,1);
+  // VOLUME / LEVEL. Right-click assigns EXP1/EXP2; left-click assigned level selects its curve.
+  ilx=484; ilw=86;
+  gfx_set(0.20,0.20,0.20,1); gfx_rect(ilx,iy+5,ilw,18,1);
+  gfx_set(0.72,0.72,0.72,1); gfx_rect(ilx,iy+5,ilw*(mem[INST_LEVEL_BASE+gi]/127),18,1);
   exp_editor_gi==gi && mem[INST_EXP_ASSIGN_BASE+gi]>0 ? (
-    gfx_set(1,1,1,1); gfx_rect(ilx-2,iy+3,ilw+4,20,0);
+    gfx_set(0.95,0.95,0.15,1); gfx_rect(ilx-2,iy+3,ilw+4,22,0);
   );
-  mouse_cap&1 && mouse_x>=ilx && mouse_x<ilx+ilw && mouse_y>=iy+2 && mouse_y<iy+25 ? (
-    mem[INST_EXP_ASSIGN_BASE+gi]>0 ? (
-      // Assigned LEVEL: selecting it reveals this assignment's own curve.
-      exp_editor_gi=gi;
-    ) : (
+  mouse_cap&1 && mouse_x>=ilx && mouse_x<ilx+ilw && mouse_y>=iy+2 && mouse_y<iy+26 ? (
+    mem[INST_EXP_ASSIGN_BASE+gi]>0 ? exp_editor_gi=gi : (
       mem[INST_LEVEL_BASE+gi]=floor(127*((mouse_x-ilx)/ilw)+0.5);
       mem[CC_DIRTY_BASE+gi]=1;
     );
   );
-  // Right-click LEVEL: NONE -> EXP1 -> EXP2 -> NONE, and open editor while assigned.
-  (mouse_cap&2) && !(last_mouse_cap&2) &&
-  mouse_x>=ilx && mouse_x<ilx+ilw && mouse_y>=iy+2 && mouse_y<iy+25 ? (
+  (mouse_cap&2) && !(last_mouse_cap&2) && mouse_x>=ilx && mouse_x<ilx+ilw && mouse_y>=iy+2 && mouse_y<iy+26 ? (
     mem[INST_EXP_ASSIGN_BASE+gi]=(floor(mem[INST_EXP_ASSIGN_BASE+gi]+0.5)+1)%3;
     mem[EXP_LAST_VALUE_BASE+gi]=-1;
-    // The assignment belongs to this LEVEL. Selecting another LEVEL switches to its own curve.
-    mem[INST_EXP_ASSIGN_BASE+gi]>0 ? exp_editor_gi=gi :
-      exp_editor_gi==gi ? exp_editor_gi=-1;
+    mem[INST_EXP_ASSIGN_BASE+gi]>0 ? exp_editor_gi=gi : exp_editor_gi==gi ? exp_editor_gi=-1;
   );
-  gfx_x=620; gfx_y=iy+7; gfx_drawnumber(mem[INST_LEVEL_BASE+gi],0);
+  gfx_setfont(1,"Arial",9); gfx_set(0.72,0.72,0.72,1);
+  gfx_x=574; gfx_y=iy+2; gfx_drawnumber(mem[INST_LEVEL_BASE+gi],0);
   mem[INST_EXP_ASSIGN_BASE+gi]>0 ? (
-    gfx_setfont(1,"Arial",10);
-    gfx_x=635; gfx_y=iy+7;
-    gfx_drawstr(mem[INST_EXP_ASSIGN_BASE+gi]==1 ? " EXP1" : " EXP2");
-    gfx_setfont(1,"Arial",13);
+    gfx_x=574; gfx_y=iy+13; gfx_drawstr(mem[INST_EXP_ASSIGN_BASE+gi]==1 ? "EXP1" : "EXP2");
   );
 
-  imx=665; imw=84;
-  gfx_set(0.22,0.22,0.22,1); gfx_rect(imx,iy+5,imw,16,1);
-  gfx_set(0.7,0.7,0.7,1); gfx_rect(imx,iy+5,imw*(mem[INST_MOD_BASE+gi]/127),16,1);
-  mouse_cap&1 && mouse_x>=imx && mouse_x<imx+imw && mouse_y>=iy+2 && mouse_y<iy+25 ? (
+  // MODULATION.
+  imx=620; imw=92;
+  gfx_set(0.20,0.20,0.20,1); gfx_rect(imx,iy+5,imw,18,1);
+  gfx_set(0.72,0.72,0.72,1); gfx_rect(imx,iy+5,imw*(mem[INST_MOD_BASE+gi]/127),18,1);
+  mouse_cap&1 && mouse_x>=imx && mouse_x<imx+imw && mouse_y>=iy+2 && mouse_y<iy+26 ? (
     mem[INST_MOD_BASE+gi]=floor(127*((mouse_x-imx)/imw)+0.5);
     mem[CC_DIRTY_MOD_BASE+gi]=1;
   );
-  gfx_x=755; gfx_y=iy+7; gfx_drawnumber(mem[INST_MOD_BASE+gi],0);
+  gfx_setfont(1,"Arial",10); gfx_x=718; gfx_y=iy+8; gfx_drawnumber(mem[INST_MOD_BASE+gi],0);
 
-  // POST ARP prototype: RANDOM only.
-  arx=105;
-  smallbtn(arx,iy+30,70,22,mem[INST_ARP_ENABLED_BASE+gi]>0.5 ? "MODE ON" : "MODE OFF",mem[INST_ARP_ENABLED_BASE+gi]>0.5);
+  // ARP line.
+  gfx_setfont(1,"Arial",11); gfx_set(0.95,0.95,0.15,1);
+  gfx_x=48; gfx_y=iy+34; gfx_drawstr("ARP");
+
+  arx=94;
+  smallbtn(arx,iy+30,70,22,mem[INST_ARP_ENABLED_BASE+gi]>0.5 ? "RANDOM" : "OFF",mem[INST_ARP_ENABLED_BASE+gi]>0.5);
   hit(arx,iy+30,70,22) ? (
     mem[INST_ARP_ENABLED_BASE+gi]=1-mem[INST_ARP_ENABLED_BASE+gi];
     mem[INST_ARP_ENABLED_BASE+gi]<0.5 ? (
       arp_release_instrument(gi);
-      nn=0;
-      loop(128,
-        mem[ARP_HELD_COUNT_BASE+gi*128+nn]=0;
-        mem[ARP_SOURCE_COUNT_BASE+gi*128+nn]=0;
-        nn+=1;
-      );
+      nn=0; loop(128, mem[ARP_HELD_COUNT_BASE+gi*128+nn]=0; mem[ARP_SOURCE_COUNT_BASE+gi*128+nn]=0; nn+=1;);
     );
   );
 
-  holdx=181;
-  smallbtn(holdx,iy+30,66,22,mem[INST_ARP_HOLD_BASE+gi]>0.5 ? "HOLD ON" : "HOLD OFF",mem[INST_ARP_HOLD_BASE+gi]>0.5);
-  hit(holdx,iy+30,66,22) ? (
+  holdx=170;
+  smallbtn(holdx,iy+30,68,22,mem[INST_ARP_HOLD_BASE+gi]>0.5 ? "HOLD" : "RELEASE",mem[INST_ARP_HOLD_BASE+gi]>0.5);
+  hit(holdx,iy+30,68,22) ? (
     mem[INST_ARP_HOLD_BASE+gi]=1-mem[INST_ARP_HOLD_BASE+gi];
     mem[INST_ARP_HOLD_BASE+gi]<0.5 ? arp_clear_latch(gi);
   );
 
-  gfx_setfont(1,"Arial",11);
-  gfx_x=257; gfx_y=iy+34; gfx_drawstr("RATE");
-  rrx=294; rrw=92;
-  gfx_set(0.22,0.22,0.22,1); gfx_rect(rrx,iy+33,rrw,12,1);
+  gfx_setfont(1,"Arial",9); gfx_set(0.72,0.72,0.72,1);
+  gfx_x=246; gfx_y=iy+35; gfx_drawstr("RATE");
+  rrx=282; rrw=92;
+  gfx_set(0.20,0.20,0.20,1); gfx_rect(rrx,iy+34,rrw,12,1);
   rnorm=(mem[INST_ARP_RATE_BASE+gi]-0.25)/15.75; rnorm=max(0,min(1,rnorm));
-  gfx_set(0.7,0.7,0.7,1); gfx_rect(rrx,iy+33,rrw*rnorm,12,1);
-  mouse_cap&1 && mouse_x>=rrx && mouse_x<rrx+rrw && mouse_y>=iy+29 && mouse_y<iy+49 ? (
-    mem[INST_ARP_RATE_BASE+gi]=0.25+15.75*((mouse_x-rrx)/rrw);
-  );
-  gfx_x=391; gfx_y=iy+34; gfx_drawnumber(mem[INST_ARP_RATE_BASE+gi],2); gfx_drawstr("x");
+  gfx_set(0.72,0.72,0.72,1); gfx_rect(rrx,iy+34,rrw*rnorm,12,1);
+  mouse_cap&1 && mouse_x>=rrx && mouse_x<rrx+rrw && mouse_y>=iy+29 && mouse_y<iy+50 ? mem[INST_ARP_RATE_BASE+gi]=0.25+15.75*((mouse_x-rrx)/rrw);
+  gfx_x=380; gfx_y=iy+35; gfx_drawnumber(mem[INST_ARP_RATE_BASE+gi],2); gfx_drawstr("x");
 
-  gfx_x=455; gfx_y=iy+34; gfx_drawstr("GATE");
-  grx=492; grw=92;
-  gfx_set(0.22,0.22,0.22,1); gfx_rect(grx,iy+33,grw,12,1);
+  gfx_x=411; gfx_y=iy+35; gfx_drawstr("GATE");
+  grx=447; grw=92;
+  gfx_set(0.20,0.20,0.20,1); gfx_rect(grx,iy+34,grw,12,1);
   gnorm=mem[INST_ARP_GATE_BASE+gi]; gnorm=max(0.02,min(1,gnorm));
-  gfx_set(0.7,0.7,0.7,1); gfx_rect(grx,iy+33,grw*gnorm,12,1);
-  mouse_cap&1 && mouse_x>=grx && mouse_x<grx+grw && mouse_y>=iy+29 && mouse_y<iy+49 ? (
-    mem[INST_ARP_GATE_BASE+gi]=max(0.02,min(1,(mouse_x-grx)/grw));
-  );
-  gfx_x=590; gfx_y=iy+34; gfx_drawnumber(mem[INST_ARP_GATE_BASE+gi]*100,0); gfx_drawstr("%");
+  gfx_set(0.72,0.72,0.72,1); gfx_rect(grx,iy+34,grw*gnorm,12,1);
+  mouse_cap&1 && mouse_x>=grx && mouse_x<grx+grw && mouse_y>=iy+29 && mouse_y<iy+50 ? mem[INST_ARP_GATE_BASE+gi]=max(0.02,min(1,(mouse_x-grx)/grw));
+  gfx_x=545; gfx_y=iy+35; gfx_drawnumber(mem[INST_ARP_GATE_BASE+gi]*100,0); gfx_drawstr("%");
 );
 
 inst_y=152 + PHRASES_PER_PAGE*38 + 16;
-gfx_setfont(1,"Arial",16);
-gfx_x=20; gfx_y=inst_y; gfx_drawstr("INSTRUMENTS   IN -> OUT   VEL    LEVEL CC / VALUE      MOD(CC1)");
-inst_y+=28;
+gfx_setfont(1,"Arial",16); gfx_set(0.72,0.72,0.72,1);
+gfx_x=8; gfx_y=inst_y; gfx_drawstr("INSTRUMENTS");
+
+// Yellow column headers from the mockup.
+gfx_setfont(1,"Arial",12); gfx_set(0.95,0.95,0.15,1);
+gfx_x=111; gfx_y=inst_y; gfx_drawstr("IN");
+gfx_x=195; gfx_y=inst_y; gfx_drawstr("OUT");
+gfx_x=274; gfx_y=inst_y; gfx_drawstr("VELOCITY");
+gfx_x=432; gfx_y=inst_y; gfx_drawstr("CC");
+gfx_x=493; gfx_y=inst_y; gfx_drawstr("VOLUME");
+gfx_x=620; gfx_y=inst_y; gfx_drawstr("MODULATION");
+
+inst_y+=24;
 draw_instrument_row(0,inst_y);
 draw_instrument_row(1,inst_y+54);
 draw_instrument_row(2,inst_y+108);

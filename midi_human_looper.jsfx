@@ -1,6 +1,10 @@
-desc:MIDI Human Looper v1.4.3
+desc:MIDI Human Looper v1.4.4
 
 // Free-time MIDI phrase instrument prototype for REAPER JSFX.
+// v1.4.4:
+// - instrument controls now affect ONE SHOT playback too (previously that engine bypassed the router)
+// - route-aware note/sustain reference counting uses the final routed MIDI channel
+// - LEVEL and MOD sliders now transmit CC11/CC1 immediately while dragged
 // v1.4.3:
 // - REAL fix for instrument rows: JSFX user functions share undeclared variables with caller
 // - hit()/smallbtn() were clobbering GUI loop variables through x/y/w/h/label/active
@@ -448,6 +452,72 @@ local(ii,out_ch,ch,lev,mod)
   );
 );
 
+function send_once_to_instruments(offs, st, d1, d2, phrase_gain)
+local(srcch,typ,ii,in_ch,out_ch,outst,outd2,matched,velmul,msg_chan,note_key)
+(
+  srcch=(st&15)+1;
+  typ=st&240;
+  matched=0;
+  ii=0;
+  loop(INSTRUMENTS,
+    mem[INST_ENABLED_BASE+ii]>0.5 ? (
+      in_ch=mem[INST_IN_BASE+ii];
+      (in_ch==0 || in_ch==srcch) ? (
+        matched=1;
+        out_ch=mem[INST_OUT_BASE+ii];
+        outst=st;
+        out_ch>0 ? outst=(st&240)|(max(1,min(16,out_ch))-1);
+        msg_chan=outst&15;
+        outd2=d2;
+        (typ==144 && d2>0) ? (
+          velmul=mem[INST_VEL_BASE+ii]*phrase_gain;
+          outd2=max(1,min(127,floor(d2*velmul+0.5)));
+          note_key=NOTE_REF_BASE+msg_chan*128+d1;
+          mem[note_key]+=1;
+          midisend(offs,outst,d1|(outd2*256));
+        ) :
+        ((typ==128) || (typ==144 && d2==0)) ? (
+          note_key=NOTE_REF_BASE+msg_chan*128+d1;
+          mem[note_key]=max(0,mem[note_key]-1);
+          mem[note_key]<=0 ? midisend(offs,128|msg_chan,d1);
+        ) :
+        (typ==176 && d1==64) ? (
+          d2>=64 ? (
+            mem[SUSTAIN_REF_BASE+msg_chan]+=1;
+            midisend(offs,outst,d1|(d2*256));
+          ) : (
+            mem[SUSTAIN_REF_BASE+msg_chan]=max(0,mem[SUSTAIN_REF_BASE+msg_chan]-1);
+            mem[SUSTAIN_REF_BASE+msg_chan]<=0 ? midisend(offs,outst,d1);
+          );
+        ) : midisend(offs,outst,d1|(d2*256));
+      );
+    );
+    ii+=1;
+  );
+  matched==0 ? (
+    msg_chan=st&15;
+    (typ==144 && d2>0) ? (
+      outd2=max(1,min(127,floor(d2*phrase_gain+0.5)));
+      note_key=NOTE_REF_BASE+msg_chan*128+d1; mem[note_key]+=1;
+      midisend(offs,st,d1|(outd2*256));
+    ) :
+    ((typ==128)||(typ==144&&d2==0)) ? (
+      note_key=NOTE_REF_BASE+msg_chan*128+d1; mem[note_key]=max(0,mem[note_key]-1);
+      mem[note_key]<=0 ? midisend(offs,128|msg_chan,d1);
+    ) : midisend(offs,st,d1|(d2*256));
+  );
+);
+
+function send_instrument_cc(gi, cc, value)
+local(out_ch,ch)
+(
+  mem[INST_ENABLED_BASE+gi]>0.5 ? (
+    out_ch=mem[INST_OUT_BASE+gi];
+    ch=out_ch>0 ? max(1,min(16,out_ch))-1 : 0;
+    midisend(0,176|ch,cc,max(0,min(127,floor(value+0.5))));
+  );
+);
+
 function infer_tempo()
 local(seconds,best_score,bars,bpm,score,target_bpm,i)
 (
@@ -827,33 +897,8 @@ loop(MAX_ONCE_VOICES,
         );
         out_d1=mem[base+2]&127;
         out_d2=mem[base+3]&127;
-        msg_type=out_status&240;
-        msg_chan=out_status&15;
-        note_key=NOTE_REF_BASE + msg_chan*128 + out_d1;
-
-        (msg_type==144 && out_d2>0) ? (
-          velmul=slider9*mem[VEL_BASE+once_layer]*mem[VOICE_GAIN_BASE+vi];
-          out_d2=floor(out_d2*velmul+0.5);
-          out_d2=max(1,min(127,out_d2));
-          mem[note_key]+=1;
-          midisend(out_offs,out_status,out_d1|(out_d2*256));
-        ) :
-        ((msg_type==128) || (msg_type==144 && out_d2==0)) ? (
-          mem[note_key]=max(0,mem[note_key]-1);
-          // Only the final logical owner is allowed to release the physical MIDI note.
-          mem[note_key]<=0 ? midisend(out_offs,128|msg_chan,out_d1);
-        ) :
-        (msg_type==176 && out_d1==64) ? (
-          out_d2>=64 ? (
-            mem[SUSTAIN_REF_BASE+msg_chan]+=1;
-            midisend(out_offs,out_status,out_d1|(out_d2*256));
-          ) : (
-            mem[SUSTAIN_REF_BASE+msg_chan]=max(0,mem[SUSTAIN_REF_BASE+msg_chan]-1);
-            mem[SUSTAIN_REF_BASE+msg_chan]<=0 ? midisend(out_offs,out_status,out_d1);
-          );
-        ) : (
-          midisend(out_offs,out_status,out_d1|(out_d2*256));
-        );
+        velmul=slider9*mem[VEL_BASE+once_layer]*mem[VOICE_GAIN_BASE+vi];
+        send_once_to_instruments(out_offs,out_status,out_d1,out_d2,velmul);
       );
       i+=1;
     );
@@ -1144,13 +1189,19 @@ local(ivx,ivw,ivn,ilx,ilw,imx,imw)
   ilx=455; ilw=100;
   gfx_set(0.22,0.22,0.22,1); gfx_rect(ilx,iy+5,ilw,16,1);
   gfx_set(0.7,0.7,0.7,1); gfx_rect(ilx,iy+5,ilw*(mem[INST_LEVEL_BASE+gi]/127),16,1);
-  mouse_cap&1 && mouse_x>=ilx && mouse_x<ilx+ilw && mouse_y>=iy+2 && mouse_y<iy+25 ? mem[INST_LEVEL_BASE+gi]=floor(127*((mouse_x-ilx)/ilw)+0.5);
+  mouse_cap&1 && mouse_x>=ilx && mouse_x<ilx+ilw && mouse_y>=iy+2 && mouse_y<iy+25 ? (
+    mem[INST_LEVEL_BASE+gi]=floor(127*((mouse_x-ilx)/ilw)+0.5);
+    send_instrument_cc(gi,11,mem[INST_LEVEL_BASE+gi]);
+  );
   gfx_x=562; gfx_y=iy+7; gfx_drawnumber(mem[INST_LEVEL_BASE+gi],0);
 
   imx=610; imw=100;
   gfx_set(0.22,0.22,0.22,1); gfx_rect(imx,iy+5,imw,16,1);
   gfx_set(0.7,0.7,0.7,1); gfx_rect(imx,iy+5,imw*(mem[INST_MOD_BASE+gi]/127),16,1);
-  mouse_cap&1 && mouse_x>=imx && mouse_x<imx+imw && mouse_y>=iy+2 && mouse_y<iy+25 ? mem[INST_MOD_BASE+gi]=floor(127*((mouse_x-imx)/imw)+0.5);
+  mouse_cap&1 && mouse_x>=imx && mouse_x<imx+imw && mouse_y>=iy+2 && mouse_y<iy+25 ? (
+    mem[INST_MOD_BASE+gi]=floor(127*((mouse_x-imx)/imw)+0.5);
+    send_instrument_cc(gi,1,mem[INST_MOD_BASE+gi]);
+  );
   gfx_x=717; gfx_y=iy+7; gfx_drawnumber(mem[INST_MOD_BASE+gi],0);
 );
 

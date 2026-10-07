@@ -1,6 +1,10 @@
-desc:MIDI Human Looper v1.4.1
+desc:MIDI Human Looper v1.4.2
 
 // Free-time MIDI phrase instrument prototype for REAPER JSFX.
+// v1.4.2:
+// - start with 3 INSTRUMENT slots instead of 8; future versions may add dynamic slots
+// - fix JSFX function-local scope in smallbtn/button: GUI row index no longer gets clobbered by drawing helpers
+// - each instrument row now edits its own independent memory slot
 // v1.4.1:
 // - compact phrase UI: 6 phrase rows visible at once
 // - 3 phrase pages: P1-6 / P7-12 / P13-16
@@ -143,7 +147,7 @@ REPEAT_BASE = DECAY_BASE + LAYERS;
 // INSTRUMENT routing table. 8 lightweight MIDI destinations.
 // IN: 0=ALL, 1..16 source channel. OUT: 0=ORIGINAL, 1..16 destination channel.
 // LEVEL and MOD are CC values (defaults CC11 Expression and CC1 Mod Wheel).
-INSTRUMENTS = 8;
+INSTRUMENTS = 3;
 INST_IN_BASE = REPEAT_BASE + LAYERS;
 INST_OUT_BASE = INST_IN_BASE + INSTRUMENTS;
 INST_VEL_BASE = INST_OUT_BASE + INSTRUMENTS;
@@ -875,6 +879,7 @@ function hit(x,y,w,h)
 );
 
 function button(x,y,w,h,label,active)
+local(tw,th)
 (
   active ? gfx_set(0.38,0.38,0.38,1) : gfx_set(0.18,0.18,0.18,1);
   gfx_rect(x,y,w,h,1);
@@ -888,6 +893,7 @@ function button(x,y,w,h,label,active)
 );
 
 function smallbtn(x,y,w,h,label,active)
+local(tw,th)
 (
   active ? gfx_set(0.45,0.45,0.45,1) : gfx_set(0.16,0.16,0.16,1);
   gfx_rect(x,y,w,h,1);
@@ -1110,44 +1116,44 @@ inst_y=152 + PHRASES_PER_PAGE*38 + 16;
 gfx_setfont(1,"Arial",16);
 gfx_x=20; gfx_y=inst_y; gfx_drawstr("INSTRUMENTS   IN -> OUT   VEL    LEVEL(CC11)   MOD(CC1)");
 inst_y+=28;
-ii=0;
+gui_inst=0;
 loop(INSTRUMENTS,
   gfx_setfont(1,"Arial",13);
-  gfx_x=20; gfx_y=inst_y+7; gfx_drawstr("I"); gfx_drawnumber(ii+1,0);
+  gfx_x=20; gfx_y=inst_y+7; gfx_drawstr("I"); gfx_drawnumber(gui_inst+1,0);
 
-  smallbtn(52,inst_y,42,28,mem[INST_ENABLED_BASE+ii]>0.5 ? "ON" : "OFF",mem[INST_ENABLED_BASE+ii]>0.5);
-  hit(52,inst_y,42,28) ? mem[INST_ENABLED_BASE+ii]=1-mem[INST_ENABLED_BASE+ii];
+  smallbtn(52,inst_y,42,28,mem[INST_ENABLED_BASE+gui_inst]>0.5 ? "ON" : "OFF",mem[INST_ENABLED_BASE+gui_inst]>0.5);
+  hit(52,inst_y,42,28) ? mem[INST_ENABLED_BASE+gui_inst]=1-mem[INST_ENABLED_BASE+gui_inst];
 
   // IN channel: 0=ALL
-  smallbtn(105,inst_y,54,28,mem[INST_IN_BASE+ii]==0 ? "ALL" : "CH",0);
-  hit(105,inst_y,54,28) ? mem[INST_IN_BASE+ii]=(mem[INST_IN_BASE+ii]+1)%17;
-  gfx_x=164; gfx_y=inst_y+7; gfx_drawnumber(mem[INST_IN_BASE+ii],0);
+  smallbtn(105,inst_y,54,28,mem[INST_IN_BASE+gui_inst]==0 ? "ALL" : "CH",0);
+  hit(105,inst_y,54,28) ? mem[INST_IN_BASE+gui_inst]=(mem[INST_IN_BASE+gui_inst]+1)%17;
+  gfx_x=164; gfx_y=inst_y+7; gfx_drawnumber(mem[INST_IN_BASE+gui_inst],0);
 
-  smallbtn(190,inst_y,54,28,mem[INST_OUT_BASE+ii]==0 ? "ORIG" : "OUT",0);
-  hit(190,inst_y,54,28) ? mem[INST_OUT_BASE+ii]=(mem[INST_OUT_BASE+ii]+1)%17;
-  gfx_x=249; gfx_y=inst_y+7; gfx_drawnumber(mem[INST_OUT_BASE+ii],0);
+  smallbtn(190,inst_y,54,28,mem[INST_OUT_BASE+gui_inst]==0 ? "ORIG" : "OUT",0);
+  hit(190,inst_y,54,28) ? mem[INST_OUT_BASE+gui_inst]=(mem[INST_OUT_BASE+gui_inst]+1)%17;
+  gfx_x=249; gfx_y=inst_y+7; gfx_drawnumber(mem[INST_OUT_BASE+gui_inst],0);
 
   // velocity multiplier 0.2..3.0
   ivx=285; ivw=100;
   gfx_set(0.22,0.22,0.22,1); gfx_rect(ivx,inst_y+5,ivw,16,1);
-  ivn=(mem[INST_VEL_BASE+ii]-0.2)/2.8; ivn=max(0,min(1,ivn));
+  ivn=(mem[INST_VEL_BASE+gui_inst]-0.2)/2.8; ivn=max(0,min(1,ivn));
   gfx_set(0.7,0.7,0.7,1); gfx_rect(ivx,inst_y+5,ivw*ivn,16,1);
-  mouse_cap&1 && mouse_x>=ivx && mouse_x<ivx+ivw && mouse_y>=inst_y+2 && mouse_y<inst_y+25 ? mem[INST_VEL_BASE+ii]=0.2+2.8*((mouse_x-ivx)/ivw);
-  gfx_x=392; gfx_y=inst_y+7; gfx_drawstr("x"); gfx_drawnumber(mem[INST_VEL_BASE+ii],2);
+  mouse_cap&1 && mouse_x>=ivx && mouse_x<ivx+ivw && mouse_y>=inst_y+2 && mouse_y<inst_y+25 ? mem[INST_VEL_BASE+gui_inst]=0.2+2.8*((mouse_x-ivx)/ivw);
+  gfx_x=392; gfx_y=inst_y+7; gfx_drawstr("x"); gfx_drawnumber(mem[INST_VEL_BASE+gui_inst],2);
 
   // level baseline 0..127
   ilx=455; ilw=100;
   gfx_set(0.22,0.22,0.22,1); gfx_rect(ilx,inst_y+5,ilw,16,1);
-  gfx_set(0.7,0.7,0.7,1); gfx_rect(ilx,inst_y+5,ilw*(mem[INST_LEVEL_BASE+ii]/127),16,1);
-  mouse_cap&1 && mouse_x>=ilx && mouse_x<ilx+ilw && mouse_y>=inst_y+2 && mouse_y<inst_y+25 ? mem[INST_LEVEL_BASE+ii]=floor(127*((mouse_x-ilx)/ilw)+0.5);
-  gfx_x=562; gfx_y=inst_y+7; gfx_drawnumber(mem[INST_LEVEL_BASE+ii],0);
+  gfx_set(0.7,0.7,0.7,1); gfx_rect(ilx,inst_y+5,ilw*(mem[INST_LEVEL_BASE+gui_inst]/127),16,1);
+  mouse_cap&1 && mouse_x>=ilx && mouse_x<ilx+ilw && mouse_y>=inst_y+2 && mouse_y<inst_y+25 ? mem[INST_LEVEL_BASE+gui_inst]=floor(127*((mouse_x-ilx)/ilw)+0.5);
+  gfx_x=562; gfx_y=inst_y+7; gfx_drawnumber(mem[INST_LEVEL_BASE+gui_inst],0);
 
   // mod baseline/display, reserved for mapping layer
   imx=610; imw=100;
   gfx_set(0.22,0.22,0.22,1); gfx_rect(imx,inst_y+5,imw,16,1);
-  gfx_set(0.7,0.7,0.7,1); gfx_rect(imx,inst_y+5,imw*(mem[INST_MOD_BASE+ii]/127),16,1);
-  mouse_cap&1 && mouse_x>=imx && mouse_x<imx+imw && mouse_y>=inst_y+2 && mouse_y<inst_y+25 ? mem[INST_MOD_BASE+ii]=floor(127*((mouse_x-imx)/imw)+0.5);
-  gfx_x=717; gfx_y=inst_y+7; gfx_drawnumber(mem[INST_MOD_BASE+ii],0);
+  gfx_set(0.7,0.7,0.7,1); gfx_rect(imx,inst_y+5,imw*(mem[INST_MOD_BASE+gui_inst]/127),16,1);
+  mouse_cap&1 && mouse_x>=imx && mouse_x<imx+imw && mouse_y>=inst_y+2 && mouse_y<inst_y+25 ? mem[INST_MOD_BASE+gui_inst]=floor(127*((mouse_x-imx)/imw)+0.5);
+  gfx_x=717; gfx_y=inst_y+7; gfx_drawnumber(mem[INST_MOD_BASE+gui_inst],0);
 
   inst_y+=34;
 );

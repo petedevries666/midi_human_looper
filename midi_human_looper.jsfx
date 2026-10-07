@@ -1,7 +1,14 @@
-desc:MIDI Human Looper v1.7.7
+desc:MIDI Human Looper v1.8.0
 options:gmem=MIDI_HUMAN_LOOPER
 
 // Free-time MIDI phrase instrument prototype for REAPER JSFX.
+// v1.8.0:
+// - generic per-parameter EXP curve engine for instrument controls
+// - assignable targets: VELOCITY, VOLUME, MODULATION, ARP ON/OFF, ARP MODE, RATE, GATE
+// - every target/instrument pair owns its own independent multipoint curve
+// - boolean ARP ON threshold: curve value >= 64 = ON
+// - enum ARP MODE maps 0..127 across RANDOM / UP / DOWN
+// - ARP MODE is now separate from ARP ON/OFF; UP and DOWN playback implemented
 // v1.7.7:
 // - UI cleanup: IN / OUT / CC boxes display only their actual numeric value
 // - remove duplicated tiny channel/CC values beside boxes
@@ -275,15 +282,19 @@ INST_ARP_ENABLED_BASE = INST_LEVEL_CC_BASE + INSTRUMENTS;
 INST_ARP_RATE_BASE = INST_ARP_ENABLED_BASE + INSTRUMENTS;
 INST_ARP_GATE_BASE = INST_ARP_RATE_BASE + INSTRUMENTS;
 INST_ARP_HOLD_BASE = INST_ARP_GATE_BASE + INSTRUMENTS;
+INST_ARP_MODE_BASE = INST_ARP_HOLD_BASE + INSTRUMENTS;
 
-// Multipoint expression assignment, first target: instrument LEVEL.
-// ASSIGN: 0=none, 1=EXP1, 2=EXP2. Up to 6 normalized x/y points per instrument.
-EXP_POINTS = 6;
-INST_EXP_ASSIGN_BASE = INST_ARP_HOLD_BASE + INSTRUMENTS;
-INST_EXP_COUNT_BASE = INST_EXP_ASSIGN_BASE + INSTRUMENTS;
-INST_EXP_X_BASE = INST_EXP_COUNT_BASE + INSTRUMENTS;
-INST_EXP_Y_BASE = INST_EXP_X_BASE + INSTRUMENTS*EXP_POINTS;
-WORK_MEM_SIZE = INST_EXP_Y_BASE + INSTRUMENTS*EXP_POINTS;
+// Generic expression targets. Each instrument/target pair owns assignment + curve.
+EXP_T_VEL=0; EXP_T_LEVEL=1; EXP_T_MOD=2; EXP_T_ARP_ON=3;
+EXP_T_ARP_MODE=4; EXP_T_ARP_RATE=5; EXP_T_ARP_GATE=6;
+EXP_TARGETS=7;
+EXP_POINTS=6;
+EXP_TOTAL=INSTRUMENTS*EXP_TARGETS;
+INST_EXP_ASSIGN_BASE = INST_ARP_MODE_BASE + INSTRUMENTS;
+INST_EXP_COUNT_BASE = INST_EXP_ASSIGN_BASE + EXP_TOTAL;
+INST_EXP_X_BASE = INST_EXP_COUNT_BASE + EXP_TOTAL;
+INST_EXP_Y_BASE = INST_EXP_X_BASE + EXP_TOTAL*EXP_POINTS;
+WORK_MEM_SIZE = INST_EXP_Y_BASE + EXP_TOTAL*EXP_POINTS;
 PATCH_HEADER_SIZE = 12;
 PATCH_DATA_SIZE = PATCH_HEADER_SIZE + WORK_MEM_SIZE;
 PATCH1_BASE = WORK_MEM_SIZE + 64;
@@ -313,6 +324,7 @@ ARP_STEP_REMAIN_BASE = ARP_ACTIVE_CH_BASE + INSTRUMENTS;
 ARP_GATE_REMAIN_BASE = ARP_STEP_REMAIN_BASE + INSTRUMENTS;
 ARP_SOURCE_COUNT_BASE = ARP_GATE_REMAIN_BASE + INSTRUMENTS;
 EXP_LAST_VALUE_BASE = ARP_SOURCE_COUNT_BASE + INSTRUMENTS*128;
+ARP_CURSOR_BASE = EXP_LAST_VALUE_BASE + EXP_TOTAL;
 // patch_valid1 / patch_valid2 / current_patch are serialized state.
 // Do NOT clear them here: REAPER may call @init after @serialize.
 (patch_valid1<=0 && patch_valid2<=0 && (current_patch<1 || current_patch>2)) ? current_patch=1;
@@ -352,7 +364,8 @@ loop(INSTRUMENTS,
   mem[ARP_ACTIVE_CH_BASE+ii]=0;
   mem[ARP_STEP_REMAIN_BASE+ii]=0;
   mem[ARP_GATE_REMAIN_BASE+ii]=0;
-  mem[EXP_LAST_VALUE_BASE+ii]=-1;
+  et=0; loop(EXP_TARGETS, mem[EXP_LAST_VALUE_BASE+ii*EXP_TARGETS+et]=-1; et+=1;);
+  mem[ARP_CURSOR_BASE+ii]=-1;
   nn=0;
   loop(128,
     mem[ARP_HELD_COUNT_BASE+ii*128+nn]=0;
@@ -393,17 +406,23 @@ loop(INSTRUMENTS,
   mem[INST_ARP_RATE_BASE+ii]=4;   // x BPM: 4 = 16th notes
   mem[INST_ARP_GATE_BASE+ii]=0.5;
   mem[INST_ARP_HOLD_BASE+ii]=0;
-  mem[INST_EXP_ASSIGN_BASE+ii]=0;
-  mem[INST_EXP_COUNT_BASE+ii]=2;
-  mem[INST_EXP_X_BASE+ii*EXP_POINTS+0]=0;
-  mem[INST_EXP_Y_BASE+ii*EXP_POINTS+0]=0;
-  mem[INST_EXP_X_BASE+ii*EXP_POINTS+1]=1;
-  mem[INST_EXP_Y_BASE+ii*EXP_POINTS+1]=1;
-  ep=2;
-  loop(EXP_POINTS-2,
-    mem[INST_EXP_X_BASE+ii*EXP_POINTS+ep]=0;
-    mem[INST_EXP_Y_BASE+ii*EXP_POINTS+ep]=0;
-    ep+=1;
+  mem[INST_ARP_MODE_BASE+ii]=0;
+  et=0;
+  loop(EXP_TARGETS,
+    eti=ii*EXP_TARGETS+et;
+    mem[INST_EXP_ASSIGN_BASE+eti]=0;
+    mem[INST_EXP_COUNT_BASE+eti]=2;
+    mem[INST_EXP_X_BASE+eti*EXP_POINTS+0]=0;
+    mem[INST_EXP_Y_BASE+eti*EXP_POINTS+0]=0;
+    mem[INST_EXP_X_BASE+eti*EXP_POINTS+1]=1;
+    mem[INST_EXP_Y_BASE+eti*EXP_POINTS+1]=1;
+    ep=2;
+    loop(EXP_POINTS-2,
+      mem[INST_EXP_X_BASE+eti*EXP_POINTS+ep]=0;
+      mem[INST_EXP_Y_BASE+eti*EXP_POINTS+ep]=0;
+      ep+=1;
+    );
+    et+=1;
   );
   ii+=1;
 );
@@ -680,15 +699,29 @@ local(rate,gate,step_samples,step_rem,gate_rem,held,n,choice,pick,vel,ch,an,offs
           mem[ARP_ACTIVE_NOTE_BASE+gi]=-1;
         );
 
-        pick=floor(rand(held));
-        choice=-1; n=0;
-        loop(128,
-          mem[ARP_HELD_COUNT_BASE+gi*128+n]>0 ? (
-            pick<=0 && choice<0 ? choice=n;
-            pick-=1;
+        mode=floor(mem[INST_ARP_MODE_BASE+gi]+0.5);
+        choice=-1;
+        mode==0 ? (
+          pick=floor(rand(held)); n=0;
+          loop(128,
+            mem[ARP_HELD_COUNT_BASE+gi*128+n]>0 ? (
+              pick<=0 && choice<0 ? choice=n;
+              pick-=1;
+            );
+            n+=1;
           );
-          n+=1;
+        ) : mode==1 ? (
+          // UP: next held note above cursor, wrapping to the lowest.
+          cur=mem[ARP_CURSOR_BASE+gi]; n=0;
+          loop(128, n>cur && choice<0 && mem[ARP_HELD_COUNT_BASE+gi*128+n]>0 ? choice=n; n+=1;);
+          choice<0 ? (n=0; loop(128, choice<0 && mem[ARP_HELD_COUNT_BASE+gi*128+n]>0 ? choice=n; n+=1;););
+        ) : (
+          // DOWN: next held note below cursor, wrapping to the highest.
+          cur=mem[ARP_CURSOR_BASE+gi]; n=127;
+          loop(128, n<cur && choice<0 && mem[ARP_HELD_COUNT_BASE+gi*128+n]>0 ? choice=n; n-=1;);
+          choice<0 ? (n=127; loop(128, choice<0 && mem[ARP_HELD_COUNT_BASE+gi*128+n]>0 ? choice=n; n-=1;););
         );
+        choice>=0 ? mem[ARP_CURSOR_BASE+gi]=choice;
         choice>=0 ? (
           vel=max(1,min(127,mem[ARP_HELD_VEL_BASE+gi*128+choice]));
           ch=mem[ARP_ACTIVE_CH_BASE+gi]&15;
@@ -832,18 +865,18 @@ local(srcch,typ,ii,in_ch,out_ch,outst,outd2,matched,velmul,msg_chan,note_key)
   );
 );
 
-function exp_curve_value(gi, xpos)
+function exp_curve_value(ti, xpos)
 local(cnt,k,x0,y0,x1,y1,t,res)
 (
-  cnt=max(2,min(EXP_POINTS,floor(mem[INST_EXP_COUNT_BASE+gi]+0.5)));
+  cnt=max(2,min(EXP_POINTS,floor(mem[INST_EXP_COUNT_BASE+ti]+0.5)));
   xpos=max(0,min(1,xpos));
-  x0=mem[INST_EXP_X_BASE+gi*EXP_POINTS];
-  y0=mem[INST_EXP_Y_BASE+gi*EXP_POINTS];
+  x0=mem[INST_EXP_X_BASE+ti*EXP_POINTS];
+  y0=mem[INST_EXP_Y_BASE+ti*EXP_POINTS];
   res=y0;
   k=1;
   loop(cnt-1,
-    x1=mem[INST_EXP_X_BASE+gi*EXP_POINTS+k];
-    y1=mem[INST_EXP_Y_BASE+gi*EXP_POINTS+k];
+    x1=mem[INST_EXP_X_BASE+ti*EXP_POINTS+k];
+    y1=mem[INST_EXP_Y_BASE+ti*EXP_POINTS+k];
     xpos>=x1 ? res=y1 :
     xpos>=x0 && xpos<x1 ? (
       t=(xpos-x0)/max(0.000001,x1-x0);
@@ -856,21 +889,21 @@ local(cnt,k,x0,y0,x1,y1,t,res)
   max(0,min(1,res));
 );
 
-function exp_sort_points(gi)
+function exp_sort_points(ti)
 local(cnt,a,b,xa,xb,tmp)
 (
-  cnt=max(2,min(EXP_POINTS,floor(mem[INST_EXP_COUNT_BASE+gi]+0.5)));
+  cnt=max(2,min(EXP_POINTS,floor(mem[INST_EXP_COUNT_BASE+ti]+0.5)));
   a=0;
   loop(cnt,
     b=0;
     loop(cnt-1,
-      xa=mem[INST_EXP_X_BASE+gi*EXP_POINTS+b];
-      xb=mem[INST_EXP_X_BASE+gi*EXP_POINTS+b+1];
+      xa=mem[INST_EXP_X_BASE+ti*EXP_POINTS+b];
+      xb=mem[INST_EXP_X_BASE+ti*EXP_POINTS+b+1];
       xa>xb ? (
-        tmp=xa; mem[INST_EXP_X_BASE+gi*EXP_POINTS+b]=xb; mem[INST_EXP_X_BASE+gi*EXP_POINTS+b+1]=tmp;
-        tmp=mem[INST_EXP_Y_BASE+gi*EXP_POINTS+b];
-        mem[INST_EXP_Y_BASE+gi*EXP_POINTS+b]=mem[INST_EXP_Y_BASE+gi*EXP_POINTS+b+1];
-        mem[INST_EXP_Y_BASE+gi*EXP_POINTS+b+1]=tmp;
+        tmp=xa; mem[INST_EXP_X_BASE+ti*EXP_POINTS+b]=xb; mem[INST_EXP_X_BASE+ti*EXP_POINTS+b+1]=tmp;
+        tmp=mem[INST_EXP_Y_BASE+ti*EXP_POINTS+b];
+        mem[INST_EXP_Y_BASE+ti*EXP_POINTS+b]=mem[INST_EXP_Y_BASE+ti*EXP_POINTS+b+1];
+        mem[INST_EXP_Y_BASE+ti*EXP_POINTS+b+1]=tmp;
       );
       b+=1;
     );
@@ -1124,15 +1157,25 @@ gmem[0]==5 ? (io_status=5; gmem[0]=0;);
 
 ii=0;
 loop(INSTRUMENTS,
-  exp_assign=floor(mem[INST_EXP_ASSIGN_BASE+ii]+0.5);
-  exp_assign>0 ? (
-    exp_pos=exp_assign==1 ? slider10 : slider11;
-    exp_val=floor(exp_curve_value(ii,exp_pos)*127+0.5);
-    exp_val!=mem[EXP_LAST_VALUE_BASE+ii] ? (
-      mem[INST_LEVEL_BASE+ii]=exp_val;
-      mem[EXP_LAST_VALUE_BASE+ii]=exp_val;
-      mem[CC_DIRTY_BASE+ii]=1;
+  et=0;
+  loop(EXP_TARGETS,
+    eti=ii*EXP_TARGETS+et;
+    exp_assign=floor(mem[INST_EXP_ASSIGN_BASE+eti]+0.5);
+    exp_assign>0 ? (
+      exp_pos=exp_assign==1 ? slider10 : slider11;
+      exp_val=floor(exp_curve_value(eti,exp_pos)*127+0.5);
+      exp_val!=mem[EXP_LAST_VALUE_BASE+eti] ? (
+        mem[EXP_LAST_VALUE_BASE+eti]=exp_val;
+        et==EXP_T_VEL ? mem[INST_VEL_BASE+ii]=0.2+(exp_val/127)*2.8;
+        et==EXP_T_LEVEL ? (mem[INST_LEVEL_BASE+ii]=exp_val; mem[CC_DIRTY_BASE+ii]=1;);
+        et==EXP_T_MOD ? (mem[INST_MOD_BASE+ii]=exp_val; mem[CC_DIRTY_MOD_BASE+ii]=1;);
+        et==EXP_T_ARP_ON ? mem[INST_ARP_ENABLED_BASE+ii]=(exp_val>=64);
+        et==EXP_T_ARP_MODE ? mem[INST_ARP_MODE_BASE+ii]=min(2,floor(exp_val*3/128));
+        et==EXP_T_ARP_RATE ? mem[INST_ARP_RATE_BASE+ii]=0.25+(exp_val/127)*15.75;
+        et==EXP_T_ARP_GATE ? mem[INST_ARP_GATE_BASE+ii]=0.02+(exp_val/127)*0.98;
+      );
     );
+    et+=1;
   );
   mem[CC_DIRTY_BASE+ii]>0.5 ? (
     send_instrument_cc(ii,mem[INST_LEVEL_CC_BASE+ii],mem[INST_LEVEL_BASE+ii]);
@@ -1381,7 +1424,7 @@ loop(INSTRUMENTS,
 
 // Expression curve editor state is GUI-only, not patch data.
 exp_gui_initialized!=1 ? (
-  exp_editor_gi=-1;
+  exp_editor_ti=-1;
   exp_drag_point=-1;
   exp_gui_initialized=1;
 );
@@ -1653,7 +1696,7 @@ loop(PHRASES_PER_PAGE,
 // --- INSTRUMENTS -----------------------------------------------------------
 // Compact two-line instrument strip, matching the visual mockup.
 function draw_instrument_row(gi, iy)
-local(ivx,ivw,ivn,ilx,ilw,imx,imw,ccx,arx,holdx,rrx,rrw,grx,grw,rnorm,gnorm,nn,boxh)
+local(ivx,ivw,ivn,ilx,ilw,imx,imw,ccx,arx,modex,holdx,rrx,rrw,grx,grw,rnorm,gnorm,nn,boxh,ti)
 (
   boxh=28;
   gfx_setfont(1,"Arial",11);
@@ -1681,7 +1724,15 @@ local(ivx,ivw,ivn,ilx,ilw,imx,imw,ccx,arx,holdx,rrx,rrw,grx,grw,rnorm,gnorm,nn,b
   gfx_set(0.20,0.20,0.20,1); gfx_rect(ivx,iy+5,ivw,18,1);
   ivn=(mem[INST_VEL_BASE+gi]-0.2)/2.8; ivn=max(0,min(1,ivn));
   gfx_set(0.72,0.72,0.72,1); gfx_rect(ivx,iy+5,ivw*ivn,18,1);
-  mouse_cap&1 && mouse_x>=ivx && mouse_x<ivx+ivw && mouse_y>=iy+2 && mouse_y<iy+26 ? mem[INST_VEL_BASE+gi]=0.2+2.8*((mouse_x-ivx)/ivw);
+  ti=gi*EXP_TARGETS+EXP_T_VEL;
+  exp_editor_ti==ti && mem[INST_EXP_ASSIGN_BASE+ti]>0 ? (gfx_set(0.95,0.95,0.15,1); gfx_rect(ivx-2,iy+3,ivw+4,22,0););
+  mouse_cap&1 && mouse_x>=ivx && mouse_x<ivx+ivw && mouse_y>=iy+2 && mouse_y<iy+26 ? (
+    mem[INST_EXP_ASSIGN_BASE+ti]>0 ? exp_editor_ti=ti : mem[INST_VEL_BASE+gi]=0.2+2.8*((mouse_x-ivx)/ivw);
+  );
+  (mouse_cap&2)&&!(last_mouse_cap&2)&&mouse_x>=ivx&&mouse_x<ivx+ivw&&mouse_y>=iy+2&&mouse_y<iy+26 ? (
+    mem[INST_EXP_ASSIGN_BASE+ti]=(floor(mem[INST_EXP_ASSIGN_BASE+ti]+0.5)+1)%3; mem[EXP_LAST_VALUE_BASE+ti]=-1;
+    mem[INST_EXP_ASSIGN_BASE+ti]>0 ? exp_editor_ti=ti : exp_editor_ti==ti ? exp_editor_ti=-1;
+  );
   gfx_setfont(1,"Arial",10); gfx_x=380; gfx_y=iy+8; gfx_drawstr("x"); gfx_drawnumber(mem[INST_VEL_BASE+gi],1);
 
   // CC number.
@@ -1697,37 +1748,43 @@ local(ivx,ivw,ivn,ilx,ilw,imx,imw,ccx,arx,holdx,rrx,rrw,grx,grw,rnorm,gnorm,nn,b
   gfx_setfont(1,"Arial",13); gfx_set(0.95,0.95,0.15,1);
   gfx_x=438; gfx_y=iy+7; gfx_drawnumber(mem[INST_LEVEL_CC_BASE+gi],0);
 
-  // VOLUME / LEVEL. Right-click assigns EXP1/EXP2; left-click assigned level selects its curve.
+  // VOLUME / LEVEL.
+  ti=gi*EXP_TARGETS+EXP_T_LEVEL;
   ilx=484; ilw=86;
   gfx_set(0.20,0.20,0.20,1); gfx_rect(ilx,iy+5,ilw,18,1);
   gfx_set(0.72,0.72,0.72,1); gfx_rect(ilx,iy+5,ilw*(mem[INST_LEVEL_BASE+gi]/127),18,1);
-  exp_editor_gi==gi && mem[INST_EXP_ASSIGN_BASE+gi]>0 ? (
+  exp_editor_ti==ti && mem[INST_EXP_ASSIGN_BASE+ti]>0 ? (
     gfx_set(0.95,0.95,0.15,1); gfx_rect(ilx-2,iy+3,ilw+4,22,0);
   );
   mouse_cap&1 && mouse_x>=ilx && mouse_x<ilx+ilw && mouse_y>=iy+2 && mouse_y<iy+26 ? (
-    mem[INST_EXP_ASSIGN_BASE+gi]>0 ? exp_editor_gi=gi : (
+    mem[INST_EXP_ASSIGN_BASE+ti]>0 ? exp_editor_ti=ti : (
       mem[INST_LEVEL_BASE+gi]=floor(127*((mouse_x-ilx)/ilw)+0.5);
       mem[CC_DIRTY_BASE+gi]=1;
     );
   );
   (mouse_cap&2) && !(last_mouse_cap&2) && mouse_x>=ilx && mouse_x<ilx+ilw && mouse_y>=iy+2 && mouse_y<iy+26 ? (
-    mem[INST_EXP_ASSIGN_BASE+gi]=(floor(mem[INST_EXP_ASSIGN_BASE+gi]+0.5)+1)%3;
-    mem[EXP_LAST_VALUE_BASE+gi]=-1;
-    mem[INST_EXP_ASSIGN_BASE+gi]>0 ? exp_editor_gi=gi : exp_editor_gi==gi ? exp_editor_gi=-1;
+    mem[INST_EXP_ASSIGN_BASE+ti]=(floor(mem[INST_EXP_ASSIGN_BASE+ti]+0.5)+1)%3;
+    mem[EXP_LAST_VALUE_BASE+ti]=-1;
+    mem[INST_EXP_ASSIGN_BASE+ti]>0 ? exp_editor_ti=ti : exp_editor_ti==ti ? exp_editor_ti=-1;
   );
   gfx_setfont(1,"Arial",9); gfx_set(0.72,0.72,0.72,1);
   gfx_x=574; gfx_y=iy+2; gfx_drawnumber(mem[INST_LEVEL_BASE+gi],0);
-  mem[INST_EXP_ASSIGN_BASE+gi]>0 ? (
-    gfx_x=574; gfx_y=iy+13; gfx_drawstr(mem[INST_EXP_ASSIGN_BASE+gi]==1 ? "EXP1" : "EXP2");
+  mem[INST_EXP_ASSIGN_BASE+ti]>0 ? (
+    gfx_x=574; gfx_y=iy+13; gfx_drawstr(mem[INST_EXP_ASSIGN_BASE+ti]==1 ? "EXP1" : "EXP2");
   );
 
   // MODULATION.
   imx=620; imw=92;
   gfx_set(0.20,0.20,0.20,1); gfx_rect(imx,iy+5,imw,18,1);
   gfx_set(0.72,0.72,0.72,1); gfx_rect(imx,iy+5,imw*(mem[INST_MOD_BASE+gi]/127),18,1);
+  ti=gi*EXP_TARGETS+EXP_T_MOD;
+  exp_editor_ti==ti && mem[INST_EXP_ASSIGN_BASE+ti]>0 ? (gfx_set(0.95,0.95,0.15,1); gfx_rect(imx-2,iy+3,imw+4,22,0););
   mouse_cap&1 && mouse_x>=imx && mouse_x<imx+imw && mouse_y>=iy+2 && mouse_y<iy+26 ? (
-    mem[INST_MOD_BASE+gi]=floor(127*((mouse_x-imx)/imw)+0.5);
-    mem[CC_DIRTY_MOD_BASE+gi]=1;
+    mem[INST_EXP_ASSIGN_BASE+ti]>0 ? exp_editor_ti=ti : (mem[INST_MOD_BASE+gi]=floor(127*((mouse_x-imx)/imw)+0.5); mem[CC_DIRTY_MOD_BASE+gi]=1;);
+  );
+  (mouse_cap&2)&&!(last_mouse_cap&2)&&mouse_x>=imx&&mouse_x<imx+imw&&mouse_y>=iy+2&&mouse_y<iy+26 ? (
+    mem[INST_EXP_ASSIGN_BASE+ti]=(floor(mem[INST_EXP_ASSIGN_BASE+ti]+0.5)+1)%3; mem[EXP_LAST_VALUE_BASE+ti]=-1;
+    mem[INST_EXP_ASSIGN_BASE+ti]>0 ? exp_editor_ti=ti : exp_editor_ti==ti ? exp_editor_ti=-1;
   );
   gfx_setfont(1,"Arial",10); gfx_x=718; gfx_y=iy+8; gfx_drawnumber(mem[INST_MOD_BASE+gi],0);
 
@@ -1735,17 +1792,23 @@ local(ivx,ivw,ivn,ilx,ilw,imx,imw,ccx,arx,holdx,rrx,rrw,grx,grw,rnorm,gnorm,nn,b
   gfx_setfont(1,"Arial",11); gfx_set(0.95,0.95,0.15,1);
   gfx_x=48; gfx_y=iy+34; gfx_drawstr("ARP");
 
-  arx=94;
-  smallbtn(arx,iy+30,70,22,mem[INST_ARP_ENABLED_BASE+gi]>0.5 ? "RANDOM" : "OFF",mem[INST_ARP_ENABLED_BASE+gi]>0.5);
-  hit(arx,iy+30,70,22) ? (
-    mem[INST_ARP_ENABLED_BASE+gi]=1-mem[INST_ARP_ENABLED_BASE+gi];
-    mem[INST_ARP_ENABLED_BASE+gi]<0.5 ? (
-      arp_release_instrument(gi);
-      nn=0; loop(128, mem[ARP_HELD_COUNT_BASE+gi*128+nn]=0; mem[ARP_SOURCE_COUNT_BASE+gi*128+nn]=0; nn+=1;);
-    );
+  arx=82; ti=gi*EXP_TARGETS+EXP_T_ARP_ON;
+  smallbtn(arx,iy+30,48,22,mem[INST_ARP_ENABLED_BASE+gi]>0.5 ? "ON" : "OFF",mem[INST_ARP_ENABLED_BASE+gi]>0.5);
+  hit(arx,iy+30,48,22) ? (mem[INST_EXP_ASSIGN_BASE+ti]>0 ? exp_editor_ti=ti : mem[INST_ARP_ENABLED_BASE+gi]=1-mem[INST_ARP_ENABLED_BASE+gi];);
+  (mouse_cap&2)&&!(last_mouse_cap&2)&&mouse_x>=arx&&mouse_x<arx+48&&mouse_y>=iy+30&&mouse_y<iy+52 ? (
+    mem[INST_EXP_ASSIGN_BASE+ti]=(floor(mem[INST_EXP_ASSIGN_BASE+ti]+0.5)+1)%3; mem[EXP_LAST_VALUE_BASE+ti]=-1;
+    mem[INST_EXP_ASSIGN_BASE+ti]>0 ? exp_editor_ti=ti : exp_editor_ti==ti ? exp_editor_ti=-1;
   );
 
-  holdx=170;
+  modex=136; ti=gi*EXP_TARGETS+EXP_T_ARP_MODE;
+  smallbtn(modex,iy+30,66,22,mem[INST_ARP_MODE_BASE+gi]<0.5 ? "RANDOM" : mem[INST_ARP_MODE_BASE+gi]<1.5 ? "UP" : "DOWN",0);
+  hit(modex,iy+30,66,22) ? (mem[INST_EXP_ASSIGN_BASE+ti]>0 ? exp_editor_ti=ti : mem[INST_ARP_MODE_BASE+gi]=(mem[INST_ARP_MODE_BASE+gi]+1)%3;);
+  (mouse_cap&2)&&!(last_mouse_cap&2)&&mouse_x>=modex&&mouse_x<modex+66&&mouse_y>=iy+30&&mouse_y<iy+52 ? (
+    mem[INST_EXP_ASSIGN_BASE+ti]=(floor(mem[INST_EXP_ASSIGN_BASE+ti]+0.5)+1)%3; mem[EXP_LAST_VALUE_BASE+ti]=-1;
+    mem[INST_EXP_ASSIGN_BASE+ti]>0 ? exp_editor_ti=ti : exp_editor_ti==ti ? exp_editor_ti=-1;
+  );
+
+  holdx=208;
   smallbtn(holdx,iy+30,68,22,mem[INST_ARP_HOLD_BASE+gi]>0.5 ? "HOLD" : "RELEASE",mem[INST_ARP_HOLD_BASE+gi]>0.5);
   hit(holdx,iy+30,68,22) ? (
     mem[INST_ARP_HOLD_BASE+gi]=1-mem[INST_ARP_HOLD_BASE+gi];
@@ -1753,21 +1816,35 @@ local(ivx,ivw,ivn,ilx,ilw,imx,imw,ccx,arx,holdx,rrx,rrw,grx,grw,rnorm,gnorm,nn,b
   );
 
   gfx_setfont(1,"Arial",9); gfx_set(0.72,0.72,0.72,1);
-  gfx_x=246; gfx_y=iy+35; gfx_drawstr("RATE");
-  rrx=282; rrw=92;
+  gfx_x=282; gfx_y=iy+35; gfx_drawstr("RATE");
+  rrx=318; rrw=72;
   gfx_set(0.20,0.20,0.20,1); gfx_rect(rrx,iy+34,rrw,12,1);
   rnorm=(mem[INST_ARP_RATE_BASE+gi]-0.25)/15.75; rnorm=max(0,min(1,rnorm));
   gfx_set(0.72,0.72,0.72,1); gfx_rect(rrx,iy+34,rrw*rnorm,12,1);
-  mouse_cap&1 && mouse_x>=rrx && mouse_x<rrx+rrw && mouse_y>=iy+29 && mouse_y<iy+50 ? mem[INST_ARP_RATE_BASE+gi]=0.25+15.75*((mouse_x-rrx)/rrw);
-  gfx_x=380; gfx_y=iy+35; gfx_drawnumber(mem[INST_ARP_RATE_BASE+gi],2); gfx_drawstr("x");
+  ti=gi*EXP_TARGETS+EXP_T_ARP_RATE;
+  mouse_cap&1 && mouse_x>=rrx && mouse_x<rrx+rrw && mouse_y>=iy+29 && mouse_y<iy+50 ? (mem[INST_EXP_ASSIGN_BASE+ti]>0 ? exp_editor_ti=ti : mem[INST_ARP_RATE_BASE+gi]=0.25+15.75*((mouse_x-rrx)/rrw));
+  ti=gi*EXP_TARGETS+EXP_T_ARP_RATE;
+  exp_editor_ti==ti && mem[INST_EXP_ASSIGN_BASE+ti]>0 ? (gfx_set(0.95,0.95,0.15,1); gfx_rect(rrx-2,iy+32,rrw+4,16,0););
+  (mouse_cap&2)&&!(last_mouse_cap&2)&&mouse_x>=rrx&&mouse_x<rrx+rrw&&mouse_y>=iy+29&&mouse_y<iy+50 ? (
+    mem[INST_EXP_ASSIGN_BASE+ti]=(floor(mem[INST_EXP_ASSIGN_BASE+ti]+0.5)+1)%3; mem[EXP_LAST_VALUE_BASE+ti]=-1;
+    mem[INST_EXP_ASSIGN_BASE+ti]>0 ? exp_editor_ti=ti : exp_editor_ti==ti ? exp_editor_ti=-1;
+  );
+  gfx_x=394; gfx_y=iy+35; gfx_drawnumber(mem[INST_ARP_RATE_BASE+gi],2); gfx_drawstr("x");
 
-  gfx_x=411; gfx_y=iy+35; gfx_drawstr("GATE");
-  grx=447; grw=92;
+  gfx_x=443; gfx_y=iy+35; gfx_drawstr("GATE");
+  grx=479; grw=72;
   gfx_set(0.20,0.20,0.20,1); gfx_rect(grx,iy+34,grw,12,1);
   gnorm=mem[INST_ARP_GATE_BASE+gi]; gnorm=max(0.02,min(1,gnorm));
   gfx_set(0.72,0.72,0.72,1); gfx_rect(grx,iy+34,grw*gnorm,12,1);
-  mouse_cap&1 && mouse_x>=grx && mouse_x<grx+grw && mouse_y>=iy+29 && mouse_y<iy+50 ? mem[INST_ARP_GATE_BASE+gi]=max(0.02,min(1,(mouse_x-grx)/grw));
-  gfx_x=545; gfx_y=iy+35; gfx_drawnumber(mem[INST_ARP_GATE_BASE+gi]*100,0); gfx_drawstr("%");
+  ti=gi*EXP_TARGETS+EXP_T_ARP_GATE;
+  mouse_cap&1 && mouse_x>=grx && mouse_x<grx+grw && mouse_y>=iy+29 && mouse_y<iy+50 ? (mem[INST_EXP_ASSIGN_BASE+ti]>0 ? exp_editor_ti=ti : mem[INST_ARP_GATE_BASE+gi]=max(0.02,min(1,(mouse_x-grx)/grw)));
+  ti=gi*EXP_TARGETS+EXP_T_ARP_GATE;
+  exp_editor_ti==ti && mem[INST_EXP_ASSIGN_BASE+ti]>0 ? (gfx_set(0.95,0.95,0.15,1); gfx_rect(grx-2,iy+32,grw+4,16,0););
+  (mouse_cap&2)&&!(last_mouse_cap&2)&&mouse_x>=grx&&mouse_x<grx+grw&&mouse_y>=iy+29&&mouse_y<iy+50 ? (
+    mem[INST_EXP_ASSIGN_BASE+ti]=(floor(mem[INST_EXP_ASSIGN_BASE+ti]+0.5)+1)%3; mem[EXP_LAST_VALUE_BASE+ti]=-1;
+    mem[INST_EXP_ASSIGN_BASE+ti]>0 ? exp_editor_ti=ti : exp_editor_ti==ti ? exp_editor_ti=-1;
+  );
+  gfx_x=557; gfx_y=iy+35; gfx_drawnumber(mem[INST_ARP_GATE_BASE+gi]*100,0); gfx_drawstr("%");
 );
 
 inst_y=152 + PHRASES_PER_PAGE*38 + 16;
@@ -1800,16 +1877,6 @@ gfx_set(0.22,0.22,0.22,1); gfx_rect(ex,exp_y,ew,20,1);
 gfx_set(0.7,0.7,0.7,1); gfx_rect(ex,exp_y,ew*slider10,20,1);
 mouse_cap&1 && mouse_x>=ex && mouse_x<ex+ew && mouse_y>=exp_y-3 && mouse_y<exp_y+23 ? (
   slider10=max(0,min(1,(mouse_x-ex)/ew)); sliderchange(512);
-  ei=0;
-  loop(INSTRUMENTS,
-    floor(mem[INST_EXP_ASSIGN_BASE+ei]+0.5)==1 ? (
-      ev=floor(exp_curve_value(ei,slider10)*127+0.5);
-      mem[INST_LEVEL_BASE+ei]=ev;
-      mem[EXP_LAST_VALUE_BASE+ei]=ev;
-      mem[CC_DIRTY_BASE+ei]=1;
-    );
-    ei+=1;
-  );
 );
 gfx_x=328; gfx_y=exp_y+4; gfx_drawnumber(slider10*100,0); gfx_drawstr("%");
 
@@ -1819,28 +1886,27 @@ gfx_set(0.22,0.22,0.22,1); gfx_rect(ex2,exp_y,ew,20,1);
 gfx_set(0.7,0.7,0.7,1); gfx_rect(ex2,exp_y,ew*slider11,20,1);
 mouse_cap&1 && mouse_x>=ex2 && mouse_x<ex2+ew && mouse_y>=exp_y-3 && mouse_y<exp_y+23 ? (
   slider11=max(0,min(1,(mouse_x-ex2)/ew)); sliderchange(1024);
-  ei=0;
-  loop(INSTRUMENTS,
-    floor(mem[INST_EXP_ASSIGN_BASE+ei]+0.5)==2 ? (
-      ev=floor(exp_curve_value(ei,slider11)*127+0.5);
-      mem[INST_LEVEL_BASE+ei]=ev;
-      mem[EXP_LAST_VALUE_BASE+ei]=ev;
-      mem[CC_DIRTY_BASE+ei]=1;
-    );
-    ei+=1;
-  );
 );
 gfx_x=718; gfx_y=exp_y+4; gfx_drawnumber(slider11*100,0); gfx_drawstr("%");
 
 // Multipoint editor appears after right-clicking an assigned LEVEL slider.
-exp_editor_gi>=0 ? (
-  egi=exp_editor_gi;
+exp_editor_ti>=0 ? (
+  eti=exp_editor_ti;
+  egi=floor(eti/EXP_TARGETS);
+  et=eti-egi*EXP_TARGETS;
   cx=90; cy=exp_y+38; cw=620; ch=150;
   gfx_set(0.10,0.10,0.10,1); gfx_rect(cx,cy,cw,ch,1);
   gfx_set(0.35,0.35,0.35,1); gfx_rect(cx,cy,cw,ch,0);
   gfx_setfont(1,"Arial",12);
-  gfx_x=20; gfx_y=cy; gfx_drawstr("CURVE: I"); gfx_drawnumber(egi+1,0); gfx_drawstr(" LEVEL  <-  ");
-  gfx_drawstr(mem[INST_EXP_ASSIGN_BASE+egi]==1 ? "EXP1" : "EXP2");
+  gfx_x=20; gfx_y=cy; gfx_drawstr("CURVE: I"); gfx_drawnumber(egi+1,0); gfx_drawstr(" ");
+  et==EXP_T_VEL ? gfx_drawstr("VELOCITY") :
+  et==EXP_T_LEVEL ? gfx_drawstr("VOLUME") :
+  et==EXP_T_MOD ? gfx_drawstr("MODULATION") :
+  et==EXP_T_ARP_ON ? gfx_drawstr("ARP ON") :
+  et==EXP_T_ARP_MODE ? gfx_drawstr("ARP MODE") :
+  et==EXP_T_ARP_RATE ? gfx_drawstr("ARP RATE") : gfx_drawstr("ARP GATE");
+  gfx_drawstr(" <- ");
+  gfx_drawstr(mem[INST_EXP_ASSIGN_BASE+eti]==1 ? "EXP1" : "EXP2");
   gfx_x=20; gfx_y=cy+18; gfx_drawstr("L:add/drag");
   gfx_x=20; gfx_y=cy+34; gfx_drawstr("R:remove");
 
@@ -1854,14 +1920,14 @@ exp_editor_gi>=0 ? (
     kk+=1;
   );
 
-  cnt=max(2,min(EXP_POINTS,floor(mem[INST_EXP_COUNT_BASE+egi]+0.5)));
+  cnt=max(2,min(EXP_POINTS,floor(mem[INST_EXP_COUNT_BASE+eti]+0.5)));
   // curve
   kk=0;
   loop(cnt-1,
-    x0=cx+cw*mem[INST_EXP_X_BASE+egi*EXP_POINTS+kk];
-    y0=cy+ch*(1-mem[INST_EXP_Y_BASE+egi*EXP_POINTS+kk]);
-    x1=cx+cw*mem[INST_EXP_X_BASE+egi*EXP_POINTS+kk+1];
-    y1=cy+ch*(1-mem[INST_EXP_Y_BASE+egi*EXP_POINTS+kk+1]);
+    x0=cx+cw*mem[INST_EXP_X_BASE+eti*EXP_POINTS+kk];
+    y0=cy+ch*(1-mem[INST_EXP_Y_BASE+eti*EXP_POINTS+kk]);
+    x1=cx+cw*mem[INST_EXP_X_BASE+eti*EXP_POINTS+kk+1];
+    y1=cy+ch*(1-mem[INST_EXP_Y_BASE+eti*EXP_POINTS+kk+1]);
     gfx_set(0.75,0.75,0.75,1); gfx_line(x0,y0,x1,y1);
     kk+=1;
   );
@@ -1870,8 +1936,8 @@ exp_editor_gi>=0 ? (
   hover=-1; bestd=999999;
   kk=0;
   loop(cnt,
-    px=cx+cw*mem[INST_EXP_X_BASE+egi*EXP_POINTS+kk];
-    py=cy+ch*(1-mem[INST_EXP_Y_BASE+egi*EXP_POINTS+kk]);
+    px=cx+cw*mem[INST_EXP_X_BASE+eti*EXP_POINTS+kk];
+    py=cy+ch*(1-mem[INST_EXP_Y_BASE+eti*EXP_POINTS+kk]);
     dd=(mouse_x-px)*(mouse_x-px)+(mouse_y-py)*(mouse_y-py);
     dd<100 && dd<bestd ? (bestd=dd; hover=kk;);
     gfx_set(0.9,0.9,0.9,1);
@@ -1883,11 +1949,11 @@ exp_editor_gi>=0 ? (
   (mouse_cap&2) && !(last_mouse_cap&2) && hover>=0 && cnt>2 ? (
     kk=hover;
     loop(cnt-hover-1,
-      mem[INST_EXP_X_BASE+egi*EXP_POINTS+kk]=mem[INST_EXP_X_BASE+egi*EXP_POINTS+kk+1];
-      mem[INST_EXP_Y_BASE+egi*EXP_POINTS+kk]=mem[INST_EXP_Y_BASE+egi*EXP_POINTS+kk+1];
+      mem[INST_EXP_X_BASE+eti*EXP_POINTS+kk]=mem[INST_EXP_X_BASE+eti*EXP_POINTS+kk+1];
+      mem[INST_EXP_Y_BASE+eti*EXP_POINTS+kk]=mem[INST_EXP_Y_BASE+eti*EXP_POINTS+kk+1];
       kk+=1;
     );
-    mem[INST_EXP_COUNT_BASE+egi]=cnt-1;
+    mem[INST_EXP_COUNT_BASE+eti]=cnt-1;
     exp_drag_point=-1;
   );
 
@@ -1896,15 +1962,15 @@ exp_editor_gi>=0 ? (
   mouse_x>=cx && mouse_x<=cx+cw && mouse_y>=cy && mouse_y<=cy+ch ? (
     hover>=0 ? exp_drag_point=hover : (
       cnt<EXP_POINTS ? (
-        mem[INST_EXP_X_BASE+egi*EXP_POINTS+cnt]=max(0,min(1,(mouse_x-cx)/cw));
-        mem[INST_EXP_Y_BASE+egi*EXP_POINTS+cnt]=max(0,min(1,1-(mouse_y-cy)/ch));
-        mem[INST_EXP_COUNT_BASE+egi]=cnt+1;
-        exp_sort_points(egi);
+        mem[INST_EXP_X_BASE+eti*EXP_POINTS+cnt]=max(0,min(1,(mouse_x-cx)/cw));
+        mem[INST_EXP_Y_BASE+eti*EXP_POINTS+cnt]=max(0,min(1,1-(mouse_y-cy)/ch));
+        mem[INST_EXP_COUNT_BASE+eti]=cnt+1;
+        exp_sort_points(eti);
         // re-find nearest after sort so drag continues on inserted point
         exp_drag_point=-1; bestd=999999; kk=0;
         loop(cnt+1,
-          px=cx+cw*mem[INST_EXP_X_BASE+egi*EXP_POINTS+kk];
-          py=cy+ch*(1-mem[INST_EXP_Y_BASE+egi*EXP_POINTS+kk]);
+          px=cx+cw*mem[INST_EXP_X_BASE+eti*EXP_POINTS+kk];
+          py=cy+ch*(1-mem[INST_EXP_Y_BASE+eti*EXP_POINTS+kk]);
           dd=(mouse_x-px)*(mouse_x-px)+(mouse_y-py)*(mouse_y-py);
           dd<bestd ? (bestd=dd; exp_drag_point=kk;);
           kk+=1;
@@ -1915,18 +1981,18 @@ exp_editor_gi>=0 ? (
 
   // drag selected point. Sorting happens on release so the grabbed index stays stable.
   exp_drag_point>=0 && mouse_cap&1 ? (
-    mem[INST_EXP_X_BASE+egi*EXP_POINTS+exp_drag_point]=max(0,min(1,(mouse_x-cx)/cw));
-    mem[INST_EXP_Y_BASE+egi*EXP_POINTS+exp_drag_point]=max(0,min(1,1-(mouse_y-cy)/ch));
-    mem[EXP_LAST_VALUE_BASE+egi]=-1;
+    mem[INST_EXP_X_BASE+eti*EXP_POINTS+exp_drag_point]=max(0,min(1,(mouse_x-cx)/cw));
+    mem[INST_EXP_Y_BASE+eti*EXP_POINTS+exp_drag_point]=max(0,min(1,1-(mouse_y-cy)/ch));
+    mem[EXP_LAST_VALUE_BASE+eti]=-1;
   );
   exp_drag_point>=0 && !(mouse_cap&1) ? (
-    exp_sort_points(egi);
+    exp_sort_points(eti);
     exp_drag_point=-1;
-    mem[EXP_LAST_VALUE_BASE+egi]=-1;
+    mem[EXP_LAST_VALUE_BASE+eti]=-1;
   );
 
   // live pedal cursor
-  pedalx=mem[INST_EXP_ASSIGN_BASE+egi]==1 ? slider10 : slider11;
+  pedalx=mem[INST_EXP_ASSIGN_BASE+eti]==1 ? slider10 : slider11;
   gfx_set(0.55,0.55,0.55,1);
   gfx_line(cx+cw*pedalx,cy,cx+cw*pedalx,cy+ch);
 );

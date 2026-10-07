@@ -1,7 +1,13 @@
-desc:MIDI Human Looper v1.16.2
+desc:MIDI Human Looper v1.16.3
 options:gmem=MIDI_HUMAN_LOOPER
 
 // Free-time MIDI phrase instrument prototype for REAPER JSFX.
+// v1.16.3:
+// - transformer chooser is now rendered at the very end of @gfx for true top-most visual stacking
+// - move MIDI IN / MIDI OUT / VOLUME labels fully inside instrument cards
+// - add a small X in every transformer block to remove it from the chain
+// - NOTE RANGE note values are now editable: left click +1 semitone, right click -1
+// - NOTE RANGE mode remains separately clickable without stealing clicks from its note controls
 // v1.16.2:
 // - draw ADD TRANSFORMER chooser in a final overlay pass so it always stays above following instruments
 // - keep chooser hit-testing in that overlay pass as well
@@ -2207,6 +2213,22 @@ local(c)
   );
 );
 
+function transform_remove_slot(gi, slot)
+local(c,j)
+(
+  c=max(0,min(TRANSFORM_SLOTS,floor(mem[INST_TRANSFORM_COUNT_BASE+gi]+0.5)));
+  slot>=0 && slot<c ? (
+    j=slot;
+    loop(c-slot-1,
+      mem[INST_TRANSFORM_TYPE_BASE+gi*TRANSFORM_SLOTS+j]=mem[INST_TRANSFORM_TYPE_BASE+gi*TRANSFORM_SLOTS+j+1];
+      j+=1;
+    );
+    mem[INST_TRANSFORM_TYPE_BASE+gi*TRANSFORM_SLOTS+c-1]=0;
+    mem[INST_TRANSFORM_COUNT_BASE+gi]=c-1;
+    panic_pending=1;
+  );
+);
+
 function draw_transform_block(x,y,w,h,title,active)
 local(bx,by,bw,bh,ttl,act)
 (
@@ -2229,13 +2251,13 @@ local(boxh,nx,nw,basey,bh,vx,vw,wirey,tx,bw,gap,tr,rangemode,notemode,arpon,c,k,
   gfx_set(.36,.36,.36,1);gfx_rect(nx,basey,nw,boxh,0);gfx_setfont(1,"Arial",11);gfx_set(.82,.82,.82,1);
   name_len(INSTR_NAME_BASE+gi*NAME_CHARS)>0?draw_name_chars(INSTR_NAME_BASE+gi*NAME_CHARS,nx+7,basey+7):(gfx_x=nx+7;gfx_y=basey+7;gfx_drawstr("INSTRUMENT ");gfx_drawnumber(gi+1,0););
   hit(nx,basey,nw,boxh)?(edit_name_type=2;edit_name_index=gi;);
-  gfx_setfont(1,"Arial",8);gfx_set(.48,.48,.48,1);gfx_x=266;gfx_y=basey-10;gfx_drawstr("MIDI IN");
+  gfx_setfont(1,"Arial",8);gfx_set(.48,.48,.48,1);gfx_x=266;gfx_y=basey-4;gfx_drawstr("MIDI IN");
   smallbtn(262,basey,58,boxh,"",0);hit(262,basey,58,boxh)?mem[INST_IN_BASE+gi]=(mem[INST_IN_BASE+gi]+1)%17;
   gfx_setfont(1,"Arial",10);gfx_set(.86,.86,.86,1);mem[INST_IN_BASE+gi]==0?centered_text(262,basey,58,boxh,"ALL"):(gfx_x=286;gfx_y=basey+7;gfx_drawnumber(mem[INST_IN_BASE+gi],0););
-  gfx_setfont(1,"Arial",8);gfx_set(.48,.48,.48,1);gfx_x=338;gfx_y=basey-10;gfx_drawstr("MIDI OUT");
+  gfx_setfont(1,"Arial",8);gfx_set(.48,.48,.48,1);gfx_x=338;gfx_y=basey-4;gfx_drawstr("MIDI OUT");
   smallbtn(334,basey,66,boxh,"",0);hit(334,basey,66,boxh)?mem[INST_OUT_BASE+gi]=(mem[INST_OUT_BASE+gi]+1)%17;
   gfx_setfont(1,"Arial",10);gfx_set(.86,.86,.86,1);mem[INST_OUT_BASE+gi]==0?centered_text(334,basey,66,boxh,"ORIG"):(gfx_x=362;gfx_y=basey+7;gfx_drawnumber(mem[INST_OUT_BASE+gi],0););
-  gfx_setfont(1,"Arial",8);gfx_set(.48,.48,.48,1);gfx_x=418;gfx_y=basey-10;gfx_drawstr("VOLUME");
+  gfx_setfont(1,"Arial",8);gfx_set(.48,.48,.48,1);gfx_x=418;gfx_y=basey-4;gfx_drawstr("VOLUME");
   vx=414;vw=150;gfx_set(.16,.16,.16,1);gfx_rect(vx,basey+5,vw,18,1);gfx_set(.70,.70,.70,1);gfx_rect(vx,basey+5,vw*(mem[INST_LEVEL_BASE+gi]/127),18,1);
   mouse_cap&1&&mouse_x>=vx&&mouse_x<vx+vw&&mouse_y>=basey&&mouse_y<basey+28?(mem[INST_LEVEL_BASE+gi]=floor(127*((mouse_x-vx)/vw)+.5);mem[CC_DIRTY_BASE+gi]=1;);
   gfx_setfont(1,"Arial",10);gfx_set(.88,.88,.88,1);gfx_x=574;gfx_y=basey+7;gfx_drawnumber(mem[INST_LEVEL_BASE+gi],0);
@@ -2251,8 +2273,27 @@ local(boxh,nx,nw,basey,bh,vx,vw,wirey,tx,bw,gap,tr,rangemode,notemode,arpon,c,k,
       (mouse_cap&2)&&!(last_mouse_cap&2)&&mouse_x>=tx&&mouse_x<tx+bw&&mouse_y>=wirey-22&&mouse_y<wirey+22?(mem[INST_TRANSPOSE_BASE+gi]=max(-48,tr-1);panic_pending=1;);
     ):typ==2?(
       rangemode=floor(mem[INST_RANGE_MODE_BASE+gi]+.5);draw_transform_block(tx,wirey-22,bw,44,"NOTE RANGE",1);gfx_setfont(1,"Arial",10);gfx_set(.95,.95,.15,1);
-      rangemode==0?centered_text(tx,wirey-2,bw,12,"FULL"):rangemode==1?(gfx_x=tx+17;gfx_y=wirey-2;gfx_drawstr("DOWN ");draw_note_name(mem[INST_RANGE_LOW_BASE+gi],tx+73,wirey-2);):rangemode==2?(gfx_x=tx+25;gfx_y=wirey-2;gfx_drawstr("UP ");draw_note_name(mem[INST_RANGE_HIGH_BASE+gi],tx+67,wirey-2);):(draw_note_name(mem[INST_RANGE_LOW_BASE+gi],tx+31,wirey-2);gfx_x=tx+62;gfx_y=wirey-2;gfx_drawstr(" > ");draw_note_name(mem[INST_RANGE_HIGH_BASE+gi],tx+80,wirey-2););
-      hit(tx,wirey-22,bw,44)?(mem[INST_RANGE_MODE_BASE+gi]=(rangemode+1)%4;panic_pending=1;);
+      // Top/title area cycles mode. Bottom note fields edit the actual limits.
+      hit(tx+4,wirey-20,bw-20,18)?(mem[INST_RANGE_MODE_BASE+gi]=(rangemode+1)%4;panic_pending=1;);
+      rangemode==0?centered_text(tx,wirey-2,bw,12,"FULL"):
+      rangemode==1?(
+        gfx_x=tx+15;gfx_y=wirey-2;gfx_drawstr("DOWN");
+        draw_note_name(mem[INST_RANGE_LOW_BASE+gi],tx+76,wirey-2);
+        hit(tx+68,wirey-5,50,18)?(mem[INST_RANGE_LOW_BASE+gi]=min(127,mem[INST_RANGE_LOW_BASE+gi]+1);panic_pending=1;);
+        (mouse_cap&2)&&!(last_mouse_cap&2)&&mouse_x>=tx+68&&mouse_x<tx+118&&mouse_y>=wirey-5&&mouse_y<wirey+13?(mem[INST_RANGE_LOW_BASE+gi]=max(0,mem[INST_RANGE_LOW_BASE+gi]-1);panic_pending=1;);
+      ):rangemode==2?(
+        gfx_x=tx+25;gfx_y=wirey-2;gfx_drawstr("UP");
+        draw_note_name(mem[INST_RANGE_HIGH_BASE+gi],tx+72,wirey-2);
+        hit(tx+64,wirey-5,54,18)?(mem[INST_RANGE_HIGH_BASE+gi]=min(127,mem[INST_RANGE_HIGH_BASE+gi]+1);panic_pending=1;);
+        (mouse_cap&2)&&!(last_mouse_cap&2)&&mouse_x>=tx+64&&mouse_x<tx+118&&mouse_y>=wirey-5&&mouse_y<wirey+13?(mem[INST_RANGE_HIGH_BASE+gi]=max(0,mem[INST_RANGE_HIGH_BASE+gi]-1);panic_pending=1;);
+      ):(
+        draw_note_name(mem[INST_RANGE_LOW_BASE+gi],tx+24,wirey-2);gfx_x=tx+57;gfx_y=wirey-2;gfx_drawstr(">");
+        draw_note_name(mem[INST_RANGE_HIGH_BASE+gi],tx+82,wirey-2);
+        hit(tx+16,wirey-5,40,18)?(mem[INST_RANGE_LOW_BASE+gi]=min(127,mem[INST_RANGE_LOW_BASE+gi]+1);panic_pending=1;);
+        hit(tx+76,wirey-5,42,18)?(mem[INST_RANGE_HIGH_BASE+gi]=min(127,mem[INST_RANGE_HIGH_BASE+gi]+1);panic_pending=1;);
+        (mouse_cap&2)&&!(last_mouse_cap&2)&&mouse_x>=tx+16&&mouse_x<tx+56&&mouse_y>=wirey-5&&mouse_y<wirey+13?(mem[INST_RANGE_LOW_BASE+gi]=max(0,mem[INST_RANGE_LOW_BASE+gi]-1);panic_pending=1;);
+        (mouse_cap&2)&&!(last_mouse_cap&2)&&mouse_x>=tx+76&&mouse_x<tx+118&&mouse_y>=wirey-5&&mouse_y<wirey+13?(mem[INST_RANGE_HIGH_BASE+gi]=max(0,mem[INST_RANGE_HIGH_BASE+gi]-1);panic_pending=1;);
+      );
     ):typ==3?(
       notemode=floor(mem[INST_NOTE_MODE_BASE+gi]+.5);draw_transform_block(tx,wirey-22,bw,44,"POLYPHONY",1);gfx_setfont(1,"Arial",10);gfx_set(.95,.95,.15,1);centered_text(tx,wirey-2,bw,12,notemode==0?"POLY":notemode==1?"BASS":notemode==2?"LAST":"LEGATO");
       hit(tx,wirey-22,bw,44)?(mem[INST_NOTE_MODE_BASE+gi]=(notemode+1)%4;panic_pending=1;);
@@ -2293,6 +2334,9 @@ local(boxh,nx,nw,basey,bh,vx,vw,wirey,tx,bw,gap,tr,rangemode,notemode,arpon,c,k,
       draw_exp_badge(ti,vx,wirey-2,vw,14);
       gfx_setfont(1,"Arial",8);gfx_set(.95,.95,.15,1);gfx_x=tx+bw-39;gfx_y=wirey;gfx_drawstr("CC");gfx_drawnumber(mem[INST_LEVEL_CC_BASE+gi],0);
     );
+    // Tiny remove control, independent from transformer body.
+    gfx_setfont(1,"Arial",9);gfx_set(.78,.78,.78,1);gfx_x=tx+bw-12;gfx_y=wirey-19;gfx_drawstr("x");
+    hit(tx+bw-18,wirey-22,18,18)?(transform_remove_slot(gi,k);c-=1;k-=1;);
     tx+=bw+gap;k+=1;
   );
   addx=min(tx,842);addy=wirey-14;
@@ -2327,10 +2371,8 @@ draw_instrument_row(0,inst_y);
 draw_instrument_row(1,inst_y+120);
 draw_instrument_row(2,inst_y+240);
 
-// Floating chooser pass: last draw wins, so menus sit above every instrument card.
-draw_transform_menu_overlay(0,inst_y);
-draw_transform_menu_overlay(1,inst_y+120);
-draw_transform_menu_overlay(2,inst_y+240);
+// Keep base Y for the final top-most transformer-menu overlay pass.
+transform_rows_y=inst_y;
 inst_y+=360;
 
 // EXP1 / EXP2 source monitors. They remain REAPER-automatable sliders.
@@ -2566,6 +2608,11 @@ exp_editor_ti>=0 ? (
 );
 
 // Present the scrolled viewport from the offscreen content buffer.
+// True top-most pass: nothing in the content buffer is drawn after these menus.
+draw_transform_menu_overlay(0,transform_rows_y);
+draw_transform_menu_overlay(1,transform_rows_y+120);
+draw_transform_menu_overlay(2,transform_rows_y+240);
+
 gfx_dest=-1;
 gfx_set(0,0,0,1); gfx_rect(0,0,gfx_w,gfx_h,1);
 gfx_blit(1,1,0, 0,ui_scroll,gfx_w,gfx_h, 0,0,gfx_w,gfx_h);

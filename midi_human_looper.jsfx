@@ -1,6 +1,10 @@
-desc:MIDI Human Looper v1.4.11
+desc:MIDI Human Looper v1.4.12
 
 // Free-time MIDI phrase instrument prototype for REAPER JSFX.
+// v1.4.12:
+// - move ALL function declarations out of @init and before every executable section
+// - fixes REAPER section visibility: @slider/@block/@gfx can resolve clear_all(), clear_layer(), etc.
+// - no persistence redesign in this build
 // v1.4.11:
 // - rollback to exact known-good v1.4.4 codebase after persistence experiments broke compilation
 // - no persistence changes in this build; compile/runtime baseline only
@@ -124,137 +128,6 @@ slider8:0<0,16,1{ORIGINAL,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16}>MIDI OUT CHANN
 slider9:1<0.2,3,0.01>GLOBAL VELOCITY
 slider10:0<0,1,0.001>EXP A (TEST)
 slider11:0<0,1,0.001>EXP B (TEST)
-
-@init
-
-STATE_IDLE = 0;
-STATE_READY = 1;
-STATE_RECORDING = 2;
-STATE_PLAYING = 3;
-STATE_STOPPED = 4;
-
-MAX_ONCE_VOICES = 12;
-
-state = STATE_IDLE;
-
-LAYERS = 16;
-// 2048 events/phrase keeps 16 phrases + two serialized patch banks comfortably below JSFX memory ceiling.
-MAX_EVENTS_PER_LAYER = 2048;
-EV_SIZE = 5;
-LAYER_STRIDE = MAX_EVENTS_PER_LAYER * EV_SIZE;
-
-// per-layer arrays live after event memory
-COUNT_BASE = LAYERS * LAYER_STRIDE;
-MUTE_BASE = COUNT_BASE + LAYERS;
-SOLO_BASE = MUTE_BASE + LAYERS;
-VEL_BASE = SOLO_BASE + LAYERS;
-MODE_BASE = VEL_BASE + LAYERS;
-TRIG_BASE = MODE_BASE + LAYERS;
-ONCEPOS_BASE = TRIG_BASE + LAYERS;
-LEN_BASE = ONCEPOS_BASE + LAYERS;
-DECAY_BASE = LEN_BASE + LAYERS;
-REPEAT_BASE = DECAY_BASE + LAYERS;
-
-// INSTRUMENT routing table. 8 lightweight MIDI destinations.
-// IN: 0=ALL, 1..16 source channel. OUT: 0=ORIGINAL, 1..16 destination channel.
-// LEVEL and MOD are CC values (defaults CC11 Expression and CC1 Mod Wheel).
-INSTRUMENTS = 3;
-INST_IN_BASE = REPEAT_BASE + LAYERS;
-INST_OUT_BASE = INST_IN_BASE + INSTRUMENTS;
-INST_VEL_BASE = INST_OUT_BASE + INSTRUMENTS;
-INST_LEVEL_BASE = INST_VEL_BASE + INSTRUMENTS;
-INST_MOD_BASE = INST_LEVEL_BASE + INSTRUMENTS;
-INST_ENABLED_BASE = INST_MOD_BASE + INSTRUMENTS;
-WORK_MEM_SIZE = INST_ENABLED_BASE + INSTRUMENTS;
-PATCH_HEADER_SIZE = 12;
-PATCH_DATA_SIZE = PATCH_HEADER_SIZE + WORK_MEM_SIZE;
-PATCH1_BASE = WORK_MEM_SIZE + 64;
-PATCH2_BASE = PATCH1_BASE + PATCH_DATA_SIZE;
-
-// Runtime ONE SHOT voices must not overlap the large serialized patch banks.
-VOICE_ACTIVE_BASE = PATCH2_BASE + PATCH_DATA_SIZE + 64;
-VOICE_LAYER_BASE = VOICE_ACTIVE_BASE + MAX_ONCE_VOICES;
-VOICE_POS_BASE = VOICE_LAYER_BASE + MAX_ONCE_VOICES;
-VOICE_GAIN_BASE = VOICE_POS_BASE + MAX_ONCE_VOICES;
-
-// Runtime ownership counters for overlapping ONE SHOT MIDI voices.
-// MIDI has no voice ID: multiple Note Ons for the same channel/note share one Note Off.
-// We therefore emit the physical Note Off only when the last logical owner releases it.
-NOTE_REF_BASE = VOICE_GAIN_BASE + MAX_ONCE_VOICES;
-NOTE_REF_SIZE = 16 * 128;
-SUSTAIN_REF_BASE = NOTE_REF_BASE + NOTE_REF_SIZE;
-patch_valid1 = 0;
-patch_valid2 = 0;
-current_patch = 1;
-save_flash = 0;
-save_flash_patch = 0;
-last_trigger_layer = -1;
-trigger_request = -1;
-phrase_page = 0;
-PHRASES_PER_PAGE = 6;
-PHRASE_PAGES = 3;
-vi=0;
-loop(MAX_ONCE_VOICES,
-  mem[VOICE_ACTIVE_BASE+vi]=0;
-  mem[VOICE_LAYER_BASE+vi]=0;
-  mem[VOICE_POS_BASE+vi]=0;
-  mem[VOICE_GAIN_BASE+vi]=1;
-  vi+=1;
-);
-ri=0;
-loop(NOTE_REF_SIZE,
-  mem[NOTE_REF_BASE+ri]=0;
-  ri+=1;
-);
-ri=0;
-loop(16,
-  mem[SUSTAIN_REF_BASE+ri]=0;
-  ri+=1;
-);
-
-i=0;
-loop(LAYERS,
-  mem[COUNT_BASE+i]=0;
-  mem[MUTE_BASE+i]=0;
-  mem[SOLO_BASE+i]=0;
-  mem[VEL_BASE+i]=1;
-  mem[MODE_BASE+i]=0; // 0 LOOP, 1 ONCE
-  mem[TRIG_BASE+i]=0;
-  mem[ONCEPOS_BASE+i]=0;
-  mem[LEN_BASE+i]=0;
-  mem[DECAY_BASE+i]=0.8;
-  mem[REPEAT_BASE+i]=0;
-  i+=1;
-);
-
-// Instrument 1 enabled by default as transparent ALL -> ORIGINAL route.
-// Others are available but disabled until configured.
-ii=0;
-loop(INSTRUMENTS,
-  mem[INST_IN_BASE+ii]=0;
-  mem[INST_OUT_BASE+ii]=0;
-  mem[INST_VEL_BASE+ii]=1;
-  mem[INST_LEVEL_BASE+ii]=127;
-  mem[INST_MOD_BASE+ii]=0;
-  mem[INST_ENABLED_BASE+ii]=(ii==0);
-  ii+=1;
-);
-
-record_sample_pos = 0;
-loop_len_samples = 0;
-play_sample_pos = 0;
-analysis_done = 0;
-panic_pending = 0;
-
-record_layer = 0;
-overdub_armed = 0;
-overdub_active = 0;
-overdub_layer = 1;
-overdub_pos = 0;
-
-prev_readyplay=0;
-prev_abortstop=0;
-prev_clear=0;
 
 function layer_count(layer)
 local(addr)
@@ -641,6 +514,138 @@ local(grid,q,target)
     ) : ts;
   );
 );
+
+
+@init
+
+STATE_IDLE = 0;
+STATE_READY = 1;
+STATE_RECORDING = 2;
+STATE_PLAYING = 3;
+STATE_STOPPED = 4;
+
+MAX_ONCE_VOICES = 12;
+
+state = STATE_IDLE;
+
+LAYERS = 16;
+// 2048 events/phrase keeps 16 phrases + two serialized patch banks comfortably below JSFX memory ceiling.
+MAX_EVENTS_PER_LAYER = 2048;
+EV_SIZE = 5;
+LAYER_STRIDE = MAX_EVENTS_PER_LAYER * EV_SIZE;
+
+// per-layer arrays live after event memory
+COUNT_BASE = LAYERS * LAYER_STRIDE;
+MUTE_BASE = COUNT_BASE + LAYERS;
+SOLO_BASE = MUTE_BASE + LAYERS;
+VEL_BASE = SOLO_BASE + LAYERS;
+MODE_BASE = VEL_BASE + LAYERS;
+TRIG_BASE = MODE_BASE + LAYERS;
+ONCEPOS_BASE = TRIG_BASE + LAYERS;
+LEN_BASE = ONCEPOS_BASE + LAYERS;
+DECAY_BASE = LEN_BASE + LAYERS;
+REPEAT_BASE = DECAY_BASE + LAYERS;
+
+// INSTRUMENT routing table. 8 lightweight MIDI destinations.
+// IN: 0=ALL, 1..16 source channel. OUT: 0=ORIGINAL, 1..16 destination channel.
+// LEVEL and MOD are CC values (defaults CC11 Expression and CC1 Mod Wheel).
+INSTRUMENTS = 3;
+INST_IN_BASE = REPEAT_BASE + LAYERS;
+INST_OUT_BASE = INST_IN_BASE + INSTRUMENTS;
+INST_VEL_BASE = INST_OUT_BASE + INSTRUMENTS;
+INST_LEVEL_BASE = INST_VEL_BASE + INSTRUMENTS;
+INST_MOD_BASE = INST_LEVEL_BASE + INSTRUMENTS;
+INST_ENABLED_BASE = INST_MOD_BASE + INSTRUMENTS;
+WORK_MEM_SIZE = INST_ENABLED_BASE + INSTRUMENTS;
+PATCH_HEADER_SIZE = 12;
+PATCH_DATA_SIZE = PATCH_HEADER_SIZE + WORK_MEM_SIZE;
+PATCH1_BASE = WORK_MEM_SIZE + 64;
+PATCH2_BASE = PATCH1_BASE + PATCH_DATA_SIZE;
+
+// Runtime ONE SHOT voices must not overlap the large serialized patch banks.
+VOICE_ACTIVE_BASE = PATCH2_BASE + PATCH_DATA_SIZE + 64;
+VOICE_LAYER_BASE = VOICE_ACTIVE_BASE + MAX_ONCE_VOICES;
+VOICE_POS_BASE = VOICE_LAYER_BASE + MAX_ONCE_VOICES;
+VOICE_GAIN_BASE = VOICE_POS_BASE + MAX_ONCE_VOICES;
+
+// Runtime ownership counters for overlapping ONE SHOT MIDI voices.
+// MIDI has no voice ID: multiple Note Ons for the same channel/note share one Note Off.
+// We therefore emit the physical Note Off only when the last logical owner releases it.
+NOTE_REF_BASE = VOICE_GAIN_BASE + MAX_ONCE_VOICES;
+NOTE_REF_SIZE = 16 * 128;
+SUSTAIN_REF_BASE = NOTE_REF_BASE + NOTE_REF_SIZE;
+patch_valid1 = 0;
+patch_valid2 = 0;
+current_patch = 1;
+save_flash = 0;
+save_flash_patch = 0;
+last_trigger_layer = -1;
+trigger_request = -1;
+phrase_page = 0;
+PHRASES_PER_PAGE = 6;
+PHRASE_PAGES = 3;
+vi=0;
+loop(MAX_ONCE_VOICES,
+  mem[VOICE_ACTIVE_BASE+vi]=0;
+  mem[VOICE_LAYER_BASE+vi]=0;
+  mem[VOICE_POS_BASE+vi]=0;
+  mem[VOICE_GAIN_BASE+vi]=1;
+  vi+=1;
+);
+ri=0;
+loop(NOTE_REF_SIZE,
+  mem[NOTE_REF_BASE+ri]=0;
+  ri+=1;
+);
+ri=0;
+loop(16,
+  mem[SUSTAIN_REF_BASE+ri]=0;
+  ri+=1;
+);
+
+i=0;
+loop(LAYERS,
+  mem[COUNT_BASE+i]=0;
+  mem[MUTE_BASE+i]=0;
+  mem[SOLO_BASE+i]=0;
+  mem[VEL_BASE+i]=1;
+  mem[MODE_BASE+i]=0; // 0 LOOP, 1 ONCE
+  mem[TRIG_BASE+i]=0;
+  mem[ONCEPOS_BASE+i]=0;
+  mem[LEN_BASE+i]=0;
+  mem[DECAY_BASE+i]=0.8;
+  mem[REPEAT_BASE+i]=0;
+  i+=1;
+);
+
+// Instrument 1 enabled by default as transparent ALL -> ORIGINAL route.
+// Others are available but disabled until configured.
+ii=0;
+loop(INSTRUMENTS,
+  mem[INST_IN_BASE+ii]=0;
+  mem[INST_OUT_BASE+ii]=0;
+  mem[INST_VEL_BASE+ii]=1;
+  mem[INST_LEVEL_BASE+ii]=127;
+  mem[INST_MOD_BASE+ii]=0;
+  mem[INST_ENABLED_BASE+ii]=(ii==0);
+  ii+=1;
+);
+
+record_sample_pos = 0;
+loop_len_samples = 0;
+play_sample_pos = 0;
+analysis_done = 0;
+panic_pending = 0;
+
+record_layer = 0;
+overdub_armed = 0;
+overdub_active = 0;
+overdub_layer = 1;
+overdub_pos = 0;
+
+prev_readyplay=0;
+prev_abortstop=0;
+prev_clear=0;
 
 @serialize
 file_var(0,patch_valid1);

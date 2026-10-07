@@ -1,7 +1,11 @@
-desc:MIDI Human Looper v1.17.3
+desc:MIDI Human Looper v1.17.4
 options:gmem=MIDI_HUMAN_LOOPER
 
 // Free-time MIDI phrase instrument prototype for REAPER JSFX.
+// v1.17.4:
+// - add hard square header: MIDI BAD MOTHERFUCKER V.1.17.4 / ANONYMALZ LIVE ENGINE
+// - compact READY / ABORT / CLEAR ALL to the same 92x30 format as OPTIONS
+// - move transport / patch rows below the new header
 // v1.17.3:
 // - hide REAPER's native parameter sliders: the plugin is now driven from its custom UI
 // - keep legacy/internal slider variables available to the engine without exposing the old control strip
@@ -1883,9 +1887,17 @@ edit_name_type>0 && keychar>0 ? (
   edit_name_type==1 ? edit_name_key(PHRASE_NAME_BASE+edit_name_index*NAME_CHARS,keychar) :
   edit_name_type==2 ? edit_name_key(INSTR_NAME_BASE+edit_name_index*NAME_CHARS,keychar);
 );
-smallbtn(790,18,92,30,"OPTIONS",options_open);
-hit(790,18,92,30)?(options_open=1-options_open;controller_assign_ti=-1;);
-bx=20; by=18; bw=160; bh=44; gap=12;
+// Hard square identity header.
+gfx_set(.055,.055,.055,1);gfx_rect(12,10,1010,48,1);
+gfx_set(.42,.42,.42,1);gfx_rect(12,10,1010,48,0);
+gfx_setfont(1,"Courier New",22,'b');gfx_set(.94,.94,.94,1);
+gfx_x=24;gfx_y=20;gfx_drawstr("MIDI BAD MOTHERFUCKER V.1.17.4");
+gfx_setfont(1,"Courier New",14,'b');gfx_set(.68,.68,.68,1);
+gfx_x=760;gfx_y=25;gfx_drawstr("ANONYMALZ LIVE ENGINE");
+
+smallbtn(790,68,92,30,"OPTIONS",options_open);
+hit(790,68,92,30)?(options_open=1-options_open;controller_assign_ti=-1;);
+bx=20; by=68; bw=92; bh=30; gap=10;
 
 rp_label="READY";
 state==STATE_RECORDING ? rp_label="PLAY";
@@ -1896,10 +1908,10 @@ as_label="ABORT";
 state==STATE_PLAYING || state==STATE_STOPPED ? as_label="STOP";
 button(bx+bw+gap,by,bw,bh,as_label,state==STATE_STOPPED);
 
-button(bx+(bw+gap)*2,by,110,bh,"CLEAR ALL",0);
+button(bx+(bw+gap)*2,by,bw,bh,"CLEAR ALL",0);
 
 // two persistent patch slots
-py=76;
+py=108;
 smallbtn(20,py,70,30,"PATCH 1",current_patch==1);
 smallbtn(96,py,52,30,"SAVE",0);
 smallbtn(170,py,70,30,"PATCH 2",current_patch==2);
@@ -1915,18 +1927,18 @@ hit(310,py,92,30) ? external_patch_load_request(current_patch);
 save_flash>0 ? (
   gfx_set(0.82,0.82,0.82,1);
   gfx_setfont(1,"Arial",13);
-  gfx_x=420; gfx_y=84;
+  gfx_x=420; gfx_y=116;
   gfx_drawstr("PATCH ");
   gfx_drawnumber(save_flash_patch,0);
   gfx_drawstr(" SAVED");
 );
 
 gfx_setfont(1,"Arial",12);
-gfx_x=420; gfx_y=84;
+gfx_x=420; gfx_y=116;
 gmem[15]>0.5 ? gfx_drawstr("FILE I/O READY") : gfx_drawstr("RUN PATCH I/O SCRIPT");
-io_status==3 ? (gfx_x=560; gfx_y=84; gfx_drawstr("LOADED"););
-io_status==4 ? (gfx_x=560; gfx_y=84; gfx_drawstr("SAVED"););
-io_status==5 ? (gfx_x=560; gfx_y=84; gfx_drawstr("I/O ERROR"););
+io_status==3 ? (gfx_x=560; gfx_y=116; gfx_drawstr("LOADED"););
+io_status==4 ? (gfx_x=560; gfx_y=116; gfx_drawstr("SAVED"););
+io_status==5 ? (gfx_x=560; gfx_y=116; gfx_drawstr("I/O ERROR"););
 
 hit(bx,by,bw,bh) ? (
   loop_len_samples>0 && (state==STATE_STOPPED || state==STATE_IDLE) ? (
@@ -2684,7 +2696,7 @@ controller_assign_ti>=0 ? (
 );
 
 options_open ? (
-  ox=560;oy=54;ow=322;oh=178;gfx_set(.025,.025,.025,1);gfx_rect(ox,oy,ow,oh,1);gfx_set(.82,.82,.82,1);gfx_rect(ox,oy,ow,oh,0);
+  ox=560;oy=104;ow=322;oh=178;gfx_set(.025,.025,.025,1);gfx_rect(ox,oy,ow,oh,1);gfx_set(.82,.82,.82,1);gfx_rect(ox,oy,ow,oh,0);
   gfx_setfont(1,"Arial",15);gfx_set(.9,.9,.9,1);gfx_x=ox+12;gfx_y=oy+10;gfx_drawstr("CONTROLLERS");
   ci=0;loop(CONTROLLERS,
     cy=oy+38+ci*31;gfx_setfont(1,"Arial",11);gfx_set(.82,.82,.82,1);gfx_x=ox+12;gfx_y=cy+6;gfx_drawstr(controller_name(ci));

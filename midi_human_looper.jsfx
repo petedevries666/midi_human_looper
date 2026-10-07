@@ -1,6 +1,10 @@
-desc:MIDI Human Looper v1.4.20
+desc:MIDI Human Looper v1.4.21
 
 // Free-time MIDI phrase instrument prototype for REAPER JSFX.
+// v1.4.21:
+// - RESTORE click now only queues a request; actual bank restore runs safely in @block
+// - state label moved away from RESTORE button
+// - visible RESTORE REQUESTED feedback confirms the click
 // v1.4.20:
 // - temporary RESTORE button force-loads the selected serialized patch bank
 // - useful for update/recall diagnostics; does not autosave or change patch layout
@@ -226,6 +230,8 @@ CC_DIRTY_MOD_BASE = CC_DIRTY_BASE + INSTRUMENTS;
 (patch_valid1<=0 && patch_valid2<=0 && (current_patch<1 || current_patch>2)) ? current_patch=1;
 save_flash = 0;
 save_flash_patch = 0;
+restore_request = 0;
+restore_flash = 0;
 last_trigger_layer = -1;
 trigger_request = -1;
 phrase_page = 0;
@@ -762,6 +768,15 @@ loop(INSTRUMENTS,
 save_flash>0 ? save_flash-=samplesblock;
 save_flash<0 ? save_flash=0;
 
+restore_flash>0 ? restore_flash-=samplesblock;
+restore_flash<0 ? restore_flash=0;
+
+restore_request ? (
+  restore_request=0;
+  panic_pending=1;
+  restore_current_patch_raw();
+);
+
 panic_pending ? (
   send_all_notes_off();
   panic_pending=0;
@@ -1032,8 +1047,8 @@ hit(246,py,52,30) ? save_patch(2);
 // Diagnostic/manual recovery: force-copy the currently selected serialized bank
 // into working RAM even when current_patch already equals that slot.
 hit(310,py,92,30) ? (
-  panic_pending=1;
-  restore_current_patch_raw();
+  restore_request=1;
+  restore_flash=srate*1.5;
 );
 
 save_flash>0 ? (
@@ -1043,6 +1058,13 @@ save_flash>0 ? (
   gfx_drawstr("PATCH ");
   gfx_drawnumber(save_flash_patch,0);
   gfx_drawstr(" SAVED");
+);
+
+restore_flash>0 ? (
+  gfx_set(0.82,0.82,0.82,1);
+  gfx_setfont(1,"Arial",13);
+  gfx_x=420; gfx_y=84;
+  gfx_drawstr("RESTORE REQUESTED");
 );
 
 hit(bx,by,bw,bh) ? (
@@ -1098,7 +1120,7 @@ hit(bx+(bw+gap)*2,by,110,bh) ? (
 
 gfx_set(0.82,0.82,0.82,1);
 gfx_setfont(1,"Arial",21);
-gfx_x=330; gfx_y=82;
+gfx_x=540; gfx_y=30;
 state==STATE_IDLE ? gfx_drawstr("IDLE") :
 state==STATE_READY ? (
   gfx_drawstr("READY L");

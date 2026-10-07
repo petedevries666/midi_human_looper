@@ -1,6 +1,10 @@
-desc:MIDI Human Looper v1.4.5
+desc:MIDI Human Looper v1.4.6
 
 // Free-time MIDI phrase instrument prototype for REAPER JSFX.
+// v1.4.6:
+// - FIX project recall: @init no longer overwrites memory restored by @serialize
+// - one-time defaults are applied from @serialize only when REAPER is creating a genuinely fresh instance
+// - existing v1.4.x JS_SER patch banks remain at their original addresses
 // v1.4.5:
 // - compatibility rule: serialized patch-bank layout is now frozen for the v1.x prototype
 // - future features must append persistent data after existing fields, never move/reinterpret phrase/event banks
@@ -186,9 +190,8 @@ VOICE_GAIN_BASE = VOICE_POS_BASE + MAX_ONCE_VOICES;
 NOTE_REF_BASE = VOICE_GAIN_BASE + MAX_ONCE_VOICES;
 NOTE_REF_SIZE = 16 * 128;
 SUSTAIN_REF_BASE = NOTE_REF_BASE + NOTE_REF_SIZE;
-patch_valid1 = 0;
-patch_valid2 = 0;
-current_patch = 1;
+// IMPORTANT: do not initialize serialized patch flags here. @init can run after REAPER restores JS_SER.
+// Fresh-instance defaults are handled in @serialize when file_avail(0) < 0.
 save_flash = 0;
 save_flash_patch = 0;
 last_trigger_layer = -1;
@@ -232,16 +235,8 @@ loop(LAYERS,
 
 // Instrument 1 enabled by default as transparent ALL -> ORIGINAL route.
 // Others are available but disabled until configured.
-ii=0;
-loop(INSTRUMENTS,
-  mem[INST_IN_BASE+ii]=0;
-  mem[INST_OUT_BASE+ii]=0;
-  mem[INST_VEL_BASE+ii]=1;
-  mem[INST_LEVEL_BASE+ii]=127;
-  mem[INST_MOD_BASE+ii]=0;
-  mem[INST_ENABLED_BASE+ii]=(ii==0);
-  ii+=1;
-);
+// Do not write persistent instrument defaults in @init: that would erase restored JS_SER state.
+// Fresh instances receive these defaults in @serialize.
 
 record_sample_pos = 0;
 loop_len_samples = 0;
@@ -649,10 +644,50 @@ local(grid,q,target)
 );
 
 @serialize
-file_var(0,patch_valid1);
-file_var(0,patch_valid2);
-file_var(0,current_patch);
-file_mem(0,PATCH1_BASE,PATCH_DATA_SIZE*2);
+// REAPER calls @serialize for both save and load.
+// file_avail(0) < 0 means no serialized stream is available: genuinely fresh instance.
+// Crucially, persistent defaults must NOT live in @init because @init may run after state restoration.
+file_avail(0) < 0 ? (
+  patch_valid1=0;
+  patch_valid2=0;
+  current_patch=1;
+  ii=0;
+  loop(INSTRUMENTS,
+    mem[INST_IN_BASE+ii]=0;
+    mem[INST_OUT_BASE+ii]=0;
+    mem[INST_VEL_BASE+ii]=1;
+    mem[INST_LEVEL_BASE+ii]=127;
+    mem[INST_MOD_BASE+ii]=0;
+    mem[INST_ENABLED_BASE+ii]=(ii==0);
+    ii+=1;
+  );
+) : (
+  file_var(0,patch_valid1);
+  file_var(0,patch_valid2);
+  file_var(0,current_patch);
+  file_mem(0,PATCH1_BASE,PATCH_DATA_SIZE*2);
+  // Restore the selected saved bank into working memory immediately.
+  // load_patch() cannot do this because it intentionally no-ops when slot == current_patch.
+  pb = current_patch==2 ? PATCH2_BASE : PATCH1_BASE;
+  valid = current_patch==2 ? patch_valid2 : patch_valid1;
+  valid ? (
+    j=0;
+    loop(WORK_MEM_SIZE,
+      mem[j]=mem[pb+PATCH_HEADER_SIZE+j];
+      j+=1;
+    );
+    loop_len_samples=mem[pb+0];
+    analysis_done=mem[pb+1];
+    slider4=mem[pb+2];
+    slider5=mem[pb+3];
+    slider6=mem[pb+4];
+    slider7=mem[pb+5];
+    slider8=mem[pb+6];
+    slider9=mem[pb+7];
+    record_layer=mem[pb+8];
+    state=loop_len_samples>0 ? STATE_STOPPED : STATE_IDLE;
+  );
+);
 
 @slider
 

@@ -1,7 +1,11 @@
-desc:MIDI Human Looper v1.6.0
+desc:MIDI Human Looper v1.6.1
 options:gmem=MIDI_HUMAN_LOOPER
 
 // Free-time MIDI phrase instrument prototype for REAPER JSFX.
+// v1.6.1:
+// - POST ARP now has explicit MODE ON/OFF and HOLD ON/OFF per instrument
+// - HOLD OFF follows source Note Offs and stops when no source notes remain
+// - HOLD ON latches the current note pool; switching HOLD off clears the latch safely
 // v1.6.0:
 // - first POST instrument arpeggiator prototype: RANDOM mode only
 // - independent ARP ON/OFF, RATE (x BPM) and GATE per instrument
@@ -233,7 +237,8 @@ INST_LEVEL_CC_BASE = INST_ENABLED_BASE + INSTRUMENTS;
 INST_ARP_ENABLED_BASE = INST_LEVEL_CC_BASE + INSTRUMENTS;
 INST_ARP_RATE_BASE = INST_ARP_ENABLED_BASE + INSTRUMENTS;
 INST_ARP_GATE_BASE = INST_ARP_RATE_BASE + INSTRUMENTS;
-WORK_MEM_SIZE = INST_ARP_GATE_BASE + INSTRUMENTS;
+INST_ARP_HOLD_BASE = INST_ARP_GATE_BASE + INSTRUMENTS;
+WORK_MEM_SIZE = INST_ARP_HOLD_BASE + INSTRUMENTS;
 PATCH_HEADER_SIZE = 12;
 PATCH_DATA_SIZE = PATCH_HEADER_SIZE + WORK_MEM_SIZE;
 PATCH1_BASE = WORK_MEM_SIZE + 64;
@@ -261,6 +266,7 @@ ARP_ACTIVE_NOTE_BASE = ARP_HELD_VEL_BASE + INSTRUMENTS*128;
 ARP_ACTIVE_CH_BASE = ARP_ACTIVE_NOTE_BASE + INSTRUMENTS;
 ARP_STEP_REMAIN_BASE = ARP_ACTIVE_CH_BASE + INSTRUMENTS;
 ARP_GATE_REMAIN_BASE = ARP_STEP_REMAIN_BASE + INSTRUMENTS;
+ARP_SOURCE_COUNT_BASE = ARP_GATE_REMAIN_BASE + INSTRUMENTS;
 // patch_valid1 / patch_valid2 / current_patch are serialized state.
 // Do NOT clear them here: REAPER may call @init after @serialize.
 (patch_valid1<=0 && patch_valid2<=0 && (current_patch<1 || current_patch>2)) ? current_patch=1;
@@ -304,6 +310,7 @@ loop(INSTRUMENTS,
   loop(128,
     mem[ARP_HELD_COUNT_BASE+ii*128+nn]=0;
     mem[ARP_HELD_VEL_BASE+ii*128+nn]=0;
+    mem[ARP_SOURCE_COUNT_BASE+ii*128+nn]=0;
     nn+=1;
   );
   ii+=1;
@@ -338,6 +345,7 @@ loop(INSTRUMENTS,
   mem[INST_ARP_ENABLED_BASE+ii]=0;
   mem[INST_ARP_RATE_BASE+ii]=4;   // x BPM: 4 = 16th notes
   mem[INST_ARP_GATE_BASE+ii]=0.5;
+  mem[INST_ARP_HOLD_BASE+ii]=0;
   ii+=1;
 );
 
@@ -512,15 +520,32 @@ local(count,base)
 );
 
 function arp_capture_note(gi, outst, note, vel, is_on)
-local(idx,cnt)
+local(idx,sidx)
 (
   idx=ARP_HELD_COUNT_BASE+gi*128+note;
+  sidx=ARP_SOURCE_COUNT_BASE+gi*128+note;
   is_on ? (
+    mem[sidx]+=1;
     mem[idx]+=1;
     mem[ARP_HELD_VEL_BASE+gi*128+note]=vel;
     mem[ARP_ACTIVE_CH_BASE+gi]=outst&15;
   ) : (
-    mem[idx]=max(0,mem[idx]-1);
+    mem[sidx]=max(0,mem[sidx]-1);
+    // HOLD OFF follows source releases. HOLD ON keeps the note latched.
+    mem[INST_ARP_HOLD_BASE+gi]<0.5 ? mem[idx]=max(0,mem[idx]-1);
+  );
+);
+
+function arp_clear_latch(gi)
+local(n,sidx,hidx)
+(
+  n=0;
+  loop(128,
+    sidx=ARP_SOURCE_COUNT_BASE+gi*128+n;
+    hidx=ARP_HELD_COUNT_BASE+gi*128+n;
+    // When leaving HOLD, retain only notes that are physically/source-held now.
+    mem[hidx]=mem[sidx];
+    n+=1;
   );
 );
 
@@ -1456,7 +1481,7 @@ loop(PHRASES_PER_PAGE,
 // --- INSTRUMENTS -----------------------------------------------------------
 // Explicit per-row renderer: gi is a function parameter/local, so I1/I2/I3 cannot alias.
 function draw_instrument_row(gi, iy)
-local(ivx,ivw,ivn,ilx,ilw,imx,imw,ccx,arx,rrx,rrw,grx,grw,rnorm,gnorm)
+local(ivx,ivw,ivn,ilx,ilw,imx,imw,ccx,arx,holdx,rrx,rrw,grx,grw,rnorm,gnorm,nn)
 (
   gfx_setfont(1,"Arial",13);
   gfx_x=20; gfx_y=iy+7; gfx_drawstr("I"); gfx_drawnumber(gi+1,0);
@@ -1512,25 +1537,40 @@ local(ivx,ivw,ivn,ilx,ilw,imx,imw,ccx,arx,rrx,rrw,grx,grw,rnorm,gnorm)
 
   // POST ARP prototype: RANDOM only.
   arx=105;
-  smallbtn(arx,iy+30,82,22,mem[INST_ARP_ENABLED_BASE+gi]>0.5 ? "ARP RANDOM" : "ARP OFF",mem[INST_ARP_ENABLED_BASE+gi]>0.5);
-  hit(arx,iy+30,82,22) ? (
+  smallbtn(arx,iy+30,70,22,mem[INST_ARP_ENABLED_BASE+gi]>0.5 ? "MODE ON" : "MODE OFF",mem[INST_ARP_ENABLED_BASE+gi]>0.5);
+  hit(arx,iy+30,70,22) ? (
     mem[INST_ARP_ENABLED_BASE+gi]=1-mem[INST_ARP_ENABLED_BASE+gi];
-    mem[INST_ARP_ENABLED_BASE+gi]<0.5 ? arp_release_instrument(gi);
+    mem[INST_ARP_ENABLED_BASE+gi]<0.5 ? (
+      arp_release_instrument(gi);
+      nn=0;
+      loop(128,
+        mem[ARP_HELD_COUNT_BASE+gi*128+nn]=0;
+        mem[ARP_SOURCE_COUNT_BASE+gi*128+nn]=0;
+        nn+=1;
+      );
+    );
+  );
+
+  holdx=181;
+  smallbtn(holdx,iy+30,66,22,mem[INST_ARP_HOLD_BASE+gi]>0.5 ? "HOLD ON" : "HOLD OFF",mem[INST_ARP_HOLD_BASE+gi]>0.5);
+  hit(holdx,iy+30,66,22) ? (
+    mem[INST_ARP_HOLD_BASE+gi]=1-mem[INST_ARP_HOLD_BASE+gi];
+    mem[INST_ARP_HOLD_BASE+gi]<0.5 ? arp_clear_latch(gi);
   );
 
   gfx_setfont(1,"Arial",11);
-  gfx_x=198; gfx_y=iy+34; gfx_drawstr("RATE");
-  rrx=235; rrw=120;
+  gfx_x=257; gfx_y=iy+34; gfx_drawstr("RATE");
+  rrx=294; rrw=92;
   gfx_set(0.22,0.22,0.22,1); gfx_rect(rrx,iy+33,rrw,12,1);
   rnorm=(mem[INST_ARP_RATE_BASE+gi]-0.25)/15.75; rnorm=max(0,min(1,rnorm));
   gfx_set(0.7,0.7,0.7,1); gfx_rect(rrx,iy+33,rrw*rnorm,12,1);
   mouse_cap&1 && mouse_x>=rrx && mouse_x<rrx+rrw && mouse_y>=iy+29 && mouse_y<iy+49 ? (
     mem[INST_ARP_RATE_BASE+gi]=0.25+15.75*((mouse_x-rrx)/rrw);
   );
-  gfx_x=360; gfx_y=iy+34; gfx_drawnumber(mem[INST_ARP_RATE_BASE+gi],2); gfx_drawstr("x");
+  gfx_x=391; gfx_y=iy+34; gfx_drawnumber(mem[INST_ARP_RATE_BASE+gi],2); gfx_drawstr("x");
 
-  gfx_x=425; gfx_y=iy+34; gfx_drawstr("GATE");
-  grx=462; grw=120;
+  gfx_x=455; gfx_y=iy+34; gfx_drawstr("GATE");
+  grx=492; grw=92;
   gfx_set(0.22,0.22,0.22,1); gfx_rect(grx,iy+33,grw,12,1);
   gnorm=mem[INST_ARP_GATE_BASE+gi]; gnorm=max(0.02,min(1,gnorm));
   gfx_set(0.7,0.7,0.7,1); gfx_rect(grx,iy+33,grw*gnorm,12,1);

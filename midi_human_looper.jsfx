@@ -1,6 +1,9 @@
-desc:MIDI Human Looper v1.4.9
+desc:MIDI Human Looper v1.4.10
 
 // Free-time MIDI phrase instrument prototype for REAPER JSFX.
+// v1.4.10:
+// - compile repair: avoid ternary assignment expression at start of @init
+// - audit @slider dependencies against @init function declarations
 // v1.4.9:
 // - rebuild from intact v1.4.6 after v1.4.7/v1.4.8 accidental source truncation
 // - correct @serialize read/write direction
@@ -146,7 +149,7 @@ STATE_STOPPED = 4;
 
 MAX_ONCE_VOICES = 12;
 
-serialized_loaded ? 0 : state = STATE_IDLE;
+!serialized_loaded ? ( state = STATE_IDLE; );
 
 LAYERS = 16;
 // 2048 events/phrase keeps 16 phrases + two serialized patch banks comfortably below JSFX memory ceiling.

@@ -1,7 +1,13 @@
-desc:MIDI Human Looper v1.15.0
+desc:MIDI Human Looper v1.16.0
 options:gmem=MIDI_HUMAN_LOOPER
 
 // Free-time MIDI phrase instrument prototype for REAPER JSFX.
+// v1.16.0:
+// - instruments now start visually clean with no transformer blocks
+// - add per-instrument ADD TRANSFORMER button and compact chooser
+// - chosen transformers are appended to the visible Helix-style signal chain
+// - transformer presence/order is persisted separately from each transformer's settings
+// - existing DSP behavior is preserved for now; this release establishes the modular UI/data model
 // v1.15.0:
 // - first TRANSFORMER-chain UI: stripped-back Helix-style instrument base + connected processing blocks
 // - instrument base is now NAME / ON / MIDI IN / MIDI OUT / VOLUME
@@ -369,7 +375,11 @@ INST_RANGE_MODE_BASE = INST_NOTE_MODE_BASE + INSTRUMENTS; // 0 FULL, 1 DOWN, 2 U
 INST_RANGE_LOW_BASE = INST_RANGE_MODE_BASE + INSTRUMENTS;
 INST_RANGE_HIGH_BASE = INST_RANGE_LOW_BASE + INSTRUMENTS;
 INST_TRANSPOSE_BASE = INST_RANGE_HIGH_BASE + INSTRUMENTS; // -48..+48 semitones
-WORK_MEM_SIZE = INST_TRANSPOSE_BASE + INSTRUMENTS;
+TRANSFORM_TYPES=6; // 1 transpose, 2 range, 3 polyphony, 4 velocity, 5 arp, 6 cc/mod
+TRANSFORM_SLOTS=6;
+INST_TRANSFORM_COUNT_BASE = INST_TRANSPOSE_BASE + INSTRUMENTS;
+INST_TRANSFORM_TYPE_BASE = INST_TRANSFORM_COUNT_BASE + INSTRUMENTS;
+WORK_MEM_SIZE = INST_TRANSFORM_TYPE_BASE + INSTRUMENTS*TRANSFORM_SLOTS;
 PATCH_HEADER_SIZE = 12;
 PATCH_DATA_SIZE = PATCH_HEADER_SIZE + WORK_MEM_SIZE;
 PATCH1_BASE = WORK_MEM_SIZE + 64;
@@ -496,6 +506,8 @@ loop(INSTRUMENTS,
   mem[INST_RANGE_LOW_BASE+ii]=0;
   mem[INST_RANGE_HIGH_BASE+ii]=127;
   mem[INST_TRANSPOSE_BASE+ii]=0;
+  mem[INST_TRANSFORM_COUNT_BASE+ii]=0;
+  ts=0; loop(TRANSFORM_SLOTS, mem[INST_TRANSFORM_TYPE_BASE+ii*TRANSFORM_SLOTS+ts]=0; ts+=1;);
   mem[MONO_ACTIVE_NOTE_BASE+ii]=-1;
   mem[MONO_ACTIVE_CH_BASE+ii]=0;
   nn=0;
@@ -1692,12 +1704,13 @@ exp_gui_initialized!=1 ? (
   exp_drag_segment=-1;
   exp_bend_segment=-1;
   custom_save_armed=0;
+  transform_menu_gi=-1;
   exp_gui_initialized=1;
 );
 
 // Small-window vertical scrolling.
 // Existing GUI is rendered unchanged into an offscreen content buffer, then a viewport is blitted.
-ui_content_h=900;
+ui_content_h=1320;
 ui_view_h=gfx_h;
 ui_max_scroll=max(0,ui_content_h-ui_view_h);
 mouse_wheel!=0 ? (
@@ -2166,6 +2179,23 @@ local(pc,oct)
 );
 
 // Compact two-line instrument strip, matching the visual mockup.
+function transform_has(gi, typ)
+local(k,c,found)
+(
+  found=0; c=max(0,min(TRANSFORM_SLOTS,floor(mem[INST_TRANSFORM_COUNT_BASE+gi]+0.5))); k=0;
+  loop(c, mem[INST_TRANSFORM_TYPE_BASE+gi*TRANSFORM_SLOTS+k]==typ ? found=1; k+=1;);
+  found;
+);
+function transform_add(gi, typ)
+local(c)
+(
+  c=max(0,min(TRANSFORM_SLOTS,floor(mem[INST_TRANSFORM_COUNT_BASE+gi]+0.5)));
+  !transform_has(gi,typ) && c<TRANSFORM_SLOTS ? (
+    mem[INST_TRANSFORM_TYPE_BASE+gi*TRANSFORM_SLOTS+c]=typ;
+    mem[INST_TRANSFORM_COUNT_BASE+gi]=c+1;
+  );
+);
+
 function draw_transform_block(x,y,w,h,title,active)
 local(bx,by,bw,bh,ttl,act)
 (
@@ -2177,106 +2207,64 @@ local(bx,by,bw,bh,ttl,act)
 );
 
 function draw_instrument_row(gi, iy)
-local(boxh,nx,nw,basey,bh,inval,outval,vx,vw,tx,bw,gap,wirey,tr,rangemode,notemode,ti,arpon,velactive,ccactive,lowx,highx)
+local(boxh,nx,nw,basey,bh,vx,vw,wirey,tx,bw,gap,tr,rangemode,notemode,arpon,c,k,typ,addx,addy,choicey,cw)
 (
-  // Minimal instrument header: identity + routing + final volume only.
   boxh=28; basey=iy; bh=58;
-  gfx_set(0.075,0.075,0.075,1); gfx_rect(12,basey-5,1010,bh+70,1);
-  gfx_set(0.20,0.20,0.20,1); gfx_rect(12,basey-5,1010,bh+70,0);
-
-  smallbtn(22,basey,46,boxh,mem[INST_ENABLED_BASE+gi]>0.5 ? "ON" : "OFF",mem[INST_ENABLED_BASE+gi]>0.5);
-  hit(22,basey,46,boxh) ? (mem[INST_ENABLED_BASE+gi]=1-mem[INST_ENABLED_BASE+gi]; panic_pending=1;);
-
-  nx=78; nw=170;
-  gfx_set(edit_name_type==2 && edit_name_index==gi ? 0.20 : 0.12,0.12,0.12,1); gfx_rect(nx,basey,nw,boxh,1);
-  gfx_set(0.36,0.36,0.36,1); gfx_rect(nx,basey,nw,boxh,0);
-  gfx_setfont(1,"Arial",11); gfx_set(0.82,0.82,0.82,1);
-  name_len(INSTR_NAME_BASE+gi*NAME_CHARS)>0 ? draw_name_chars(INSTR_NAME_BASE+gi*NAME_CHARS,nx+7,basey+7) : (
-    gfx_x=nx+7; gfx_y=basey+7; gfx_drawstr("INSTRUMENT "); gfx_drawnumber(gi+1,0);
-  );
-  hit(nx,basey,nw,boxh) ? (edit_name_type=2; edit_name_index=gi;);
-
-  gfx_setfont(1,"Arial",8); gfx_set(0.48,0.48,0.48,1);
-  gfx_x=266;gfx_y=basey-10;gfx_drawstr("MIDI IN");
-  smallbtn(262,basey,58,boxh,"",0); hit(262,basey,58,boxh) ? mem[INST_IN_BASE+gi]=(mem[INST_IN_BASE+gi]+1)%17;
-  gfx_setfont(1,"Arial",10);gfx_set(.86,.86,.86,1);
-  mem[INST_IN_BASE+gi]==0 ? centered_text(262,basey,58,boxh,"ALL") : (gfx_x=286;gfx_y=basey+7;gfx_drawnumber(mem[INST_IN_BASE+gi],0););
-
-  gfx_setfont(1,"Arial",8); gfx_set(0.48,0.48,0.48,1);
-  gfx_x=338;gfx_y=basey-10;gfx_drawstr("MIDI OUT");
-  smallbtn(334,basey,66,boxh,"",0); hit(334,basey,66,boxh) ? mem[INST_OUT_BASE+gi]=(mem[INST_OUT_BASE+gi]+1)%17;
-  gfx_setfont(1,"Arial",10);gfx_set(.86,.86,.86,1);
-  mem[INST_OUT_BASE+gi]==0 ? centered_text(334,basey,66,boxh,"ORIG") : (gfx_x=362;gfx_y=basey+7;gfx_drawnumber(mem[INST_OUT_BASE+gi],0););
-
-  gfx_setfont(1,"Arial",8); gfx_set(0.48,0.48,0.48,1); gfx_x=418;gfx_y=basey-10;gfx_drawstr("VOLUME");
-  vx=414;vw=150; gfx_set(.16,.16,.16,1);gfx_rect(vx,basey+5,vw,18,1);
-  gfx_set(.70,.70,.70,1);gfx_rect(vx,basey+5,vw*(mem[INST_LEVEL_BASE+gi]/127),18,1);
-  mouse_cap&1&&mouse_x>=vx&&mouse_x<vx+vw&&mouse_y>=basey&&mouse_y<basey+28 ? (
-    mem[INST_LEVEL_BASE+gi]=floor(127*((mouse_x-vx)/vw)+.5); mem[CC_DIRTY_BASE+gi]=1;
-  );
+  gfx_set(.075,.075,.075,1);gfx_rect(12,basey-5,1010,bh+70,1);
+  gfx_set(.20,.20,.20,1);gfx_rect(12,basey-5,1010,bh+70,0);
+  smallbtn(22,basey,46,boxh,mem[INST_ENABLED_BASE+gi]>.5?"ON":"OFF",mem[INST_ENABLED_BASE+gi]>.5);
+  hit(22,basey,46,boxh)?(mem[INST_ENABLED_BASE+gi]=1-mem[INST_ENABLED_BASE+gi];panic_pending=1;);
+  nx=78;nw=170;gfx_set(edit_name_type==2&&edit_name_index==gi?.20:.12,.12,.12,1);gfx_rect(nx,basey,nw,boxh,1);
+  gfx_set(.36,.36,.36,1);gfx_rect(nx,basey,nw,boxh,0);gfx_setfont(1,"Arial",11);gfx_set(.82,.82,.82,1);
+  name_len(INSTR_NAME_BASE+gi*NAME_CHARS)>0?draw_name_chars(INSTR_NAME_BASE+gi*NAME_CHARS,nx+7,basey+7):(gfx_x=nx+7;gfx_y=basey+7;gfx_drawstr("INSTRUMENT ");gfx_drawnumber(gi+1,0););
+  hit(nx,basey,nw,boxh)?(edit_name_type=2;edit_name_index=gi;);
+  gfx_setfont(1,"Arial",8);gfx_set(.48,.48,.48,1);gfx_x=266;gfx_y=basey-10;gfx_drawstr("MIDI IN");
+  smallbtn(262,basey,58,boxh,"",0);hit(262,basey,58,boxh)?mem[INST_IN_BASE+gi]=(mem[INST_IN_BASE+gi]+1)%17;
+  gfx_setfont(1,"Arial",10);gfx_set(.86,.86,.86,1);mem[INST_IN_BASE+gi]==0?centered_text(262,basey,58,boxh,"ALL"):(gfx_x=286;gfx_y=basey+7;gfx_drawnumber(mem[INST_IN_BASE+gi],0););
+  gfx_setfont(1,"Arial",8);gfx_set(.48,.48,.48,1);gfx_x=338;gfx_y=basey-10;gfx_drawstr("MIDI OUT");
+  smallbtn(334,basey,66,boxh,"",0);hit(334,basey,66,boxh)?mem[INST_OUT_BASE+gi]=(mem[INST_OUT_BASE+gi]+1)%17;
+  gfx_setfont(1,"Arial",10);gfx_set(.86,.86,.86,1);mem[INST_OUT_BASE+gi]==0?centered_text(334,basey,66,boxh,"ORIG"):(gfx_x=362;gfx_y=basey+7;gfx_drawnumber(mem[INST_OUT_BASE+gi],0););
+  gfx_setfont(1,"Arial",8);gfx_set(.48,.48,.48,1);gfx_x=418;gfx_y=basey-10;gfx_drawstr("VOLUME");
+  vx=414;vw=150;gfx_set(.16,.16,.16,1);gfx_rect(vx,basey+5,vw,18,1);gfx_set(.70,.70,.70,1);gfx_rect(vx,basey+5,vw*(mem[INST_LEVEL_BASE+gi]/127),18,1);
+  mouse_cap&1&&mouse_x>=vx&&mouse_x<vx+vw&&mouse_y>=basey&&mouse_y<basey+28?(mem[INST_LEVEL_BASE+gi]=floor(127*((mouse_x-vx)/vw)+.5);mem[CC_DIRTY_BASE+gi]=1;);
   gfx_setfont(1,"Arial",10);gfx_set(.88,.88,.88,1);gfx_x=574;gfx_y=basey+7;gfx_drawnumber(mem[INST_LEVEL_BASE+gi],0);
 
-  // Helix-like signal path. Thin wire first, blocks sit over it.
-  wirey=basey+70;
-  gfx_set(.38,.38,.38,1); gfx_line(34,wirey,994,wirey);
-  gfx_set(.62,.62,.62,1); gfx_circle(34,wirey,3,1,1); gfx_circle(994,wirey,3,1,1);
-
-  tx=54; bw=132; gap=18;
-
-  // TRANSPOSE
-  tr=floor(mem[INST_TRANSPOSE_BASE+gi]+0.5);
-  draw_transform_block(tx,wirey-22,bw,44,"TRANSPOSE",tr!=0);
-  gfx_setfont(1,"Arial",11);gfx_set(.95,.95,.15,1);gfx_x=tx+38;gfx_y=wirey-2;
-  tr>0 ? gfx_drawstr("+") : 0; gfx_drawnumber(tr,0); gfx_drawstr(" st");
-  hit(tx,wirey-22,bw,44) ? (
-    mouse_cap&8 ? mem[INST_TRANSPOSE_BASE+gi]=0 :
-    mouse_cap&16 ? mem[INST_TRANSPOSE_BASE+gi]=max(-48,tr-12) :
-                   mem[INST_TRANSPOSE_BASE+gi]=min(48,tr+1);
-    panic_pending=1;
+  wirey=basey+70;gfx_set(.38,.38,.38,1);gfx_line(34,wirey,994,wirey);gfx_set(.62,.62,.62,1);gfx_circle(34,wirey,3,1,1);gfx_circle(994,wirey,3,1,1);
+  tx=54;bw=132;gap=18;c=max(0,min(TRANSFORM_SLOTS,floor(mem[INST_TRANSFORM_COUNT_BASE+gi]+.5)));k=0;
+  loop(c,
+    typ=floor(mem[INST_TRANSFORM_TYPE_BASE+gi*TRANSFORM_SLOTS+k]+.5);
+    typ==1?(
+      tr=floor(mem[INST_TRANSPOSE_BASE+gi]+.5);draw_transform_block(tx,wirey-22,bw,44,"TRANSPOSE",1);
+      gfx_setfont(1,"Arial",11);gfx_set(.95,.95,.15,1);gfx_x=tx+38;gfx_y=wirey-2;tr>0?gfx_drawstr("+");gfx_drawnumber(tr,0);gfx_drawstr(" st");
+      hit(tx,wirey-22,bw,44)?(mouse_cap&8?mem[INST_TRANSPOSE_BASE+gi]=0:mouse_cap&16?mem[INST_TRANSPOSE_BASE+gi]=max(-48,tr-12):mem[INST_TRANSPOSE_BASE+gi]=min(48,tr+1);panic_pending=1;);
+      (mouse_cap&2)&&!(last_mouse_cap&2)&&mouse_x>=tx&&mouse_x<tx+bw&&mouse_y>=wirey-22&&mouse_y<wirey+22?(mem[INST_TRANSPOSE_BASE+gi]=max(-48,tr-1);panic_pending=1;);
+    ):typ==2?(
+      rangemode=floor(mem[INST_RANGE_MODE_BASE+gi]+.5);draw_transform_block(tx,wirey-22,bw,44,"NOTE RANGE",1);gfx_setfont(1,"Arial",10);gfx_set(.95,.95,.15,1);
+      rangemode==0?centered_text(tx,wirey-2,bw,12,"FULL"):rangemode==1?(gfx_x=tx+17;gfx_y=wirey-2;gfx_drawstr("DOWN ");draw_note_name(mem[INST_RANGE_LOW_BASE+gi],tx+73,wirey-2);):rangemode==2?(gfx_x=tx+25;gfx_y=wirey-2;gfx_drawstr("UP ");draw_note_name(mem[INST_RANGE_HIGH_BASE+gi],tx+67,wirey-2);):(draw_note_name(mem[INST_RANGE_LOW_BASE+gi],tx+31,wirey-2);gfx_x=tx+62;gfx_y=wirey-2;gfx_drawstr(" > ");draw_note_name(mem[INST_RANGE_HIGH_BASE+gi],tx+80,wirey-2););
+      hit(tx,wirey-22,bw,44)?(mem[INST_RANGE_MODE_BASE+gi]=(rangemode+1)%4;panic_pending=1;);
+    ):typ==3?(
+      notemode=floor(mem[INST_NOTE_MODE_BASE+gi]+.5);draw_transform_block(tx,wirey-22,bw,44,"POLYPHONY",1);gfx_setfont(1,"Arial",10);gfx_set(.95,.95,.15,1);centered_text(tx,wirey-2,bw,12,notemode==0?"POLY":notemode==1?"BASS":notemode==2?"LAST":"LEGATO");
+      hit(tx,wirey-22,bw,44)?(mem[INST_NOTE_MODE_BASE+gi]=(notemode+1)%4;panic_pending=1;);
+    ):typ==4?(
+      draw_transform_block(tx,wirey-22,bw,44,"VELOCITY",1);gfx_setfont(1,"Arial",10);gfx_set(.95,.95,.15,1);gfx_x=tx+42;gfx_y=wirey-2;gfx_drawstr("x");gfx_drawnumber(mem[INST_VEL_BASE+gi],2);
+      hit(tx,wirey-22,bw,44)?(mem[INST_VEL_BASE+gi]+=.1;mem[INST_VEL_BASE+gi]>3?mem[INST_VEL_BASE+gi]=.2;);
+    ):typ==5?(
+      arpon=mem[INST_ARP_ENABLED_BASE+gi]>.5;draw_transform_block(tx,wirey-22,bw,44,"ARPEGGIATOR",1);gfx_setfont(1,"Arial",10);gfx_set(.95,.95,.15,1);centered_text(tx,wirey-2,bw,12,arpon?(mem[INST_ARP_MODE_BASE+gi]<.5?"RANDOM":mem[INST_ARP_MODE_BASE+gi]<1.5?"UP":"DOWN"):"OFF");
+      hit(tx,wirey-22,bw,44)?(mem[INST_ARP_ENABLED_BASE+gi]=1-mem[INST_ARP_ENABLED_BASE+gi];panic_pending=1;);
+    ):(
+      draw_transform_block(tx,wirey-22,bw,44,"CC / MOD",1);gfx_setfont(1,"Arial",9);gfx_set(.95,.95,.15,1);gfx_x=tx+25;gfx_y=wirey-2;gfx_drawstr("CC");gfx_drawnumber(mem[INST_LEVEL_CC_BASE+gi],0);gfx_drawstr("  MOD ");gfx_drawnumber(mem[INST_MOD_BASE+gi],0);
+    );
+    tx+=bw+gap;k+=1;
   );
-  (mouse_cap&2)&&!(last_mouse_cap&2)&&mouse_x>=tx&&mouse_x<tx+bw&&mouse_y>=wirey-22&&mouse_y<wirey+22 ? (
-    mem[INST_TRANSPOSE_BASE+gi]=max(-48,tr-1); panic_pending=1;
+  addx=min(tx,842);addy=wirey-14;
+  c<TRANSFORM_SLOTS?(smallbtn(addx,addy,142,28,"+ ADD TRANSFORMER",0);hit(addx,addy,142,28)?transform_menu_gi=(transform_menu_gi==gi?-1:gi););
+  transform_menu_gi==gi?(
+    choicey=wirey+22;cw=142;gfx_set(.07,.07,.07,1);gfx_rect(addx,choicey,cw,TRANSFORM_TYPES*24+8,1);gfx_set(.32,.32,.32,1);gfx_rect(addx,choicey,cw,TRANSFORM_TYPES*24+8,0);gfx_setfont(1,"Arial",9);k=1;
+    loop(TRANSFORM_TYPES,
+      !transform_has(gi,k)?(smallbtn(addx+4,choicey+4+(k-1)*24,cw-8,20,k==1?"TRANSPOSE":k==2?"NOTE RANGE":k==3?"POLYPHONY":k==4?"VELOCITY":k==5?"ARPEGGIATOR":"CC / MOD",0);hit(addx+4,choicey+4+(k-1)*24,cw-8,20)?(transform_add(gi,k);transform_menu_gi=-1;););
+      k+=1;
+    );
   );
-
-  // RANGE
-  tx+=bw+gap; rangemode=floor(mem[INST_RANGE_MODE_BASE+gi]+0.5);
-  draw_transform_block(tx,wirey-22,bw,44,"NOTE RANGE",rangemode!=0);
-  gfx_setfont(1,"Arial",10);gfx_set(.95,.95,.15,1);
-  rangemode==0 ? centered_text(tx,wirey-2,bw,12,"FULL") :
-  rangemode==1 ? (gfx_x=tx+17;gfx_y=wirey-2;gfx_drawstr("DOWN ");draw_note_name(mem[INST_RANGE_LOW_BASE+gi],tx+73,wirey-2);) :
-  rangemode==2 ? (gfx_x=tx+25;gfx_y=wirey-2;gfx_drawstr("UP ");draw_note_name(mem[INST_RANGE_HIGH_BASE+gi],tx+67,wirey-2);) :
-                 (draw_note_name(mem[INST_RANGE_LOW_BASE+gi],tx+31,wirey-2);gfx_x=tx+62;gfx_y=wirey-2;gfx_drawstr(" > ");draw_note_name(mem[INST_RANGE_HIGH_BASE+gi],tx+80,wirey-2););
-  hit(tx,wirey-22,bw,44) ? (mem[INST_RANGE_MODE_BASE+gi]=(rangemode+1)%4;panic_pending=1;);
-
-  // POLYPHONY
-  tx+=bw+gap; notemode=floor(mem[INST_NOTE_MODE_BASE+gi]+0.5);
-  draw_transform_block(tx,wirey-22,bw,44,"POLYPHONY",notemode!=0);
-  gfx_setfont(1,"Arial",10);gfx_set(.95,.95,.15,1);
-  centered_text(tx,wirey-2,bw,12,notemode==0?"POLY":notemode==1?"BASS":notemode==2?"LAST":"LEGATO");
-  hit(tx,wirey-22,bw,44) ? (mem[INST_NOTE_MODE_BASE+gi]=(notemode+1)%4;panic_pending=1;);
-
-  // VELOCITY
-  tx+=bw+gap; velactive=abs(mem[INST_VEL_BASE+gi]-1)>0.001;
-  draw_transform_block(tx,wirey-22,bw,44,"VELOCITY",velactive);
-  gfx_setfont(1,"Arial",10);gfx_set(.95,.95,.15,1);gfx_x=tx+42;gfx_y=wirey-2;gfx_drawstr("x");gfx_drawnumber(mem[INST_VEL_BASE+gi],2);
-  hit(tx,wirey-22,bw,44) ? (
-    mem[INST_VEL_BASE+gi]+=0.1; mem[INST_VEL_BASE+gi]>3 ? mem[INST_VEL_BASE+gi]=0.2;
-  );
-
-  // ARP
-  tx+=bw+gap; arpon=mem[INST_ARP_ENABLED_BASE+gi]>0.5;
-  draw_transform_block(tx,wirey-22,bw,44,"ARPEGGIATOR",arpon);
-  gfx_setfont(1,"Arial",10);gfx_set(.95,.95,.15,1);
-  centered_text(tx,wirey-2,bw,12,arpon ? (mem[INST_ARP_MODE_BASE+gi]<.5?"RANDOM":mem[INST_ARP_MODE_BASE+gi]<1.5?"UP":"DOWN") : "BYPASS");
-  hit(tx,wirey-22,bw,44) ? (mem[INST_ARP_ENABLED_BASE+gi]=1-mem[INST_ARP_ENABLED_BASE+gi];panic_pending=1;);
-
-  // CC / MOD block keeps the existing engine available without polluting the instrument header.
-  tx+=bw+gap; ccactive=mem[INST_MOD_BASE+gi]>0 || mem[INST_LEVEL_CC_BASE+gi]!=7;
-  draw_transform_block(tx,wirey-22,bw,44,"CC / MOD",ccactive);
-  gfx_setfont(1,"Arial",9);gfx_set(.95,.95,.15,1);gfx_x=tx+25;gfx_y=wirey-2;gfx_drawstr("CC");gfx_drawnumber(mem[INST_LEVEL_CC_BASE+gi],0);gfx_drawstr("  MOD ");gfx_drawnumber(mem[INST_MOD_BASE+gi],0);
-
-  gfx_setfont(1,"Arial",9);gfx_set(.42,.42,.42,1);
-  gfx_x=54;gfx_y=wirey+30;gfx_drawstr("L click = edit / cycle     R click = decrement where available     SHIFT+TRANSPOSE = reset     ALT+TRANSPOSE = -12");
 );
 
 inst_y=152 + PHRASES_PER_PAGE*38 + 18;
@@ -2284,9 +2272,9 @@ gfx_setfont(1,"Arial",16); gfx_set(0.72,0.72,0.72,1); gfx_x=20; gfx_y=inst_y; gf
 gfx_setfont(1,"Arial",9); gfx_set(0.46,0.46,0.46,1); gfx_x=330; gfx_y=inst_y+3; gfx_drawstr("MIDI flows left > right");
 inst_y+=30;
 draw_instrument_row(0,inst_y);
-draw_instrument_row(1,inst_y+140);
-draw_instrument_row(2,inst_y+280);
-inst_y+=420;
+draw_instrument_row(1,inst_y+190);
+draw_instrument_row(2,inst_y+380);
+inst_y+=570;
 
 // EXP1 / EXP2 source monitors. They remain REAPER-automatable sliders.
 exp_y=inst_y+6;

@@ -1,7 +1,12 @@
-desc:MIDI Human Looper v1.7.4
+desc:MIDI Human Looper v1.7.5
 options:gmem=MIDI_HUMAN_LOOPER
 
 // Free-time MIDI phrase instrument prototype for REAPER JSFX.
+// v1.7.5:
+// - curve editor follows the selected LEVEL assignment, not merely the last right-click
+// - each instrument LEVEL keeps its own independent EXP curve even when several use the same EXP source
+// - left-click an assigned LEVEL to select/highlight it and display its own curve
+// - selected LEVEL gets a visible outline; right-click assignment also selects that LEVEL
 // v1.7.4:
 // - EXP GUI movement now feeds the exact same proven LEVEL dirty-CC path as the manual LEVEL slider
 // - curve evaluation happens immediately when EXP1/EXP2 is dragged, updating assigned LEVEL values visibly
@@ -1366,8 +1371,11 @@ loop(INSTRUMENTS,
 @gfx 900 720
 
 // Expression curve editor state is GUI-only, not patch data.
-exp_editor_gi<0 ? exp_editor_gi=-1;
-exp_drag_point<0 ? exp_drag_point=-1;
+exp_gui_initialized!=1 ? (
+  exp_editor_gi=-1;
+  exp_drag_point=-1;
+  exp_gui_initialized=1;
+);
 
 // Small-window vertical scrolling.
 // Existing GUI is rendered unchanged into an offscreen content buffer, then a viewport is blitted.
@@ -1675,16 +1683,26 @@ local(ivx,ivw,ivn,ilx,ilw,imx,imw,ccx,arx,holdx,rrx,rrw,grx,grw,rnorm,gnorm,nn)
   ilx=530; ilw=84;
   gfx_set(0.22,0.22,0.22,1); gfx_rect(ilx,iy+5,ilw,16,1);
   gfx_set(0.7,0.7,0.7,1); gfx_rect(ilx,iy+5,ilw*(mem[INST_LEVEL_BASE+gi]/127),16,1);
-  mem[INST_EXP_ASSIGN_BASE+gi]<=0 && mouse_cap&1 && mouse_x>=ilx && mouse_x<ilx+ilw && mouse_y>=iy+2 && mouse_y<iy+25 ? (
-    mem[INST_LEVEL_BASE+gi]=floor(127*((mouse_x-ilx)/ilw)+0.5);
-    mem[CC_DIRTY_BASE+gi]=1;
+  exp_editor_gi==gi && mem[INST_EXP_ASSIGN_BASE+gi]>0 ? (
+    gfx_set(1,1,1,1); gfx_rect(ilx-2,iy+3,ilw+4,20,0);
+  );
+  mouse_cap&1 && mouse_x>=ilx && mouse_x<ilx+ilw && mouse_y>=iy+2 && mouse_y<iy+25 ? (
+    mem[INST_EXP_ASSIGN_BASE+gi]>0 ? (
+      // Assigned LEVEL: selecting it reveals this assignment's own curve.
+      exp_editor_gi=gi;
+    ) : (
+      mem[INST_LEVEL_BASE+gi]=floor(127*((mouse_x-ilx)/ilw)+0.5);
+      mem[CC_DIRTY_BASE+gi]=1;
+    );
   );
   // Right-click LEVEL: NONE -> EXP1 -> EXP2 -> NONE, and open editor while assigned.
   (mouse_cap&2) && !(last_mouse_cap&2) &&
   mouse_x>=ilx && mouse_x<ilx+ilw && mouse_y>=iy+2 && mouse_y<iy+25 ? (
     mem[INST_EXP_ASSIGN_BASE+gi]=(floor(mem[INST_EXP_ASSIGN_BASE+gi]+0.5)+1)%3;
     mem[EXP_LAST_VALUE_BASE+gi]=-1;
-    mem[INST_EXP_ASSIGN_BASE+gi]>0 ? exp_editor_gi=gi : exp_editor_gi=-1;
+    // The assignment belongs to this LEVEL. Selecting another LEVEL switches to its own curve.
+    mem[INST_EXP_ASSIGN_BASE+gi]>0 ? exp_editor_gi=gi :
+      exp_editor_gi==gi ? exp_editor_gi=-1;
   );
   gfx_x=620; gfx_y=iy+7; gfx_drawnumber(mem[INST_LEVEL_BASE+gi],0);
   mem[INST_EXP_ASSIGN_BASE+gi]>0 ? (
@@ -1807,7 +1825,7 @@ exp_editor_gi>=0 ? (
   gfx_set(0.10,0.10,0.10,1); gfx_rect(cx,cy,cw,ch,1);
   gfx_set(0.35,0.35,0.35,1); gfx_rect(cx,cy,cw,ch,0);
   gfx_setfont(1,"Arial",12);
-  gfx_x=20; gfx_y=cy; gfx_drawstr("I"); gfx_drawnumber(egi+1,0); gfx_drawstr(" LEVEL  ");
+  gfx_x=20; gfx_y=cy; gfx_drawstr("CURVE: I"); gfx_drawnumber(egi+1,0); gfx_drawstr(" LEVEL  <-  ");
   gfx_drawstr(mem[INST_EXP_ASSIGN_BASE+egi]==1 ? "EXP1" : "EXP2");
   gfx_x=20; gfx_y=cy+18; gfx_drawstr("L:add/drag");
   gfx_x=20; gfx_y=cy+34; gfx_drawstr("R:remove");

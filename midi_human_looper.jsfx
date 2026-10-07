@@ -1,18 +1,662 @@
-desc:MIDI Human Looper v1.4.8
+desc:MIDI Human Looper v1.4.9
 
 // Free-time MIDI phrase instrument prototype for REAPER JSFX.
-// v1.4.8:
-// - compile fix: @serialize no longer calls save_patch(), which is declared later in the file
-// - project-save snapshot is performed inline inside @serialize
-// v1.4.7:
-// - REAL recall fix: file_avail(0)<0 means WRITE, not fresh instance
-// - @serialize
-// REAPER: file_avail(0) < 0 = WRITE, >= 0 = READ.
+// v1.4.9:
+// - rebuild from intact v1.4.6 after v1.4.7/v1.4.8 accidental source truncation
+// - correct @serialize read/write direction
+// - preserve serialized state through @init
+// - project save snapshots current working state inline, with no forward function calls
+// v1.4.6:
+// - FIX project recall: @init no longer overwrites memory restored by @serialize
+// - one-time defaults are applied from @serialize only when REAPER is creating a genuinely fresh instance
+// - existing v1.4.x JS_SER patch banks remain at their original addresses
+// v1.4.5:
+// - compatibility rule: serialized patch-bank layout is now frozen for the v1.x prototype
+// - future features must append persistent data after existing fields, never move/reinterpret phrase/event banks
+// - PATCH_SCHEMA_VERSION is stored in previously reserved header field for forward migration
+// - loading old v1.4 patches treats missing schema marker as legacy v1 schema
+// v1.4.4:
+// - instrument controls now affect ONE SHOT playback too (previously that engine bypassed the router)
+// - route-aware note/sustain reference counting uses the final routed MIDI channel
+// - LEVEL and MOD sliders now transmit CC11/CC1 immediately while dragged
+// v1.4.3:
+// - REAL fix for instrument rows: JSFX user functions share undeclared variables with caller
+// - hit()/smallbtn() were clobbering GUI loop variables through x/y/w/h/label/active
+// - all GUI helper parameters are now explicitly local aliases before drawing/hit testing
+// v1.4.2:
+// - start with 3 INSTRUMENT slots instead of 8; future versions may add dynamic slots
+// - fix JSFX function-local scope in smallbtn/button: GUI row index no longer gets clobbered by drawing helpers
+// - each instrument row now edits its own independent memory slot
+// v1.4.1:
+// - compact phrase UI: 6 phrase rows visible at once
+// - 3 phrase pages: P1-6 / P7-12 / P13-16
+// - PAGE PREV/NEXT controls keep instruments + expressions reachable on normal screens
+// - phrase rows reduced from 48px to 38px
+// v1.4.0:
+// - 16 PHRASES in line-based UI (no grid)
+// - two mouse-testable expression sources EXP A / EXP B
+// - 8 INSTRUMENT routing rows: MIDI IN -> MIDI OUT, velocity multiplier, level CC, mod-wheel CC
+// - instrument routing duplicates/remaps phrase MIDI non-destructively; ORIGINAL global output still available
+// - quantize grid slider range fixed to expose all six divisions
+// - persistence layout remains explicit and documented while external-file patch I/O is designed
+// IMPORTANT: JSFX @serialize persists with REAPER project/preset state; arbitrary writable named patch files
+// are not exposed safely by stock JSFX, so v1.4 does NOT fake external SAVE/LOAD.
+// v1.3.3:
+// - cross-layer choke now releases only notes actually owned by active ONE SHOT voices
+// - no more 2048-note panic burst when switching phrase layers
+// - sustain-off is sent only on channels whose ONE SHOT group currently owns sustain
+// v1.3.2:
+// - overlapping same-layer ONE SHOT voices now use MIDI note reference counting
+// - an older voice Note Off cannot kill a note still held by a newer retrigger
+// - sustain pedal OFF is also reference-counted across overlapping voices
+// v1.3.1:
+// - fix ONE SHOT poly voice memory: JSFX memory is limited to ~1M slots and patch banks already occupy the high range
+// - voice pool now lives directly after patch banks instead of hardcoded address 700000
+// v1.3:
+// - same-layer ONE SHOT retriggers now overlap polyphonically instead of restarting/cutting
+// - switching to a different ONE SHOT layer soft-kills all voices from the previous phrase group
+// - velocity decay is applied per successive overlapping voice
+// v1.2.3:
+// - fix rapid ONE SHOT retrigger race: soft-kill is now sent immediately from the audio block
+// - GUI only queues trigger requests; MIDI Note Off / CC64 cleanup happens before the new phrase attack
+// v1.2.2:
+// - ONE SHOT layers are monophonic as a phrase group: triggering another ONCE soft-kills the previous one
+// - previous phrase receives graceful Note Offs + sustain-off, then the new phrase starts
+// v1.2.1:
+// - ONE SHOT retrigger now releases notes/sustain from the previous trigger before restarting
+// - ONE SHOT natural end also releases notes/sustain to prevent hanging notes
+// v1.2:
+// - per-layer retrigger velocity decay for ONE SHOT phrases
+// - consecutive TRIGs of the same layer progressively reduce Note On velocity
+// - triggering another layer resets the chain; returning starts at full velocity
+// - DECAY mini control per layer: 100% = no decay
+// v1.1:
+// - click L1/L2/L3/L4 to ARM that layer for fresh phrase recording
+// - armed layer is highlighted red and main transport returns to READY
+// - each layer now stores its own phrase length for independent ONE SHOT recording/playback
+// - recording another layer no longer destroys the other stored phrases
+// v1.0:
+// - per-layer playback mode: LOOP or ONCE
+// - per-layer TRIG button launches ONCE phrases independently
+// - ONE SHOT playback preserves captured expressive MIDI timing and full MIDI stream
+// - layer mode is part of patch memory automatically
+// v0.9.4:
+// - fix the actual GUI transport path: stored loop PLAY no longer clears/re-arms
+// - both GUI and hidden slider transport now obey the same non-destructive state machine
+// v0.9.3:
+// - stored-loop transport is now non-destructive: PLAY/STOP can never re-arm recording
+// - recording becomes available again only after CLEAR ALL (or an empty patch)
+// v0.9.2:
+// - READY becomes PLAY when a stored loop exists; PLAY restarts it without clearing
+// - SAVE gives visible confirmation for the selected patch
+// v0.9.1:
+// - patch buttons always switch slots; empty slots start as clean editable patches
+// - switching patches auto-saves current slot in RAM before loading the other slot
+// v0.9:
+// - two complete patch slots with LOAD + SAVE
+// - patch stores all four MIDI layers, loop timing, mute/solo/velocity and global playback parameters
+// - patch banks serialize with the REAPER project/preset, no external JSON required
+// v0.8.5:
+// - fix playback event count still reading gui_layer instead of current audio layer
+// - restore complete master-loop playback
+// v0.8.4:
+// - repair accidental v0.8.3 global replacement inside audio-engine functions
+// - GUI uses gui_layer only; audio engine uses layer only
+// v0.8.3:
+// - isolate GUI row index from @block playback globals to stop layer labels flickering
+// v0.8.2:
+// - fix GUI layer loop: layer index was never incremented, so all four rows were actually layer 1
+// - prevents OVR/CLR/mute/solo rows from all targeting layer 1
+// v0.8.1:
+// - fix JSFX function-variable scope corrupting the GUI layer index / wrong layer operations
+// - stabilize layer addressing before further overdub work
+// v0.8:
+// - 4 independent MIDI layers
+// - overdub records into the selected layer over exactly one loop cycle
+// - per-layer mute / solo / velocity trim
+// - quantize grid + amount (0..100%) applied non-destructively at playback
+// - full MIDI stream recorded: notes, sustain CC64, other CCs, pitch bend, aftertouch
+// - live MIDI thru remains active while looping
+//
+// First loop:
+// READY -> first Note On starts free-time recording -> PLAY closes the master loop.
+// Overdub:
+// while PLAYING, arm OVR on a layer -> recording starts at next loop boundary,
+// records exactly one full loop into that layer, then returns to PLAY automatically.
+
+slider1:0<0,1,1>-READY/PLAY (GUI)-
+slider2:0<0,1,1>-ABORT/STOP (GUI)-
+slider3:0<0,1,1>-CLEAR ALL (GUI)-
+slider4:0<0,5,1{1,1/2,1/4,1/8,1/16,1/32}>QUANTIZE GRID
+slider5:0<0,100,1>QUANTIZE AMOUNT (%)
+slider6:120<30,240,0.1>BPM DETECTED
+slider7:4<1,16,1>BARS DETECTED
+slider8:0<0,16,1{ORIGINAL,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16}>MIDI OUT CHANNEL
+slider9:1<0.2,3,0.01>GLOBAL VELOCITY
+slider10:0<0,1,0.001>EXP A (TEST)
+slider11:0<0,1,0.001>EXP B (TEST)
+
+@init
+
+STATE_IDLE = 0;
+STATE_READY = 1;
+STATE_RECORDING = 2;
+STATE_PLAYING = 3;
+STATE_STOPPED = 4;
+
+MAX_ONCE_VOICES = 12;
+
+serialized_loaded ? 0 : state = STATE_IDLE;
+
+LAYERS = 16;
+// 2048 events/phrase keeps 16 phrases + two serialized patch banks comfortably below JSFX memory ceiling.
+MAX_EVENTS_PER_LAYER = 2048;
+EV_SIZE = 5;
+LAYER_STRIDE = MAX_EVENTS_PER_LAYER * EV_SIZE;
+
+// per-layer arrays live after event memory
+COUNT_BASE = LAYERS * LAYER_STRIDE;
+MUTE_BASE = COUNT_BASE + LAYERS;
+SOLO_BASE = MUTE_BASE + LAYERS;
+VEL_BASE = SOLO_BASE + LAYERS;
+MODE_BASE = VEL_BASE + LAYERS;
+TRIG_BASE = MODE_BASE + LAYERS;
+ONCEPOS_BASE = TRIG_BASE + LAYERS;
+LEN_BASE = ONCEPOS_BASE + LAYERS;
+DECAY_BASE = LEN_BASE + LAYERS;
+REPEAT_BASE = DECAY_BASE + LAYERS;
+
+// INSTRUMENT routing table. 8 lightweight MIDI destinations.
+// IN: 0=ALL, 1..16 source channel. OUT: 0=ORIGINAL, 1..16 destination channel.
+// LEVEL and MOD are CC values (defaults CC11 Expression and CC1 Mod Wheel).
+INSTRUMENTS = 3;
+INST_IN_BASE = REPEAT_BASE + LAYERS;
+INST_OUT_BASE = INST_IN_BASE + INSTRUMENTS;
+INST_VEL_BASE = INST_OUT_BASE + INSTRUMENTS;
+INST_LEVEL_BASE = INST_VEL_BASE + INSTRUMENTS;
+INST_MOD_BASE = INST_LEVEL_BASE + INSTRUMENTS;
+INST_ENABLED_BASE = INST_MOD_BASE + INSTRUMENTS;
+WORK_MEM_SIZE = INST_ENABLED_BASE + INSTRUMENTS;
+PATCH_HEADER_SIZE = 12;
+PATCH_SCHEMA_VERSION = 1;
+PATCH_DATA_SIZE = PATCH_HEADER_SIZE + WORK_MEM_SIZE;
+PATCH1_BASE = WORK_MEM_SIZE + 64;
+PATCH2_BASE = PATCH1_BASE + PATCH_DATA_SIZE;
+
+// Runtime ONE SHOT voices must not overlap the large serialized patch banks.
+VOICE_ACTIVE_BASE = PATCH2_BASE + PATCH_DATA_SIZE + 64;
+VOICE_LAYER_BASE = VOICE_ACTIVE_BASE + MAX_ONCE_VOICES;
+VOICE_POS_BASE = VOICE_LAYER_BASE + MAX_ONCE_VOICES;
+VOICE_GAIN_BASE = VOICE_POS_BASE + MAX_ONCE_VOICES;
+
+// Runtime ownership counters for overlapping ONE SHOT MIDI voices.
+// MIDI has no voice ID: multiple Note Ons for the same channel/note share one Note Off.
+// We therefore emit the physical Note Off only when the last logical owner releases it.
+NOTE_REF_BASE = VOICE_GAIN_BASE + MAX_ONCE_VOICES;
+NOTE_REF_SIZE = 16 * 128;
+SUSTAIN_REF_BASE = NOTE_REF_BASE + NOTE_REF_SIZE;
+// IMPORTANT: do not initialize serialized patch flags here. @init can run after REAPER restores JS_SER.
+// Fresh-instance defaults are handled in @serialize when file_avail(0) < 0.
+save_flash = 0;
+save_flash_patch = 0;
+last_trigger_layer = -1;
+trigger_request = -1;
+phrase_page = 0;
+PHRASES_PER_PAGE = 6;
+PHRASE_PAGES = 3;
+vi=0;
+loop(MAX_ONCE_VOICES,
+  mem[VOICE_ACTIVE_BASE+vi]=0;
+  mem[VOICE_LAYER_BASE+vi]=0;
+  mem[VOICE_POS_BASE+vi]=0;
+  mem[VOICE_GAIN_BASE+vi]=1;
+  vi+=1;
+);
+ri=0;
+loop(NOTE_REF_SIZE,
+  mem[NOTE_REF_BASE+ri]=0;
+  ri+=1;
+);
+ri=0;
+loop(16,
+  mem[SUSTAIN_REF_BASE+ri]=0;
+  ri+=1;
+);
+
+!serialized_loaded ? (
+  i=0;
+  loop(LAYERS,
+    mem[COUNT_BASE+i]=0;
+    mem[MUTE_BASE+i]=0;
+    mem[SOLO_BASE+i]=0;
+    mem[VEL_BASE+i]=1;
+    mem[MODE_BASE+i]=0; // 0 LOOP, 1 ONCE
+    mem[TRIG_BASE+i]=0;
+    mem[ONCEPOS_BASE+i]=0;
+    mem[LEN_BASE+i]=0;
+    mem[DECAY_BASE+i]=0.8;
+    mem[REPEAT_BASE+i]=0;
+    i+=1;
+  );
+);
+
+// Instrument 1 enabled by default as transparent ALL -> ORIGINAL route.
+// Others are available but disabled until configured.
+// Do not write persistent instrument defaults in @init: that would erase restored JS_SER state.
+// Fresh instances receive these defaults in @serialize.
+
+record_sample_pos = 0;
+play_sample_pos = 0;
+panic_pending = 0;
+
+!serialized_loaded ? (
+  loop_len_samples = 0;
+  analysis_done = 0;
+  record_layer = 0;
+);
+overdub_armed = 0;
+overdub_active = 0;
+overdub_layer = 1;
+overdub_pos = 0;
+
+prev_readyplay=0;
+prev_abortstop=0;
+prev_clear=0;
+
+function layer_count(layer)
+local(addr)
+(
+  addr = COUNT_BASE + layer;
+  mem[addr];
+);
+
+function set_layer_count(layer,count)
+local(addr)
+(
+  addr = COUNT_BASE + layer;
+  mem[addr] = count;
+);
+
+function layer_base(layer, idx)
+local(addr)
+(
+  addr = layer * LAYER_STRIDE + idx * EV_SIZE;
+  addr;
+);
+
+function clear_layer(layer)
+(
+  set_layer_count(layer,0);
+  mem[MUTE_BASE+layer]=0;
+  mem[SOLO_BASE+layer]=0;
+  mem[VEL_BASE+layer]=1;
+  mem[TRIG_BASE+layer]=0;
+  mem[ONCEPOS_BASE+layer]=0;
+  mem[LEN_BASE+layer]=0;
+  mem[REPEAT_BASE+layer]=0;
+);
+
+function clear_all()
+local(i)
+(
+  i=0;
+  loop(LAYERS,
+    clear_layer(i);
+    i+=1;
+  );
+  record_sample_pos=0;
+  loop_len_samples=0;
+  play_sample_pos=0;
+  analysis_done=0;
+  overdub_armed=0;
+  overdub_active=0;
+  overdub_pos=0;
+  record_layer=0;
+  state=STATE_IDLE;
+  slider6=120;
+  slider7=4;
+);
+
+function save_patch(slot)
+local(pb,j)
+(
+  pb = slot==1 ? PATCH1_BASE : PATCH2_BASE;
+  mem[pb+0]=loop_len_samples;
+  mem[pb+1]=analysis_done;
+  mem[pb+2]=slider4;
+  mem[pb+3]=slider5;
+  mem[pb+4]=slider6;
+  mem[pb+5]=slider7;
+  mem[pb+6]=slider8;
+  mem[pb+7]=slider9;
+  mem[pb+8]=record_layer;
+  mem[pb+9]=PATCH_SCHEMA_VERSION;
+  mem[pb+10]=0; // reserved: future schema flags
+  mem[pb+11]=0; // reserved: future schema length/migration
+  j=0;
+  loop(WORK_MEM_SIZE,
+    mem[pb+PATCH_HEADER_SIZE+j]=mem[j];
+    j+=1;
+  );
+  slot==1 ? patch_valid1=1 : patch_valid2=1;
+  current_patch=slot;
+  save_flash_patch=slot;
+  save_flash=srate*1.5;
+);
+
+function load_patch(slot)
+local(pb,j,valid,oldslot)
+(
+  oldslot=current_patch;
+  oldslot!=slot ? (
+    save_patch(oldslot);
+    valid = slot==1 ? patch_valid1 : patch_valid2;
+    panic_pending=1;
+    valid ? (
+      pb = slot==1 ? PATCH1_BASE : PATCH2_BASE;
+      j=0;
+      loop(WORK_MEM_SIZE,
+        mem[j]=mem[pb+PATCH_HEADER_SIZE+j];
+        j+=1;
+      );
+      loop_len_samples=mem[pb+0];
+      analysis_done=mem[pb+1];
+      slider4=mem[pb+2];
+      slider5=mem[pb+3];
+      slider6=mem[pb+4];
+      slider7=mem[pb+5];
+      slider8=mem[pb+6];
+      slider9=mem[pb+7];
+      record_layer=mem[pb+8];
+      loaded_schema=mem[pb+9];
+      // v1.4.4 and earlier wrote 0 here. That is our legacy v1 schema and remains valid.
+      loaded_schema<=0 ? loaded_schema=1;
+    ) : (
+      clear_all();
+      slider4=0;
+      slider5=0;
+      slider6=120;
+      slider7=4;
+      slider8=0;
+      slider9=1;
+    );
+    record_sample_pos=0;
+    play_sample_pos=0;
+    overdub_armed=0;
+    overdub_active=0;
+    overdub_pos=0;
+    state = loop_len_samples>0 ? STATE_STOPPED : STATE_IDLE;
+    current_patch=slot;
+  );
+);
+
+function arm_layer(layer)
+(
+  panic_pending=1;
+  record_layer=layer;
+  record_sample_pos=0;
+  play_sample_pos=0;
+  overdub_armed=0;
+  overdub_active=0;
+  state=STATE_READY;
+);
+
+function store_event(layer, ts, st, d1, d2, offs)
+local(count,base)
+(
+  count=layer_count(layer);
+  count < MAX_EVENTS_PER_LAYER ? (
+    base=layer_base(layer,count);
+    mem[base]=ts;
+    mem[base+1]=st;
+    mem[base+2]=d1;
+    mem[base+3]=d2;
+    mem[base+4]=offs;
+    set_layer_count(layer,count+1);
+  );
+);
+
+function send_to_instruments(offs, st, d1, d2, extra_gain)
+local(srcch,typ,ii,in_ch,out_ch,outst,outd2,matched,velmul)
+(
+  srcch=(st&15)+1;
+  typ=st&240;
+  matched=0;
+  ii=0;
+  loop(INSTRUMENTS,
+    mem[INST_ENABLED_BASE+ii]>0.5 ? (
+      in_ch=mem[INST_IN_BASE+ii];
+      (in_ch==0 || in_ch==srcch) ? (
+        matched=1;
+        out_ch=mem[INST_OUT_BASE+ii];
+        outst=st;
+        out_ch>0 ? outst=(st&240)|(max(1,min(16,out_ch))-1);
+
+        outd2=d2;
+        (typ==144 && d2>0) ? (
+          velmul=mem[INST_VEL_BASE+ii]*extra_gain;
+          outd2=max(1,min(127,floor(d2*velmul+0.5)));
+        );
+        midisend(offs,outst,d1|(outd2*256));
+      );
+    );
+    ii+=1;
+  );
+  // If every instrument route is disabled, remain fail-safe / transparent.
+  matched==0 ? midisend(offs,st,d1|(d2*256));
+);
+
+function send_expression_ccs()
+local(ii,out_ch,ch,lev,mod)
+(
+  ii=0;
+  loop(INSTRUMENTS,
+    mem[INST_ENABLED_BASE+ii]>0.5 ? (
+      out_ch=mem[INST_OUT_BASE+ii];
+      ch=out_ch>0 ? max(1,min(16,out_ch))-1 : 0;
+      // EXP A currently drives LEVEL, EXP B drives MOD. These are test sources;
+      // the next mapping layer will make source/target/range freely assignable.
+      lev=max(0,min(127,floor(mem[INST_LEVEL_BASE+ii]*slider10+0.5)));
+      mod=max(0,min(127,floor(127*slider11+0.5)));
+      midisend(0,176|ch,11,lev);
+      midisend(0,176|ch,1,mod);
+    );
+    ii+=1;
+  );
+);
+
+function send_once_to_instruments(offs, st, d1, d2, phrase_gain)
+local(srcch,typ,ii,in_ch,out_ch,outst,outd2,matched,velmul,msg_chan,note_key)
+(
+  srcch=(st&15)+1;
+  typ=st&240;
+  matched=0;
+  ii=0;
+  loop(INSTRUMENTS,
+    mem[INST_ENABLED_BASE+ii]>0.5 ? (
+      in_ch=mem[INST_IN_BASE+ii];
+      (in_ch==0 || in_ch==srcch) ? (
+        matched=1;
+        out_ch=mem[INST_OUT_BASE+ii];
+        outst=st;
+        out_ch>0 ? outst=(st&240)|(max(1,min(16,out_ch))-1);
+        msg_chan=outst&15;
+        outd2=d2;
+        (typ==144 && d2>0) ? (
+          velmul=mem[INST_VEL_BASE+ii]*phrase_gain;
+          outd2=max(1,min(127,floor(d2*velmul+0.5)));
+          note_key=NOTE_REF_BASE+msg_chan*128+d1;
+          mem[note_key]+=1;
+          midisend(offs,outst,d1|(outd2*256));
+        ) :
+        ((typ==128) || (typ==144 && d2==0)) ? (
+          note_key=NOTE_REF_BASE+msg_chan*128+d1;
+          mem[note_key]=max(0,mem[note_key]-1);
+          mem[note_key]<=0 ? midisend(offs,128|msg_chan,d1);
+        ) :
+        (typ==176 && d1==64) ? (
+          d2>=64 ? (
+            mem[SUSTAIN_REF_BASE+msg_chan]+=1;
+            midisend(offs,outst,d1|(d2*256));
+          ) : (
+            mem[SUSTAIN_REF_BASE+msg_chan]=max(0,mem[SUSTAIN_REF_BASE+msg_chan]-1);
+            mem[SUSTAIN_REF_BASE+msg_chan]<=0 ? midisend(offs,outst,d1);
+          );
+        ) : midisend(offs,outst,d1|(d2*256));
+      );
+    );
+    ii+=1;
+  );
+  matched==0 ? (
+    msg_chan=st&15;
+    (typ==144 && d2>0) ? (
+      outd2=max(1,min(127,floor(d2*phrase_gain+0.5)));
+      note_key=NOTE_REF_BASE+msg_chan*128+d1; mem[note_key]+=1;
+      midisend(offs,st,d1|(outd2*256));
+    ) :
+    ((typ==128)||(typ==144&&d2==0)) ? (
+      note_key=NOTE_REF_BASE+msg_chan*128+d1; mem[note_key]=max(0,mem[note_key]-1);
+      mem[note_key]<=0 ? midisend(offs,128|msg_chan,d1);
+    ) : midisend(offs,st,d1|(d2*256));
+  );
+);
+
+function send_instrument_cc(gi, cc, value)
+local(out_ch,ch)
+(
+  mem[INST_ENABLED_BASE+gi]>0.5 ? (
+    out_ch=mem[INST_OUT_BASE+gi];
+    ch=out_ch>0 ? max(1,min(16,out_ch))-1 : 0;
+    midisend(0,176|ch,cc,max(0,min(127,floor(value+0.5))));
+  );
+);
+
+function infer_tempo()
+local(seconds,best_score,bars,bpm,score,target_bpm,i)
+(
+  loop_len_samples > 0 ? (
+    seconds=loop_len_samples/srate;
+    best_score=1000000000;
+    target_bpm=120;
+    i=1;
+    loop(16,
+      bars=i;
+      bpm=(bars*4*60)/seconds;
+      (bpm>=30 && bpm<=240) ? (
+        score=abs(bpm-target_bpm);
+        (bars==2 || bars==4 || bars==8) ? score-=0.75;
+        score<best_score ? (
+          best_score=score;
+          slider6=bpm;
+          slider7=bars;
+        );
+      );
+      i+=1;
+    );
+    analysis_done=1;
+  );
+);
+
+function send_all_notes_off()
+local(ch,note)
+(
+  ch=0;
+  loop(16,
+    note=0;
+    loop(128,
+      midisend(0,128|ch,note,0);
+      note+=1;
+    );
+    midisend(0,176|ch,64,0);
+    ch+=1;
+  );
+);
+
+function release_phrase_notes()
+local(ch,note,key)
+(
+  // Targeted choke for ONE SHOT voices only.
+  // Release exactly the notes that our ownership table says are still sounding.
+  ch=0;
+  loop(16,
+    note=0;
+    loop(128,
+      key=NOTE_REF_BASE + ch*128 + note;
+      mem[key]>0 ? (
+        midisend(0,128|ch,note,0);
+        mem[key]=0;
+      );
+      note+=1;
+    );
+    mem[SUSTAIN_REF_BASE+ch]>0 ? (
+      midisend(0,176|ch,64,0);
+      mem[SUSTAIN_REF_BASE+ch]=0;
+    );
+    ch+=1;
+  );
+);
+
+function any_solo()
+local(li,res)
+(
+  res=0;
+  li=0;
+  loop(LAYERS,
+    mem[SOLO_BASE+li] > 0.5 ? res=1;
+    li+=1;
+  );
+  res;
+);
+
+function layer_audible(layer)
+local(soloing)
+(
+  soloing=any_solo();
+  soloing ? (mem[SOLO_BASE+layer] > 0.5) : (mem[MUTE_BASE+layer] < 0.5);
+);
+
+function quant_grid_samples()
+local(beats_per_grid)
+(
+  // slider4: 0=1 bar,1=1/2,2=1/4,3=1/8,4=1/16,5=1/32
+  // derive grid from detected BPM. If analysis is unavailable, return 0.
+  analysis_done && slider6 > 0 ? (
+    slider4==0 ? beats_per_grid=4 :
+    slider4==1 ? beats_per_grid=2 :
+    slider4==2 ? beats_per_grid=1 :
+    slider4==3 ? beats_per_grid=0.5 :
+    slider4==4 ? beats_per_grid=0.25 :
+                 beats_per_grid=0.125;
+    (60/slider6)*srate*beats_per_grid;
+  ) : 0;
+);
+
+function quantize_ts(ts)
+local(grid,q,target)
+(
+  slider5 <= 0 ? ts : (
+    // same mapping as quant_grid_samples(), written inline to avoid hidden side effects
+    analysis_done && slider6 > 0 ? (
+      slider4==0 ? grid=(60/slider6)*srate*4 :
+      slider4==1 ? grid=(60/slider6)*srate*2 :
+      slider4==2 ? grid=(60/slider6)*srate :
+      slider4==3 ? grid=(60/slider6)*srate*0.5 :
+      slider4==4 ? grid=(60/slider6)*srate*0.25 :
+                   grid=(60/slider6)*srate*0.125;
+      grid > 0 ? (
+        q=floor(ts/grid+0.5);
+        target=q*grid;
+        ts + (target-ts)*(slider5/100);
+      ) : ts;
+    ) : ts;
+  );
+);
+
+@serialize
+// file_avail(0) < 0 means REAPER is WRITING plugin state.
 writing = file_avail(0) < 0;
 
 writing ? (
-  // Saving the REAPER project should always capture the state currently on screen,
-  // even if the user did not press our explicit PATCH SAVE button first.
   pb = current_patch==2 ? PATCH2_BASE : PATCH1_BASE;
   mem[pb+0]=loop_len_samples;
   mem[pb+1]=analysis_done;
@@ -40,10 +684,7 @@ file_var(0,current_patch);
 file_mem(0,PATCH1_BASE,PATCH_DATA_SIZE*2);
 
 !writing ? (
-  // Important: @init may run AFTER @serialize. This flag tells @init not to
-  // overwrite the state we have just restored.
   serialized_loaded=1;
-
   pb = current_patch==2 ? PATCH2_BASE : PATCH1_BASE;
   valid = current_patch==2 ? patch_valid2 : patch_valid1;
   valid ? (

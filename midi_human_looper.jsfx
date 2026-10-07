@@ -1,6 +1,10 @@
-desc:MIDI Human Looper v1.4.16
+desc:MIDI Human Looper v1.4.17
 
 // Free-time MIDI phrase instrument prototype for REAPER JSFX.
+// v1.4.17:
+// - recall v2: detect @serialize READ with file_avail(0)>=0 and hydrate immediately
+// - avoids fragile restore_pending flag across REAPER's @serialize/@init ordering
+// - serialized byte layout remains unchanged for existing .RPP state
 // v1.4.16:
 // - recall fix: restore the serialized current patch bank into working memory once at @block startup
 // - bypasses load_patch() same-slot guard and does not autosave during recall
@@ -275,7 +279,6 @@ overdub_pos = 0;
 prev_readyplay=0;
 prev_abortstop=0;
 prev_clear=0;
-restore_pending=1;
 
 function layer_count(layer)
 local(addr)
@@ -694,10 +697,15 @@ local(grid,q,target)
 
 
 @serialize
+serialize_reading = file_avail(0) >= 0;
 file_var(0,patch_valid1);
 file_var(0,patch_valid2);
 file_var(0,current_patch);
 file_mem(0,PATCH1_BASE,PATCH_DATA_SIZE*2);
+
+// Cockos: @serialize may run before @init. Hydrate immediately on READ,
+// because a later @init must not be relied on to preserve a pending flag.
+serialize_reading ? restore_current_patch_raw();
 
 @slider
 // Transport/CLEAR are handled by the custom @gfx UI and @block engine.
@@ -705,12 +713,6 @@ file_mem(0,PATCH1_BASE,PATCH_DATA_SIZE*2);
 // shared engine functions from @slider and caused REAPER compile failures.
 
 @block
-
-// After REAPER has restored @serialize data, hydrate the active working state once.
-restore_pending ? (
-  restore_pending=0;
-  restore_current_patch_raw();
-);
 
 save_flash>0 ? save_flash-=samplesblock;
 save_flash<0 ? save_flash=0;

@@ -1,7 +1,11 @@
-desc:MIDI Human Looper v1.16.7
+desc:MIDI Human Looper v1.16.8
 options:gmem=MIDI_HUMAN_LOOPER
 
 // Free-time MIDI phrase instrument prototype for REAPER JSFX.
+// v1.16.8:
+// - restore EXP1 / EXP2 assignment on the base instrument VOLUME slider
+// - volume keeps its direct slider behavior when unassigned
+// - right-click cycles NONE / EXP1 / EXP2 and assigned volume reuses the existing curve editor + mini curve overlay
 // v1.16.7:
 // - separate the instrument header and transformer lane vertically
 // - lower header controls slightly and lower transformer lane enough to clear all labels/controls
@@ -2274,8 +2278,17 @@ local(boxh,nx,nw,basey,bh,vx,vw,wirey,tx,bw,gap,tr,rangemode,notemode,arpon,c,k,
   smallbtn(334,basey+14,66,boxh,"",0);(transform_menu_gi<0 && hit(334,basey+14,66,boxh))?mem[INST_OUT_BASE+gi]=(mem[INST_OUT_BASE+gi]+1)%17;
   gfx_setfont(1,"Arial",10);gfx_set(.86,.86,.86,1);mem[INST_OUT_BASE+gi]==0?centered_text(334,basey+14,66,boxh,"ORIG"):(gfx_x=362;gfx_y=basey+21;gfx_drawnumber(mem[INST_OUT_BASE+gi],0););
   gfx_setfont(1,"Arial",8);gfx_set(.48,.48,.48,1);gfx_x=418;gfx_y=basey+1;gfx_drawstr("VOLUME");
+  ti=gi*EXP_TARGETS+EXP_T_LEVEL;
   vx=414;vw=150;gfx_set(.16,.16,.16,1);gfx_rect(vx,basey+19,vw,18,1);gfx_set(.70,.70,.70,1);gfx_rect(vx,basey+19,vw*(mem[INST_LEVEL_BASE+gi]/127),18,1);
-  mouse_cap&1&&mouse_x>=vx&&mouse_x<vx+vw&&mouse_y>=basey+14&&mouse_y<basey+42?(mem[INST_LEVEL_BASE+gi]=floor(127*((mouse_x-vx)/vw)+.5);mem[CC_DIRTY_BASE+gi]=1;);
+  transform_menu_gi<0 && mouse_cap&1&&mouse_x>=vx&&mouse_x<vx+vw&&mouse_y>=basey+14&&mouse_y<basey+42?(
+    mem[INST_EXP_ASSIGN_BASE+ti]>0 ? (!(last_mouse_cap&1)?exp_editor_ti=ti;) : (mem[INST_LEVEL_BASE+gi]=floor(127*((mouse_x-vx)/vw)+.5);mem[CC_DIRTY_BASE+gi]=1;);
+  );
+  transform_menu_gi<0 && (mouse_cap&2)&&!(last_mouse_cap&2)&&mouse_x>=vx&&mouse_x<vx+vw&&mouse_y>=basey+14&&mouse_y<basey+42?(
+    mem[INST_EXP_ASSIGN_BASE+ti]=(mem[INST_EXP_ASSIGN_BASE+ti]+1)%3;
+    mem[EXP_LAST_VALUE_BASE+ti]=-1;
+    mem[INST_EXP_ASSIGN_BASE+ti]>0?exp_editor_ti=ti:0;
+  );
+  draw_exp_badge(ti,vx,basey+19,vw,18);
   gfx_setfont(1,"Arial",10);gfx_set(.88,.88,.88,1);gfx_x=574;gfx_y=basey+21;gfx_drawnumber(mem[INST_LEVEL_BASE+gi],0);
 
   wirey=basey+72;gfx_set(.38,.38,.38,1);gfx_line(34,wirey,994,wirey);gfx_set(.62,.62,.62,1);gfx_circle(34,wirey,3,1,1);gfx_circle(994,wirey,3,1,1);

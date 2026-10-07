@@ -1,7 +1,11 @@
-desc:MIDI Human Looper v1.17.2
+desc:MIDI Human Looper v1.17.3
 options:gmem=MIDI_HUMAN_LOOPER
 
 // Free-time MIDI phrase instrument prototype for REAPER JSFX.
+// v1.17.3:
+// - hide REAPER's native parameter sliders: the plugin is now driven from its custom UI
+// - keep legacy/internal slider variables available to the engine without exposing the old control strip
+// - quantize remains internal/dormant until its dedicated UI is designed
 // v1.17.2:
 // - remove duplicate EXP A/B TEST faders from the GUI
 // - the four named CONTROLLERS meters are directly draggable for mouse testing
@@ -336,18 +340,13 @@ options:gmem=MIDI_HUMAN_LOOPER
 // while PLAYING, arm OVR on a layer -> recording starts at next loop boundary,
 // records exactly one full loop into that layer, then returns to PLAY automatically.
 
-slider1:0<0,1,1>-READY/PLAY (GUI)-
-slider2:0<0,1,1>-ABORT/STOP (GUI)-
-slider3:0<0,1,1>-CLEAR ALL (GUI)-
-slider4:0<0,5,1{1,1/2,1/4,1/8,1/16,1/32}>QUANTIZE GRID
-slider5:0<0,100,1>QUANTIZE AMOUNT (%)
-slider6:120<30,240,0.1>BPM DETECTED
-slider7:4<1,16,1>BARS DETECTED
-slider8:0<0,16,1{ORIGINAL,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16}>MIDI OUT CHANNEL
-slider9:1<0.2,3,0.01>GLOBAL VELOCITY
-slider10:0<0,1,0.001>EXP A (TEST)
-slider11:0<0,1,0.001>EXP B (TEST)
-
+// Native REAPER sliders intentionally hidden.
+// Keep these legacy engine/control values internal until they receive proper custom-UI controls.
+slider1=0; slider2=0; slider3=0;
+slider4=0; slider5=0;
+slider6=120; slider7=4;
+slider8=0; slider9=1;
+slider10=0; slider11=0;
 
 @init
 
@@ -2453,8 +2452,8 @@ ci=0;loop(CONTROLLERS,
   ex=130;ew=190;gfx_set(.22,.22,.22,1);gfx_rect(ex,rowy,ew,18,1);gfx_set(.7,.7,.7,1);gfx_rect(ex,rowy,ew*controller_value(ci),18,1);
   mouse_cap&1&&mouse_x>=ex&&mouse_x<ex+ew&&mouse_y>=rowy-2&&mouse_y<rowy+20?(
     controller_set_value(ci,max(0,min(1,(mouse_x-ex)/ew)));
-    ci==0?(slider10=controller_value(ci);sliderchange(512););
-    ci==1?(slider11=controller_value(ci);sliderchange(1024););
+    ci==0?(slider10=controller_value(ci););
+    ci==1?(slider11=controller_value(ci););
   );
   gfx_set(.72,.72,.72,1);gfx_x=327;gfx_y=rowy+3;gfx_drawnumber(controller_value(ci)*100,0);gfx_drawstr("%");
   ci+=1;

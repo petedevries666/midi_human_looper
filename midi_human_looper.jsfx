@@ -1,7 +1,10 @@
-desc:MIDI Human Looper v1.10.0
+desc:MIDI Human Looper v1.10.1
 options:gmem=MIDI_HUMAN_LOOPER
 
 // Free-time MIDI phrase instrument prototype for REAPER JSFX.
+// v1.10.1:
+// - move curve preset palette to the right of the graph
+// - clearer editor identity block: instrument, parameter, MAPPED TO, expression pedal
 // v1.10.0:
 // - curve editor preset palette: FLAT 50, STEP UP, STEP DOWN, RISE, FALL
 // - four persistent custom curve preset slots
@@ -2110,24 +2113,33 @@ exp_editor_ti>=0 ? (
   curve_ti=floor(exp_editor_ti+0.5);
   curve_gi=floor(curve_ti/EXP_TARGETS);
   curve_kind=curve_ti-curve_gi*EXP_TARGETS;
-  cx=125; cy=exp_y+38; cw=585; ch=150;
+  cx=128; cy=exp_y+38; cw=500; ch=150;
   gfx_set(0.10,0.10,0.10,1); gfx_rect(cx,cy,cw,ch,1);
   gfx_set(0.35,0.35,0.35,1); gfx_rect(cx,cy,cw,ch,0);
-  gfx_setfont(1,"Arial",12);
-  gfx_x=20; gfx_y=cy; gfx_drawstr("CURVE: I"); gfx_drawnumber(curve_gi+1,0); gfx_drawstr(" ");
+  // Clear identity block: what are we editing, and what controls it?
+  gfx_setfont(1,"Arial",11); gfx_set(0.95,0.95,0.15,1);
+  gfx_x=8; gfx_y=cy+2; gfx_drawstr("INSTR. "); gfx_drawnumber(curve_gi+1,0);
+  gfx_setfont(1,"Arial",14);
+  gfx_x=8; gfx_y=cy+20;
   curve_kind==EXP_T_VEL ? gfx_drawstr("VELOCITY") :
   curve_kind==EXP_T_LEVEL ? gfx_drawstr("VOLUME") :
   curve_kind==EXP_T_MOD ? gfx_drawstr("MODULATION") :
   curve_kind==EXP_T_ARP_ON ? gfx_drawstr("ARP ON") :
   curve_kind==EXP_T_ARP_MODE ? gfx_drawstr("ARP MODE") :
   curve_kind==EXP_T_ARP_RATE ? gfx_drawstr("ARP RATE") : gfx_drawstr("ARP GATE");
-  gfx_drawstr(" <- ");
-  gfx_drawstr(mem[INST_EXP_ASSIGN_BASE+curve_ti]==1 ? "EXP1" : "EXP2");
-  gfx_x=20; gfx_y=cy+18; gfx_drawstr("L:add/drag  R:remove");
-  gfx_x=20; gfx_y=cy+34; gfx_drawstr("SHIFT:move segment  ALT:bend");
+  gfx_setfont(1,"Arial",9); gfx_set(0.55,0.55,0.55,1);
+  gfx_x=8; gfx_y=cy+43; gfx_drawstr("MAPPED TO");
+  gfx_setfont(1,"Arial",12); gfx_set(0.90,0.90,0.90,1);
+  gfx_x=8; gfx_y=cy+57;
+  gfx_drawstr(mem[INST_EXP_ASSIGN_BASE+curve_ti]==1 ? "EXP PEDAL 1" : "EXP PEDAL 2");
+  gfx_setfont(1,"Arial",8); gfx_set(0.48,0.48,0.48,1);
+  gfx_x=8; gfx_y=cy+92; gfx_drawstr("L  add / drag");
+  gfx_x=8; gfx_y=cy+104; gfx_drawstr("R  remove");
+  gfx_x=8; gfx_y=cy+116; gfx_drawstr("SHIFT  segment");
+  gfx_x=8; gfx_y=cy+128; gfx_drawstr("ALT  bend");
 
-  // Particular-style preset strip at the left of the editor.
-  ppx=20; ppw=88; pph=18; ppy=cy+52;
+  // Particular-style preset strip on the right of the editor.
+  ppx=646; ppw=88; pph=16; ppy=cy+18;
   gfx_setfont(1,"Arial",9); gfx_set(0.72,0.72,0.72,1);
   gfx_x=ppx; gfx_y=ppy-14; gfx_drawstr("PRESETS");
   pi=0;
@@ -2137,7 +2149,7 @@ exp_editor_ti>=0 ? (
     pi+=1;
   );
   // Custom slots: compact row under factory presets.
-  cpy=ppy+5*(pph+3)+2; cpw=20;
+  cpy=ppy+5*(pph+3)+1; cpw=20;
   pi=0;
   loop(CUSTOM_PRESETS,
     draw_curve_preset_thumb(ppx+pi*22,cpy,cpw,pph,1,pi);

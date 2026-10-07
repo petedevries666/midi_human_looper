@@ -1,7 +1,12 @@
-desc:MIDI Human Looper v1.9.0
+desc:MIDI Human Looper v1.10.0
 options:gmem=MIDI_HUMAN_LOOPER
 
 // Free-time MIDI phrase instrument prototype for REAPER JSFX.
+// v1.10.0:
+// - curve editor preset palette: FLAT 50, STEP UP, STEP DOWN, RISE, FALL
+// - four persistent custom curve preset slots
+// - SAVE CUSTOM arms a slot; click C1..C4 to store, normal click loads
+// - preset thumbnails show the actual curve shape
 // v1.9.0:
 // - curve endpoints are permanent and locked to X=0 / X=1; they can only move vertically
 // - Shift-drag a curve segment moves both endpoint nodes together; interior segments move X+Y, edge segments Y only
@@ -315,7 +320,10 @@ INST_EXP_X_BASE = INST_EXP_COUNT_BASE + EXP_TOTAL;
 INST_EXP_Y_BASE = INST_EXP_X_BASE + EXP_TOTAL*EXP_POINTS;
 // One signed curvature value per possible segment slot. 0=linear, -1..+1 bends the segment.
 INST_EXP_BEND_BASE = INST_EXP_Y_BASE + EXP_TOTAL*EXP_POINTS;
-WORK_MEM_SIZE = INST_EXP_BEND_BASE + EXP_TOTAL*EXP_POINTS;
+CUSTOM_PRESETS=4;
+CUSTOM_PRESET_STRIDE=1+EXP_POINTS*3; // count + X + Y + bend
+CUSTOM_PRESET_BASE = INST_EXP_BEND_BASE + EXP_TOTAL*EXP_POINTS;
+WORK_MEM_SIZE = CUSTOM_PRESET_BASE + CUSTOM_PRESETS*CUSTOM_PRESET_STRIDE;
 PATCH_HEADER_SIZE = 12;
 PATCH_DATA_SIZE = PATCH_HEADER_SIZE + WORK_MEM_SIZE;
 PATCH1_BASE = WORK_MEM_SIZE + 64;
@@ -451,6 +459,12 @@ loop(INSTRUMENTS,
     et+=1;
   );
   ii+=1;
+);
+// Custom preset slots start empty. They become part of external JSON patch data.
+cp=0;
+loop(CUSTOM_PRESETS,
+  mem[CUSTOM_PRESET_BASE+cp*CUSTOM_PRESET_STRIDE]=0;
+  cp+=1;
 );
 
 record_sample_pos = 0;
@@ -1470,6 +1484,7 @@ exp_gui_initialized!=1 ? (
   exp_drag_point=-1;
   exp_drag_segment=-1;
   exp_bend_segment=-1;
+  custom_save_armed=0;
   exp_gui_initialized=1;
 );
 
@@ -1738,6 +1753,118 @@ loop(PHRASES_PER_PAGE,
 );
 
 // --- INSTRUMENTS -----------------------------------------------------------
+// Curve preset helpers -------------------------------------------------------
+function curve_clear_bends(ti)
+local(k)
+(
+  k=0; loop(EXP_POINTS, mem[INST_EXP_BEND_BASE+ti*EXP_POINTS+k]=0; k+=1;);
+);
+
+function curve_factory(ti, preset)
+local(k)
+(
+  curve_clear_bends(ti);
+  preset==0 ? ( // flat 50%
+    mem[INST_EXP_COUNT_BASE+ti]=2;
+    mem[INST_EXP_X_BASE+ti*EXP_POINTS]=0; mem[INST_EXP_Y_BASE+ti*EXP_POINTS]=0.5;
+    mem[INST_EXP_X_BASE+ti*EXP_POINTS+1]=1; mem[INST_EXP_Y_BASE+ti*EXP_POINTS+1]=0.5;
+  ) :
+  preset==1 ? ( // 0% first third, rise to 80% over second third, then plateau
+    mem[INST_EXP_COUNT_BASE+ti]=4;
+    mem[INST_EXP_X_BASE+ti*EXP_POINTS]=0;       mem[INST_EXP_Y_BASE+ti*EXP_POINTS]=0;
+    mem[INST_EXP_X_BASE+ti*EXP_POINTS+1]=1/3;  mem[INST_EXP_Y_BASE+ti*EXP_POINTS+1]=0;
+    mem[INST_EXP_X_BASE+ti*EXP_POINTS+2]=2/3;  mem[INST_EXP_Y_BASE+ti*EXP_POINTS+2]=0.8;
+    mem[INST_EXP_X_BASE+ti*EXP_POINTS+3]=1;     mem[INST_EXP_Y_BASE+ti*EXP_POINTS+3]=0.8;
+  ) :
+  preset==2 ? ( // inverse
+    mem[INST_EXP_COUNT_BASE+ti]=4;
+    mem[INST_EXP_X_BASE+ti*EXP_POINTS]=0;       mem[INST_EXP_Y_BASE+ti*EXP_POINTS]=0.8;
+    mem[INST_EXP_X_BASE+ti*EXP_POINTS+1]=1/3;  mem[INST_EXP_Y_BASE+ti*EXP_POINTS+1]=0.8;
+    mem[INST_EXP_X_BASE+ti*EXP_POINTS+2]=2/3;  mem[INST_EXP_Y_BASE+ti*EXP_POINTS+2]=0;
+    mem[INST_EXP_X_BASE+ti*EXP_POINTS+3]=1;     mem[INST_EXP_Y_BASE+ti*EXP_POINTS+3]=0;
+  ) :
+  preset==3 ? ( // rise
+    mem[INST_EXP_COUNT_BASE+ti]=2;
+    mem[INST_EXP_X_BASE+ti*EXP_POINTS]=0; mem[INST_EXP_Y_BASE+ti*EXP_POINTS]=0;
+    mem[INST_EXP_X_BASE+ti*EXP_POINTS+1]=1; mem[INST_EXP_Y_BASE+ti*EXP_POINTS+1]=1;
+  ) : ( // fall
+    mem[INST_EXP_COUNT_BASE+ti]=2;
+    mem[INST_EXP_X_BASE+ti*EXP_POINTS]=0; mem[INST_EXP_Y_BASE+ti*EXP_POINTS]=1;
+    mem[INST_EXP_X_BASE+ti*EXP_POINTS+1]=1; mem[INST_EXP_Y_BASE+ti*EXP_POINTS+1]=0;
+  );
+  mem[EXP_LAST_VALUE_BASE+ti]=-1;
+);
+
+function curve_custom_save(ti, slot)
+local(base,cnt,k)
+(
+  base=CUSTOM_PRESET_BASE+slot*CUSTOM_PRESET_STRIDE;
+  cnt=max(2,min(EXP_POINTS,floor(mem[INST_EXP_COUNT_BASE+ti]+0.5)));
+  mem[base]=cnt;
+  k=0; loop(EXP_POINTS,
+    mem[base+1+k]=mem[INST_EXP_X_BASE+ti*EXP_POINTS+k];
+    mem[base+1+EXP_POINTS+k]=mem[INST_EXP_Y_BASE+ti*EXP_POINTS+k];
+    mem[base+1+EXP_POINTS*2+k]=mem[INST_EXP_BEND_BASE+ti*EXP_POINTS+k];
+    k+=1;
+  );
+);
+
+function curve_custom_load(ti, slot)
+local(base,cnt,k)
+(
+  base=CUSTOM_PRESET_BASE+slot*CUSTOM_PRESET_STRIDE;
+  cnt=floor(mem[base]+0.5);
+  cnt>=2 ? (
+    mem[INST_EXP_COUNT_BASE+ti]=min(EXP_POINTS,cnt);
+    k=0; loop(EXP_POINTS,
+      mem[INST_EXP_X_BASE+ti*EXP_POINTS+k]=mem[base+1+k];
+      mem[INST_EXP_Y_BASE+ti*EXP_POINTS+k]=mem[base+1+EXP_POINTS+k];
+      mem[INST_EXP_BEND_BASE+ti*EXP_POINTS+k]=mem[base+1+EXP_POINTS*2+k];
+      k+=1;
+    );
+    mem[INST_EXP_X_BASE+ti*EXP_POINTS]=0;
+    mem[INST_EXP_X_BASE+ti*EXP_POINTS+min(EXP_POINTS,cnt)-1]=1;
+    mem[EXP_LAST_VALUE_BASE+ti]=-1;
+  );
+);
+
+// Tiny preset thumbnail. source_type 0=factory, 1=custom.
+function draw_curve_preset_thumb(x,y,w,h,source_type,pidx)
+local(k,cnt,xx0,yy0,xx1,yy1,base)
+(
+  gfx_set(0.16,0.16,0.16,1); gfx_rect(x,y,w,h,1);
+  gfx_set(0.48,0.48,0.48,1); gfx_rect(x,y,w,h,0);
+  source_type==0 ? (
+    pidx==0 ? (gfx_line(x+2,y+h/2,x+w-2,y+h/2);) :
+    pidx==1 ? (
+      gfx_line(x+2,y+h-2,x+w/3,y+h-2); gfx_line(x+w/3,y+h-2,x+2*w/3,y+0.2*h);
+      gfx_line(x+2*w/3,y+0.2*h,x+w-2,y+0.2*h);
+    ) :
+    pidx==2 ? (
+      gfx_line(x+2,y+0.2*h,x+w/3,y+0.2*h); gfx_line(x+w/3,y+0.2*h,x+2*w/3,y+h-2);
+      gfx_line(x+2*w/3,y+h-2,x+w-2,y+h-2);
+    ) :
+    pidx==3 ? gfx_line(x+2,y+h-2,x+w-2,y+2) :
+              gfx_line(x+2,y+2,x+w-2,y+h-2);
+  ) : (
+    base=CUSTOM_PRESET_BASE+pidx*CUSTOM_PRESET_STRIDE;
+    cnt=max(0,min(EXP_POINTS,floor(mem[base]+0.5)));
+    cnt>=2 ? (
+      k=0;
+      loop(cnt-1,
+        xx0=x+2+(w-4)*mem[base+1+k];
+        yy0=y+h-2-(h-4)*mem[base+1+EXP_POINTS+k];
+        xx1=x+2+(w-4)*mem[base+1+k+1];
+        yy1=y+h-2-(h-4)*mem[base+1+EXP_POINTS+k+1];
+        gfx_line(xx0,yy0,xx1,yy1);
+        k+=1;
+      );
+    ) : (
+      gfx_setfont(1,"Arial",7); gfx_x=x+3; gfx_y=y+2; gfx_drawstr("EMPTY");
+    );
+  );
+);
+
 // Compact assignment badge: pedal name + miniature of the target's own curve.
 function draw_exp_badge(ti, x, y, w, h)
 local(asg,cnt,k,x0,y0,x1,y1,px0,py0,px1,py1)
@@ -1983,7 +2110,7 @@ exp_editor_ti>=0 ? (
   curve_ti=floor(exp_editor_ti+0.5);
   curve_gi=floor(curve_ti/EXP_TARGETS);
   curve_kind=curve_ti-curve_gi*EXP_TARGETS;
-  cx=90; cy=exp_y+38; cw=620; ch=150;
+  cx=125; cy=exp_y+38; cw=585; ch=150;
   gfx_set(0.10,0.10,0.10,1); gfx_rect(cx,cy,cw,ch,1);
   gfx_set(0.35,0.35,0.35,1); gfx_rect(cx,cy,cw,ch,0);
   gfx_setfont(1,"Arial",12);
@@ -1998,6 +2125,31 @@ exp_editor_ti>=0 ? (
   gfx_drawstr(mem[INST_EXP_ASSIGN_BASE+curve_ti]==1 ? "EXP1" : "EXP2");
   gfx_x=20; gfx_y=cy+18; gfx_drawstr("L:add/drag  R:remove");
   gfx_x=20; gfx_y=cy+34; gfx_drawstr("SHIFT:move segment  ALT:bend");
+
+  // Particular-style preset strip at the left of the editor.
+  ppx=20; ppw=88; pph=18; ppy=cy+52;
+  gfx_setfont(1,"Arial",9); gfx_set(0.72,0.72,0.72,1);
+  gfx_x=ppx; gfx_y=ppy-14; gfx_drawstr("PRESETS");
+  pi=0;
+  loop(5,
+    draw_curve_preset_thumb(ppx,ppy+pi*(pph+3),ppw,pph,0,pi);
+    hit(ppx,ppy+pi*(pph+3),ppw,pph) ? curve_factory(curve_ti,pi);
+    pi+=1;
+  );
+  // Custom slots: compact row under factory presets.
+  cpy=ppy+5*(pph+3)+2; cpw=20;
+  pi=0;
+  loop(CUSTOM_PRESETS,
+    draw_curve_preset_thumb(ppx+pi*22,cpy,cpw,pph,1,pi);
+    hit(ppx+pi*22,cpy,cpw,pph) ? (
+      custom_save_armed ? (
+        curve_custom_save(curve_ti,pi); custom_save_armed=0;
+      ) : curve_custom_load(curve_ti,pi);
+    );
+    pi+=1;
+  );
+  smallbtn(ppx,cpy+pph+4,ppw,18,custom_save_armed ? "CHOOSE C1-C4" : "SAVE CUSTOM",custom_save_armed);
+  hit(ppx,cpy+pph+4,ppw,18) ? custom_save_armed=1-custom_save_armed;
 
   kk=1;
   loop(4,

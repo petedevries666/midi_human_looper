@@ -1,7 +1,11 @@
-desc:MIDI Human Looper v1.8.5
+desc:MIDI Human Looper v1.9.0
 options:gmem=MIDI_HUMAN_LOOPER
 
 // Free-time MIDI phrase instrument prototype for REAPER JSFX.
+// v1.9.0:
+// - curve endpoints are permanent and locked to X=0 / X=1; they can only move vertically
+// - Shift-drag a curve segment moves both endpoint nodes together; interior segments move X+Y, edge segments Y only
+// - Alt-drag a curve segment bends it; curvature is persistent and used by the engine and mini curve previews
 // v1.8.5:
 // - EXP badge overlay is less opaque so the underlying slider remains visually present
 // - miniature curve now spans the full slider width; EXP1/EXP2 label overlays it
@@ -309,7 +313,9 @@ INST_EXP_ASSIGN_BASE = INST_ARP_MODE_BASE + INSTRUMENTS;
 INST_EXP_COUNT_BASE = INST_EXP_ASSIGN_BASE + EXP_TOTAL;
 INST_EXP_X_BASE = INST_EXP_COUNT_BASE + EXP_TOTAL;
 INST_EXP_Y_BASE = INST_EXP_X_BASE + EXP_TOTAL*EXP_POINTS;
-WORK_MEM_SIZE = INST_EXP_Y_BASE + EXP_TOTAL*EXP_POINTS;
+// One signed curvature value per possible segment slot. 0=linear, -1..+1 bends the segment.
+INST_EXP_BEND_BASE = INST_EXP_Y_BASE + EXP_TOTAL*EXP_POINTS;
+WORK_MEM_SIZE = INST_EXP_BEND_BASE + EXP_TOTAL*EXP_POINTS;
 PATCH_HEADER_SIZE = 12;
 PATCH_DATA_SIZE = PATCH_HEADER_SIZE + WORK_MEM_SIZE;
 PATCH1_BASE = WORK_MEM_SIZE + 64;
@@ -435,6 +441,11 @@ loop(INSTRUMENTS,
     loop(EXP_POINTS-2,
       mem[INST_EXP_X_BASE+eti*EXP_POINTS+ep]=0;
       mem[INST_EXP_Y_BASE+eti*EXP_POINTS+ep]=0;
+      ep+=1;
+    );
+    ep=0;
+    loop(EXP_POINTS,
+      mem[INST_EXP_BEND_BASE+eti*EXP_POINTS+ep]=0;
       ep+=1;
     );
     et+=1;
@@ -880,8 +891,22 @@ local(srcch,typ,ii,in_ch,out_ch,outst,outd2,matched,velmul,msg_chan,note_key)
   );
 );
 
+function exp_segment_t(t, bend)
+local(p)
+(
+  t=max(0,min(1,t));
+  bend=max(-0.98,min(0.98,bend));
+  bend>0 ? (
+    p=1+5*bend;
+    pow(t,p);
+  ) : bend<0 ? (
+    p=1+5*(-bend);
+    1-pow(1-t,p);
+  ) : t;
+);
+
 function exp_curve_value(ti, xpos)
-local(cnt,k,x0,y0,x1,y1,t,res)
+local(cnt,k,x0,y0,x1,y1,t,bend,res)
 (
   cnt=max(2,min(EXP_POINTS,floor(mem[INST_EXP_COUNT_BASE+ti]+0.5)));
   xpos=max(0,min(1,xpos));
@@ -895,6 +920,8 @@ local(cnt,k,x0,y0,x1,y1,t,res)
     xpos>=x1 ? res=y1 :
     xpos>=x0 && xpos<x1 ? (
       t=(xpos-x0)/max(0.000001,x1-x0);
+      bend=mem[INST_EXP_BEND_BASE+ti*EXP_POINTS+k-1];
+      t=exp_segment_t(t,bend);
       res=y0+(y1-y0)*t;
     );
     x0=x1; y0=y1;
@@ -1441,6 +1468,8 @@ loop(INSTRUMENTS,
 exp_gui_initialized!=1 ? (
   exp_editor_ti=-1;
   exp_drag_point=-1;
+  exp_drag_segment=-1;
+  exp_bend_segment=-1;
   exp_gui_initialized=1;
 );
 
@@ -1722,13 +1751,18 @@ local(asg,cnt,k,x0,y0,x1,y1,px0,py0,px1,py1)
     k=0;
     loop(cnt-1,
       x0=mem[INST_EXP_X_BASE+ti*EXP_POINTS+k];
-      y0=mem[INST_EXP_Y_BASE+ti*EXP_POINTS+k];
       x1=mem[INST_EXP_X_BASE+ti*EXP_POINTS+k+1];
-      y1=mem[INST_EXP_Y_BASE+ti*EXP_POINTS+k+1];
-      // Full-width curve, with only a 2 px inner margin.
-      px0=x+2+(w-4)*x0; py0=y+h-2-(h-4)*y0;
-      px1=x+2+(w-4)*x1; py1=y+h-2-(h-4)*y1;
-      gfx_set(0.72,0.72,0.72,1); gfx_line(px0,py0,px1,py1);
+      px0=x+2+(w-4)*x0;
+      py0=y+h-2-(h-4)*exp_curve_value(ti,x0);
+      ss=1;
+      loop(8,
+        st=ss/8;
+        sx=x0+(x1-x0)*st;
+        px1=x+2+(w-4)*sx;
+        py1=y+h-2-(h-4)*exp_curve_value(ti,sx);
+        gfx_set(0.72,0.72,0.72,1); gfx_line(px0,py0,px1,py1);
+        px0=px1; py0=py1; ss+=1;
+      );
       k+=1;
     );
     // Pedal label sits over the graph, as in the mockup.
@@ -1946,7 +1980,6 @@ gfx_x=718; gfx_y=exp_y+4; gfx_drawnumber(slider11*100,0); gfx_drawstr("%");
 
 // Multipoint editor appears after right-clicking an assigned LEVEL slider.
 exp_editor_ti>=0 ? (
-  // Snapshot the selected target once for this frame. All editor drawing/editing uses this immutable index.
   curve_ti=floor(exp_editor_ti+0.5);
   curve_gi=floor(curve_ti/EXP_TARGETS);
   curve_kind=curve_ti-curve_gi*EXP_TARGETS;
@@ -1963,46 +1996,58 @@ exp_editor_ti>=0 ? (
   curve_kind==EXP_T_ARP_RATE ? gfx_drawstr("ARP RATE") : gfx_drawstr("ARP GATE");
   gfx_drawstr(" <- ");
   gfx_drawstr(mem[INST_EXP_ASSIGN_BASE+curve_ti]==1 ? "EXP1" : "EXP2");
-  gfx_x=20; gfx_y=cy+18; gfx_drawstr("L:add/drag");
-  gfx_x=20; gfx_y=cy+34; gfx_drawstr("R:remove");
+  gfx_x=20; gfx_y=cy+18; gfx_drawstr("L:add/drag  R:remove");
+  gfx_x=20; gfx_y=cy+34; gfx_drawstr("SHIFT:move segment  ALT:bend");
 
-  // grid
   kk=1;
   loop(4,
     gx=cx+cw*(kk/5); gy=cy+ch*(kk/5);
-    gfx_set(0.20,0.20,0.20,1);
-    gfx_line(gx,cy,gx,cy+ch);
-    gfx_line(cx,gy,cx+cw,gy);
+    gfx_set(0.20,0.20,0.20,1); gfx_line(gx,cy,gx,cy+ch); gfx_line(cx,gy,cx+cw,gy);
     kk+=1;
   );
 
   cnt=max(2,min(EXP_POINTS,floor(mem[INST_EXP_COUNT_BASE+curve_ti]+0.5)));
-  // curve
+  // Hard invariant: extreme nodes always live at X=0 and X=1.
+  mem[INST_EXP_X_BASE+curve_ti*EXP_POINTS]=0;
+  mem[INST_EXP_X_BASE+curve_ti*EXP_POINTS+cnt-1]=1;
+
+  // Draw curved segments and find nearest segment by sampling.
+  hover_seg=-1; seg_best=999999;
   kk=0;
   loop(cnt-1,
-    x0=cx+cw*mem[INST_EXP_X_BASE+curve_ti*EXP_POINTS+kk];
-    y0=cy+ch*(1-mem[INST_EXP_Y_BASE+curve_ti*EXP_POINTS+kk]);
-    x1=cx+cw*mem[INST_EXP_X_BASE+curve_ti*EXP_POINTS+kk+1];
-    y1=cy+ch*(1-mem[INST_EXP_Y_BASE+curve_ti*EXP_POINTS+kk+1]);
-    gfx_set(0.75,0.75,0.75,1); gfx_line(x0,y0,x1,y1);
+    x0=mem[INST_EXP_X_BASE+curve_ti*EXP_POINTS+kk];
+    x1=mem[INST_EXP_X_BASE+curve_ti*EXP_POINTS+kk+1];
+    px0=cx+cw*x0; py0=cy+ch*(1-exp_curve_value(curve_ti,x0));
+    ss=1;
+    loop(20,
+      st=ss/20; sx=x0+(x1-x0)*st;
+      px1=cx+cw*sx; py1=cy+ch*(1-exp_curve_value(curve_ti,sx));
+      gfx_set(0.75,0.75,0.75,1); gfx_line(px0,py0,px1,py1);
+      // Distance to this tiny sampled line segment, sufficient for segment hit-testing.
+      vx_=px1-px0; vy_=py1-py0; wx_=mouse_x-px0; wy_=mouse_y-py0;
+      den_=vx_*vx_+vy_*vy_;
+      tt_=den_>0 ? max(0,min(1,(wx_*vx_+wy_*vy_)/den_)) : 0;
+      qx_=px0+tt_*vx_; qy_=py0+tt_*vy_;
+      dd_=(mouse_x-qx_)*(mouse_x-qx_)+(mouse_y-qy_)*(mouse_y-qy_);
+      dd_<seg_best ? (seg_best=dd_; hover_seg=kk;);
+      px0=px1; py0=py1; ss+=1;
+    );
     kk+=1;
   );
+  seg_best>100 ? hover_seg=-1;
 
-  // points + hit-test nearest
-  hover=-1; bestd=999999;
-  kk=0;
+  hover=-1; bestd=999999; kk=0;
   loop(cnt,
     px=cx+cw*mem[INST_EXP_X_BASE+curve_ti*EXP_POINTS+kk];
     py=cy+ch*(1-mem[INST_EXP_Y_BASE+curve_ti*EXP_POINTS+kk]);
     dd=(mouse_x-px)*(mouse_x-px)+(mouse_y-py)*(mouse_y-py);
     dd<100 && dd<bestd ? (bestd=dd; hover=kk;);
-    gfx_set(0.9,0.9,0.9,1);
-    gfx_rect(px-4,py-4,8,8,1);
+    gfx_set(0.9,0.9,0.9,1); gfx_rect(px-4,py-4,8,8,1);
     kk+=1;
   );
 
-  // right-click point removes it, minimum two points.
-  (mouse_cap&2) && !(last_mouse_cap&2) && hover>=0 && cnt>2 ? (
+  // Only interior nodes may be removed.
+  (mouse_cap&2) && !(last_mouse_cap&2) && hover>0 && hover<cnt-1 && cnt>2 ? (
     kk=hover;
     loop(cnt-hover-1,
       mem[INST_EXP_X_BASE+curve_ti*EXP_POINTS+kk]=mem[INST_EXP_X_BASE+curve_ti*EXP_POINTS+kk+1];
@@ -2010,19 +2055,42 @@ exp_editor_ti>=0 ? (
       kk+=1;
     );
     mem[INST_EXP_COUNT_BASE+curve_ti]=cnt-1;
+    // Topology changed: reset segment bends rather than attach a bend to the wrong neighbours.
+    kk=0; loop(EXP_POINTS, mem[INST_EXP_BEND_BASE+curve_ti*EXP_POINTS+kk]=0; kk+=1;);
     exp_drag_point=-1;
   );
 
-  // fresh left click: grab a point, or add one at cursor.
-  (mouse_cap&1) && !(last_mouse_cap&1) &&
+  fresh_left=(mouse_cap&1) && !(last_mouse_cap&1);
+  shift_down=(mouse_cap&8)>0;
+  alt_down=(mouse_cap&16)>0;
+
+  // ALT + segment: capture curvature drag.
+  fresh_left && alt_down && hover_seg>=0 ? (
+    exp_bend_segment=hover_seg;
+    exp_bend_start_y=mouse_y;
+    exp_bend_start=mem[INST_EXP_BEND_BASE+curve_ti*EXP_POINTS+hover_seg];
+  );
+
+  // SHIFT + segment: capture both endpoints and their original coordinates.
+  fresh_left && shift_down && !alt_down && hover_seg>=0 ? (
+    exp_drag_segment=hover_seg;
+    exp_seg_start_x=mouse_x; exp_seg_start_y=mouse_y;
+    exp_seg_x0=mem[INST_EXP_X_BASE+curve_ti*EXP_POINTS+hover_seg];
+    exp_seg_y0=mem[INST_EXP_Y_BASE+curve_ti*EXP_POINTS+hover_seg];
+    exp_seg_x1=mem[INST_EXP_X_BASE+curve_ti*EXP_POINTS+hover_seg+1];
+    exp_seg_y1=mem[INST_EXP_Y_BASE+curve_ti*EXP_POINTS+hover_seg+1];
+  );
+
+  // Plain left click: point drag or point creation.
+  fresh_left && !shift_down && !alt_down &&
   mouse_x>=cx && mouse_x<=cx+cw && mouse_y>=cy && mouse_y<=cy+ch ? (
     hover>=0 ? exp_drag_point=hover : (
       cnt<EXP_POINTS ? (
-        mem[INST_EXP_X_BASE+curve_ti*EXP_POINTS+cnt]=max(0,min(1,(mouse_x-cx)/cw));
+        mem[INST_EXP_X_BASE+curve_ti*EXP_POINTS+cnt]=max(0.001,min(0.999,(mouse_x-cx)/cw));
         mem[INST_EXP_Y_BASE+curve_ti*EXP_POINTS+cnt]=max(0,min(1,1-(mouse_y-cy)/ch));
         mem[INST_EXP_COUNT_BASE+curve_ti]=cnt+1;
         exp_sort_points(curve_ti);
-        // re-find nearest after sort so drag continues on inserted point
+        kk=0; loop(EXP_POINTS, mem[INST_EXP_BEND_BASE+curve_ti*EXP_POINTS+kk]=0; kk+=1;);
         exp_drag_point=-1; bestd=999999; kk=0;
         loop(cnt+1,
           px=cx+cw*mem[INST_EXP_X_BASE+curve_ti*EXP_POINTS+kk];
@@ -2035,22 +2103,54 @@ exp_editor_ti>=0 ? (
     );
   );
 
-  // drag selected point. Sorting happens on release so the grabbed index stays stable.
-  exp_drag_point>=0 && mouse_cap&1 ? (
-    mem[INST_EXP_X_BASE+curve_ti*EXP_POINTS+exp_drag_point]=max(0,min(1,(mouse_x-cx)/cw));
-    mem[INST_EXP_Y_BASE+curve_ti*EXP_POINTS+exp_drag_point]=max(0,min(1,1-(mouse_y-cy)/ch));
-    mem[EXP_LAST_VALUE_BASE+curve_ti]=-1;
-  );
-  exp_drag_point>=0 && !(mouse_cap&1) ? (
-    exp_sort_points(curve_ti);
-    exp_drag_point=-1;
+  // Individual point drag. Extreme nodes are vertical-only.
+  exp_drag_point>=0 && mouse_cap&1 && !shift_down && !alt_down ? (
+    newy=max(0,min(1,1-(mouse_y-cy)/ch));
+    mem[INST_EXP_Y_BASE+curve_ti*EXP_POINTS+exp_drag_point]=newy;
+    exp_drag_point>0 && exp_drag_point<cnt-1 ? (
+      leftx=mem[INST_EXP_X_BASE+curve_ti*EXP_POINTS+exp_drag_point-1]+0.001;
+      rightx=mem[INST_EXP_X_BASE+curve_ti*EXP_POINTS+exp_drag_point+1]-0.001;
+      mem[INST_EXP_X_BASE+curve_ti*EXP_POINTS+exp_drag_point]=max(leftx,min(rightx,(mouse_x-cx)/cw));
+    );
     mem[EXP_LAST_VALUE_BASE+curve_ti]=-1;
   );
 
-  // live pedal cursor
+  // SHIFT segment drag. Edge segments are vertical-only; fully interior segments also move horizontally.
+  exp_drag_segment>=0 && mouse_cap&1 ? (
+    ds=exp_drag_segment;
+    dy_=-(mouse_y-exp_seg_start_y)/ch;
+    max_up=min(1-exp_seg_y0,1-exp_seg_y1);
+    max_dn=min(exp_seg_y0,exp_seg_y1);
+    dy_=max(-max_dn,min(max_up,dy_));
+    mem[INST_EXP_Y_BASE+curve_ti*EXP_POINTS+ds]=exp_seg_y0+dy_;
+    mem[INST_EXP_Y_BASE+curve_ti*EXP_POINTS+ds+1]=exp_seg_y1+dy_;
+    ds>0 && ds+1<cnt-1 ? (
+      dx_=(mouse_x-exp_seg_start_x)/cw;
+      left_lim=mem[INST_EXP_X_BASE+curve_ti*EXP_POINTS+ds-1]+0.001-exp_seg_x0;
+      right_lim=mem[INST_EXP_X_BASE+curve_ti*EXP_POINTS+ds+2]-0.001-exp_seg_x1;
+      dx_=max(left_lim,min(right_lim,dx_));
+      mem[INST_EXP_X_BASE+curve_ti*EXP_POINTS+ds]=exp_seg_x0+dx_;
+      mem[INST_EXP_X_BASE+curve_ti*EXP_POINTS+ds+1]=exp_seg_x1+dx_;
+    );
+    mem[EXP_LAST_VALUE_BASE+curve_ti]=-1;
+  );
+
+  // ALT segment drag controls signed curvature.
+  exp_bend_segment>=0 && mouse_cap&1 ? (
+    ds=exp_bend_segment;
+    bend_=exp_bend_start+(mouse_y-exp_bend_start_y)/80;
+    mem[INST_EXP_BEND_BASE+curve_ti*EXP_POINTS+ds]=max(-0.98,min(0.98,bend_));
+    mem[EXP_LAST_VALUE_BASE+curve_ti]=-1;
+  );
+
+  !(mouse_cap&1) ? (
+    exp_drag_point=-1;
+    exp_drag_segment=-1;
+    exp_bend_segment=-1;
+  );
+
   pedalx=mem[INST_EXP_ASSIGN_BASE+curve_ti]==1 ? slider10 : slider11;
-  gfx_set(0.55,0.55,0.55,1);
-  gfx_line(cx+cw*pedalx,cy,cx+cw*pedalx,cy+ch);
+  gfx_set(0.55,0.55,0.55,1); gfx_line(cx+cw*pedalx,cy,cx+cw*pedalx,cy+ch);
 );
 
 // Present the scrolled viewport from the offscreen content buffer.

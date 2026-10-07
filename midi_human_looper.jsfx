@@ -1,7 +1,10 @@
-desc:MIDI Human Looper v1.7.1
+desc:MIDI Human Looper v1.7.2
 options:gmem=MIDI_HUMAN_LOOPER
 
 // Free-time MIDI phrase instrument prototype for REAPER JSFX.
+// v1.7.2:
+// - fix vertical scrolling: render UI to an offscreen buffer and blit the scrolled viewport
+// - mouse hit-testing remains in content coordinates; scrollbar stays fixed on screen
 // v1.7.1:
 // - vertical GUI scrolling for small REAPER FX windows
 // - mouse wheel scrolls the whole interface; right-side scrollbar can also be dragged
@@ -1358,8 +1361,8 @@ loop(INSTRUMENTS,
 exp_editor_gi<0 ? exp_editor_gi=-1;
 exp_drag_point<0 ? exp_drag_point=-1;
 
-// Small-window vertical scrolling. Draw the UI in content coordinates by translating gfx_y uses
-// through a global scroll offset applied to mouse coordinates and major layout origins.
+// Small-window vertical scrolling.
+// Existing GUI is rendered unchanged into an offscreen content buffer, then a viewport is blitted.
 ui_content_h=900;
 ui_view_h=gfx_h;
 ui_max_scroll=max(0,ui_content_h-ui_view_h);
@@ -1367,9 +1370,11 @@ mouse_wheel!=0 ? (
   ui_scroll=max(0,min(ui_max_scroll,ui_scroll-mouse_wheel/120*42));
   mouse_wheel=0;
 );
-ui_mouse_y=mouse_y+ui_scroll;
-
-mouse_y=ui_mouse_y;
+screen_mouse_y=mouse_y;
+mouse_y=screen_mouse_y+ui_scroll;
+gfx_setimgdim(1,gfx_w,ui_content_h);
+gfx_dest=1;
+gfx_set(0,0,0,1); gfx_rect(0,0,gfx_w,ui_content_h,1);
 
 function hit(hx,hy,hw,hh)
 local(res)
@@ -1862,8 +1867,13 @@ exp_editor_gi>=0 ? (
   gfx_line(cx+cw*pedalx,cy,cx+cw*pedalx,cy+ch);
 );
 
-// Restore physical mouse Y for the viewport scrollbar.
-mouse_y=ui_mouse_y-ui_scroll;
+// Present the scrolled viewport from the offscreen content buffer.
+gfx_dest=-1;
+gfx_set(0,0,0,1); gfx_rect(0,0,gfx_w,gfx_h,1);
+gfx_blit(1,1,0, 0,ui_scroll,gfx_w,gfx_h, 0,0,gfx_w,gfx_h);
+
+// Restore physical mouse Y for the fixed viewport scrollbar.
+mouse_y=screen_mouse_y;
 ui_max_scroll=max(0,ui_content_h-gfx_h);
 ui_max_scroll>0 ? (
   sbw=12; sbx=gfx_w-sbw-3; sby=3; sbh=max(30,gfx_h-6);
@@ -1873,7 +1883,6 @@ ui_max_scroll>0 ? (
   gfx_set(0.12,0.12,0.12,1); gfx_rect(sbx,sby,sbw,sbh,1);
   gfx_set(0.55,0.55,0.55,1); gfx_rect(sbx+2,thumby,sbw-4,thumbh,1);
 
-  // Click/drag the thumb or track.
   (mouse_cap&1) && mouse_x>=sbx && mouse_x<=sbx+sbw ? (
     !(last_mouse_cap&1) ? sb_drag_offset=mouse_y-thumby;
     target_thumb_y=max(sby,min(sby+sbh-thumbh,mouse_y-sb_drag_offset));

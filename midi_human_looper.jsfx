@@ -1,7 +1,11 @@
-desc:MIDI Human Looper v1.7.6
+desc:MIDI Human Looper v1.7.7
 options:gmem=MIDI_HUMAN_LOOPER
 
 // Free-time MIDI phrase instrument prototype for REAPER JSFX.
+// v1.7.7:
+// - UI cleanup: IN / OUT / CC boxes display only their actual numeric value
+// - remove duplicated tiny channel/CC values beside boxes
+// - unify instrument-panel typography; mockup hierarchy kept without oversized numerals
 // v1.7.6:
 // - redesign INSTRUMENTS section after Pierre's mockup
 // - yellow column headers and yellow ARP labels / active mode labels
@@ -1661,20 +1665,16 @@ local(ivx,ivw,ivn,ilx,ilw,imx,imw,ccx,arx,holdx,rrx,rrw,grx,grw,rnorm,gnorm,nn,b
   hit(41,iy,42,boxh) ? mem[INST_ENABLED_BASE+gi]=1-mem[INST_ENABLED_BASE+gi];
 
   // IN channel: large numeric box + tiny resolved value.
-  smallbtn(94,iy,54,boxh,mem[INST_IN_BASE+gi]==0 ? "ALL" : "CH",0);
+  smallbtn(94,iy,54,boxh,"",0);
   hit(94,iy,54,boxh) ? mem[INST_IN_BASE+gi]=(mem[INST_IN_BASE+gi]+1)%17;
-  gfx_setfont(1,"Arial",18); gfx_set(0.95,0.95,0.15,1);
-  gfx_x=113; gfx_y=iy+4; mem[INST_IN_BASE+gi]==0 ? gfx_drawstr("*") : gfx_drawnumber(mem[INST_IN_BASE+gi],0);
-  gfx_setfont(1,"Arial",10); gfx_set(0.72,0.72,0.72,1);
-  gfx_x=152; gfx_y=iy+8; gfx_drawnumber(mem[INST_IN_BASE+gi],0);
+  gfx_setfont(1,"Arial",13); gfx_set(0.95,0.95,0.15,1);
+  gfx_x=116; gfx_y=iy+7; mem[INST_IN_BASE+gi]==0 ? gfx_drawstr("ALL") : gfx_drawnumber(mem[INST_IN_BASE+gi],0);
 
   // OUT channel.
-  smallbtn(178,iy,55,boxh,mem[INST_OUT_BASE+gi]==0 ? "ORIG" : "OUT",0);
+  smallbtn(178,iy,55,boxh,"",0);
   hit(178,iy,55,boxh) ? mem[INST_OUT_BASE+gi]=(mem[INST_OUT_BASE+gi]+1)%17;
-  gfx_setfont(1,"Arial",18); gfx_set(0.95,0.95,0.15,1);
-  gfx_x=199; gfx_y=iy+4; mem[INST_OUT_BASE+gi]==0 ? gfx_drawstr("*") : gfx_drawnumber(mem[INST_OUT_BASE+gi],0);
-  gfx_setfont(1,"Arial",10); gfx_set(0.72,0.72,0.72,1);
-  gfx_x=238; gfx_y=iy+8; gfx_drawnumber(mem[INST_OUT_BASE+gi],0);
+  gfx_setfont(1,"Arial",13); gfx_set(0.95,0.95,0.15,1);
+  gfx_x=195; gfx_y=iy+7; mem[INST_OUT_BASE+gi]==0 ? gfx_drawstr("ORIG") : gfx_drawnumber(mem[INST_OUT_BASE+gi],0);
 
   // VELOCITY.
   ivx=274; ivw=100;
@@ -1694,10 +1694,8 @@ local(ivx,ivw,ivn,ilx,ilw,imx,imw,ccx,arx,holdx,rrx,rrw,grx,grw,rnorm,gnorm,nn,b
   (mouse_cap&2) && !(last_mouse_cap&2) && mouse_x>=ccx && mouse_x<ccx+45 && mouse_y>=iy && mouse_y<iy+boxh ? (
     mem[INST_LEVEL_CC_BASE+gi]=(mem[INST_LEVEL_CC_BASE+gi]+127)%128;
   );
-  gfx_setfont(1,"Arial",18); gfx_set(0.95,0.95,0.15,1);
-  gfx_x=439; gfx_y=iy+4; gfx_drawnumber(mem[INST_LEVEL_CC_BASE+gi],0);
-  gfx_setfont(1,"Arial",10); gfx_set(0.72,0.72,0.72,1);
-  gfx_x=472; gfx_y=iy+8; gfx_drawnumber(mem[INST_LEVEL_CC_BASE+gi],0);
+  gfx_setfont(1,"Arial",13); gfx_set(0.95,0.95,0.15,1);
+  gfx_x=438; gfx_y=iy+7; gfx_drawnumber(mem[INST_LEVEL_CC_BASE+gi],0);
 
   // VOLUME / LEVEL. Right-click assigns EXP1/EXP2; left-click assigned level selects its curve.
   ilx=484; ilw=86;
@@ -1777,7 +1775,7 @@ gfx_setfont(1,"Arial",16); gfx_set(0.72,0.72,0.72,1);
 gfx_x=8; gfx_y=inst_y; gfx_drawstr("INSTRUMENTS");
 
 // Yellow column headers from the mockup.
-gfx_setfont(1,"Arial",12); gfx_set(0.95,0.95,0.15,1);
+gfx_setfont(1,"Arial",13); gfx_set(0.95,0.95,0.15,1);
 gfx_x=111; gfx_y=inst_y; gfx_drawstr("IN");
 gfx_x=195; gfx_y=inst_y; gfx_drawstr("OUT");
 gfx_x=274; gfx_y=inst_y; gfx_drawstr("VELOCITY");

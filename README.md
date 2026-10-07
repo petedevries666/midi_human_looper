@@ -18,6 +18,14 @@ Experimental free-time MIDI phrase instrument for REAPER JSFX, designed through 
 5. MIDI channels inside phrases remain meaningful. Do not flatten multichannel performances.
 6. Keep the REAPER prototype fast to iterate, even while the eventual engine is intended to be portable to Zynthian/LV2.
 
+## Patch compatibility contract (from v1.4.5)
+
+During the v1.x REAPER prototype, the current serialized phrase/event and two-patch-bank memory layout is **frozen**. New persistent features must be appended or explicitly migrated; existing addresses must not be silently moved or reinterpreted.
+
+Header field 9 now carries `PATCH_SCHEMA_VERSION = 1`. Projects saved with v1.4.4 and earlier contain 0 in that reserved field and are intentionally treated as legacy schema 1. This means an existing v1.4.4 REAPER project should reopen with its recorded phrases/patch banks intact after updating the JSFX to v1.4.5.
+
+Before any future incompatible storage change, add a migration path first. Do not make musical material collateral damage of UI/engine development.
+
 ## v1.4.1
 
 The 16 phrases remain available, but the GUI now shows only **6 compact phrase rows per page**:

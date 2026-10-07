@@ -1,7 +1,10 @@
-desc:MIDI Human Looper v1.11.1
+desc:MIDI Human Looper v1.11.2
 options:gmem=MIDI_HUMAN_LOOPER
 
 // Free-time MIDI phrase instrument prototype for REAPER JSFX.
+// v1.11.2:
+// - LOOP control always reads TRIG; remove confusing STOP label/state
+// - empty phrases keep TRIG visible but dimmed to communicate unavailable action
 // v1.11.1:
 // - tighten phrase OVERDUB / CLEAR / LOOP / TRIG-STOP buttons around their labels
 // - shorten phrase VELOCITY and DECAY sliders; DECAY remains shorter than VELOCITY
@@ -1747,8 +1750,15 @@ loop(PHRASES_PER_PAGE,
     smallbtn(clx,rowy,46,28,"CLEAR",0);
     smallbtn(modex,rowy,44,28,mem[MODE_BASE+gui_layer]<0.5 ? "LOOP" : "ONCE",mem[MODE_BASE+gui_layer]>=0.5);
     voice_lit=0; vi=0; loop(MAX_ONCE_VOICES, mem[VOICE_ACTIVE_BASE+vi]>0.5 && mem[VOICE_LAYER_BASE+vi]==gui_layer ? voice_lit=1; vi+=1;);
-    loop_lit=mem[MODE_BASE+gui_layer]<0.5 && mem[TRIG_BASE+gui_layer]>0.5;
-    smallbtn(trigx,rowy,44,28,loop_lit ? "STOP" : "TRIG",voice_lit || loop_lit);
+    phrase_has_events=layer_count(gui_layer)>0;
+    // TRIG is an action, not a transport-state label. Keep it stable in LOOP and ONCE.
+    // Empty phrases still show the control, deliberately dimmed.
+    phrase_has_events ? smallbtn(trigx,rowy,44,28,"TRIG",voice_lit) : (
+      gfx_set(0.09,0.09,0.09,1); gfx_rect(trigx,rowy,44,28,1);
+      gfx_set(0.24,0.24,0.24,1); gfx_rect(trigx,rowy,44,28,0);
+      gfx_setfont(1,"Arial",12); gfx_set(0.30,0.30,0.30,1);
+      centered_text(trigx,rowy,44,28,"TRIG");
+    );
 
     hit(mx,rowy,40,28) ? mem[MUTE_BASE+gui_layer]=1-mem[MUTE_BASE+gui_layer];
     hit(sx,rowy,40,28) ? mem[SOLO_BASE+gui_layer]=1-mem[SOLO_BASE+gui_layer];
@@ -1764,7 +1774,9 @@ loop(PHRASES_PER_PAGE,
     );
     hit(trigx,rowy,44,28) && layer_count(gui_layer)>0 ? (
       mem[MODE_BASE+gui_layer]>=0.5 ? trigger_request=gui_layer : (
-        mem[TRIG_BASE+gui_layer]>0.5 ? (mem[TRIG_BASE+gui_layer]=0; panic_pending=1;) : mem[TRIG_BASE+gui_layer]=1;
+        // LOOP TRIG starts/restarts the loop; stopping is not overloaded onto this button.
+        mem[ONCEPOS_BASE+gui_layer]=0;
+        mem[TRIG_BASE+gui_layer]=1;
       );
     );
 

@@ -18,6 +18,15 @@ Experimental free-time MIDI phrase instrument for REAPER JSFX, designed through 
 5. MIDI channels inside phrases remain meaningful. Do not flatten multichannel performances.
 6. Keep the REAPER prototype fast to iterate, even while the eventual engine is intended to be portable to Zynthian/LV2.
 
+## v1.4.1
+
+The 16 phrases remain available, but the GUI now shows only **6 compact phrase rows per page**:
+- page 1: P1-P6
+- page 2: P7-P12
+- page 3: P13-P16
+
+This keeps INSTRUMENTS and EXPRESSION controls reachable on smaller screens without abandoning the information-rich line layout.
+
 ## v1.4.0
 
 - 16 phrase rows, still line-based by design.

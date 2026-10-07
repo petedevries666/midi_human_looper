@@ -1,7 +1,10 @@
-desc:MIDI Human Looper v1.8.0
+desc:MIDI Human Looper v1.8.1
 options:gmem=MIDI_HUMAN_LOOPER
 
 // Free-time MIDI phrase instrument prototype for REAPER JSFX.
+// v1.8.1:
+// - stabilize curve-editor target selection: assigned controls select only on fresh left-click
+// - prevents held mouse state from repeatedly rewriting the active target while @gfx redraws
 // v1.8.0:
 // - generic per-parameter EXP curve engine for instrument controls
 // - assignable targets: VELOCITY, VOLUME, MODULATION, ARP ON/OFF, ARP MODE, RATE, GATE
@@ -1727,7 +1730,9 @@ local(ivx,ivw,ivn,ilx,ilw,imx,imw,ccx,arx,modex,holdx,rrx,rrw,grx,grw,rnorm,gnor
   ti=gi*EXP_TARGETS+EXP_T_VEL;
   exp_editor_ti==ti && mem[INST_EXP_ASSIGN_BASE+ti]>0 ? (gfx_set(0.95,0.95,0.15,1); gfx_rect(ivx-2,iy+3,ivw+4,22,0););
   mouse_cap&1 && mouse_x>=ivx && mouse_x<ivx+ivw && mouse_y>=iy+2 && mouse_y<iy+26 ? (
-    mem[INST_EXP_ASSIGN_BASE+ti]>0 ? exp_editor_ti=ti : mem[INST_VEL_BASE+gi]=0.2+2.8*((mouse_x-ivx)/ivw);
+    mem[INST_EXP_ASSIGN_BASE+ti]>0 ? (
+      !(last_mouse_cap&1) ? exp_editor_ti=ti;
+    ) : mem[INST_VEL_BASE+gi]=0.2+2.8*((mouse_x-ivx)/ivw);
   );
   (mouse_cap&2)&&!(last_mouse_cap&2)&&mouse_x>=ivx&&mouse_x<ivx+ivw&&mouse_y>=iy+2&&mouse_y<iy+26 ? (
     mem[INST_EXP_ASSIGN_BASE+ti]=(floor(mem[INST_EXP_ASSIGN_BASE+ti]+0.5)+1)%3; mem[EXP_LAST_VALUE_BASE+ti]=-1;
@@ -1757,7 +1762,9 @@ local(ivx,ivw,ivn,ilx,ilw,imx,imw,ccx,arx,modex,holdx,rrx,rrw,grx,grw,rnorm,gnor
     gfx_set(0.95,0.95,0.15,1); gfx_rect(ilx-2,iy+3,ilw+4,22,0);
   );
   mouse_cap&1 && mouse_x>=ilx && mouse_x<ilx+ilw && mouse_y>=iy+2 && mouse_y<iy+26 ? (
-    mem[INST_EXP_ASSIGN_BASE+ti]>0 ? exp_editor_ti=ti : (
+    mem[INST_EXP_ASSIGN_BASE+ti]>0 ? (
+      !(last_mouse_cap&1) ? exp_editor_ti=ti;
+    ) : (
       mem[INST_LEVEL_BASE+gi]=floor(127*((mouse_x-ilx)/ilw)+0.5);
       mem[CC_DIRTY_BASE+gi]=1;
     );
@@ -1780,7 +1787,9 @@ local(ivx,ivw,ivn,ilx,ilw,imx,imw,ccx,arx,modex,holdx,rrx,rrw,grx,grw,rnorm,gnor
   ti=gi*EXP_TARGETS+EXP_T_MOD;
   exp_editor_ti==ti && mem[INST_EXP_ASSIGN_BASE+ti]>0 ? (gfx_set(0.95,0.95,0.15,1); gfx_rect(imx-2,iy+3,imw+4,22,0););
   mouse_cap&1 && mouse_x>=imx && mouse_x<imx+imw && mouse_y>=iy+2 && mouse_y<iy+26 ? (
-    mem[INST_EXP_ASSIGN_BASE+ti]>0 ? exp_editor_ti=ti : (mem[INST_MOD_BASE+gi]=floor(127*((mouse_x-imx)/imw)+0.5); mem[CC_DIRTY_MOD_BASE+gi]=1;);
+    mem[INST_EXP_ASSIGN_BASE+ti]>0 ? (
+      !(last_mouse_cap&1) ? exp_editor_ti=ti;
+    ) : (mem[INST_MOD_BASE+gi]=floor(127*((mouse_x-imx)/imw)+0.5); mem[CC_DIRTY_MOD_BASE+gi]=1;);
   );
   (mouse_cap&2)&&!(last_mouse_cap&2)&&mouse_x>=imx&&mouse_x<imx+imw&&mouse_y>=iy+2&&mouse_y<iy+26 ? (
     mem[INST_EXP_ASSIGN_BASE+ti]=(floor(mem[INST_EXP_ASSIGN_BASE+ti]+0.5)+1)%3; mem[EXP_LAST_VALUE_BASE+ti]=-1;
@@ -1794,7 +1803,7 @@ local(ivx,ivw,ivn,ilx,ilw,imx,imw,ccx,arx,modex,holdx,rrx,rrw,grx,grw,rnorm,gnor
 
   arx=82; ti=gi*EXP_TARGETS+EXP_T_ARP_ON;
   smallbtn(arx,iy+30,48,22,mem[INST_ARP_ENABLED_BASE+gi]>0.5 ? "ON" : "OFF",mem[INST_ARP_ENABLED_BASE+gi]>0.5);
-  hit(arx,iy+30,48,22) ? (mem[INST_EXP_ASSIGN_BASE+ti]>0 ? exp_editor_ti=ti : mem[INST_ARP_ENABLED_BASE+gi]=1-mem[INST_ARP_ENABLED_BASE+gi];);
+  hit(arx,iy+30,48,22) ? (mem[INST_EXP_ASSIGN_BASE+ti]>0 ? (!(last_mouse_cap&1) ? exp_editor_ti=ti;) : mem[INST_ARP_ENABLED_BASE+gi]=1-mem[INST_ARP_ENABLED_BASE+gi];);
   (mouse_cap&2)&&!(last_mouse_cap&2)&&mouse_x>=arx&&mouse_x<arx+48&&mouse_y>=iy+30&&mouse_y<iy+52 ? (
     mem[INST_EXP_ASSIGN_BASE+ti]=(floor(mem[INST_EXP_ASSIGN_BASE+ti]+0.5)+1)%3; mem[EXP_LAST_VALUE_BASE+ti]=-1;
     mem[INST_EXP_ASSIGN_BASE+ti]>0 ? exp_editor_ti=ti : exp_editor_ti==ti ? exp_editor_ti=-1;
@@ -1802,7 +1811,7 @@ local(ivx,ivw,ivn,ilx,ilw,imx,imw,ccx,arx,modex,holdx,rrx,rrw,grx,grw,rnorm,gnor
 
   modex=136; ti=gi*EXP_TARGETS+EXP_T_ARP_MODE;
   smallbtn(modex,iy+30,66,22,mem[INST_ARP_MODE_BASE+gi]<0.5 ? "RANDOM" : mem[INST_ARP_MODE_BASE+gi]<1.5 ? "UP" : "DOWN",0);
-  hit(modex,iy+30,66,22) ? (mem[INST_EXP_ASSIGN_BASE+ti]>0 ? exp_editor_ti=ti : mem[INST_ARP_MODE_BASE+gi]=(mem[INST_ARP_MODE_BASE+gi]+1)%3;);
+  hit(modex,iy+30,66,22) ? (mem[INST_EXP_ASSIGN_BASE+ti]>0 ? (!(last_mouse_cap&1) ? exp_editor_ti=ti;) : mem[INST_ARP_MODE_BASE+gi]=(mem[INST_ARP_MODE_BASE+gi]+1)%3;);
   (mouse_cap&2)&&!(last_mouse_cap&2)&&mouse_x>=modex&&mouse_x<modex+66&&mouse_y>=iy+30&&mouse_y<iy+52 ? (
     mem[INST_EXP_ASSIGN_BASE+ti]=(floor(mem[INST_EXP_ASSIGN_BASE+ti]+0.5)+1)%3; mem[EXP_LAST_VALUE_BASE+ti]=-1;
     mem[INST_EXP_ASSIGN_BASE+ti]>0 ? exp_editor_ti=ti : exp_editor_ti==ti ? exp_editor_ti=-1;
@@ -1822,7 +1831,7 @@ local(ivx,ivw,ivn,ilx,ilw,imx,imw,ccx,arx,modex,holdx,rrx,rrw,grx,grw,rnorm,gnor
   rnorm=(mem[INST_ARP_RATE_BASE+gi]-0.25)/15.75; rnorm=max(0,min(1,rnorm));
   gfx_set(0.72,0.72,0.72,1); gfx_rect(rrx,iy+34,rrw*rnorm,12,1);
   ti=gi*EXP_TARGETS+EXP_T_ARP_RATE;
-  mouse_cap&1 && mouse_x>=rrx && mouse_x<rrx+rrw && mouse_y>=iy+29 && mouse_y<iy+50 ? (mem[INST_EXP_ASSIGN_BASE+ti]>0 ? exp_editor_ti=ti : mem[INST_ARP_RATE_BASE+gi]=0.25+15.75*((mouse_x-rrx)/rrw));
+  mouse_cap&1 && mouse_x>=rrx && mouse_x<rrx+rrw && mouse_y>=iy+29 && mouse_y<iy+50 ? (mem[INST_EXP_ASSIGN_BASE+ti]>0 ? (!(last_mouse_cap&1) ? exp_editor_ti=ti;) : mem[INST_ARP_RATE_BASE+gi]=0.25+15.75*((mouse_x-rrx)/rrw));
   ti=gi*EXP_TARGETS+EXP_T_ARP_RATE;
   exp_editor_ti==ti && mem[INST_EXP_ASSIGN_BASE+ti]>0 ? (gfx_set(0.95,0.95,0.15,1); gfx_rect(rrx-2,iy+32,rrw+4,16,0););
   (mouse_cap&2)&&!(last_mouse_cap&2)&&mouse_x>=rrx&&mouse_x<rrx+rrw&&mouse_y>=iy+29&&mouse_y<iy+50 ? (
@@ -1837,7 +1846,7 @@ local(ivx,ivw,ivn,ilx,ilw,imx,imw,ccx,arx,modex,holdx,rrx,rrw,grx,grw,rnorm,gnor
   gnorm=mem[INST_ARP_GATE_BASE+gi]; gnorm=max(0.02,min(1,gnorm));
   gfx_set(0.72,0.72,0.72,1); gfx_rect(grx,iy+34,grw*gnorm,12,1);
   ti=gi*EXP_TARGETS+EXP_T_ARP_GATE;
-  mouse_cap&1 && mouse_x>=grx && mouse_x<grx+grw && mouse_y>=iy+29 && mouse_y<iy+50 ? (mem[INST_EXP_ASSIGN_BASE+ti]>0 ? exp_editor_ti=ti : mem[INST_ARP_GATE_BASE+gi]=max(0.02,min(1,(mouse_x-grx)/grw)));
+  mouse_cap&1 && mouse_x>=grx && mouse_x<grx+grw && mouse_y>=iy+29 && mouse_y<iy+50 ? (mem[INST_EXP_ASSIGN_BASE+ti]>0 ? (!(last_mouse_cap&1) ? exp_editor_ti=ti;) : mem[INST_ARP_GATE_BASE+gi]=max(0.02,min(1,(mouse_x-grx)/grw)));
   ti=gi*EXP_TARGETS+EXP_T_ARP_GATE;
   exp_editor_ti==ti && mem[INST_EXP_ASSIGN_BASE+ti]>0 ? (gfx_set(0.95,0.95,0.15,1); gfx_rect(grx-2,iy+32,grw+4,16,0););
   (mouse_cap&2)&&!(last_mouse_cap&2)&&mouse_x>=grx&&mouse_x<grx+grw&&mouse_y>=iy+29&&mouse_y<iy+50 ? (
@@ -1891,7 +1900,8 @@ gfx_x=718; gfx_y=exp_y+4; gfx_drawnumber(slider11*100,0); gfx_drawstr("%");
 
 // Multipoint editor appears after right-clicking an assigned LEVEL slider.
 exp_editor_ti>=0 ? (
-  eti=exp_editor_ti;
+  // Snapshot the selected target once for this frame. All editor drawing/editing uses this immutable index.
+  eti=floor(exp_editor_ti+0.5);
   egi=floor(eti/EXP_TARGETS);
   et=eti-egi*EXP_TARGETS;
   cx=90; cy=exp_y+38; cw=620; ch=150;

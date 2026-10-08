@@ -68,3 +68,20 @@ Near-term:
 - targeted note release everywhere to avoid broad panic bursts
 
 Example live use: six free-time chord phrases can be triggered from Helix footswitches while another performer uses Expression A to reveal velocity layers and progressively introduce another instrument such as Solina. No master tempo is required.
+
+## v1.21.0 expression assignments
+
+Right-click a transformer parameter (or instrument volume) to assign any of the
+four named controllers. Left-click an assigned rail to edit its independent
+multipoint curve. NONE retains the current value and restores manual control.
+ARP HOLD and ARP ON have separate assignments; ARP ON/OFF is available in the
+shared editor header. Transpose, range, polyphony and ARP-enable changes wait for
+held source notes to release so note-offs retain their original transformation.
+
+Update both the JSFX and the companion Lua ReaScript, and restart the ReaScript.
+Existing schema-1 JSON patches remain readable; new patches use schema 2 with an
+appended expression extension. All old RAM offsets and bank addresses remain
+fixed. The v1.20.1 baseline already uses external JSON rather than project
+`@serialize`; the older project-serialization discussion above is historical.
+
+See [the regression audit, migration contract and test instructions](docs/expression-assignments.md).

@@ -72,8 +72,8 @@ Example live use: six free-time chord phrases can be triggered from Helix footsw
 ## v1.21.0 expression assignments
 
 Right-click a transformer parameter (or instrument volume) to assign any of the
-four named controllers. Left-click an assigned rail to edit its independent
-multipoint curve. NONE retains the current value and restores manual control.
+four named controllers. Assignment immediately opens its independent multipoint
+curve editor; left-click an assigned rail to reopen it. NONE retains the current value and restores manual control.
 ARP HOLD and ARP ON have separate assignments; ARP ON/OFF is available in the
 shared editor header. Transpose, range, polyphony and ARP-enable changes wait for
 held source notes to release so note-offs retain their original transformation.
@@ -85,3 +85,10 @@ fixed. The v1.20.1 baseline already uses external JSON rather than project
 `@serialize`; the older project-serialization discussion above is historical.
 
 See [the regression audit, migration contract and test instructions](docs/expression-assignments.md).
+
+## v1.21.1 Transformer Editor UX
+
+Transformer rails now match VOLUME's 18px height, with 34px row spacing. Assigned
+rails display their own live multipoint/bend preview. Choosing NONE closes the
+curve only when that parameter is displayed. MIDI processing and schema 2 are
+unchanged; the v1.21.0 GUI/audio counter isolation is retained.

@@ -240,7 +240,7 @@ static void gui(Host &h) {
         h.run("selected_transform_gi=" + std::to_string(gi) +
               ";selected_transform_slot=" + std::to_string(slot) + ";");
         h.frame();
-        int ey = int(h.val("exp_y")) - 196 + 60 + row * 29;
+        int ey = int(h.val("exp_y")) - 216 + 60 + row * 34;
         h.frame(200, ey, 2);
         h.frame(200, ey, 0);
         double ti =
@@ -250,7 +250,10 @@ static void gui(Host &h) {
              "right click captures exact parameter");
         int ax = int(h.val("ax")), ay = int(h.val("ay"));
         h.frame(ax + 10, ay + 35, 1);
+        h.eq("exp_editor_ti", ti, "assignment immediately selects its curve");
+        h.eq("exp_drag_point", -1, "assignment clears stale curve capture");
         h.frame();
+        check(h.val("cy") > ey + 24, "auto-opened curve below taller rails");
         h.eq("mem[exp_assign_addr(" + std::to_string(int(ti)) + ")]", 1,
              "popup assigns exact parameter");
         h.frame(200, ey, 1);
@@ -270,7 +273,7 @@ static void gui(Host &h) {
   // UI-assigned legacy ARP enable remains separate from HOLD.
   h.run("selected_transform_gi=0;selected_transform_slot=4;ui_scroll=0;");
   h.frame();
-  int header_y = int(h.val("exp_y")) - 196 + 35;
+  int header_y = int(h.val("exp_y")) - 216 + 35;
   h.frame(520, header_y, 2);
   h.frame();
   h.eq("controller_assign_ti", h.eval("param_ti(0,EXP_T_ARP_ON)"),
@@ -295,7 +298,7 @@ static void gui(Host &h) {
         "selection and scrolled redraw leave persistent payload unchanged");
   h.run("ui_scroll=200;selected_transform_gi=0;selected_transform_slot=0;");
   h.frame();
-  int ey = int(h.val("exp_y")) - 196 + 60 - 200;
+  int ey = int(h.val("exp_y")) - 216 + 60 - 200;
   h.frame(200, ey, 2);
   h.frame();
   check(h.val("controller_assign_ti") >= 0, "scrolled hit test");
@@ -305,7 +308,7 @@ static void gui(Host &h) {
   check(h.payload() == before, "popup dismissal consumes click");
   h.run("ui_scroll=0;selected_transform_slot=0;");
   h.frame();
-  ey = int(h.val("exp_y")) - 196 + 60;
+  ey = int(h.val("exp_y")) - 216 + 60;
   h.frame(200, ey, 2);
   h.frame();
   int ax = int(h.val("ax")), ay = int(h.val("ay"));
@@ -471,6 +474,146 @@ static void musical(Host &h) {
   h.eq("play_sample_pos", 0, "LOOP wraps at phrase boundary");
   h.eq("mem[COUNT_BASE]", 4, "LOOP preserves overdub data");
 }
+static std::vector<uint8_t> rail_pixels(Host &h, int x, int y, int w,
+                                        int height) {
+  std::vector<uint8_t> out;
+  for (int yy = y; yy < y + height; ++yy)
+    for (int xx = x; xx < x + w; ++xx)
+      for (int c = 0; c < 3; ++c)
+        out.push_back(h.pixels[(yy * 1040 + xx) * 4 + c]);
+  return out;
+}
+static bool preview_pixel(Host &h, int x, double y) {
+  for (int yy = int(y) - 1; yy <= int(y) + 1; ++yy) {
+    size_t i = (yy * 1040 + x) * 4;
+    if (h.pixels[i] > 80 && h.pixels[i + 1] > 170 && h.pixels[i + 2] > 180)
+      return true;
+  }
+  return false;
+}
+static void editor_ux(Host &h) {
+  configure(h);
+  h.run("selected_transform_gi=0;selected_transform_slot=0;ui_scroll=0;exp_"
+        "editor_ti=-1;");
+  h.frame();
+  int top = int(h.val("exp_y")) - 216;
+  // Test the actual rendered empty rail against VOLUME, including its bottom
+  // edge.
+  auto volume = rail_pixels(h, 550, 190 + 6 * 38 + 18 + 30 + 19, 1, 19);
+  auto editor = rail_pixels(h, 390, top + 62, 1, 19);
+  auto flat_height = [](const std::vector<uint8_t> &column) {
+    int height = 1;
+    while (height < 19 && column[height * 3] == column[0] &&
+           column[height * 3 + 1] == column[1] &&
+           column[height * 3 + 2] == column[2])
+      ++height;
+    return height;
+  };
+  check(flat_height(volume) == 18 && flat_height(editor) == 18,
+        "editor rail matches VOLUME's 18px height and proportions");
+  int rows[] = {1, 3, 1, 1, 4, 2};
+  for (int slot = 0; slot < 6; ++slot)
+    for (int row = 0; row < rows[slot]; ++row) {
+      h.run("selected_transform_slot=" + std::to_string(slot) +
+            ";exp_editor_ti=-1;");
+      std::string ti = "param_ti(0,param_editor_kind(" +
+                       std::to_string(slot + 1) + "," + std::to_string(row) +
+                       "))";
+      h.run("mem[exp_assign_addr(" + ti + ")]=1;curve_factory(" + ti + ",0);");
+      h.frame();
+      int ey = top + 60 + row * 34;
+      check(preview_pixel(h, 260, ey + 11),
+            "every assigned transformer rail draws its own flat curve");
+      check(ey + 20 < top + 205, "last rail remains inside editor panel");
+      auto flat = rail_pixels(h, 125, ey + 2, 275, 18);
+      auto gap = rail_pixels(h, 125, ey + 20, 275, 14);
+      h.run("curve_factory(" + ti + ",1);");
+      h.frame();
+      check(rail_pixels(h, 125, ey + 2, 275, 18) != flat,
+            "multipoint edits update inline preview");
+      for (int x : {150, 262, 375}) {
+        double position = (x - 127) / 271.0;
+        double value = position <= 1.0 / 3   ? 0
+                       : position >= 2.0 / 3 ? .8
+                                             : (position - 1.0 / 3) * 2.4;
+        check(preview_pixel(h, x, ey + 18 - 14 * value),
+              "preview follows multipoint interpolation in rail coordinates");
+      }
+      check(rail_pixels(h, 125, ey + 20, 275, 14) == gap,
+            "preview does not paint into row gap");
+      h.run("curve_factory(" + ti + ",3);mem[exp_bend_addr(" + ti + ")]=.5;");
+      h.frame();
+      auto positive = rail_pixels(h, 125, ey + 2, 275, 18);
+      check(preview_pixel(h, 262, ey + 18 - 14 * std::pow(135.0 / 271, 3.5)),
+            "preview follows positive bend");
+      h.run("mem[exp_bend_addr(" + ti + ")]=-.5;");
+      h.frame();
+      check(rail_pixels(h, 125, ey + 2, 275, 18) != positive,
+            "bend edits refresh preview without reselection");
+      check(preview_pixel(h, 262,
+                          ey + 18 - 14 * (1 - std::pow(136.0 / 271, 3.5))),
+            "preview follows negative bend");
+      h.run("mem[exp_assign_addr(" + ti + ")]=0;");
+      h.frame();
+      auto manual = rail_pixels(h, 125, ey + 2, 275, 18);
+      h.run("curve_factory(" + ti + ",0);");
+      h.frame();
+      check(rail_pixels(h, 125, ey + 2, 275, 18) == manual,
+            "unassigned rails do not render curves");
+      // Expanded bottom hitbox reaches this row, never its neighbor.
+      h.frame(200, ey + 22, 2);
+      h.frame();
+      h.eq("controller_assign_ti", h.eval(ti),
+           "taller rail bottom hitbox selects correct row");
+      h.frame(int(h.val("ax")) + 10, int(h.val("ay")) + 35, 1);
+      h.eq("exp_editor_ti", h.eval(ti),
+           "popup opens curve before another click");
+      h.frame();
+      h.frame(200, ey, 2);
+      h.frame();
+      h.frame(int(h.val("ax")) + 10, int(h.val("ay")) + 10, 1);
+      h.frame();
+      h.eq("exp_editor_ti", -1,
+           "NONE closes this parameter's auto-opened curve");
+    }
+  // NONE on a different parameter must not close the current curve.
+  h.run("selected_transform_slot=1;exp_editor_ti=param_ti(0,PARAM_TRANSPOSE);");
+  h.frame();
+  h.frame(200, top + 60, 2);
+  h.frame();
+  h.frame(int(h.val("ax")) + 10, int(h.val("ay")) + 10, 1);
+  h.frame();
+  h.eq("exp_editor_ti", h.eval("param_ti(0,PARAM_TRANSPOSE)"),
+       "NONE preserves unrelated curve editor");
+  h.run("exp_editor_ti=-1;selected_transform_gi=0;selected_transform_slot=1;"
+        "mem[exp_assign_addr(param_ti(0,PARAM_RANGE_MODE))]=1;curve_factory("
+        "param_ti(0,PARAM_RANGE_MODE),0);mem[exp_assign_addr(param_ti(0,PARAM_"
+        "RANGE_LOW))]=1;curve_factory(param_ti(0,PARAM_RANGE_LOW),3);");
+  h.frame();
+  auto first = rail_pixels(h, 125, top + 62, 275, 18);
+  auto second = rail_pixels(h, 125, top + 96, 275, 18);
+  h.run("mem[exp_bend_addr(param_ti(0,PARAM_RANGE_LOW))]=.8;");
+  h.frame();
+  check(rail_pixels(h, 125, top + 96, 275, 18) != second,
+        "second parameter updates its independent preview");
+  check(rail_pixels(h, 125, top + 62, 275, 18) == first,
+        "same-controller curves remain independent across rows");
+  h.run("mem[INST_TRANSFORM_COUNT_BASE+1]=1;mem[INST_TRANSFORM_TYPE_BASE+6]=2;"
+        "mem[exp_assign_addr(param_ti(1,PARAM_RANGE_MODE))]=1;curve_factory("
+        "param_ti(1,PARAM_RANGE_MODE),3);selected_transform_gi=1;selected_"
+        "transform_slot=0;");
+  h.frame();
+  check(rail_pixels(h, 125, top + 62, 275, 18) != first,
+        "different instrument shows its own curve");
+  h.run("selected_transform_gi=0;selected_transform_slot=1;");
+  h.frame();
+  check(rail_pixels(h, 125, top + 62, 275, 18) == first,
+        "switching instruments preserves preview identity");
+  auto before = h.payload();
+  h.frame();
+  h.frame();
+  check(h.payload() == before, "preview redraws do not modify patch data");
+}
 static void stress(Host &h, bool historical) {
   configure(h);
   h.run("selected_transform_gi=0;selected_transform_slot=3;exp_editor_ti=0;ui_"
@@ -515,6 +658,8 @@ int main(int argc, char **argv) {
   persistence(h, argv[2]);
   gui(h);
   musical(h);
+  Host ux(argv[1]);
+  editor_ux(ux);
   Host stable(argv[1]);
   stress(stable, false);
   printf("PASS: %d EEL2/GUI/MIDI checks\n", checks);

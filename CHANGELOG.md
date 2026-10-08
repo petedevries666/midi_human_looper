@@ -392,3 +392,9 @@ records exactly one full loop into that layer, then returns to PLAY automaticall
 - Queue GUI value changes to the audio block, defer note-transform changes through held source notes, and send modulation to its actual selected CC destination without flooding.
 - Preserve every legacy memory/bank offset; import schema-1 JSON and save schema-2 appended expression data with independent bank extensions. Update the companion Lua ReaScript too.
 - Add native WDL EEL2/LICE GUI/MIDI tests, Lua patch-bridge tests and a detailed regression/persistence audit in docs/expression-assignments.md.
+
+## v1.21.1
+- Open the assigned parameter's curve immediately after controller selection; NONE closes only that parameter's curve. Reset transient drag capture without passing popup clicks through.
+- Match Transformer Editor rails to VOLUME's 18px height, with 34px row spacing and enlarged panel/hitboxes.
+- Restore live inline multipoint and bend previews with GUI-local sampling; retain the v1.21.0 counter isolation and leave MIDI processing/schema unchanged.
+- Add actual framebuffer, popup and geometry regressions, including independent previews across rows/instruments and concurrent MIDI rendering.

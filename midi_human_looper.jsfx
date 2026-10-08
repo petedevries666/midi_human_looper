@@ -1,7 +1,8 @@
-desc:MIDI Human Looper v1.18.7
+desc:MIDI Human Looper v1.18.8
 options:gmem=MIDI_HUMAN_LOOPER
 
 // Free-time MIDI phrase instrument prototype for REAPER JSFX.
+// v1.18.8: ONCE/HOLD overdub uses independent one-shot timing, never LOOP wrap.
 // v1.18.7: exclusive REC/OVERDUB arm, neutral recorded phrase dots, safe switch.
 // v1.18.6 CRITICAL: eliminate destructive overdub wrap path and guard existing phrases.
 // v1.18.5:
@@ -37,7 +38,7 @@ options:gmem=MIDI_HUMAN_LOOPER
 // - push patch row and PHRASES browser down to eliminate top-section overlaps
 // - fix CLEAR ALL hit box to match its compact 92px button
 // v1.17.4:
-// - add hard square header: MIDI BAD MOTHERFUCKER V.1.18.7 / ANONYMALZ LIVE ENGINE
+// - add hard square header: MIDI BAD MOTHERFUCKER V.1.18.8 / ANONYMALZ LIVE ENGINE
 // - compact READY / ABORT / CLEAR ALL to the same 92x30 format as OPTIONS
 // - move transport / patch rows below the new header
 // v1.17.3:
@@ -797,7 +798,7 @@ function arm_layer(layer)
     overdub_layer=layer;
     overdub_armed=1;
     overdub_active=0;
-    overdub_wait_note=1;
+    overdub_wait_note=mem[MODE_BASE+layer]>=0.5;
     play_sample_pos=0;
     overdub_pos=0;
   ) : (
@@ -808,6 +809,7 @@ function arm_layer(layer)
   play_sample_pos=0;
   overdub_armed=0;
   overdub_active=0;
+  overdub_wait_note=0;
   state=STATE_READY;
   );
 );
@@ -1444,9 +1446,13 @@ function select_phrase_record(layer)
         overdub_armed=1;
         overdub_active=0;
         overdub_pos=0;
-        overdub_wait_note=state!=STATE_PLAYING && mem[MODE_BASE+layer]>=0.5;
-        overdub_wait_note ? play_sample_pos=0;
-        !overdub_wait_note && state!=STATE_PLAYING && loop_len_samples>0 ? state=STATE_PLAYING;
+        // ONCE/HOLD never arm against the global LOOP transport.
+        overdub_wait_note=mem[MODE_BASE+layer]>=0.5;
+        overdub_wait_note ? (
+          play_sample_pos=0;
+        ) : (
+          state!=STATE_PLAYING && loop_len_samples>0 ? state=STATE_PLAYING;
+        );
       );
     ) : arm_layer(layer);
   );
@@ -1649,8 +1655,9 @@ trigger_request>=0 ? (
   requested_layer=trigger_request;
   trigger_request=-1;
   overdub_wait_note && overdub_armed && overdub_layer==requested_layer ? (
+    // ONCE/HOLD: record from this trigger, not from the looping transport.
     overdub_wait_note=0;overdub_armed=0;overdub_active=1;
-    overdub_pos=0;play_sample_pos=0;state=STATE_PLAYING;
+    overdub_pos=0;
   );
 
   requested_layer!=last_trigger_layer ? (
@@ -1729,9 +1736,10 @@ while (
     );
 
     overdub_wait_note && overdub_armed && is_note_on && !is_trigger_command ? (
+      // First played note starts the overdub take and retriggers the original ONCE/HOLD.
       overdub_wait_note=0;overdub_armed=0;overdub_active=1;
-      overdub_pos=0;play_sample_pos=0;
-      state=STATE_PLAYING;
+      overdub_pos=0;
+      trigger_request=overdub_layer;
     );
 
     !is_trigger_command && state==STATE_READY && is_note_on && layer_count(record_layer)==0 ? (
@@ -1748,7 +1756,7 @@ while (
     state==STATE_RECORDING ? (
       store_event(record_layer,record_sample_pos+offset,msg1,d1,d2,offset);
     ) :
-    overdub_active ? (
+    overdub_active && (mem[MODE_BASE+overdub_layer]<0.5 || overdub_pos+offset<mem[LEN_BASE+overdub_layer]) ? (
       store_event(overdub_layer,overdub_pos+offset,msg1,d1,d2,offset);
     );
 
@@ -1760,7 +1768,7 @@ while (
 );
 
 // arm -> active exactly at the next wrap
-state==STATE_PLAYING && overdub_armed && !overdub_active && !overdub_wait_note ? (
+state==STATE_PLAYING && overdub_armed && !overdub_active && !overdub_wait_note && mem[MODE_BASE+overdub_layer]<0.5 ? (
   play_sample_pos==0 ? (
     // Overdub must preserve the existing events.
     overdub_pos=0;
@@ -1825,12 +1833,11 @@ state==STATE_PLAYING && loop_len_samples>0 ? (
     play_sample_pos>=loop_len_samples ? (
       play_sample_pos=0;
 
-      overdub_active ? (
-        mem[LEN_BASE+overdub_layer]=loop_len_samples;
+      overdub_active && mem[MODE_BASE+overdub_layer]<0.5 ? (
         overdub_active=0;
         overdub_pos=0;
       ) :
-      overdub_armed && !overdub_wait_note ? (
+      overdub_armed && !overdub_wait_note && mem[MODE_BASE+overdub_layer]<0.5 ? (
         // Never clear a layer when transitioning to overdub.
         overdub_pos=0;
         overdub_active=1;
@@ -1899,7 +1906,15 @@ once_any_active<0.5 && last_trigger_layer>=0 ? (
 state==STATE_RECORDING ? record_sample_pos+=samplesblock;
 overdub_active ? (
   overdub_pos+=samplesblock;
-  overdub_pos>=loop_len_samples ? overdub_pos=loop_len_samples-1;
+  mem[MODE_BASE+overdub_layer]>=0.5 ? (
+    // One-shot overdub ends at the recorded phrase length, independently of LOOP.
+    overdub_pos>=max(1,mem[LEN_BASE+overdub_layer]) ? (
+      overdub_active=0;
+      overdub_pos=0;
+    );
+  ) : (
+    overdub_pos>=loop_len_samples ? overdub_pos=loop_len_samples-1;
+  );
 );
 
 // POST instrument arpeggiators

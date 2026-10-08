@@ -1,7 +1,10 @@
-desc:MIDI Human Looper v1.18.4
+desc:MIDI Human Looper v1.18.5
 options:gmem=MIDI_HUMAN_LOOPER
 
 // Free-time MIDI phrase instrument prototype for REAPER JSFX.
+// v1.18.5:
+// - default phrase mode ONCE; textual ONCE/LOOP/HOLD mode selector
+// - shorten phrase label field; stopped ONCE/HOLD overdub rewinds and waits for note/trigger
 // v1.18.4:
 // - minimalist phrase rows: full-width name, borderless controls, empty phrase suppression
 // - numbered button combines REC and non-destructive OVERDUB; context menu for CLEAR
@@ -32,7 +35,7 @@ options:gmem=MIDI_HUMAN_LOOPER
 // - push patch row and PHRASES browser down to eliminate top-section overlaps
 // - fix CLEAR ALL hit box to match its compact 92px button
 // v1.17.4:
-// - add hard square header: MIDI BAD MOTHERFUCKER V.1.18.4 / ANONYMALZ LIVE ENGINE
+// - add hard square header: MIDI BAD MOTHERFUCKER V.1.18.5 / ANONYMALZ LIVE ENGINE
 // - compact READY / ABORT / CLEAR ALL to the same 92x30 format as OPTIONS
 // - move transport / patch rows below the new header
 // v1.17.3:
@@ -563,8 +566,8 @@ loop(LAYERS,
   mem[MUTE_BASE+i]=0;
   mem[SOLO_BASE+i]=0;
   mem[VEL_BASE+i]=1;
-  mem[MODE_BASE+i]=0; // 0 LOOP, 1 ONCE, 2 HOLD
-  mem[TRIG_BASE+i]=1;
+  mem[MODE_BASE+i]=1; // 0 LOOP, 1 ONCE, 2 HOLD
+  mem[TRIG_BASE+i]=0;
   mem[HOLD_ACTIVE_BASE+i]=0;
   mem[ONCEPOS_BASE+i]=0;
   mem[LEN_BASE+i]=0;
@@ -650,6 +653,7 @@ overdub_armed = 0;
 overdub_active = 0;
 overdub_layer = 1;
 overdub_pos = 0;
+overdub_wait_note=0;
 
 prev_readyplay=0;
 prev_abortstop=0;
@@ -1410,12 +1414,15 @@ function select_phrase_record(layer)
           overdub_active=0;overdub_armed=0;overdub_pos=0;
         ) : (
           overdub_layer=layer;overdub_armed=1;overdub_active=0;
+          overdub_wait_note=0;
         );
       ) : (
         // Existing phrase: preserve the take and prepare non-destructive overdub.
         overdub_layer=layer;overdub_armed=1;overdub_active=0;
-        play_sample_pos=0;
-        loop_len_samples>0 ? state=STATE_PLAYING;
+        play_sample_pos=0;overdub_pos=0;
+        overdub_wait_note=mem[MODE_BASE+layer]>=0.5;
+        // ONE SHOT / HOLD stay silent until a note or manual trigger.
+        !overdub_wait_note && loop_len_samples>0 ? state=STATE_PLAYING;
       );
     ) : arm_layer(layer);
   );
@@ -1617,6 +1624,10 @@ hold_stop_request>=0 ? (
 trigger_request>=0 ? (
   requested_layer=trigger_request;
   trigger_request=-1;
+  overdub_wait_note && overdub_armed && overdub_layer==requested_layer ? (
+    overdub_wait_note=0;overdub_armed=0;overdub_active=1;
+    overdub_pos=0;play_sample_pos=0;state=STATE_PLAYING;
+  );
 
   requested_layer!=last_trigger_layer ? (
     last_trigger_layer>=0 ? (
@@ -1693,6 +1704,12 @@ while (
       );
     );
 
+    overdub_wait_note && overdub_armed && is_note_on && !is_trigger_command ? (
+      overdub_wait_note=0;overdub_armed=0;overdub_active=1;
+      overdub_pos=0;play_sample_pos=0;
+      state=STATE_PLAYING;
+    );
+
     !is_trigger_command && state==STATE_READY && is_note_on ? (
       clear_layer(record_layer);
       state=STATE_RECORDING;
@@ -1714,7 +1731,7 @@ while (
 );
 
 // arm -> active exactly at the next wrap
-state==STATE_PLAYING && overdub_armed && !overdub_active ? (
+state==STATE_PLAYING && overdub_armed && !overdub_active && !overdub_wait_note ? (
   play_sample_pos==0 ? (
     // Overdub must preserve the existing events.
     overdub_pos=0;
@@ -2164,7 +2181,7 @@ loop(PHRASES_PER_PAGE,
       phrase_context=gui_layer;phrase_context_y=rowy+30;
     );
 
-    nx=40;nw=606;
+    nx=40;nw=335;
     gfx_set(phrase_has_events ? .16 : .09,phrase_has_events ? .16 : .09,phrase_has_events ? .16 : .09,1);
     gfx_rect(nx,rowy,nw,28,1);
     gfx_set(phrase_has_events ? .30 : .17,phrase_has_events ? .30 : .17,phrase_has_events ? .30 : .17,1);
@@ -2177,7 +2194,7 @@ loop(PHRASES_PER_PAGE,
       );
     hit(nx,rowy,nw,28) ? (edit_name_type=1;edit_name_index=gui_layer;);
 
-    kx=654;mx=684;sx=710;modex=742;trigx=772;
+    kx=388;mx=420;sx=448;modex=485;trigx=558;
     phrase_icon(kx,rowy,24,28,0,phrase_note_learn==gui_layer);
     hit(kx,rowy,24,28) ? phrase_note_learn=phrase_note_learn==gui_layer ? -1 : gui_layer;
     phrase_has_events ? (
@@ -2185,11 +2202,13 @@ loop(PHRASES_PER_PAGE,
       gfx_setfont(1,"Arial",12);gfx_x=mx+6;gfx_y=rowy+7;gfx_drawstr("M");
       gfx_set(mem[SOLO_BASE+gui_layer]>0.5 ? .95 : .82,.82,.82,1);
       gfx_x=sx+6;gfx_y=rowy+7;gfx_drawstr("S");
-      phrase_icon(modex,rowy,24,28,floor(mem[MODE_BASE+gui_layer]+.5)==0 ? 3 : floor(mem[MODE_BASE+gui_layer]+.5)==1 ? 4 : 5,0);
+      gfx_set(.82,.82,.82,1);gfx_setfont(1,"Arial",12);
+      gfx_x=modex;gfx_y=rowy+7;
+      gfx_drawstr(mem[MODE_BASE+gui_layer]<.5 ? "LOOP" : mem[MODE_BASE+gui_layer]<1.5 ? "ONCE" : "HOLD");
       phrase_icon(trigx,rowy,24,28,6,0);
       hit(mx,rowy,24,28) ? mem[MUTE_BASE+gui_layer]=1-mem[MUTE_BASE+gui_layer];
       hit(sx,rowy,24,28) ? mem[SOLO_BASE+gui_layer]=1-mem[SOLO_BASE+gui_layer];
-      hit(modex,rowy,24,28) ? (
+      hit(modex,rowy,60,28) ? (
         selected_mode=(floor(mem[MODE_BASE+gui_layer]+.5)+1)%3;
         mem[MODE_BASE+gui_layer]=selected_mode;
         mem[TRIG_BASE+gui_layer]=selected_mode==0;

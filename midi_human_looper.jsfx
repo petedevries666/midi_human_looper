@@ -1,7 +1,8 @@
-desc:MIDI Human Looper v1.18.5
+desc:MIDI Human Looper v1.18.6
 options:gmem=MIDI_HUMAN_LOOPER
 
 // Free-time MIDI phrase instrument prototype for REAPER JSFX.
+// v1.18.6 CRITICAL: eliminate destructive overdub wrap path and guard existing phrases.
 // v1.18.5:
 // - default phrase mode ONCE; textual ONCE/LOOP/HOLD mode selector
 // - shorten phrase label field; stopped ONCE/HOLD overdub rewinds and waits for note/trigger
@@ -35,7 +36,7 @@ options:gmem=MIDI_HUMAN_LOOPER
 // - push patch row and PHRASES browser down to eliminate top-section overlaps
 // - fix CLEAR ALL hit box to match its compact 92px button
 // v1.17.4:
-// - add hard square header: MIDI BAD MOTHERFUCKER V.1.18.5 / ANONYMALZ LIVE ENGINE
+// - add hard square header: MIDI BAD MOTHERFUCKER V.1.18.6 / ANONYMALZ LIVE ENGINE
 // - compact READY / ABORT / CLEAR ALL to the same 92x30 format as OPTIONS
 // - move transport / patch rows below the new header
 // v1.17.3:
@@ -790,6 +791,15 @@ local(pb,j,valid,oldslot)
 
 function arm_layer(layer)
 (
+  // An existing take cannot be armed as a new recording.
+  layer_count(layer)>0 ? (
+    overdub_layer=layer;
+    overdub_armed=1;
+    overdub_active=0;
+    overdub_wait_note=1;
+    play_sample_pos=0;
+    overdub_pos=0;
+  ) : (
   panic_pending=1;
   record_layer=layer;
   record_sample_pos=0;
@@ -797,6 +807,7 @@ function arm_layer(layer)
   overdub_armed=0;
   overdub_active=0;
   state=STATE_READY;
+  );
 );
 
 function store_event(layer, ts, st, d1, d2, offs)
@@ -1710,11 +1721,16 @@ while (
       state=STATE_PLAYING;
     );
 
-    !is_trigger_command && state==STATE_READY && is_note_on ? (
+    !is_trigger_command && state==STATE_READY && is_note_on && layer_count(record_layer)==0 ? (
+      // Only a truly empty phrase can enter destructive first-take recording.
       clear_layer(record_layer);
       state=STATE_RECORDING;
       record_sample_pos=0;
       store_event(record_layer,0,msg1,d1,d2,offset);
+    ) :
+    state==STATE_READY && layer_count(record_layer)>0 ? (
+      // Safety fallback: never erase an existing phrase via READY.
+      state=STATE_STOPPED;
     ) :
     state==STATE_RECORDING ? (
       store_event(record_layer,record_sample_pos+offset,msg1,d1,d2,offset);
@@ -1801,8 +1817,8 @@ state==STATE_PLAYING && loop_len_samples>0 ? (
         overdub_active=0;
         overdub_pos=0;
       ) :
-      overdub_armed ? (
-        clear_layer(overdub_layer);
+      overdub_armed && !overdub_wait_note ? (
+        // Never clear a layer when transitioning to overdub.
         overdub_pos=0;
         overdub_active=1;
         overdub_armed=0;

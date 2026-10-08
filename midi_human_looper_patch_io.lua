@@ -3,7 +3,7 @@
 -- Files: <REAPER resource>/Data/MIDI_Human_Looper/patch1.json and patch2.json
 
 local GMEM = "MIDI_HUMAN_LOOPER"
-local SCHEMA = 1
+local SCHEMA = 2
 local PAYLOAD_BASE = 32
 reaper.gmem_attach(GMEM)
 
@@ -27,10 +27,11 @@ end
 local function save_patch(slot)
   ensure_dir()
   local n = math.floor(reaper.gmem_read(3) + 0.5)
-  if n <= 0 or n > 1000000 then return false end
+  local schema = reaper.gmem_read(2)
+  if (schema ~= 1 and schema ~= SCHEMA) or n <= 0 or n > 1000000 then return false end
   local fh = io.open(path_for(slot), "wb")
   if not fh then return false end
-  fh:write('{"format":"MIDI_HUMAN_LOOPER_PATCH","schema":', tostring(SCHEMA))
+  fh:write('{"format":"MIDI_HUMAN_LOOPER_PATCH","schema":', tostring(schema))
   fh:write(',"work_mem_size":', tostring(n))
   fh:write(',"globals":[')
   for i=4,12 do
@@ -53,7 +54,7 @@ local function parse_array(txt, key)
   local out = {}
   for token in body:gmatch("[^,%s]+") do
     local v = tonumber(token)
-    if not v then return nil end
+    if not v or v ~= v or v == math.huge or v == -math.huge then return nil end
     out[#out+1] = v
   end
   return out
@@ -68,9 +69,10 @@ local function load_patch(slot)
   local n = tonumber(txt:match('"work_mem_size"%s*:%s*(%d+)'))
   local globals = parse_array(txt, "globals")
   local memory = parse_array(txt, "memory")
-  if schema ~= SCHEMA or not n or not globals or #globals ~= 9 or not memory or #memory ~= n then
+  if (schema ~= 1 and schema ~= SCHEMA) or not n or n <= 0 or n > 1000000 or not globals or #globals ~= 9 or not memory or #memory ~= n then
     return false
   end
+  if not txt:match('"format"%s*:%s*"MIDI_HUMAN_LOOPER_PATCH"') then return false end
   reaper.gmem_write(2, schema)
   reaper.gmem_write(3, n)
   for i=1,9 do reaper.gmem_write(3+i, globals[i]) end

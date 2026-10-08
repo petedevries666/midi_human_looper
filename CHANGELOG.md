@@ -384,3 +384,11 @@ records exactly one full loop into that layer, then returns to PLAY automaticall
 - Shorter phrase name fields, restored per-phrase velocity and decay sliders for non-empty phrases.
 - Dimmer empty rows and a thin enclosing border around the six phrase rows.
 - Release history moved out of the JSFX source into this file.
+
+## v1.21.0
+- Isolate audio/GUI expression target and controller counters; historical concurrent rendering reproducer and cause-isolation tests.
+- Stable per-instrument identities, assignments and independent multipoint curves for every transformer parameter; ARP HOLD is distinct from enable.
+- Consume modal popup input, capture manual drags, open curves below the shared editor, and keep redraws out of persistent data.
+- Queue GUI value changes to the audio block, defer note-transform changes through held source notes, and send modulation to its actual selected CC destination without flooding.
+- Preserve every legacy memory/bank offset; import schema-1 JSON and save schema-2 appended expression data with independent bank extensions. Update the companion Lua ReaScript too.
+- Add native WDL EEL2/LICE GUI/MIDI tests, Lua patch-bridge tests and a detailed regression/persistence audit in docs/expression-assignments.md.

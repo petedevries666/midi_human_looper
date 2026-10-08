@@ -1,7 +1,12 @@
-desc:MIDI Human Looper v1.18.3
+desc:MIDI Human Looper v1.18.4
 options:gmem=MIDI_HUMAN_LOOPER
 
 // Free-time MIDI phrase instrument prototype for REAPER JSFX.
+// v1.18.4:
+// - minimalist phrase rows: full-width name, borderless controls, empty phrase suppression
+// - numbered button combines REC and non-destructive OVERDUB; context menu for CLEAR
+// - fix name character spacing with sequential gfx drawing
+// - redraw LOOP icon as a proper circular arrow
 // v1.18.3:
 // - native drawn phrase icons and single cycling play-mode button
 // v1.18.2:
@@ -27,7 +32,7 @@ options:gmem=MIDI_HUMAN_LOOPER
 // - push patch row and PHRASES browser down to eliminate top-section overlaps
 // - fix CLEAR ALL hit box to match its compact 92px button
 // v1.17.4:
-// - add hard square header: MIDI BAD MOTHERFUCKER V.1.18.3 / ANONYMALZ LIVE ENGINE
+// - add hard square header: MIDI BAD MOTHERFUCKER V.1.18.4 / ANONYMALZ LIVE ENGINE
 // - compact READY / ABORT / CLEAR ALL to the same 92x30 format as OPTIONS
 // - move transport / patch rows below the new header
 // v1.17.3:
@@ -510,6 +515,8 @@ hold_stop_request = -1;
 mono_order_counter = 0;
 phrase_page = 0;
 phrase_note_learn=-1;
+phrase_context=-1;
+phrase_context_y=0;
 PHRASES_PER_PAGE = 6;
 PHRASE_PAGES = 3;
 vi=0;
@@ -1396,7 +1403,22 @@ function select_phrase_record(layer)
   (state==STATE_RECORDING || state==STATE_READY) ? (
     finish_phrase_record();
     record_layer!=layer ? arm_layer(layer);
-  ) : arm_layer(layer);
+  ) : (
+    layer_count(layer)>0 ? (
+      state==STATE_PLAYING ? (
+        overdub_layer==layer && (overdub_active || overdub_armed) ? (
+          overdub_active=0;overdub_armed=0;overdub_pos=0;
+        ) : (
+          overdub_layer=layer;overdub_armed=1;overdub_active=0;
+        );
+      ) : (
+        // Existing phrase: preserve the take and prepare non-destructive overdub.
+        overdub_layer=layer;overdub_armed=1;overdub_active=0;
+        play_sample_pos=0;
+        loop_len_samples>0 ? state=STATE_PLAYING;
+      );
+    ) : arm_layer(layer);
+  );
 );
 
 function send_all_notes_off()
@@ -1694,7 +1716,7 @@ while (
 // arm -> active exactly at the next wrap
 state==STATE_PLAYING && overdub_armed && !overdub_active ? (
   play_sample_pos==0 ? (
-    clear_layer(overdub_layer);
+    // Overdub must preserve the existing events.
     overdub_pos=0;
     overdub_active=1;
     overdub_armed=0;
@@ -1938,9 +1960,8 @@ local(cx,cy,j)
     gfx_line(cx-2,cy-2,cx-2,cy+5);
     gfx_line(cx+2,cy-2,cx+2,cy+5);
   ) : kind==3 ? (
-    gfx_arc(cx,cy,8,-2.7,2.7,1);
-    gfx_line(cx-8,cy-3,cx-11,cy-7);
-    gfx_line(cx-8,cy-3,cx-4,cy-6);
+    gfx_arc(cx,cy,8,0.4,5.6,1);
+    gfx_triangle(cx+6,cy-8,cx+12,cy-7,cx+8,cy-2,1);
   ) : kind==4 ? (
     gfx_circle(cx,cy,9,0);
     gfx_triangle(cx-3,cy-5,cx-3,cy+5,cx+5,cy,1);
@@ -1977,10 +1998,11 @@ local(k,n)
 function draw_name_chars(base,x,y)
 local(k,c)
 (
+  gfx_x=x;gfx_y=y;
   k=0;
   loop(NAME_CHARS,
     c=floor(mem[base+k]+0.5);
-    c>0 ? (gfx_x=x+k*7; gfx_y=y; gfx_drawchar(c););
+    c>0 ? gfx_drawchar(c);
     k+=1;
   );
 );
@@ -2128,77 +2150,73 @@ gui_row=0;
 loop(PHRASES_PER_PAGE,
   gui_layer=phrase_page*PHRASES_PER_PAGE+gui_row;
   gui_layer<LAYERS ? (
+    phrase_has_events=layer_count(gui_layer)>0;
     active_phrase=(state==STATE_READY || state==STATE_RECORDING) && record_layer==gui_layer;
-    gfx_set(active_phrase ? 0.93 : 0.32,active_phrase ? 0.16 : 0.32,active_phrase ? 0.14 : 0.32,1);
-    gfx_circle(27,rowy+14,10,1);
-    gfx_set(1,1,1,1); gfx_setfont(1,"Arial",12);
-    gfx_x=gui_layer+1<10 ? 24 : 20;gfx_y=rowy+7;gfx_drawnumber(gui_layer+1,0);
-    hit(16,rowy,23,28) ? select_phrase_record(gui_layer);
-
-    nx=62; nw=150;
-    gfx_set(edit_name_type==1 && edit_name_index==gui_layer ? 0.25 : 0.14,0.14,0.14,1);gfx_rect(nx,rowy,nw,28,1);
-    gfx_set(.42,.42,.42,1);gfx_rect(nx,rowy,nw,28,0);
-    gfx_setfont(1,"Arial",11);gfx_set(.78,.78,.78,1);
-    name_len(PHRASE_NAME_BASE+gui_layer*NAME_CHARS)>0 ? draw_name_chars(PHRASE_NAME_BASE+gui_layer*NAME_CHARS,nx+6,rowy+7) : (
-      gfx_x=nx+6;gfx_y=rowy+7;gfx_drawstr("PHRASE ");gfx_drawnumber(gui_layer+1,0);
+    overdub_lit=overdub_layer==gui_layer && (overdub_armed || overdub_active);
+    gfx_set(active_phrase ? .92 : overdub_lit ? .88 : phrase_has_events ? .76 : .30,
+            active_phrase ? .18 : overdub_lit ? .42 : phrase_has_events ? .18 : .30,
+            active_phrase ? .16 : overdub_lit ? .08 : phrase_has_events ? .18 : .30,1);
+    gfx_circle(23,rowy+14,12,1);
+    gfx_set(1,1,1,1);gfx_setfont(1,"Arial",12);
+    gfx_x=gui_layer+1<10 ? 20 : 16;gfx_y=rowy+7;gfx_drawnumber(gui_layer+1,0);
+    hit(9,rowy,28,28) ? (phrase_context=-1;select_phrase_record(gui_layer););
+    (mouse_cap&2) && !(last_mouse_cap&2) && mouse_x>=9 && mouse_x<38 && mouse_y>=rowy && mouse_y<rowy+28 ? (
+      phrase_context=gui_layer;phrase_context_y=rowy+30;
     );
+
+    nx=40;nw=606;
+    gfx_set(phrase_has_events ? .16 : .09,phrase_has_events ? .16 : .09,phrase_has_events ? .16 : .09,1);
+    gfx_rect(nx,rowy,nw,28,1);
+    gfx_set(phrase_has_events ? .30 : .17,phrase_has_events ? .30 : .17,phrase_has_events ? .30 : .17,1);
+    gfx_rect(nx,rowy,nw,28,0);
+    gfx_setfont(1,"Arial",11);
+    phrase_has_events ? gfx_set(.86,.86,.86,1) : gfx_set(.42,.42,.42,1);
+    name_len(PHRASE_NAME_BASE+gui_layer*NAME_CHARS)>0 ?
+      draw_name_chars(PHRASE_NAME_BASE+gui_layer*NAME_CHARS,nx+9,rowy+7) : (
+        gfx_x=nx+9;gfx_y=rowy+7;gfx_drawstr("PHRASE ");gfx_drawnumber(gui_layer+1,0);
+      );
     hit(nx,rowy,nw,28) ? (edit_name_type=1;edit_name_index=gui_layer;);
 
-    kx=234;mx=268;sx=300;ox=332;clx=366;modex=400;trigx=450;
-    phrase_icon_btn(kx,rowy,28,28,0,phrase_note_learn==gui_layer);
-    hit(kx,rowy,28,28) ? phrase_note_learn=phrase_note_learn==gui_layer ? -1 : gui_layer;
-    smallbtn(mx,rowy,28,28,"M",mem[MUTE_BASE+gui_layer]>0.5);
-    smallbtn(sx,rowy,28,28,"S",mem[SOLO_BASE+gui_layer]>0.5);
-    phrase_icon_btn(ox,rowy,28,28,1,overdub_armed && overdub_layer==gui_layer || overdub_active && overdub_layer==gui_layer);
-    phrase_icon_btn(clx,rowy,28,28,2,0);
-    mode_now=floor(mem[MODE_BASE+gui_layer]+0.5);
-    phrase_icon_btn(modex,rowy,40,28,mode_now==0 ? 3 : mode_now==1 ? 4 : 5,1);
-    voice_lit=0;vi=0;loop(MAX_ONCE_VOICES,mem[VOICE_ACTIVE_BASE+vi]>0.5 && mem[VOICE_LAYER_BASE+vi]==gui_layer ? voice_lit=1;vi+=1;);
-    hold_lit=mem[MODE_BASE+gui_layer]>=1.5 && mem[HOLD_ACTIVE_BASE+gui_layer]>0.5;
-    phrase_has_events=layer_count(gui_layer)>0;
-    phrase_icon_btn(trigx,rowy,34,28,6,voice_lit || hold_lit);
-
-    hit(mx,rowy,28,28) ? mem[MUTE_BASE+gui_layer]=1-mem[MUTE_BASE+gui_layer];
-    hit(sx,rowy,28,28) ? mem[SOLO_BASE+gui_layer]=1-mem[SOLO_BASE+gui_layer];
-    hit(ox,rowy,28,28) && state==STATE_PLAYING ? (
-      overdub_active && overdub_layer==gui_layer ? (overdub_active=0;overdub_pos=0;) :
-      (overdub_layer=gui_layer;overdub_armed=1;overdub_active=0;);
+    kx=654;mx=684;sx=710;modex=742;trigx=772;
+    phrase_icon(kx,rowy,24,28,0,phrase_note_learn==gui_layer);
+    hit(kx,rowy,24,28) ? phrase_note_learn=phrase_note_learn==gui_layer ? -1 : gui_layer;
+    phrase_has_events ? (
+      gfx_set(mem[MUTE_BASE+gui_layer]>0.5 ? .95 : .82,.82,.82,1);
+      gfx_setfont(1,"Arial",12);gfx_x=mx+6;gfx_y=rowy+7;gfx_drawstr("M");
+      gfx_set(mem[SOLO_BASE+gui_layer]>0.5 ? .95 : .82,.82,.82,1);
+      gfx_x=sx+6;gfx_y=rowy+7;gfx_drawstr("S");
+      phrase_icon(modex,rowy,24,28,floor(mem[MODE_BASE+gui_layer]+.5)==0 ? 3 : floor(mem[MODE_BASE+gui_layer]+.5)==1 ? 4 : 5,0);
+      phrase_icon(trigx,rowy,24,28,6,0);
+      hit(mx,rowy,24,28) ? mem[MUTE_BASE+gui_layer]=1-mem[MUTE_BASE+gui_layer];
+      hit(sx,rowy,24,28) ? mem[SOLO_BASE+gui_layer]=1-mem[SOLO_BASE+gui_layer];
+      hit(modex,rowy,24,28) ? (
+        selected_mode=(floor(mem[MODE_BASE+gui_layer]+.5)+1)%3;
+        mem[MODE_BASE+gui_layer]=selected_mode;
+        mem[TRIG_BASE+gui_layer]=selected_mode==0;
+        mem[HOLD_ACTIVE_BASE+gui_layer]=0;
+        mem[ONCEPOS_BASE+gui_layer]=0;panic_pending=1;
+      );
+      hit(trigx,rowy,24,28) ? (
+        mem[MODE_BASE+gui_layer]<.5 ? (
+          mem[ONCEPOS_BASE+gui_layer]=0;mem[TRIG_BASE+gui_layer]=1;
+        ) : mem[MODE_BASE+gui_layer]<1.5 ? trigger_request=gui_layer :
+        (mem[HOLD_ACTIVE_BASE+gui_layer]>.5 ? hold_stop_request=gui_layer : trigger_request=gui_layer);
+      );
     );
-    hit(clx,rowy,28,28) ? (panic_pending=1;clear_layer(gui_layer););
-    hit(modex,rowy,40,28) ? (
-      selected_mode=(floor(mem[MODE_BASE+gui_layer]+0.5)+1)%3;
-      mem[MODE_BASE+gui_layer]=selected_mode;
-      mem[TRIG_BASE+gui_layer]=selected_mode==0;
-      mem[HOLD_ACTIVE_BASE+gui_layer]=0;
-      mem[ONCEPOS_BASE+gui_layer]=0;panic_pending=1;
-    );
-    hit(trigx,rowy,34,28) && phrase_has_events ? (
-      mem[MODE_BASE+gui_layer]<0.5 ? (
-        mem[ONCEPOS_BASE+gui_layer]=0;
-        mem[TRIG_BASE+gui_layer]=1;
-      ) : mem[MODE_BASE+gui_layer]<1.5 ? trigger_request=gui_layer :
-      (mem[HOLD_ACTIVE_BASE+gui_layer]>0.5 ? hold_stop_request=gui_layer : trigger_request=gui_layer);
-    );
-
-    // phrase velocity
-    vx=590; vw=82; vy=rowy+3;
-    gfx_set(0.22,0.22,0.22,1); gfx_rect(vx,vy,vw,18,1);
-    vnorm=max(0,min(1,(mem[VEL_BASE+gui_layer]-0.2)/2.8));
-    gfx_set(0.7,0.7,0.7,1); gfx_rect(vx,vy,vw*vnorm,18,1);
-    mouse_cap&1 && mouse_x>=vx && mouse_x<vx+vw && mouse_y>=vy && mouse_y<vy+18 ? mem[VEL_BASE+gui_layer]=0.2+2.8*((mouse_x-vx)/vw);
-    gfx_setfont(1,"Arial",10); gfx_x=678; gfx_y=rowy+5; gfx_drawstr("VEL x"); gfx_drawnumber(mem[VEL_BASE+gui_layer],2);
-
-    dx=755; dw=58; dy=rowy+3;
-    gfx_set(0.22,0.22,0.22,1); gfx_rect(dx,dy,dw,18,1);
-    dnorm=max(0,min(1,(mem[DECAY_BASE+gui_layer]-0.2)/0.8));
-    gfx_set(0.7,0.7,0.7,1); gfx_rect(dx,dy,dw*dnorm,18,1);
-    mouse_cap&1 && mouse_x>=dx && mouse_x<dx+dw && mouse_y>=dy && mouse_y<dy+18 ? mem[DECAY_BASE+gui_layer]=0.2+0.8*((mouse_x-dx)/dw);
-    gfx_setfont(1,"Arial",10); gfx_x=819; gfx_y=rowy+5; gfx_drawstr("DECAY "); gfx_drawnumber(mem[DECAY_BASE+gui_layer]*100,0); gfx_drawstr("%");
-    gfx_x=915; gfx_y=rowy+5; gfx_drawstr("EVENTS "); gfx_drawnumber(layer_count(gui_layer),0);
-
     rowy+=38;
   );
   gui_row+=1;
+);
+
+// Contextual phrase CLEAR is intentionally separate from the record/overdub control.
+phrase_context>=0 ? (
+  gfx_set(.08,.08,.08,1);gfx_rect(9,phrase_context_y,112,30,1);
+  gfx_set(.55,.55,.55,1);gfx_rect(9,phrase_context_y,112,30,0);
+  gfx_setfont(1,"Arial",12);gfx_x=20;gfx_y=phrase_context_y+8;gfx_drawstr("CLEAR PHRASE");
+  hit(9,phrase_context_y,112,30) ? (
+    panic_pending=1;clear_layer(phrase_context);phrase_context=-1;
+  );
+  (mouse_cap&1) && !(last_mouse_cap&1) && !(mouse_x>=9 && mouse_x<121 && mouse_y>=phrase_context_y && mouse_y<phrase_context_y+30) ? phrase_context=-1;
 );
 
 // --- INSTRUMENTS -----------------------------------------------------------

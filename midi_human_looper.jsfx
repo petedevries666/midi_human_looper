@@ -1,4 +1,4 @@
-desc:MIDI Human Looper v1.21.1
+desc:MIDI Human Looper v1.22.0
 options:gmem=MIDI_HUMAN_LOOPER
 
 // Release history: CHANGELOG.md. Free-time MIDI phrase instrument.
@@ -22,7 +22,8 @@ STATE_STOPPED = 4;
 // External patch I/O bridge (companion Lua ReaScript).
 // gmem[0] command: 0 idle, 1 SAVE request, 2 LOAD request, 3 LOAD ready, 4 SAVE done, 5 error.
 // gmem[1] selected slot, [2] schema, [3] PATCH_PAYLOAD_SIZE, [4..] globals, payload starts at 32.
-IO_SCHEMA = 2;
+IO_SCHEMA = 3;
+PARAM_SCHEMA=2;
 IO_PAYLOAD_BASE = 32;
 
 MAX_ONCE_VOICES = 12;
@@ -157,6 +158,39 @@ PARAM_INPUT_SIZE=2*INSTRUMENTS*16*128;
 PARAM_ACTIVE_BASE=PARAM_INPUT_BASE+PARAM_INPUT_SIZE;
 PARAM_MOD_CC_LAST_BASE=PARAM_ACTIVE_BASE+INSTRUMENTS;
 PARAM_MOD_ON_LAST_BASE=PARAM_MOD_CC_LAST_BASE+INSTRUMENTS;
+// Smart Switch configuration is a separate appended wire tail. Old RAM is frozen.
+SW_COUNT=4;SW_STEPS=64;SW_STRIDE=128;SW_NAME=32;SW_LIST=48;
+// Per-switch fields: enabled/type/kind/channel/number/thru/policy/doubleMs/holdMs,
+// traversal/reentry/length/ccPress/ccRelease, three actions, three targets.
+// Name is 16 chars at +32; up to 64 zero-based phrase references begin at +48.
+// Runtime +0..5: press and gesture state; +6..10: cursor/active/direction/bag/last.
+// +11..12: action feedback; +13..19: held-input snapshot, errors and undo flag.
+SW_CFG_BASE=PARAM_MOD_ON_LAST_BASE+INSTRUMENTS;
+SW_CFG_SIZE=1+SW_COUNT*SW_STRIDE;
+SW_BANK1_BASE=SW_CFG_BASE+SW_CFG_SIZE;SW_BANK2_BASE=SW_BANK1_BASE+SW_CFG_SIZE;
+SW_RT_BASE=SW_BANK2_BASE+SW_CFG_SIZE;SW_RT_STRIDE=32;
+SW_BAG_BASE=SW_RT_BASE+SW_COUNT*SW_RT_STRIDE;
+SW_UNDO_BASE=SW_BAG_BASE+SW_COUNT*SW_STEPS;
+SW_QUEUE_BASE=SW_UNDO_BASE+SW_COUNT*SW_STRIDE;
+SW_QUEUE_SIZE=64;SW_QUEUE_STRIDE=4;
+SW_RELEASE_BASE=SW_QUEUE_BASE+SW_QUEUE_SIZE*SW_QUEUE_STRIDE;
+SW_RELEASE_SIZE=16;
+SW_MODULE_BASE=SW_RELEASE_BASE+SW_RELEASE_SIZE*4;
+SW_PHRASE_OUT_BASE=SW_MODULE_BASE+INSTRUMENTS*TRANSFORM_TYPES;
+SW_LIVE_OUT_BASE=SW_PHRASE_OUT_BASE+INSTRUMENTS*16*128;
+SW_LOOP_INPUT_BASE=SW_LIVE_OUT_BASE+INSTRUMENTS*16*128;
+SW_MONO_PHRASE_BASE=SW_LOOP_INPUT_BASE+INSTRUMENTS*16*128;
+SW_ARP_PHRASE_BASE=SW_MONO_PHRASE_BASE+INSTRUMENTS*128;
+SW_ARP_PHRASE_SOURCE_BASE=SW_ARP_PHRASE_BASE+INSTRUMENTS*128;
+SW_PHRASE_SUSTAIN_BASE=SW_ARP_PHRASE_SOURCE_BASE+INSTRUMENTS*128;
+SW_LIVE_SUSTAIN_BASE=SW_PHRASE_SUSTAIN_BASE+16;
+SW_MONO_OWNER_BASE=SW_LIVE_SUSTAIN_BASE+16;
+SW_MEMORY_END=SW_MONO_OWNER_BASE+INSTRUMENTS;
+SW_LEGACY_PAYLOAD=WORK_MEM_SIZE+PARAM_EXT_SIZE;
+PATCH_PAYLOAD_SIZE=SW_LEGACY_PAYLOAD+SW_CFG_SIZE;
+// Actions: NONE/NEXT/STOP/RESET/RESET ALL/STOP+RESET/PANIC/TOGGLE/ENABLE/DISABLE.
+SW_NONE=0;SW_NEXT=1;SW_STOP=2;SW_RESET=3;SW_RESET_ALL=4;SW_STOP_RESET=5;
+SW_PANIC=6;SW_TOGGLE=7;SW_ENABLE=8;SW_DISABLE=9;
 // patch_valid1 / patch_valid2 / current_patch are serialized state.
 // Do NOT clear them here: REAPER may call @init after @serialize.
 (patch_valid1<=0 && patch_valid2<=0 && (current_patch<1 || current_patch>2)) ? current_patch=1;
@@ -389,7 +423,7 @@ function exp_count_addr(ti) (ti<EXP_TOTAL ? INST_EXP_COUNT_BASE+ti : PARAM_COUNT
 function exp_x_addr(ti) (ti<EXP_TOTAL ? INST_EXP_X_BASE+ti*EXP_POINTS : PARAM_X_BASE+(ti-EXP_TOTAL)*EXP_POINTS;);
 function exp_y_addr(ti) (ti<EXP_TOTAL ? INST_EXP_Y_BASE+ti*EXP_POINTS : PARAM_Y_BASE+(ti-EXP_TOTAL)*EXP_POINTS;);
 function exp_bend_addr(ti) (ti<EXP_TOTAL ? INST_EXP_BEND_BASE+ti*EXP_POINTS : PARAM_BEND_BASE+(ti-EXP_TOTAL)*EXP_POINTS;);
-function payload_addr(j) (j<WORK_MEM_SIZE ? j : PARAM_EXT_BASE+j-WORK_MEM_SIZE;);
+function payload_addr(j) (j<WORK_MEM_SIZE ? j : j<SW_LEGACY_PAYLOAD ? PARAM_EXT_BASE+j-WORK_MEM_SIZE : SW_CFG_BASE+j-SW_LEGACY_PAYLOAD;);
 function param_addr(gi,kind)
 (
   kind==EXP_T_VEL ? INST_VEL_BASE+gi : kind==EXP_T_LEVEL ? INST_LEVEL_BASE+gi :
@@ -434,7 +468,7 @@ local(lo,hi,step,v)
 function param_extension_reset()
 local(j,k,ti,gi)
 (
-  mem[PARAM_EXT_BASE]=IO_SCHEMA;
+  mem[PARAM_EXT_BASE]=PARAM_SCHEMA;
   j=0;loop(PARAM_EXTRA,
     ti=EXP_TOTAL+j;mem[exp_assign_addr(ti)]=0;mem[exp_count_addr(ti)]=2;
     k=0;loop(EXP_POINTS,
@@ -453,6 +487,74 @@ local(j)
   j=0;loop(PARAM_TOTAL,mem[PARAM_LAST_BASE+j]=-999;mem[PARAM_PENDING_BASE+j]=-999;j+=1;);
   param_input_reset();
 );
+function sw_cfg(si) (SW_CFG_BASE+1+si*SW_STRIDE;);
+function sw_rt(si) (SW_RT_BASE+si*SW_RT_STRIDE;);
+function sw_defaults()
+local(si,b,j)
+(
+  mem[SW_CFG_BASE]=IO_SCHEMA;si=0;loop(SW_COUNT,
+    b=sw_cfg(si);j=0;loop(SW_STRIDE,mem[b+j]=0;j+=1;);
+    mem[b+2]=0;mem[b+4]=60+si;mem[b+7]=300;mem[b+8]=800;
+    mem[b+12]=127;mem[b+13]=0;mem[b+14]=SW_NEXT;mem[b+17]=si;mem[b+18]=si;mem[b+19]=si;si+=1;
+  );
+);
+function sw_reset(si)
+local(r)
+(r=sw_rt(si);mem[r+6]=-1;mem[r+7]=-1;mem[r+8]=1;mem[r+9]=0;mem[r+10]=-1;);
+function sw_runtime_reset()
+local(si,r,j,t)
+(
+  // Quarantine releases from commands held across preset changes, even if remapped.
+  si=0;loop(SW_COUNT,
+    r=sw_rt(si);mem[r]>0 || mem[r+17]==3 ? (
+      j=0;t=-1;loop(SW_RELEASE_SIZE,mem[SW_RELEASE_BASE+j*4]==0 && t<0?t=j;j+=1;);
+      t>=0 ? (t=SW_RELEASE_BASE+t*4;mem[t]=mem[r+13];mem[t+1]=mem[r+14];mem[t+2]=mem[r+15];mem[t+3]=mem[r+19];);
+    );
+    j=0;loop(SW_RT_STRIDE,mem[r+j]=0;j+=1;);sw_reset(si);si+=1;
+  );
+  sw_last_active=-1;sw_learn=-1;sw_learn_request=-1;sw_clock=0;
+  sw_queue_read=0;sw_queue_write=0;sw_playback_origin=0;
+  j=SW_PHRASE_OUT_BASE;loop(SW_MEMORY_END-SW_PHRASE_OUT_BASE,mem[j]=0;j+=1;);
+  j=0;loop(INSTRUMENTS*TRANSFORM_TYPES,mem[SW_MODULE_BASE+j]=-999;j+=1;);
+);
+// Normalize only the appended configuration; existing patch fields stay untouched.
+function sw_validate()
+local(si,b,j,k,other)
+(
+  si=0;loop(SW_COUNT,
+    b=sw_cfg(si);mem[b]=mem[b]>0;mem[b+1]=mem[b+1]>0;
+    mem[b+2]=max(0,min(2,floor(mem[b+2])));mem[b+3]=max(0,min(15,floor(mem[b+3])));
+    mem[b+4]=max(0,min(127,floor(mem[b+4])));mem[b+5]=mem[b+5]>0;mem[b+6]=mem[b+6]>0;
+    mem[b+7]=max(50,min(2000,mem[b+7]));mem[b+8]=max(100,min(5000,mem[b+8]));
+    mem[b+9]=max(0,min(3,floor(mem[b+9])));mem[b+10]=mem[b+10]>0;mem[b+11]=max(0,min(SW_STEPS,floor(mem[b+11])));
+    mem[b+12]=max(0,min(127,floor(mem[b+12])));mem[b+13]=max(0,min(127,floor(mem[b+13])));
+    mem[b+2]==2 && mem[b+12]==mem[b+13] ? mem[b]=0;
+    j=0;loop(3,
+      mem[b+14+j]=max(0,min(SW_DISABLE,floor(mem[b+14+j])));
+      k=mem[b+14+j];mem[b+17+j]=max(0,min(k>=SW_TOGGLE?INSTRUMENTS*TRANSFORM_TYPES-1:SW_COUNT,floor(mem[b+17+j])));j+=1;
+    );
+    j=0;loop(si,other=sw_cfg(j);
+      mem[other]>0 && mem[b+2]>0 && mem[other+2]==mem[b+2] && mem[other+3]==mem[b+3] && mem[other+4]==mem[b+4] ? mem[b]=0;j+=1;
+    );
+    si+=1;
+  );
+);
+function sw_bank_save(slot)
+local(b,j,pb)
+(
+  b=slot==2?SW_BANK2_BASE:SW_BANK1_BASE;pb=slot==2?PATCH2_BASE:PATCH1_BASE;
+  mem[pb+10]=IO_SCHEMA;j=0;loop(SW_CFG_SIZE,mem[b+j]=mem[SW_CFG_BASE+j];j+=1;);
+);
+function sw_bank_load(slot)
+local(b,j,pb)
+(
+  pb=slot==2?PATCH2_BASE:PATCH1_BASE;sw_defaults();
+  mem[pb+10]==IO_SCHEMA ? (
+    b=slot==2?SW_BANK2_BASE:SW_BANK1_BASE;j=0;loop(SW_CFG_SIZE,mem[SW_CFG_BASE+j]=mem[b+j];j+=1;);
+  );sw_validate();sw_runtime_reset();
+);
+sw_defaults();sw_runtime_reset();
+
 function param_bank_save(slot)
 local(j,b)
 (b=slot==2 ? PARAM_BANK2_BASE : PARAM_BANK1_BASE;j=0;loop(PARAM_EXT_SIZE,mem[b+j]=mem[PARAM_EXT_BASE+j];j+=1;););
@@ -460,11 +562,11 @@ function param_bank_load(slot)
 local(j,b,pb)
 (
   pb=slot==2 ? PATCH2_BASE : PATCH1_BASE;
-  mem[pb+9]==IO_SCHEMA ? (
+  mem[pb+9]==PARAM_SCHEMA ? (
     b=slot==2 ? PARAM_BANK2_BASE : PARAM_BANK1_BASE;j=0;
     loop(PARAM_EXT_SIZE,mem[PARAM_EXT_BASE+j]=mem[b+j];j+=1;);
   ) : param_extension_reset();
-  param_runtime_reset();
+  param_runtime_reset();sw_bank_load(slot);
 );
 param_extension_reset();param_runtime_reset();
 
@@ -481,9 +583,9 @@ local(pb,j)
   mem[pb+6]=slider8;
   mem[pb+7]=slider9;
   mem[pb+8]=record_layer;
-  mem[pb+9]=IO_SCHEMA;
+  mem[pb+9]=PARAM_SCHEMA;
   param_bank_save(slot);
-  mem[pb+10]=0;
+  sw_bank_save(slot);
   mem[pb+11]=0;
   j=0;
   loop(WORK_MEM_SIZE,
@@ -523,7 +625,7 @@ local(pb,j,valid,oldslot)
       record_layer=mem[pb+8];
     ) : (
       reset_all_phrases();
-      param_extension_reset();param_runtime_reset();
+      param_extension_reset();param_runtime_reset();sw_defaults();sw_runtime_reset();
       slider4=0;
       slider5=0;
       slider6=120;
@@ -605,6 +707,7 @@ local(n,sidx,hidx)
     hidx=ARP_HELD_COUNT_BASE+gi*128+n;
     // When leaving HOLD, retain only notes that are physically/source-held now.
     mem[hidx]=mem[sidx];
+    mem[SW_ARP_PHRASE_BASE+gi*128+n]=mem[SW_ARP_PHRASE_SOURCE_BASE+gi*128+n];
     n+=1;
   );
 );
@@ -630,6 +733,7 @@ local(ai,n)
       loop(128,
         mem[ARP_SOURCE_COUNT_BASE+ai*128+n]=0;
         mem[ARP_HELD_COUNT_BASE+ai*128+n]=0;
+        mem[SW_ARP_PHRASE_BASE+ai*128+n]=0;mem[SW_ARP_PHRASE_SOURCE_BASE+ai*128+n]=0;
         n+=1;
       );
       arp_release_instrument(ai);
@@ -749,11 +853,19 @@ local(rm,lo,hi,ok)
   ok;
 );
 
-function route_emit_note(gi, offs, outst, note, vel, is_on, owned)
-local(ch,key)
+function route_emit_note(gi, offs, outst, note, vel, is_on, owned, origin_override)
+local(ch,key,origin,idx)
 (
-  ch=outst&15;
+  ch=outst&15;origin=origin_override==0?(owned || sw_playback_origin):origin_override>0;
+  idx=(gi*16+ch)*128+note;
+  !(mem[INST_ARP_ENABLED_BASE+gi]>.5 && transformer_on(gi,5)) ? (
+    origin ? (is_on?mem[SW_PHRASE_OUT_BASE+idx]+=1:mem[SW_PHRASE_OUT_BASE+idx]=max(0,mem[SW_PHRASE_OUT_BASE+idx]-1);) :
+      (is_on?mem[SW_LIVE_OUT_BASE+idx]+=1:mem[SW_LIVE_OUT_BASE+idx]=max(0,mem[SW_LIVE_OUT_BASE+idx]-1););
+  );
   mem[INST_ARP_ENABLED_BASE+gi]>0.5 && transformer_on(gi,5) ? (
+    origin ? (
+      is_on ? (mem[SW_ARP_PHRASE_SOURCE_BASE+gi*128+note]+=1;mem[SW_ARP_PHRASE_BASE+gi*128+note]+=1;) : (mem[SW_ARP_PHRASE_SOURCE_BASE+gi*128+note]=max(0,mem[SW_ARP_PHRASE_SOURCE_BASE+gi*128+note]-1);mem[INST_ARP_HOLD_BASE+gi]<.5 ? mem[SW_ARP_PHRASE_BASE+gi*128+note]=max(0,mem[SW_ARP_PHRASE_BASE+gi*128+note]-1););
+    );
     arp_capture_note(gi,outst,note,vel,is_on);
   ) : owned ? (
     key=NOTE_REF_BASE+ch*128+note;
@@ -793,10 +905,11 @@ local(n,best,best_order,ord)
 );
 
 function route_mono_note(gi, offs, outst, note, vel, is_on, owned)
-local(mode,idx,desired,active,active_ch,newst,newvel)
+local(mode,idx,desired,active,active_ch,newst,newvel,old_owner,new_owner,key)
 (
   mode=floor(mem[INST_NOTE_MODE_BASE+gi]+0.5);
   idx=MONO_HELD_COUNT_BASE+gi*128+note;
+  owned || sw_playback_origin ? (is_on?mem[SW_MONO_PHRASE_BASE+gi*128+note]+=1:mem[SW_MONO_PHRASE_BASE+gi*128+note]=max(0,mem[SW_MONO_PHRASE_BASE+gi*128+note]-1););
   is_on ? (
     mem[idx]+=1;
     mem[MONO_HELD_VEL_BASE+gi*128+note]=vel;
@@ -809,6 +922,8 @@ local(mode,idx,desired,active,active_ch,newst,newvel)
   desired=mono_desired_note(gi,mode);
   active=mem[MONO_ACTIVE_NOTE_BASE+gi];
   active_ch=mem[MONO_ACTIVE_CH_BASE+gi]&15;
+  old_owner=mem[SW_MONO_OWNER_BASE+gi];
+  new_owner=desired>=0 && mem[SW_MONO_PHRASE_BASE+gi*128+desired]>=mem[MONO_HELD_COUNT_BASE+gi*128+desired]?1:-1;
 
   desired!=active ? (
     desired>=0 ? (
@@ -816,17 +931,29 @@ local(mode,idx,desired,active,active_ch,newst,newvel)
       newvel=max(1,min(127,mem[MONO_HELD_VEL_BASE+gi*128+desired]));
       mode==3 ? (
         // LEGATO: overlap the transition so mono synths can engage their own legato/glide behavior.
-        route_emit_note(gi,offs,newst,desired,newvel,1,owned);
-        active>=0 ? route_emit_note(gi,offs,128|active_ch,active,0,0,owned);
+        route_emit_note(gi,offs,newst,desired,newvel,1,owned,new_owner);
+        active>=0 ? route_emit_note(gi,offs,128|active_ch,active,0,0,owned,old_owner);
       ) : (
-        active>=0 ? route_emit_note(gi,offs,128|active_ch,active,0,0,owned);
-        route_emit_note(gi,offs,newst,desired,newvel,1,owned);
+        active>=0 ? route_emit_note(gi,offs,128|active_ch,active,0,0,owned,old_owner);
+        route_emit_note(gi,offs,newst,desired,newvel,1,owned,new_owner);
       );
-      mem[MONO_ACTIVE_NOTE_BASE+gi]=desired;
+      mem[SW_MONO_OWNER_BASE+gi]=new_owner;mem[MONO_ACTIVE_NOTE_BASE+gi]=desired;
       mem[MONO_ACTIVE_CH_BASE+gi]=outst&15;
     ) : (
-      active>=0 ? route_emit_note(gi,offs,128|active_ch,active,0,0,owned);
+      active>=0 ? route_emit_note(gi,offs,128|active_ch,active,0,0,owned,old_owner);
       mem[MONO_ACTIVE_NOTE_BASE+gi]=-1;
+    );
+  );
+  // A mono transition may be caused by the other source owner. Track the
+  // resulting audible voice, rather than attributing its note-off to that input.
+  !(mem[INST_ARP_ENABLED_BASE+gi]>.5 && transformer_on(gi,5)) ? (
+    active>=0 && active!=desired ? (
+      key=(gi*16+active_ch)*128+active;mem[SW_LIVE_OUT_BASE+key]=0;mem[SW_PHRASE_OUT_BASE+key]=0;
+    );
+    desired>=0 ? (
+      key=(gi*16+mem[MONO_ACTIVE_CH_BASE+gi])*128+desired;
+      mem[SW_LIVE_OUT_BASE+key]=mem[MONO_HELD_COUNT_BASE+gi*128+desired]>mem[SW_MONO_PHRASE_BASE+gi*128+desired];
+      mem[SW_PHRASE_OUT_BASE+key]=mem[SW_MONO_PHRASE_BASE+gi*128+desired]>0;
     );
   );
 );
@@ -868,22 +995,25 @@ local(srcch,typ,ii,in_ch,out_ch,outst,outd2,matched,velmul,nmode,tn)
         outd2=d2;
         nmode=transformer_on(ii,3) ? floor(mem[INST_NOTE_MODE_BASE+ii]+0.5) : 0;
 
+        typ==176 && d1==64 ? (sw_playback_origin ? mem[SW_PHRASE_SUSTAIN_BASE+(outst&15)]=d2 : mem[SW_LIVE_SUSTAIN_BASE+(outst&15)]=d2;);
         (typ==144 && d2>0) ? (
+          sw_playback_origin ? mem[SW_LOOP_INPUT_BASE+(ii*16+srcch-1)*128+d1]+=1;
           param_track_input(ii,srcch-1,d1,1,0);
           tn=d1+(transformer_on(ii,1) ? floor(mem[INST_TRANSPOSE_BASE+ii]+0.5) : 0);
           tn>=0 && tn<=127 && (!transformer_on(ii,2) || note_in_range(ii,tn)) ? (
             velmul=(transformer_on(ii,4) ? mem[INST_VEL_BASE+ii] : 1)*extra_gain;
             outd2=max(1,min(127,floor(d2*velmul+0.5)));
             nmode>0 ? route_mono_note(ii,offs,outst,tn,outd2,1,0) :
-                      route_emit_note(ii,offs,outst,tn,outd2,1,0);
+                      route_emit_note(ii,offs,outst,tn,outd2,1,0,0);
           );
         ) :
         ((typ==128) || (typ==144 && d2==0)) ? (
+          sw_playback_origin ? mem[SW_LOOP_INPUT_BASE+(ii*16+srcch-1)*128+d1]=max(0,mem[SW_LOOP_INPUT_BASE+(ii*16+srcch-1)*128+d1]-1);
           param_track_input(ii,srcch-1,d1,0,0);
           tn=d1+(transformer_on(ii,1) ? floor(mem[INST_TRANSPOSE_BASE+ii]+0.5) : 0);
           tn>=0 && tn<=127 && (!transformer_on(ii,2) || note_in_range(ii,tn)) ? (
             nmode>0 ? route_mono_note(ii,offs,outst,tn,0,0,0) :
-                      route_emit_note(ii,offs,outst,tn,0,0,0);
+                      route_emit_note(ii,offs,outst,tn,0,0,0,0);
           );
         ) :
           midisend(offs,outst,d1|(d2*256));
@@ -891,7 +1021,14 @@ local(srcch,typ,ii,in_ch,out_ch,outst,outd2,matched,velmul,nmode,tn)
     );
     ii+=1;
   );
-  matched==0 ? midisend(offs,st,d1|(d2*256));
+  matched==0 ? (
+    typ==144 || typ==128 ? (
+      nmode=(st&15)*128+d1;tn=SW_LIVE_OUT_BASE+nmode;sw_playback_origin?tn=SW_PHRASE_OUT_BASE+nmode;
+      typ==144 && d2>0 ? mem[tn]+=1 : mem[tn]=max(0,mem[tn]-1);
+    );
+    typ==176 && d1==64 ? (sw_playback_origin?mem[SW_PHRASE_SUSTAIN_BASE+(st&15)]=d2:mem[SW_LIVE_SUSTAIN_BASE+(st&15)]=d2;);
+    midisend(offs,st,d1|(d2*256));
+  );
 );
 
 function send_expression_ccs()
@@ -939,7 +1076,7 @@ local(srcch,typ,ii,in_ch,out_ch,outst,outd2,matched,velmul,msg_chan,note_key,nmo
             velmul=(transformer_on(ii,4) ? mem[INST_VEL_BASE+ii] : 1)*phrase_gain;
             outd2=max(1,min(127,floor(d2*velmul+0.5)));
             nmode>0 ? route_mono_note(ii,offs,outst,tn,outd2,1,1) :
-                      route_emit_note(ii,offs,outst,tn,outd2,1,1);
+                      route_emit_note(ii,offs,outst,tn,outd2,1,1,0);
           );
         ) :
         ((typ==128) || (typ==144 && d2==0)) ? (
@@ -947,10 +1084,11 @@ local(srcch,typ,ii,in_ch,out_ch,outst,outd2,matched,velmul,msg_chan,note_key,nmo
           tn=d1+(transformer_on(ii,1) ? floor(mem[INST_TRANSPOSE_BASE+ii]+0.5) : 0);
           tn>=0 && tn<=127 && (!transformer_on(ii,2) || note_in_range(ii,tn)) ? (
             nmode>0 ? route_mono_note(ii,offs,outst,tn,0,0,1) :
-                      route_emit_note(ii,offs,outst,tn,0,0,1);
+                      route_emit_note(ii,offs,outst,tn,0,0,1,0);
           );
         ) :
         (typ==176 && d1==64) ? (
+          mem[SW_PHRASE_SUSTAIN_BASE+msg_chan]=d2;
           d2>=64 ? (
             mem[SUSTAIN_REF_BASE+msg_chan]+=1;
             midisend(offs,outst,d1|(d2*256));
@@ -965,6 +1103,11 @@ local(srcch,typ,ii,in_ch,out_ch,outst,outd2,matched,velmul,msg_chan,note_key,nmo
   );
   matched==0 ? (
     msg_chan=st&15;
+    typ==144 || typ==128 ? (
+      note_key=SW_PHRASE_OUT_BASE+msg_chan*128+d1;
+      typ==144 && d2>0?mem[note_key]+=1:mem[note_key]=max(0,mem[note_key]-1);
+    );
+    typ==176 && d1==64 ? mem[SW_PHRASE_SUSTAIN_BASE+msg_chan]=d2;
     (typ==144 && d2>0) ? (
       outd2=max(1,min(127,floor(d2*phrase_gain+0.5)));
       note_key=NOTE_REF_BASE+msg_chan*128+d1; mem[note_key]+=1;
@@ -1137,9 +1280,11 @@ function external_patch_apply()
 local(j,n)
 (
   n=gmem[3];
-  ((gmem[2]==1 || gmem[2]==IO_SCHEMA) && n>0 && n<=PATCH_PAYLOAD_SIZE && (gmem[2]==1 ? n<=WORK_MEM_SIZE : n==PATCH_PAYLOAD_SIZE && gmem[IO_PAYLOAD_BASE+WORK_MEM_SIZE]==IO_SCHEMA)) ? (
+  ((gmem[2]==1 && n>0 && n<=WORK_MEM_SIZE) ||
+   (gmem[2]==2 && n==SW_LEGACY_PAYLOAD && gmem[IO_PAYLOAD_BASE+WORK_MEM_SIZE]==PARAM_SCHEMA) ||
+   (gmem[2]==IO_SCHEMA && n==PATCH_PAYLOAD_SIZE && gmem[IO_PAYLOAD_BASE+WORK_MEM_SIZE]==PARAM_SCHEMA && gmem[IO_PAYLOAD_BASE+SW_LEGACY_PAYLOAD]==IO_SCHEMA)) ? (
     // Patch memory only grows by appending fields, so older JSON patches remain valid prefixes.
-    param_extension_reset();param_runtime_reset();
+    param_extension_reset();param_runtime_reset();sw_defaults();sw_runtime_reset();
     j=n;
     n<WORK_MEM_SIZE ? loop(WORK_MEM_SIZE-n, mem[j]=0; j+=1;);
     loop_len_samples=gmem[4];
@@ -1156,6 +1301,7 @@ local(j,n)
       mem[payload_addr(j)]=gmem[IO_PAYLOAD_BASE+j];
       j+=1;
     );
+    sw_validate();
     record_sample_pos=0;
     play_sample_pos=0;
     overdub_armed=0;
@@ -1287,6 +1433,7 @@ local(ch,note)
 (
 
   param_input_reset();
+  ch=SW_PHRASE_OUT_BASE;loop(SW_MEMORY_END-SW_PHRASE_OUT_BASE,mem[ch]=0;ch+=1;);
   ch=0;
   loop(16,
     note=0;
@@ -1313,6 +1460,7 @@ local(ch,note,key,mi,mn)
       key=NOTE_REF_BASE + ch*128 + note;
       mem[key]>0 ? (
         midisend(0,128|ch,note,0);
+        mi=0;loop(INSTRUMENTS,mem[SW_PHRASE_OUT_BASE+(mi*16+ch)*128+note]=0;mi+=1;);
         mem[key]=0;
       );
       note+=1;
@@ -1330,6 +1478,7 @@ local(ch,note,key,mi,mn)
     mn=0;
     loop(128,
       mem[MONO_HELD_COUNT_BASE+mi*128+mn]=0;
+      mem[SW_MONO_PHRASE_BASE+mi*128+mn]=0;
       mem[MONO_HELD_VEL_BASE+mi*128+mn]=0;
       mem[MONO_ORDER_BASE+mi*128+mn]=0;
       mn+=1;
@@ -1394,6 +1543,303 @@ local(grid,q,target)
   );
 );
 
+function process_phrase_trigger(start_offset)
+local(requested_layer,voice_slot,vi)
+(
+trigger_request>=0 ? (
+  requested_layer=trigger_request;
+  trigger_request=-1;
+  overdub_wait_note && overdub_armed && overdub_layer==requested_layer ? (
+    // ONCE/HOLD: record from this trigger, not from the looping transport.
+    overdub_wait_note=0;overdub_armed=0;overdub_active=1;
+    overdub_pos=0;
+  );
+
+  requested_layer!=last_trigger_layer ? (
+    last_trigger_layer>=0 ? (
+      release_phrase_notes();
+      arp_flush_nonhold_sources();
+      vi=0;
+      loop(MAX_ONCE_VOICES,
+        mem[VOICE_ACTIVE_BASE+vi]=0;
+        vi+=1;
+      );
+      mem[REPEAT_BASE+last_trigger_layer]=0;
+      mem[HOLD_ACTIVE_BASE+last_trigger_layer]=0;
+    );
+    mem[REPEAT_BASE+requested_layer]=0;
+    last_trigger_layer=requested_layer;
+  ) : (
+    mem[REPEAT_BASE+requested_layer]+=1;
+  );
+
+  // Find a free voice. If all are busy, recycle the oldest slot safely.
+  voice_slot=-1;
+  vi=0;
+  loop(MAX_ONCE_VOICES,
+    voice_slot<0 && mem[VOICE_ACTIVE_BASE+vi]<0.5 ? voice_slot=vi;
+    vi+=1;
+  );
+  voice_slot<0 ? (
+    release_phrase_notes();
+    arp_flush_nonhold_sources();
+    vi=0;
+    loop(MAX_ONCE_VOICES,
+      mem[VOICE_ACTIVE_BASE+vi]=0;
+      vi+=1;
+    );
+    voice_slot=0;
+  );
+
+  mem[VOICE_ACTIVE_BASE+voice_slot]=1;
+  mem[VOICE_LAYER_BASE+voice_slot]=requested_layer;
+  mem[VOICE_POS_BASE+voice_slot]=-max(0,min(samplesblock-1,start_offset));
+  mem[VOICE_GAIN_BASE+voice_slot]=pow(mem[DECAY_BASE+requested_layer],mem[REPEAT_BASE+requested_layer]);
+  mem[MODE_BASE+requested_layer]>=1.5 ? mem[HOLD_ACTIVE_BASE+requested_layer]=1;
+);
+
+);
+
+
+function sw_assign(si,kind,ch,num,press,release)
+local(b,j,other,ok)
+(
+  b=sw_cfg(si);ok=si>=0 && si<SW_COUNT && kind>=0 && kind<=2 && ch>=0 && ch<16 && num>=0 && num<128;
+  kind==2 && (press==release || press<0 || press>127 || release<0 || release>127) ? ok=0;
+  j=0;loop(SW_COUNT,
+    other=sw_cfg(j);j!=si && kind>0 && mem[other]>0 && mem[other+2]==kind && mem[other+3]==ch && mem[other+4]==num ? ok=0;j+=1;
+  );
+  ok ? (mem[b+2]=kind;mem[b+3]=ch;mem[b+4]=num;mem[b+12]=press;mem[b+13]=release;mem[sw_rt(si)+17]=0;)
+     : mem[sw_rt(si)+17]=1;
+  ok;
+);
+function sw_submit(si,op,arg,value)
+local(b,ok)
+(
+  ok=sw_queue_write-sw_queue_read<SW_QUEUE_SIZE;
+  ok ? (
+    b=SW_QUEUE_BASE+(sw_queue_write%SW_QUEUE_SIZE)*SW_QUEUE_STRIDE;
+    mem[b]=si;mem[b+1]=op;mem[b+2]=arg;mem[b+3]=value;sw_queue_write+=1;
+  );ok;
+);
+function sw_traverse(si)
+local(b,r,n,step,k,j,tmp,last,choice,restart)
+(
+  b=sw_cfg(si);r=sw_rt(si);n=max(0,min(SW_STEPS,floor(mem[b+11])));step=-1;
+  n>0 ? (
+    restart=sw_last_active!=si && mem[b+10]>.5;restart ? sw_reset(si);
+    sw_last_active=si;
+    mem[b+9]==3 ? (
+      mem[r+9]<=0 ? (
+        k=0;loop(n,mem[SW_BAG_BASE+si*SW_STEPS+k]=k;k+=1;);
+        k=n-1;loop(n-1,j=floor(rand(k+1));tmp=mem[SW_BAG_BASE+si*SW_STEPS+k];mem[SW_BAG_BASE+si*SW_STEPS+k]=mem[SW_BAG_BASE+si*SW_STEPS+j];mem[SW_BAG_BASE+si*SW_STEPS+j]=tmp;k-=1;);
+        // Draw from the end. Avoid the same phrase at bag boundaries if possible.
+        last=mem[r+10];choice=-1;k=0;
+        mem[b+SW_LIST+mem[SW_BAG_BASE+si*SW_STEPS+n-1]]==last ? loop(n-1,
+          mem[b+SW_LIST+mem[SW_BAG_BASE+si*SW_STEPS+k]]!=last && choice<0 ? choice=k;k+=1;
+        );
+        choice>=0 ? (tmp=mem[SW_BAG_BASE+si*SW_STEPS+n-1];mem[SW_BAG_BASE+si*SW_STEPS+n-1]=mem[SW_BAG_BASE+si*SW_STEPS+choice];mem[SW_BAG_BASE+si*SW_STEPS+choice]=tmp;);
+        restart ? (
+          k=0;choice=0;loop(n,mem[SW_BAG_BASE+si*SW_STEPS+k]==0?choice=k;k+=1;);
+          tmp=mem[SW_BAG_BASE+si*SW_STEPS+n-1];mem[SW_BAG_BASE+si*SW_STEPS+n-1]=0;mem[SW_BAG_BASE+si*SW_STEPS+choice]=tmp;
+        );
+        mem[r+9]=n;
+      );
+      mem[r+9]-=1;step=mem[SW_BAG_BASE+si*SW_STEPS+mem[r+9]];
+    ) : mem[b+9]==1 ? (step=restart?0:mem[r+6]<0?n-1:(mem[r+6]-1+n)%n;) : mem[b+9]==2 ? (
+      mem[r+6]<0 ? step=0 : n==1 ? step=0 : (
+        step=mem[r+6]+mem[r+8];step>=n?(mem[r+8]=-1;step=n-2;);step<0?(mem[r+8]=1;step=1;);
+      );
+    ) : step=(mem[r+6]+1)%n;
+    mem[r+6]=step;mem[r+7]=step;mem[r+10]=mem[b+SW_LIST+step];
+  );step;
+);
+function sw_stop_phrases()
+local(gi,ch,n,key,live,mi,idx,remain,old,desired,mode,src)
+(
+  // Stop only playback-owned output. Live-through output remains untouched.
+  gi=0;loop(INSTRUMENTS,
+    n=0;loop(128,
+      idx=MONO_HELD_COUNT_BASE+gi*128+n;
+      mem[idx]=max(0,mem[idx]-mem[SW_MONO_PHRASE_BASE+gi*128+n]);mem[SW_MONO_PHRASE_BASE+gi*128+n]=0;
+      src=mem[SW_ARP_PHRASE_BASE+gi*128+n];
+      mem[ARP_HELD_COUNT_BASE+gi*128+n]=max(0,mem[ARP_HELD_COUNT_BASE+gi*128+n]-src);
+      mem[ARP_SOURCE_COUNT_BASE+gi*128+n]=max(0,mem[ARP_SOURCE_COUNT_BASE+gi*128+n]-mem[SW_ARP_PHRASE_SOURCE_BASE+gi*128+n]);mem[SW_ARP_PHRASE_SOURCE_BASE+gi*128+n]=0;mem[SW_ARP_PHRASE_BASE+gi*128+n]=0;n+=1;
+    );
+    old=mem[MONO_ACTIVE_NOTE_BASE+gi];mode=floor(mem[INST_NOTE_MODE_BASE+gi]+.5);desired=mono_desired_note(gi,mode);
+    old>=0 && desired==old ? mem[SW_LIVE_OUT_BASE+(gi*16+mem[MONO_ACTIVE_CH_BASE+gi])*128+old]=max(1,mem[SW_LIVE_OUT_BASE+(gi*16+mem[MONO_ACTIVE_CH_BASE+gi])*128+old]);
+    // A retained live mono source is re-voiced after stopping the phrase if needed.
+    old!=desired ? mem[MONO_ACTIVE_NOTE_BASE+gi]=-1;
+    n=mem[ARP_ACTIVE_NOTE_BASE+gi];n>=0 && mem[ARP_HELD_COUNT_BASE+gi*128+n]<=0 ? arp_release_instrument(gi);
+    ch=0;loop(16,n=0;loop(128,
+      key=SW_PHRASE_OUT_BASE+(gi*16+ch)*128+n;
+      mem[key]>0 ? (
+        live=0;mi=0;loop(INSTRUMENTS,live+=mem[SW_LIVE_OUT_BASE+(mi*16+ch)*128+n];mi+=1;);
+        live<=0 && mem[NOTE_REF_BASE+ch*128+n]!=-1 ? midisend(0,128|ch,n);
+        // Mark this pitch released for the remainder of this targeted stop.
+        mem[NOTE_REF_BASE+ch*128+n]=-1;
+        mem[key]=0;
+      );
+      src=mem[SW_LOOP_INPUT_BASE+(gi*16+ch)*128+n];idx=PARAM_INPUT_BASE+(gi*16+ch)*128+n;
+      mem[idx]=max(0,mem[idx]-src);mem[PARAM_ACTIVE_BASE+gi]=max(0,mem[PARAM_ACTIVE_BASE+gi]-src);mem[SW_LOOP_INPUT_BASE+(gi*16+ch)*128+n]=0;n+=1;
+    );ch+=1;);
+    old!=desired && desired>=0 ? (
+      route_emit_note(gi,0,144|mem[MONO_ACTIVE_CH_BASE+gi],desired,mem[MONO_HELD_VEL_BASE+gi*128+desired],1,0,-1);mem[SW_MONO_OWNER_BASE+gi]=-1;mem[MONO_ACTIVE_NOTE_BASE+gi]=desired;
+    );gi+=1;
+  );
+  ch=0;loop(16,
+    (mem[SW_PHRASE_SUSTAIN_BASE+ch]>0 || mem[SUSTAIN_REF_BASE+ch]>0) && mem[SW_LIVE_SUSTAIN_BASE+ch]<64 ? midisend(0,176|ch,64);
+    mem[SW_PHRASE_SUSTAIN_BASE+ch]=0;mem[SUSTAIN_REF_BASE+ch]=0;
+    n=0;loop(128,mem[NOTE_REF_BASE+ch*128+n]=0;n+=1;);ch+=1;
+  );
+  param_release_owned();gi=0;loop(MAX_ONCE_VOICES,mem[VOICE_ACTIVE_BASE+gi]=0;gi+=1;);
+  gi=0;loop(LAYERS,mem[TRIG_BASE+gi]=0;mem[HOLD_ACTIVE_BASE+gi]=0;gi+=1;);
+  trigger_request=-1;hold_stop_request=-1;last_trigger_layer=-1;
+  state==STATE_PLAYING ? state=STATE_STOPPED;
+);
+function sw_action(si,action,target,offs)
+local(b,r,step,phrase,gi,kind,k,c,found)
+(
+  b=sw_cfg(si);r=sw_rt(si);mem[r+11]=action;mem[r+12]+=1;mem[r+17]=0;
+  action==SW_NEXT && mem[b+1]==0 ? (
+    step=sw_traverse(si);step>=0 ? (
+      phrase=mem[b+SW_LIST+step];
+      phrase>=0 && phrase<LAYERS && layer_count(phrase)>0 ? (
+        mem[MODE_BASE+phrase]<.5 ? (loop_len_samples>0 ? (mem[TRIG_BASE+phrase]=1;state=STATE_PLAYING;) : mem[r+17]=2;) : (
+          trigger_request=phrase;process_phrase_trigger(offs);
+        );
+      ) : mem[r+17]=2;
+    ) : mem[r+17]=2;
+  ) : action==SW_STOP ? sw_stop_phrases() : action==SW_RESET || action==SW_STOP_RESET ? (
+    action==SW_STOP_RESET ? sw_stop_phrases();
+    target==SW_COUNT ? (k=0;loop(SW_COUNT,sw_reset(k);k+=1;);) : target>=0 && target<SW_COUNT ? sw_reset(target);
+  ) : action==SW_RESET_ALL ? (k=0;loop(SW_COUNT,sw_reset(k);k+=1;);) : action==SW_PANIC ? (sw_stop_phrases();send_all_notes_off();) :
+  action>=SW_TOGGLE && action<=SW_DISABLE && target>=0 && target<INSTRUMENTS*TRANSFORM_TYPES ? (
+    // Stable instrument/type identity survives chain reordering. Wait for source releases.
+    gi=floor(target/TRANSFORM_TYPES);kind=target%TRANSFORM_TYPES+1;c=max(0,min(TRANSFORM_SLOTS,mem[INST_TRANSFORM_COUNT_BASE+gi]));k=0;found=0;
+    loop(c,
+      abs(mem[INST_TRANSFORM_TYPE_BASE+gi*TRANSFORM_SLOTS+k])==kind ? (
+        found=1;mem[SW_MODULE_BASE+target]=action==SW_TOGGLE ? -(mem[SW_MODULE_BASE+target]!=-999?mem[SW_MODULE_BASE+target]:mem[INST_TRANSFORM_TYPE_BASE+gi*TRANSFORM_SLOTS+k]) : action==SW_ENABLE?kind:-kind;
+      );k+=1;
+    );found==0?mem[r+17]=4;
+  );
+);
+function sw_fire(si,gesture,offs)
+local(b)
+(b=sw_cfg(si);mem[b]>0 && mem[b+14+gesture]>0 ? sw_action(si,mem[b+14+gesture],mem[b+17+gesture],offs););
+function sw_poll(now,offs)
+local(si,b,r,holdms)
+(
+  si=0;loop(SW_COUNT,b=sw_cfg(si);r=sw_rt(si);
+    mem[r]>0 && mem[r+2]==0 && mem[b+16]>0 && now-mem[r+1]>=max(100,mem[b+8])*srate/1000 ? (
+      mem[r+2]=1;mem[r+3]=0;mem[r+5]=0;sw_fire(si,2,offs);
+    );
+    mem[r+3]>0 && mem[r]==0 && now>=mem[r+4] ? (mem[r+3]==1 ? sw_fire(si,0,offs);mem[r+3]=0;);
+    mem[r]>0 && now-mem[r+1]>10*srate ? (mem[r]=0;mem[r+3]=0;mem[r+5]=0;mem[r+17]=3;);
+    si+=1;
+  );
+);
+function sw_edge(si,is_press,now,offs)
+local(b,r)
+(
+  b=sw_cfg(si);r=sw_rt(si);
+  is_press ? (
+    mem[r]==0 ? (
+      mem[r]=1;mem[r+1]=now;mem[r+2]=0;
+      mem[r+13]=mem[b+2];mem[r+14]=mem[b+3];mem[r+15]=mem[b+4];mem[r+16]=mem[b+5];mem[r+19]=mem[b+13];
+      mem[r+5]=mem[r+3]>0 && now<=mem[r+4] && mem[b+15]>0;
+      mem[r+5]>0 ? mem[r+3]=0 : mem[r+3]=0;
+      mem[b+6]==0 || (mem[b+15]==0 && mem[b+16]==0) ? sw_fire(si,0,offs);
+    );
+  ) : mem[r]>0 ? (
+    mem[r]=0;
+    mem[r+2]==0 ? (
+      mem[r+5]>0 ? sw_fire(si,1,offs) : mem[b+6]>0 ? (
+        mem[b+15]>0 ? (mem[r+3]=1;mem[r+4]=now+max(50,mem[b+7])*srate/1000;) : mem[b+16]>0 ? sw_fire(si,0,offs);
+      );
+      // Instant still tracks a second tap, without emitting another delayed TAP.
+      mem[b+6]==0 && mem[r+5]==0 && mem[b+15]>0 ? (mem[r+3]=2;mem[r+4]=now+max(50,mem[b+7])*srate/1000;);
+    );mem[r+5]=0;
+  );
+);
+function sw_input(st,num,value,offs)
+local(kind,ch,press,si,b,r,matched,thru,t,j,now)
+(
+  kind=(st&240)==176?2:((st&240)==144 || (st&240)==128)?1:0;ch=st&15;
+  press=kind==1 && (st&240)==144 && value>0;matched=-1;thru=0;now=sw_clock+offs;
+  sw_poll(now,offs);
+  // Stale command releases from prior presets remain silent.
+  j=0;loop(SW_RELEASE_SIZE,t=SW_RELEASE_BASE+j*4;
+    mem[t]==kind && kind>0 && mem[t+1]==ch && mem[t+2]==num ? (
+      matched=-2;kind==1 && !press || kind==2 && value==mem[t+3] ? mem[t]=0;
+    );j+=1;
+  );
+  sw_learn>=0 && sw_learn<SW_COUNT && (press || kind==2) && matched==-1 ? (
+    si=sw_learn;b=sw_cfg(si);
+    sw_assign(si,kind,ch,num,kind==2?value:127,kind==2 && value==0?127:0) ? (
+      mem[b]=1;sw_learn=-1;matched=-2;
+      r=sw_rt(si);mem[r]=1;mem[r+1]=now;mem[r+2]=1;mem[r+3]=0;
+      mem[r+13]=kind;mem[r+14]=ch;mem[r+15]=num;mem[r+16]=0;mem[r+19]=mem[b+13];
+    ); // Rejected duplicate learn leaves the existing owner in control.
+  );
+  si=0;loop(SW_COUNT,b=sw_cfg(si);r=sw_rt(si);
+    matched==-1 && kind>0 && ((mem[r]>0 && mem[r+13]==kind && mem[r+14]==ch && mem[r+15]==num) ||
+      (mem[b]>0 && mem[b+2]==kind && mem[b+3]==ch && mem[b+4]==num)) ? (
+      matched=si;thru=mem[r]>0?mem[r+16]:mem[b+5];
+      kind==1 ? sw_edge(si,press,now,offs) : (
+        value==mem[b+12] ? sw_edge(si,1,now,offs) : value==(mem[r]>0?mem[r+19]:mem[b+13]) ? sw_edge(si,0,now,offs);
+      );
+    );si+=1;
+  );
+  matched!=-1 ? (thru>0 ? send_to_instruments(offs,st,num,value,1);1;) : 0;
+);
+function sw_queue_process()
+local(q,si,op,arg,value,b,r,j,k,n,tmp,target,gi,kind,c)
+(
+  sw_learn_request!=-1 ? (sw_learn=sw_learn_request==-2?-1:sw_learn_request;sw_learn_request=-1;);
+  loop(min(SW_QUEUE_SIZE,sw_queue_write-sw_queue_read),
+    q=SW_QUEUE_BASE+(sw_queue_read%SW_QUEUE_SIZE)*SW_QUEUE_STRIDE;si=mem[q];op=mem[q+1];arg=mem[q+2];value=mem[q+3];sw_queue_read+=1;
+    si>=0 && si<SW_COUNT ? (
+      b=sw_cfg(si);r=sw_rt(si);n=mem[b+11];
+      op==0 ? sw_fire(si,arg,0) : op==1 ? (
+        // Assign message fields atomically; conflicting assignments remain unchanged.
+        sw_assign(si,arg,mem[b+3],value,mem[b+12],mem[b+13]);
+      ) : op==2 ? (
+        arg==3 || arg==12 || arg==13 ? sw_assign(si,mem[b+2],arg==3?value:mem[b+3],mem[b+4],arg==12?value:mem[b+12],arg==13?value:mem[b+13]) : (
+          arg>=0 && arg<32 ? (
+            arg==0 && value>0 ? (sw_assign(si,mem[b+2],mem[b+3],mem[b+4],mem[b+12],mem[b+13])?mem[b]=1;) : mem[b+arg]=value;
+            arg==1 && value==1 && mem[b+14]==SW_NEXT ? mem[b+14]=SW_NONE;
+            arg>=14 && arg<=16 ? mem[b+arg+3]=max(0,min(value>=SW_TOGGLE?INSTRUMENTS*TRANSFORM_TYPES-1:SW_COUNT,mem[b+arg+3]));
+            mem[r+3]=0;mem[r+2]=1;
+            arg==1 || arg==9 || arg==10 ? sw_reset(si);
+          );
+        );
+      ) : op>=3 && op<=7 ? (
+        // Single-level undo covers append/remove/clear/reorder (positions, not phrase IDs).
+        j=0;loop(SW_STRIDE,
+          op==7 && mem[r+18]>0 ? (tmp=mem[b+j];mem[b+j]=mem[SW_UNDO_BASE+si*SW_STRIDE+j];mem[SW_UNDO_BASE+si*SW_STRIDE+j]=tmp;) : op!=7 ? mem[SW_UNDO_BASE+si*SW_STRIDE+j]=mem[b+j];j+=1;
+        );
+        op==3 && n<SW_STEPS && arg>=0 && arg<LAYERS ? (mem[b+SW_LIST+n]=arg;mem[b+11]=n+1;);
+        op==4 && arg>=0 && arg<n ? (j=arg;loop(n-arg-1,mem[b+SW_LIST+j]=mem[b+SW_LIST+j+1];j+=1;);mem[b+11]=n-1;);
+        op==5 ? mem[b+11]=0;
+        op==6 && arg>=0 && arg<n && value>=0 && value<n ? (tmp=mem[b+SW_LIST+arg];mem[b+SW_LIST+arg]=mem[b+SW_LIST+value];mem[b+SW_LIST+value]=tmp;);
+        op!=7 ? mem[r+18]=1;sw_reset(si);
+      );
+    );
+  );
+  target=0;loop(INSTRUMENTS*TRANSFORM_TYPES,
+    mem[SW_MODULE_BASE+target]!=-999 ? (
+      gi=floor(target/TRANSFORM_TYPES);kind=target%TRANSFORM_TYPES+1;
+      mem[PARAM_ACTIVE_BASE+gi]<=0 ? (
+        c=max(0,min(TRANSFORM_SLOTS,mem[INST_TRANSFORM_COUNT_BASE+gi]));k=0;loop(c,
+          abs(mem[INST_TRANSFORM_TYPE_BASE+gi*TRANSFORM_SLOTS+k])==kind ? mem[INST_TRANSFORM_TYPE_BASE+gi*TRANSFORM_SLOTS+k]=mem[SW_MODULE_BASE+target];k+=1;
+        );
+        kind==5 && mem[SW_MODULE_BASE+target]<0 ? arp_release_instrument(gi);
+        mem[SW_MODULE_BASE+target]=-999;
+      );
+    );target+=1;
+  );
+);
 
 restore_after_init ? (
   restore_after_init=0;
@@ -1415,6 +1861,7 @@ gmem[0]==3 ? external_patch_apply();
 gmem[0]==4 ? (io_status=4; gmem[0]=0;);
 gmem[0]==5 ? (io_status=5; gmem[0]=0;);
 
+sw_queue_process();
 param_expression_tick();
 ii=0;
 loop(INSTRUMENTS,
@@ -1468,59 +1915,8 @@ hold_stop_request>=0 ? (
   );
 );
 
-// Process ONCE / HOLD trigger atomically in the audio thread.
-// Same layer = add an overlapping voice. Different layer = soft choke previous phrase group.
-trigger_request>=0 ? (
-  requested_layer=trigger_request;
-  trigger_request=-1;
-  overdub_wait_note && overdub_armed && overdub_layer==requested_layer ? (
-    // ONCE/HOLD: record from this trigger, not from the looping transport.
-    overdub_wait_note=0;overdub_armed=0;overdub_active=1;
-    overdub_pos=0;
-  );
-
-  requested_layer!=last_trigger_layer ? (
-    last_trigger_layer>=0 ? (
-      release_phrase_notes();
-      arp_flush_nonhold_sources();
-      vi=0;
-      loop(MAX_ONCE_VOICES,
-        mem[VOICE_ACTIVE_BASE+vi]=0;
-        vi+=1;
-      );
-      mem[REPEAT_BASE+last_trigger_layer]=0;
-      mem[HOLD_ACTIVE_BASE+last_trigger_layer]=0;
-    );
-    mem[REPEAT_BASE+requested_layer]=0;
-    last_trigger_layer=requested_layer;
-  ) : (
-    mem[REPEAT_BASE+requested_layer]+=1;
-  );
-
-  // Find a free voice. If all are busy, recycle the oldest slot safely.
-  voice_slot=-1;
-  vi=0;
-  loop(MAX_ONCE_VOICES,
-    voice_slot<0 && mem[VOICE_ACTIVE_BASE+vi]<0.5 ? voice_slot=vi;
-    vi+=1;
-  );
-  voice_slot<0 ? (
-    release_phrase_notes();
-    arp_flush_nonhold_sources();
-    vi=0;
-    loop(MAX_ONCE_VOICES,
-      mem[VOICE_ACTIVE_BASE+vi]=0;
-      vi+=1;
-    );
-    voice_slot=0;
-  );
-
-  mem[VOICE_ACTIVE_BASE+voice_slot]=1;
-  mem[VOICE_LAYER_BASE+voice_slot]=requested_layer;
-  mem[VOICE_POS_BASE+voice_slot]=0;
-  mem[VOICE_GAIN_BASE+voice_slot]=pow(mem[DECAY_BASE+requested_layer],mem[REPEAT_BASE+requested_layer]);
-  mem[MODE_BASE+requested_layer]>=1.5 ? mem[HOLD_ACTIVE_BASE+requested_layer]=1;
-);
+// Existing GUI/phrase requests execute at the block boundary.
+process_phrase_trigger(0);
 
 while (
   midirecv(offset,msg1,msg23) ?
@@ -1530,6 +1926,7 @@ while (
     d2=(msg23/256)&127;
     is_note_on=(status==144 && d2>0);
 
+    !sw_input(msg1,d1,d2,offset) ? (
     status==176 ? (
       controller_learn>=0 && controller_learn<CONTROLLERS ? (mem[CONTROLLER_CC_BASE+controller_learn]=d1;controller_learn=-1;);
       ci=0;loop(CONTROLLERS,mem[CONTROLLER_CC_BASE+ci]>=0 && d1==mem[CONTROLLER_CC_BASE+ci]?controller_set_value(ci,d2/127);ci+=1;);
@@ -1581,10 +1978,13 @@ while (
 
     // Trigger keys do not leak into the instrument signal path.
     !is_trigger_command ? send_to_instruments(offset,msg1,d1,d2,1);
+    );
     1;
   );
   0;
 );
+
+sw_poll(sw_clock+samplesblock,samplesblock-1);sw_clock+=samplesblock;
 
 // arm -> active exactly at the next wrap
 state==STATE_PLAYING && overdub_armed && !overdub_active && !overdub_wait_note && mem[MODE_BASE+overdub_layer]<0.5 ? (
@@ -1636,7 +2036,7 @@ state==STATE_PLAYING && loop_len_samples>0 ? (
             );
 
             // out_d2 already includes phrase/global velocity; instrument velocity is applied in router.
-            send_to_instruments(out_offs,out_status,out_d1,out_d2,1);
+            sw_playback_origin=1;send_to_instruments(out_offs,out_status,out_d1,out_d2,1);sw_playback_origin=0;
           );
 
           i+=1;
@@ -1772,7 +2172,7 @@ exp_editor_ti<0 || exp_editor_ti>=PARAM_TOTAL || exp_editor_ti!=floor(exp_editor
 );
 // Small-window vertical scrolling.
 // Existing GUI is rendered unchanged into an offscreen content buffer, then a viewport is blitted.
-ui_content_h=1510;
+ui_content_h=2020;
 ui_view_h=gfx_h;
 ui_max_scroll=max(0,ui_content_h-ui_view_h);
 mouse_wheel!=0 ? (
@@ -1911,7 +2311,8 @@ keychar=gfx_getchar();
 edit_name_type>0 && keychar>0 ? (
   keychar==13 || keychar==27 ? edit_name_type=0 :
   edit_name_type==1 ? edit_name_key(PHRASE_NAME_BASE+edit_name_index*NAME_CHARS,keychar) :
-  edit_name_type==2 ? edit_name_key(INSTR_NAME_BASE+edit_name_index*NAME_CHARS,keychar);
+  edit_name_type==2 ? edit_name_key(INSTR_NAME_BASE+edit_name_index*NAME_CHARS,keychar) :
+  edit_name_type==3 ? edit_name_key(sw_cfg(edit_name_index)+SW_NAME,keychar);
 );
 // Hard square identity header.
 gfx_set(.055,.055,.055,1);gfx_rect(12,10,1010,48,1);
@@ -2772,6 +3173,87 @@ exp_editor_ti>=0 && exp_editor_ti<PARAM_TOTAL ? (
   pedalx=mem[exp_assign_addr(curve_ti)]>0?controller_value(max(0,min(CONTROLLERS-1,mem[exp_assign_addr(curve_ti)]-1))):0;
   gfx_set(0.55,0.55,0.55,1); gfx_line(cx+cw*pedalx,cy,cx+cw*pedalx,cy+ui_ch);
 );
+
+
+// Smart Switch GUI produces commands; DSP owns gesture/traversal/action state.
+function sw_ui_button(x,y,w,label,active)
+(smallbtn(x,y,w,24,label,active);hit(x,y,w,24););
+function sw_ui_action_name(action)
+(action==0?"NONE":action==1?"NEXT PHRASE":action==2?"STOP PHRASES":action==3?"RESET SWITCH":action==4?"RESET ALL":action==5?"STOP + RESET":action==6?"PANIC ALL":action==7?"TOGGLE MODULE":action==8?"ENABLE MODULE":"DISABLE MODULE";);
+function sw_ui_adjust(x,y,w,field,lo,hi,delta,label)
+local(b)
+(
+  b=sw_cfg(ui_sw_selected);gfx_set(.8,.8,.8,1);gfx_x=x+27;gfx_y=y+5;gfx_drawstr(label);
+  sw_ui_button(x,y,22,"-",0)?sw_submit(ui_sw_selected,2,field,max(lo,mem[b+field]-delta));
+  sw_ui_button(x+w-22,y,22,"+",0)?sw_submit(ui_sw_selected,2,field,min(hi,mem[b+field]+delta));
+);
+function draw_smart_switches(y)
+local(b,r,k,x,row,step,page,n,act,target)
+(
+  ui_sw_selected=max(0,min(SW_COUNT-1,ui_sw_selected));b=sw_cfg(ui_sw_selected);r=sw_rt(ui_sw_selected);
+  gfx_set(.75,.75,.75,1);gfx_x=20;gfx_y=y;gfx_drawstr("SMART SWITCHES / PHRASE CONDUCTOR");
+  k=0;loop(SW_COUNT,
+    sprintf(#sw_label,"SWITCH %d",k+1);
+    sw_ui_button(20+k*140,y+24,130,#sw_label,k==ui_sw_selected)?(ui_sw_selected=k;ui_sw_step=0;);
+    k+=1;
+  );
+  sw_ui_button(600,y+24,120,mem[b]>0?"ENABLED":"DISABLED",mem[b]>0)?sw_submit(ui_sw_selected,2,0,1-mem[b]);
+  sw_ui_button(730,y+24,230,mem[b+1]==0?"TYPE: PHRASE":"TYPE: SPECIAL",0)?sw_submit(ui_sw_selected,2,1,1-mem[b+1]);
+  smallbtn(20,y+56,250,24,"",0);draw_name_chars(b+SW_NAME,28,y+61);
+  name_len(b+SW_NAME)==0?(gfx_x=28;gfx_y=y+61;gfx_drawstr("CLICK TO NAME SWITCH"););
+  hit(20,y+56,250,24)?(edit_name_type=3;edit_name_index=ui_sw_selected;);
+  sw_ui_button(285,y+56,145,sw_learn==ui_sw_selected?"LISTENING...":"MIDI LEARN",sw_learn==ui_sw_selected)?sw_learn_request=sw_learn==ui_sw_selected?-2:ui_sw_selected;
+  sw_ui_button(440,y+56,160,mem[b+5]>0?"MIDI THRU: ON":"MIDI THRU: OFF",mem[b+5]>0)?sw_submit(ui_sw_selected,2,5,1-mem[b+5]);
+  sw_ui_button(610,y+56,150,mem[b+2]==1?"INPUT: NOTE":mem[b+2]==2?"INPUT: CC":"UNASSIGNED",0)?sw_submit(ui_sw_selected,1,(mem[b+2]+1)%3,mem[b+4]);
+  sprintf(#sw_label,"NUMBER %d",mem[b+4]);
+  sw_ui_button(770,y+56,24,"-",0)?sw_submit(ui_sw_selected,1,mem[b+2],max(0,mem[b+4]-1));
+  smallbtn(798,y+56,125,24,#sw_label,0);
+  sw_ui_button(930,y+56,24,"+",0)?sw_submit(ui_sw_selected,1,mem[b+2],min(127,mem[b+4]+1));
+  sprintf(#sw_label,"CHANNEL %d",mem[b+3]+1);sw_ui_adjust(20,y+88,220,3,0,15,1,#sw_label);
+  sprintf(#sw_label,"CC PRESS %d",mem[b+12]);sw_ui_adjust(260,y+88,220,12,0,127,1,#sw_label);
+  sprintf(#sw_label,"CC RELEASE %d",mem[b+13]);sw_ui_adjust(500,y+88,220,13,0,127,1,#sw_label);
+  gfx_x=735;gfx_y=y+94;gfx_drawstr("CC needs distinct press / release");
+  mem[b+1]==0 ? (
+    gfx_x=20;gfx_y=y+125;gfx_drawstr("PHRASE POOL: click to append (duplicates allowed)");
+    k=0;loop(LAYERS,
+      sprintf(#sw_label,"P%d",k+1);sw_ui_button(20+k*59,y+146,54,#sw_label,layer_count(k)>0)?sw_submit(ui_sw_selected,3,k,0);k+=1;
+    );
+    n=mem[b+11];ui_sw_step=max(0,min(max(0,n-1),ui_sw_step));page=floor(ui_sw_step/16)*16;
+    k=0;loop(16,
+      step=page+k;x=20+(k%8)*118;row=y+180+floor(k/8)*30;
+      step<n ? (
+        sprintf(#sw_label,"%d: P%d%s",step+1,mem[b+SW_LIST+step]+1,step==ui_sw_step?" *":"");
+        sw_ui_button(x,row,112,#sw_label,step==mem[r+7])?ui_sw_step=step;
+      );k+=1;
+    );
+    sw_ui_button(20,y+244,85,"PAGE <",0)?ui_sw_step=max(0,page-16);
+    sw_ui_button(112,y+244,85,"PAGE >",0)?ui_sw_step=min(max(0,n-1),page+16);
+    sw_ui_button(210,y+244,85,"MOVE <",0)?(sw_submit(ui_sw_selected,6,ui_sw_step,max(0,ui_sw_step-1))?ui_sw_step=max(0,ui_sw_step-1););
+    sw_ui_button(302,y+244,85,"MOVE >",0)?(sw_submit(ui_sw_selected,6,ui_sw_step,min(n-1,ui_sw_step+1))?ui_sw_step=min(n-1,ui_sw_step+1););
+    sw_ui_button(400,y+244,85,"REMOVE",0)?sw_submit(ui_sw_selected,4,ui_sw_step,0);
+    sw_ui_button(492,y+244,85,"CLEAR",0)?sw_submit(ui_sw_selected,5,0,0);
+    sw_ui_button(584,y+244,85,"UNDO",0)?sw_submit(ui_sw_selected,7,0,0);
+    sw_ui_button(690,y+244,150,mem[b+9]==0?"FORWARD":mem[b+9]==1?"BACKWARD":mem[b+9]==2?"PING-PONG":"SHUFFLE BAG",0)?sw_submit(ui_sw_selected,2,9,(mem[b+9]+1)%4);
+    sw_ui_button(850,y+244,130,mem[b+10]==0?"RESUME":"RESTART",mem[b+10]>0)?sw_submit(ui_sw_selected,2,10,1-mem[b+10]);
+    sprintf(#sw_label,"%d / 64 steps | lit = last triggered position; * = selected | re-entry: RESUME / RESTART",n);
+    gfx_x=20;gfx_y=y+280;gfx_drawstr(#sw_label);
+  ) : (gfx_x=20;gfx_y=y+145;gfx_drawstr("SPECIAL SWITCH: choose independent actions and targets below."););
+  k=0;loop(3,
+    row=y+316+k*30;act=mem[b+14+k];target=mem[b+17+k];
+    gfx_x=20;gfx_y=row+5;gfx_drawstr(k==0?"TAP":k==1?"DOUBLE":"HOLD");
+    sw_ui_button(110,row,215,sw_ui_action_name(act),act>0)?sw_submit(ui_sw_selected,2,14+k,mem[b+1]>0 && act==0?2:(act+1)%10);
+    act==3 || act==5 ? sprintf(#sw_label,target==SW_COUNT?"TARGET: ALL SWITCHES":"TARGET: SWITCH %d",target+1) : act>=7 ? sprintf(#sw_label,"INST %d / %s",floor(target/TRANSFORM_TYPES)+1,target%TRANSFORM_TYPES==0?"TRANSPOSE":target%TRANSFORM_TYPES==1?"RANGE":target%TRANSFORM_TYPES==2?"MONO":target%TRANSFORM_TYPES==3?"VELOCITY":target%TRANSFORM_TYPES==4?"ARP":"CC / MOD") : strcpy(#sw_label,"GLOBAL / NO TARGET");
+    sw_ui_button(340,row,300,#sw_label,0) && (act==3 || act==5 || act>=7)?sw_submit(ui_sw_selected,2,17+k,(target+1)%(act>=7?INSTRUMENTS*TRANSFORM_TYPES:SW_COUNT+1));
+    sw_ui_button(660,row,120,"TEST",0)?sw_submit(ui_sw_selected,0,k,0);k+=1;
+  );
+  sw_ui_button(20,y+420,220,mem[b+6]==0?"POLICY: INSTANT":"POLICY: EXCLUSIVE",mem[b+6]>0)?sw_submit(ui_sw_selected,2,6,1-mem[b+6]);
+  sprintf(#sw_label,"DOUBLE %d ms",mem[b+7]);sw_ui_adjust(260,y+420,240,7,50,2000,50,#sw_label);
+  sprintf(#sw_label,"HOLD %d ms",mem[b+8]);sw_ui_adjust(520,y+420,240,8,100,5000,100,#sw_label);
+  gfx_x=20;gfx_y=y+454;gfx_drawstr(mem[b+6]==0?"INSTANT: tap now; double / hold may add an action.":"EXCLUSIVE: waits only for enabled gestures; one action per gesture.");
+  sprintf(#sw_label,"Actions: %d | Last: %s | %s",mem[r+12],sw_ui_action_name(mem[r+11]),mem[r+17]==1?"ASSIGNMENT CONFLICT / INVALID CC":mem[r+17]==2?"EMPTY / UNAVAILABLE PHRASE":mem[r+17]==3?"MISSING RELEASE: 10s timeout":mem[r+17]==4?"MODULE NOT IN CHAIN":"READY");
+  gfx_x=20;gfx_y=y+480;gfx_drawstr(#sw_label);
+);
+draw_smart_switches(1490);
 
 // Overlay input is restored after all underlying controls have finished.
 mouse_cap=ui_real_cap;ui_modal=0;

@@ -36,7 +36,7 @@ class PatchIO(unittest.TestCase):
         return self.mem[0]
 
     def test_schema_and_slots_roundtrip(self):
-        for schema in (1, 2):
+        for schema in (1, 2, 3):
             for slot in (1, 2):
                 with self.subTest(schema=schema, slot=slot):
                     # Include a prefix and an extension-sized tail; Lua preserves all entries.
@@ -58,7 +58,7 @@ class PatchIO(unittest.TestCase):
     def test_rejects_invalid_without_payload_writes(self):
         valid = dict(format='MIDI_HUMAN_LOOPER_PATCH', schema=1, work_mem_size=2,
                      globals=list(range(9)), memory=[144, 60])
-        cases = [dict(valid, schema=3), dict(valid, work_mem_size=3),
+        cases = [dict(valid, schema=4), dict(valid, work_mem_size=3),
                  dict(valid, globals=[0]), dict(valid, format='other'),
                  dict(valid, work_mem_size=1000001), dict(valid, memory=['invalid', 60]),
                  dict(valid, memory=[1e309, 60])]
@@ -76,7 +76,7 @@ class PatchIO(unittest.TestCase):
         self.assertEqual(self.mem[15], 1)
         self.mem[2], self.mem[3] = 2, 0
         self.assertEqual(self.tick(1, 1), 5)
-        self.mem[2], self.mem[3] = 3, 2
+        self.mem[2], self.mem[3] = 4, 2
         self.assertEqual(self.tick(1, 1), 5)
         self.lua.globals().shutdown()
         self.assertEqual(self.mem[15], 0)

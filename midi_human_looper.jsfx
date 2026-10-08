@@ -1,7 +1,9 @@
-desc:MIDI Human Looper v1.18.0
+desc:MIDI Human Looper v1.18.1
 options:gmem=MIDI_HUMAN_LOOPER
 
 // Free-time MIDI phrase instrument prototype for REAPER JSFX.
+// v1.18.1:
+// - define record-finish helpers after infer_tempo to satisfy EEL2 function resolution
 // v1.18.0:
 // - compact icon-based phrase controls, armed numbered dot, three direct play modes
 // - per-phrase MIDI note learn with persistent trigger mapping
@@ -782,31 +784,6 @@ function arm_layer(layer)
   state=STATE_READY;
 );
 
-function finish_phrase_record()
-local(phrase_len)
-(
-  state==STATE_RECORDING ? (
-    phrase_len=max(1,record_sample_pos);
-    mem[LEN_BASE+record_layer]=phrase_len;
-    (record_layer==0 || loop_len_samples<=0) ? (
-      loop_len_samples=phrase_len;
-      infer_tempo();
-    );
-    play_sample_pos=0;
-    state=STATE_STOPPED;
-  ) : state==STATE_READY ? (
-    state=loop_len_samples>0 ? STATE_STOPPED : STATE_IDLE;
-  );
-);
-
-function select_phrase_record(layer)
-(
-  (state==STATE_RECORDING || state==STATE_READY) ? (
-    finish_phrase_record();
-    record_layer!=layer ? arm_layer(layer);
-  ) : arm_layer(layer);
-);
-
 function store_event(layer, ts, st, d1, d2, offs)
 local(count,base)
 (
@@ -1391,6 +1368,31 @@ local(seconds,best_score,bars,bpm,score,target_bpm,i)
     );
     analysis_done=1;
   );
+);
+
+function finish_phrase_record()
+local(phrase_len)
+(
+  state==STATE_RECORDING ? (
+    phrase_len=max(1,record_sample_pos);
+    mem[LEN_BASE+record_layer]=phrase_len;
+    (record_layer==0 || loop_len_samples<=0) ? (
+      loop_len_samples=phrase_len;
+      infer_tempo();
+    );
+    play_sample_pos=0;
+    state=STATE_STOPPED;
+  ) : state==STATE_READY ? (
+    state=loop_len_samples>0 ? STATE_STOPPED : STATE_IDLE;
+  );
+);
+
+function select_phrase_record(layer)
+(
+  (state==STATE_RECORDING || state==STATE_READY) ? (
+    finish_phrase_record();
+    record_layer!=layer ? arm_layer(layer);
+  ) : arm_layer(layer);
 );
 
 function send_all_notes_off()

@@ -42,13 +42,18 @@ Other audited defects:
   emitted CC1. The new modulation destination defaults to CC1 and actually
   controls the modulation output; the old volume destination remains intact.
 
-## Interaction and identities
+## Interaction and identities (updated in v1.21.1)
 
 Right-click a transformer parameter or instrument VOLUME rail, then choose NONE
 or one of the four named controllers. An assigned rail has a fixed yellow border
-and marker; the transformer row also names its controller. Left-click an assigned
-rail to open its own multipoint curve. CLOSE CURVE closes it. NONE retains the
-last sounding value, cancels queued controller changes and restores manual drag.
+and marker, plus a read-only per-pixel preview of its own multipoint curve and
+segment bends; the transformer row also names its controller. Assignment opens
+that curve immediately. Left-click an assigned rail to reopen it. CLOSE CURVE
+closes it. NONE retains the last sounding value, cancels queued controller changes
+and restores manual drag, closing the curve only if it belongs to that parameter.
+Transformer rails are 18px high like VOLUME, with 34px row spacing and a 205px
+editor panel. The lower curve panel starts after a 216px advance. Sampling scratch
+is function-local and uses only the GUI curve evaluator; MIDI and schema are unchanged.
 Popups dismiss on outside click or Escape without activating controls behind them.
 
 The compact ARP ON/OFF control in the existing editor header exposes the preserved

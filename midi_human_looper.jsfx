@@ -1,4 +1,4 @@
-desc:MIDI Human Looper v1.21.0
+desc:MIDI Human Looper v1.21.1
 options:gmem=MIDI_HUMAN_LOOPER
 
 // Release history: CHANGELOG.md. Free-time MIDI phrase instrument.
@@ -2285,13 +2285,25 @@ local(ui_k,cnt,xx0,yy0,xx1,yy1,ui_base)
   );
 );
 
-// Compact assignment badge: pedal name + miniature of the ui_target's own curve.
+// Read-only preview of this parameter's curve. All sampling scratch is GUI-local.
 function draw_exp_badge(ti, x, y, w, h)
-local(asg)
+local(asg,sample,samples,pos,px,py,prevx,prevy)
 (
   ti>=0 && ti<PARAM_TOTAL ? (
     asg=floor(mem[exp_assign_addr(ti)]+.5);
     asg>=1 && asg<=CONTROLLERS ? (
+      h==18 ? ( // Slider rails; keep the ARP enable button's badge compact.
+        gfx_set(.03,.03,.03,.55);gfx_rect(x+1,y+1,w-2,h-2,1);
+        // Sample the actual multipoint/bend curve at rail pixel resolution.
+        samples=max(1,ceil(w-4));sample=0;
+        prevx=x+2;prevy=y+h-2-(h-4)*gui_exp_curve_value(ti,0);
+        gfx_set(.98,.94,.65,1);
+        loop(samples,
+          sample+=1;pos=sample/samples;
+          px=x+2+(w-4)*pos;py=y+h-2-(h-4)*gui_exp_curve_value(ti,pos);
+          gfx_line(prevx,prevy,px,py);prevx=px;prevy=py;
+        );
+      );
       gfx_set(.95,.85,.15,1);gfx_rect(x,y,w,h,0);
       gfx_rect(x+w-4,y+1,3,max(1,h-2),1);
     );
@@ -2464,8 +2476,8 @@ inst_y+=372;
 
 // Contextual editor left, manual controller tests right.
 exp_y=inst_y+6;
-gfx_set(.09,.09,.09,1);gfx_rect(12,exp_y,645,185,1);gfx_set(.35,.35,.35,1);gfx_rect(12,exp_y,645,185,0);
-gfx_set(.09,.09,.09,1);gfx_rect(667,exp_y,355,185,1);gfx_set(.35,.35,.35,1);gfx_rect(667,exp_y,355,185,0);
+gfx_set(.09,.09,.09,1);gfx_rect(12,exp_y,645,205,1);gfx_set(.35,.35,.35,1);gfx_rect(12,exp_y,645,205,0);
+gfx_set(.09,.09,.09,1);gfx_rect(667,exp_y,355,205,1);gfx_set(.35,.35,.35,1);gfx_rect(667,exp_y,355,205,0);
 gfx_setfont(1,"Arial",13);gfx_set(.85,.85,.85,1);
 gfx_x=24;gfx_y=exp_y+9;gfx_drawstr("TRANSFORMER EDITOR");
 gfx_x=679;gfx_y=exp_y+9;gfx_drawstr("CONTROLLERS / TEST");
@@ -2493,15 +2505,15 @@ selected_transform_gi>=0 && selected_transform_gi<INSTRUMENTS ? (
     // Fixed columns prevent labels and values from overlapping the controls.
     er=0;en=etyp==2 ? 3 : etyp==5 ? 4 : etyp==6 ? 2 : 1;
     loop(en,
-      ey=exp_y+60+er*29;
+      ey=exp_y+60+er*34;
       ekind=param_editor_kind(etyp,er);ui_eti=param_ti(eg,ekind);
       evbase=param_addr(eg,ekind);emin=param_min(ekind);emax=param_max(ekind);
       estep=param_step(ekind);ename=param_name(ekind);
       eval=max(emin,min(emax,mem[evbase]));
-      gfx_setfont(1,"Arial",10);gfx_set(.80,.80,.80,1);gfx_x=28;gfx_y=ey;gfx_drawstr(ename);
-      gfx_set(.22,.22,.22,1);gfx_rect(125,ey+2,275,11,1);
-      gfx_set(.70,.70,.70,1);gfx_rect(125,ey+2,275*(eval-emin)/max(.001,emax-emin),11,1);
-      gfx_set(.90,.90,.90,1);gfx_x=420;gfx_y=ey;
+      gfx_setfont(1,"Arial",10);gfx_set(.80,.80,.80,1);gfx_x=28;gfx_y=ey+4;gfx_drawstr(ename);
+      gfx_set(.22,.22,.22,1);gfx_rect(125,ey+2,275,18,1);
+      gfx_set(.70,.70,.70,1);gfx_rect(125,ey+2,275*(eval-emin)/max(.001,emax-emin),18,1);
+      gfx_set(.90,.90,.90,1);gfx_x=420;gfx_y=ey+4;
       etyp==3 ? gfx_drawstr(eval<.5?"POLY":eval<1.5?"BASS":eval<2.5?"LAST":"LEGATO") :
       etyp==2 && er==0 ? gfx_drawstr(eval<.5?"FULL":eval<1.5?"DOWN":eval<2.5?"UP":"BOTH") :
       etyp==5 && er==0 ? gfx_drawstr(eval<.5?"RANDOM":eval<1.5?"UP":"DOWN") :
@@ -2509,16 +2521,16 @@ selected_transform_gi>=0 && selected_transform_gi<INSTRUMENTS ? (
       (gfx_drawnumber(eval,estep<1?2:0);etyp==5 && er==2?gfx_drawstr(" x100"););
       // Persistent identity is derived only from instrument/kind, never row/slot.
       !ui_modal && (mouse_cap&2) && !(last_mouse_cap&2) &&
-      mouse_x>=125 && mouse_x<400 && mouse_y>=ey-4 && mouse_y<ey+20 ? (
+      mouse_x>=125 && mouse_x<400 && mouse_y>=ey-4 && mouse_y<ey+24 ? (
         controller_assign_ti=ui_eti;controller_assign_x=mouse_x;controller_assign_y=mouse_y;
         ui_modal=1;ui_capture_ti=-1;
       );
-      draw_exp_badge(ui_eti,125,ey+2,275,11);
+      draw_exp_badge(ui_eti,125,ey+2,275,18);
       mem[exp_assign_addr(ui_eti)]>0 ? (
-        gfx_setfont(1,"Arial",9);gfx_set(.95,.85,.15,1);gfx_x=507;gfx_y=ey;
+        gfx_setfont(1,"Arial",9);gfx_set(.95,.85,.15,1);gfx_x=507;gfx_y=ey+4;
         gfx_drawstr(controller_name(mem[exp_assign_addr(ui_eti)]-1));
       );
-      !ui_modal && hit(125,ey-4,275,24) ? (
+      !ui_modal && hit(125,ey-4,275,28) ? (
         mem[exp_assign_addr(ui_eti)]>0 ? (
           exp_editor_ti=ui_eti;exp_drag_point=-1;exp_drag_segment=-1;exp_bend_segment=-1;
         ) : ui_capture_ti=ui_eti;
@@ -2547,7 +2559,7 @@ ui_ci=0;loop(CONTROLLERS,
   gfx_set(.72,.72,.72,1);gfx_x=962;gfx_y=rowy+3;gfx_drawnumber(controller_value(ui_ci)*100,0);gfx_drawstr("%");
   ui_ci+=1;
 );
-exp_y+=196;
+exp_y+=216;
 ui_modal ? mouse_cap=0;
 
 exp_editor_ti>=0 && exp_editor_ti<PARAM_TOTAL ? (
@@ -2772,11 +2784,11 @@ controller_assign_ti>=0 ? (
   ax=max(8,min(760,controller_assign_x));ay=max(ui_scroll+8,min(ui_scroll+gfx_h-142,controller_assign_y));aw=190;
   gfx_set(.03,.03,.03,1);gfx_rect(ax,ay,aw,132,1);gfx_set(.8,.8,.8,1);gfx_rect(ax,ay,aw,132,0);
   smallbtn(ax+4,ay+4,aw-8,20,"NONE",mem[exp_assign_addr(controller_assign_ti)]==0);
-  hit(ax+4,ay+4,aw-8,20)?(mem[exp_assign_addr(controller_assign_ti)]=0;mem[PARAM_LAST_BASE+controller_assign_ti]=-999;mem[PARAM_PENDING_BASE+controller_assign_ti]=-999;exp_editor_ti=-1;controller_assign_ti=-1;);
+  hit(ax+4,ay+4,aw-8,20)?(mem[exp_assign_addr(controller_assign_ti)]=0;mem[PARAM_LAST_BASE+controller_assign_ti]=-999;mem[PARAM_PENDING_BASE+controller_assign_ti]=-999;exp_editor_ti==controller_assign_ti?(exp_editor_ti=-1;exp_drag_point=-1;exp_drag_segment=-1;exp_bend_segment=-1;);controller_assign_ti=-1;);
   ui_ci=0;loop(CONTROLLERS,
     controller_assign_ti>=0?(
       smallbtn(ax+4,ay+28+ui_ci*24,aw-8,20,controller_name(ui_ci),mem[exp_assign_addr(controller_assign_ti)]==ui_ci+1);
-      hit(ax+4,ay+28+ui_ci*24,aw-8,20)?(mem[exp_assign_addr(controller_assign_ti)]=ui_ci+1;mem[PARAM_LAST_BASE+controller_assign_ti]=-999;exp_editor_ti=-1;controller_assign_ti=-1;);
+      hit(ax+4,ay+28+ui_ci*24,aw-8,20)?(mem[exp_assign_addr(controller_assign_ti)]=ui_ci+1;mem[PARAM_LAST_BASE+controller_assign_ti]=-999;exp_editor_ti=controller_assign_ti;exp_drag_point=-1;exp_drag_segment=-1;exp_bend_segment=-1;ui_capture_ti=-1;controller_assign_ti=-1;);
     );ui_ci+=1;
   );
 );

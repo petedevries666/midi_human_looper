@@ -1,4 +1,4 @@
-desc:MIDI Human Looper v1.20.1
+desc:MIDI Human Looper v1.20.2
 options:gmem=MIDI_HUMAN_LOOPER
 
 // Release history: CHANGELOG.md. Free-time MIDI phrase instrument.
@@ -1723,7 +1723,7 @@ edit_name_type>0 && keychar>0 ? (
 gfx_set(.055,.055,.055,1);gfx_rect(12,10,1010,48,1);
 gfx_set(.42,.42,.42,1);gfx_rect(12,10,1010,48,0);
 gfx_setfont(1,"Courier New",22,'b');gfx_set(.95,.95,.08,1);
-gfx_x=24;gfx_y=20;gfx_drawstr("MIDI BAD MOTHERFUCKER V.1.20.1");
+gfx_x=24;gfx_y=20;gfx_drawstr("MIDI BAD MOTHERFUCKER V.1.20.2");
 gfx_setfont(1,"Courier New",14,'b');gfx_set(.68,.68,.68,1);
 gfx_x=760;gfx_y=25;gfx_drawstr("ANONYMALZ LIVE ENGINE");
 
@@ -2283,6 +2283,16 @@ selected_transform_gi>=0 && selected_transform_gi<INSTRUMENTS ? (
       ):
       (er==0?(ename="MOD LEVEL";evbase=INST_MOD_BASE+eg;emin=0;emax=127;):
              (ename="CC NUMBER";evbase=INST_LEVEL_CC_BASE+eg;emin=0;emax=127;););
+      // Map editor sliders to the established expression-curve targets.
+      eti=-1;
+      etyp==4 ? eti=eg*EXP_TARGETS+EXP_T_VEL;
+      etyp==5 ? (
+        er==0 ? eti=eg*EXP_TARGETS+EXP_T_ARP_MODE :
+        er==1 ? eti=eg*EXP_TARGETS+EXP_T_ARP_RATE :
+        er==2 ? eti=eg*EXP_TARGETS+EXP_T_ARP_GATE :
+        eti=eg*EXP_TARGETS+EXP_T_ARP_ON;
+      );
+      etyp==6 && er==0 ? eti=eg*EXP_TARGETS+EXP_T_MOD;
       eval=max(emin,min(emax,mem[evbase]));
       gfx_setfont(1,"Arial",10);gfx_set(.80,.80,.80,1);gfx_x=28;gfx_y=ey;gfx_drawstr(ename);
       gfx_set(.22,.22,.22,1);gfx_rect(125,ey+2,275,11,1);
@@ -2293,7 +2303,13 @@ selected_transform_gi>=0 && selected_transform_gi<INSTRUMENTS ? (
       etyp==5 && er==0 ? gfx_drawstr(eval<.5?"RANDOM":eval<1.5?"UP":"DOWN") :
       etyp==5 && er==3 ? gfx_drawstr(eval>.5?"ON":"OFF") :
       (gfx_drawnumber(eval,estep<1?2:0);etyp==5 && er==2?gfx_drawstr(" x100"););
-      mouse_cap&1 && mouse_x>=125 && mouse_x<400 && mouse_y>=ey-4 && mouse_y<ey+20 ? (
+      // Right click opens the existing named-controller assignment popup.
+      eti>=0 && controller_assign_ti<0 && (mouse_cap&2) && !(last_mouse_cap&2) &&
+        mouse_x>=125 && mouse_x<400 && mouse_y>=ey-4 && mouse_y<ey+20 ? (
+          controller_assign_ti=eti;controller_assign_x=mouse_x;controller_assign_y=mouse_y;
+      );
+      eti>=0 ? draw_exp_badge(eti,125,ey+2,275,11);
+      mouse_cap&1 && controller_assign_ti<0 && mouse_x>=125 && mouse_x<400 && mouse_y>=ey-4 && mouse_y<ey+20 ? (
         newv=emin+(emax-emin)*(mouse_x-125)/275;
         mem[evbase]=max(emin,min(emax,floor(newv/estep+.5)*estep));
         etyp==1 || etyp==2 || etyp==3 ? panic_pending=1;

@@ -1,7 +1,12 @@
-desc:MIDI Human Looper v1.17.7
+desc:MIDI Human Looper v1.18.0
 options:gmem=MIDI_HUMAN_LOOPER
 
 // Free-time MIDI phrase instrument prototype for REAPER JSFX.
+// v1.18.0:
+// - compact icon-based phrase controls, armed numbered dot, three direct play modes
+// - per-phrase MIDI note learn with persistent trigger mapping
+// - click armed phrase to finish recording; click another to finish and immediately arm it
+// - learned trigger notes are consumed and do not enter the recording
 // v1.17.7:
 // - extend scrollable content height after the top-layout reflow
 // - reserve enough bottom canvas for the full expression curve editor and preset strip
@@ -447,7 +452,8 @@ INST_TRANSFORM_COUNT_BASE = INST_TRANSPOSE_BASE + INSTRUMENTS;
 INST_TRANSFORM_TYPE_BASE = INST_TRANSFORM_COUNT_BASE + INSTRUMENTS;
 CONTROLLERS=4;
 CONTROLLER_CC_BASE = INST_TRANSFORM_TYPE_BASE + INSTRUMENTS*TRANSFORM_SLOTS;
-WORK_MEM_SIZE = CONTROLLER_CC_BASE + CONTROLLERS;
+PHRASE_NOTE_BASE = CONTROLLER_CC_BASE + CONTROLLERS;
+WORK_MEM_SIZE = PHRASE_NOTE_BASE + LAYERS;
 PATCH_HEADER_SIZE = 12;
 PATCH_DATA_SIZE = PATCH_HEADER_SIZE + WORK_MEM_SIZE;
 PATCH1_BASE = WORK_MEM_SIZE + 64;
@@ -497,6 +503,7 @@ trigger_request = -1;
 hold_stop_request = -1;
 mono_order_counter = 0;
 phrase_page = 0;
+phrase_note_learn=-1;
 PHRASES_PER_PAGE = 6;
 PHRASE_PAGES = 3;
 vi=0;
@@ -550,6 +557,7 @@ loop(LAYERS,
   mem[LEN_BASE+i]=0;
   mem[DECAY_BASE+i]=0.8;
   mem[REPEAT_BASE+i]=0;
+  mem[PHRASE_NOTE_BASE+i]=-1;
   i+=1;
 );
 
@@ -772,6 +780,31 @@ function arm_layer(layer)
   overdub_armed=0;
   overdub_active=0;
   state=STATE_READY;
+);
+
+function finish_phrase_record()
+local(phrase_len)
+(
+  state==STATE_RECORDING ? (
+    phrase_len=max(1,record_sample_pos);
+    mem[LEN_BASE+record_layer]=phrase_len;
+    (record_layer==0 || loop_len_samples<=0) ? (
+      loop_len_samples=phrase_len;
+      infer_tempo();
+    );
+    play_sample_pos=0;
+    state=STATE_STOPPED;
+  ) : state==STATE_READY ? (
+    state=loop_len_samples>0 ? STATE_STOPPED : STATE_IDLE;
+  );
+);
+
+function select_phrase_record(layer)
+(
+  (state==STATE_RECORDING || state==STATE_READY) ? (
+    finish_phrase_record();
+    record_layer!=layer ? arm_layer(layer);
+  ) : arm_layer(layer);
 );
 
 function store_event(layer, ts, st, d1, d2, offs)
@@ -1613,7 +1646,26 @@ while (
       ci=0;loop(CONTROLLERS,mem[CONTROLLER_CC_BASE+ci]>=0 && d1==mem[CONTROLLER_CC_BASE+ci]?controller_set_value(ci,d2/127);ci+=1;);
     );
 
-    state==STATE_READY && is_note_on ? (
+    // Learn a trigger without recording it; learned trigger notes are command-only.
+    phrase_note_learn>=0 && is_note_on ? (
+      mem[PHRASE_NOTE_BASE+phrase_note_learn]=d1;
+      phrase_note_learn=-1;
+      is_trigger_command=1;
+    ) : (
+      is_trigger_command=0;
+      if(is_note_on,
+        ti=0;
+        loop(LAYERS,
+          mem[PHRASE_NOTE_BASE+ti]==d1 ? (
+            select_phrase_record(ti);
+            is_trigger_command=1;
+          );
+          ti+=1;
+        );
+      );
+    );
+
+    !is_trigger_command && state==STATE_READY && is_note_on ? (
       clear_layer(record_layer);
       state=STATE_RECORDING;
       record_sample_pos=0;
@@ -1626,8 +1678,8 @@ while (
       store_event(overdub_layer,overdub_pos+offset,msg1,d1,d2,offset);
     );
 
-    // live MIDI passes through the same instrument router as phrase playback.
-    send_to_instruments(offset,msg1,d1,d2,1);
+    // Trigger keys do not leak into the instrument signal path.
+    !is_trigger_command ? send_to_instruments(offset,msg1,d1,d2,1);
     1;
   );
   0;
@@ -1966,16 +2018,7 @@ hit(bx,by,bw,bh) ? (
     analysis_done=0;
     state=STATE_READY;
   ) :
-  state==STATE_RECORDING ? (
-    phrase_len=max(1,record_sample_pos);
-    mem[LEN_BASE+record_layer]=phrase_len;
-    (record_layer==0 || loop_len_samples<=0) ? (
-      loop_len_samples=phrase_len;
-      infer_tempo();
-    );
-    play_sample_pos=0;
-    state=STATE_STOPPED;
-  );
+  state==STATE_RECORDING ? finish_phrase_record();
 );
 
 hit(bx+bw+gap,by,bw,bh) ? (
@@ -2036,63 +2079,60 @@ gui_row=0;
 loop(PHRASES_PER_PAGE,
   gui_layer=phrase_page*PHRASES_PER_PAGE+gui_row;
   gui_layer<LAYERS ? (
-    active_phrase=(state==STATE_READY && record_layer==gui_layer);
-    active_phrase ? gfx_set(1,0.18,0.12,1) : gfx_set(0.78,0.78,0.78,1);
-    gfx_setfont(1,"Arial",12);
-    gfx_x=20; gfx_y=rowy+8; gfx_drawstr("PHRASE "); gfx_drawnumber(gui_layer+1,0);
-    hit(16,rowy,72,28) ? arm_layer(gui_layer);
+    active_phrase=(state==STATE_READY || state==STATE_RECORDING) && record_layer==gui_layer;
+    gfx_set(active_phrase ? 0.93 : 0.32,active_phrase ? 0.16 : 0.32,active_phrase ? 0.14 : 0.32,1);
+    gfx_circle(27,rowy+14,10,1);
+    gfx_set(1,1,1,1); gfx_setfont(1,"Arial",12);
+    gfx_x=gui_layer+1<10 ? 24 : 20;gfx_y=rowy+7;gfx_drawnumber(gui_layer+1,0);
+    hit(16,rowy,23,28) ? select_phrase_record(gui_layer);
 
-    // Editable name. Empty memory deliberately means automatic default name.
-    nx=100; nw=150;
-    gfx_set(edit_name_type==1 && edit_name_index==gui_layer ? 0.25 : 0.14,0.14,0.14,1); gfx_rect(nx,rowy,nw,28,1);
-    gfx_set(0.42,0.42,0.42,1); gfx_rect(nx,rowy,nw,28,0);
-    gfx_setfont(1,"Arial",11); gfx_set(0.78,0.78,0.78,1);
+    nx=62; nw=150;
+    gfx_set(edit_name_type==1 && edit_name_index==gui_layer ? 0.25 : 0.14,0.14,0.14,1);gfx_rect(nx,rowy,nw,28,1);
+    gfx_set(.42,.42,.42,1);gfx_rect(nx,rowy,nw,28,0);
+    gfx_setfont(1,"Arial",11);gfx_set(.78,.78,.78,1);
     name_len(PHRASE_NAME_BASE+gui_layer*NAME_CHARS)>0 ? draw_name_chars(PHRASE_NAME_BASE+gui_layer*NAME_CHARS,nx+6,rowy+7) : (
-      gfx_x=nx+6; gfx_y=rowy+7; gfx_drawstr("PHRASE "); gfx_drawnumber(gui_layer+1,0);
+      gfx_x=nx+6;gfx_y=rowy+7;gfx_drawstr("PHRASE ");gfx_drawnumber(gui_layer+1,0);
     );
-    hit(nx,rowy,nw,28) ? (edit_name_type=1; edit_name_index=gui_layer;);
+    hit(nx,rowy,nw,28) ? (edit_name_type=1;edit_name_index=gui_layer;);
 
-    mx=262; sx=310; ox=358; clx=426; modex=478; trigx=528;
-    smallbtn(mx,rowy,40,28,"MUTE",mem[MUTE_BASE+gui_layer]>0.5);
-    smallbtn(sx,rowy,40,28,"SOLO",mem[SOLO_BASE+gui_layer]>0.5);
-    smallbtn(ox,rowy,62,28,"OVERDUB",overdub_armed && overdub_layer==gui_layer || overdub_active && overdub_layer==gui_layer);
-    smallbtn(clx,rowy,46,28,"CLEAR",0);
-    smallbtn(modex,rowy,44,28,mem[MODE_BASE+gui_layer]<0.5 ? "LOOP" : mem[MODE_BASE+gui_layer]<1.5 ? "ONCE" : "HOLD",mem[MODE_BASE+gui_layer]>=0.5);
-    voice_lit=0; vi=0; loop(MAX_ONCE_VOICES, mem[VOICE_ACTIVE_BASE+vi]>0.5 && mem[VOICE_LAYER_BASE+vi]==gui_layer ? voice_lit=1; vi+=1;);
+    kx=234;mx=268;sx=300;ox=332;clx=366;modex=400;trigx=518;
+    smallbtn(kx,rowy,28,28,phrase_note_learn==gui_layer ? "..." : "KEY",phrase_note_learn==gui_layer);
+    hit(kx,rowy,28,28) ? phrase_note_learn=phrase_note_learn==gui_layer ? -1 : gui_layer;
+    smallbtn(mx,rowy,28,28,"M",mem[MUTE_BASE+gui_layer]>0.5);
+    smallbtn(sx,rowy,28,28,"S",mem[SOLO_BASE+gui_layer]>0.5);
+    smallbtn(ox,rowy,28,28,"≡",overdub_armed && overdub_layer==gui_layer || overdub_active && overdub_layer==gui_layer);
+    smallbtn(clx,rowy,28,28,"X",0);
+    smallbtn(modex,rowy,34,28,"R",mem[MODE_BASE+gui_layer]<0.5);
+    smallbtn(modex+36,rowy,34,28,">",mem[MODE_BASE+gui_layer]>=0.5 && mem[MODE_BASE+gui_layer]<1.5);
+    smallbtn(modex+72,rowy,34,28,"8",mem[MODE_BASE+gui_layer]>=1.5);
+    voice_lit=0;vi=0;loop(MAX_ONCE_VOICES,mem[VOICE_ACTIVE_BASE+vi]>0.5 && mem[VOICE_LAYER_BASE+vi]==gui_layer ? voice_lit=1;vi+=1;);
     hold_lit=mem[MODE_BASE+gui_layer]>=1.5 && mem[HOLD_ACTIVE_BASE+gui_layer]>0.5;
     phrase_has_events=layer_count(gui_layer)>0;
-    // HOLD is the one intentional exception: once latched, the same action becomes STOP.
-    phrase_has_events ? smallbtn(trigx,rowy,44,28,hold_lit ? "STOP" : "TRIG",voice_lit || hold_lit) : (
-      gfx_set(0.09,0.09,0.09,1); gfx_rect(trigx,rowy,44,28,1);
-      gfx_set(0.24,0.24,0.24,1); gfx_rect(trigx,rowy,44,28,0);
-      gfx_setfont(1,"Arial",12); gfx_set(0.30,0.30,0.30,1);
-      centered_text(trigx,rowy,44,28,"TRIG");
-    );
+    smallbtn(trigx,rowy,34,28,hold_lit ? "■" : "▶",voice_lit || hold_lit);
 
-    hit(mx,rowy,40,28) ? mem[MUTE_BASE+gui_layer]=1-mem[MUTE_BASE+gui_layer];
-    hit(sx,rowy,40,28) ? mem[SOLO_BASE+gui_layer]=1-mem[SOLO_BASE+gui_layer];
-    hit(ox,rowy,62,28) && state==STATE_PLAYING ? (
-      overdub_active && overdub_layer==gui_layer ? (overdub_active=0; overdub_pos=0;) :
-      (overdub_layer=gui_layer; overdub_armed=1; overdub_active=0;);
+    hit(mx,rowy,28,28) ? mem[MUTE_BASE+gui_layer]=1-mem[MUTE_BASE+gui_layer];
+    hit(sx,rowy,28,28) ? mem[SOLO_BASE+gui_layer]=1-mem[SOLO_BASE+gui_layer];
+    hit(ox,rowy,28,28) && state==STATE_PLAYING ? (
+      overdub_active && overdub_layer==gui_layer ? (overdub_active=0;overdub_pos=0;) :
+      (overdub_layer=gui_layer;overdub_armed=1;overdub_active=0;);
     );
-    hit(clx,rowy,46,28) ? (panic_pending=1; clear_layer(gui_layer););
-    hit(modex,rowy,44,28) ? (
-      mem[MODE_BASE+gui_layer]=(floor(mem[MODE_BASE+gui_layer]+0.5)+1)%3;
-      mem[TRIG_BASE+gui_layer]=mem[MODE_BASE+gui_layer]<0.5;
+    hit(clx,rowy,28,28) ? (panic_pending=1;clear_layer(gui_layer););
+    selected_mode=-1;
+    hit(modex,rowy,34,28) ? selected_mode=0;
+    hit(modex+36,rowy,34,28) ? selected_mode=1;
+    hit(modex+72,rowy,34,28) ? selected_mode=2;
+    selected_mode>=0 ? (
+      mem[MODE_BASE+gui_layer]=selected_mode;
+      mem[TRIG_BASE+gui_layer]=selected_mode==0;
       mem[HOLD_ACTIVE_BASE+gui_layer]=0;
-      mem[ONCEPOS_BASE+gui_layer]=0; panic_pending=1;
+      mem[ONCEPOS_BASE+gui_layer]=0;panic_pending=1;
     );
-    hit(trigx,rowy,44,28) && layer_count(gui_layer)>0 ? (
+    hit(trigx,rowy,34,28) && phrase_has_events ? (
       mem[MODE_BASE+gui_layer]<0.5 ? (
-        // LOOP TRIG starts/restarts the loop.
         mem[ONCEPOS_BASE+gui_layer]=0;
         mem[TRIG_BASE+gui_layer]=1;
-      ) : mem[MODE_BASE+gui_layer]<1.5 ? (
-        trigger_request=gui_layer;
-      ) : (
-        // HOLD toggles TRIG / STOP.
-        mem[HOLD_ACTIVE_BASE+gui_layer]>0.5 ? hold_stop_request=gui_layer : trigger_request=gui_layer;
-      );
+      ) : mem[MODE_BASE+gui_layer]<1.5 ? trigger_request=gui_layer :
+      (mem[HOLD_ACTIVE_BASE+gui_layer]>0.5 ? hold_stop_request=gui_layer : trigger_request=gui_layer);
     );
 
     // phrase velocity

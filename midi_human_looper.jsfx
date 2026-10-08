@@ -518,7 +518,7 @@ local(k,c,found)
 (
   k=0;found=0;c=max(0,min(TRANSFORM_SLOTS,floor(mem[INST_TRANSFORM_COUNT_BASE+gi]+.5)));
   loop(c,
-    abs(mem[INST_TRANSFORM_TYPE_BASE+gi*TRANSFORM_SLOTS+k])==typ ? found=1;
+    mem[INST_TRANSFORM_TYPE_BASE+gi*TRANSFORM_SLOTS+k]==typ ? found=1;
     k+=1;
   );
   found;
@@ -2113,7 +2113,7 @@ function transform_has(gi, typ)
 local(k,c,found)
 (
   found=0; c=max(0,min(TRANSFORM_SLOTS,floor(mem[INST_TRANSFORM_COUNT_BASE+gi]+0.5))); k=0;
-  loop(c, mem[INST_TRANSFORM_TYPE_BASE+gi*TRANSFORM_SLOTS+k]==typ ? found=1; k+=1;);
+  loop(c, abs(mem[INST_TRANSFORM_TYPE_BASE+gi*TRANSFORM_SLOTS+k])==typ ? found=1; k+=1;);
   found;
 );
 function transform_add(gi, typ)
@@ -2233,7 +2233,7 @@ local(boxh,nx,nw,basey,bh,vx,vw,wirey,tx,bw,gap,tr,rangemode,notemode,arpon,c,k,
       draw_exp_badge(ti,vx,wirey-2,vw,14);
     ):typ==5?(
       arpon=mem[INST_ARP_ENABLED_BASE+gi]>.5;draw_transform_block(tx,wirey-22,bw,44,"ARPEGGIATOR",1);gfx_setfont(1,"Arial",10);gfx_set(.95,.95,.15,1);centered_text(tx,wirey-2,bw,12,arpon?(mem[INST_ARP_MODE_BASE+gi]<.5?"RANDOM":mem[INST_ARP_MODE_BASE+gi]<1.5?"UP":"DOWN"):"OFF");
-      (transform_menu_gi<0 && !options_open && controller_assign_ti<0 && hit(tx,wirey-22,bw,44))?(mem[INST_ARP_ENABLED_BASE+gi]=1-mem[INST_ARP_ENABLED_BASE+gi];panic_pending=1;);
+      // ARP is edited in the selected transformer panel, not toggled by body click.
     ):(
       // CC/MOD keeps the old MODULATION expression workflow inside the transformer.
       draw_transform_block(tx,wirey-22,bw,44,"CC / MOD",1);
@@ -2255,7 +2255,7 @@ local(boxh,nx,nw,basey,bh,vx,vw,wirey,tx,bw,gap,tr,rangemode,notemode,arpon,c,k,
       gfx_set(.06,.06,.06,.75);gfx_rect(tx+1,wirey-21,bw-2,42,1);
       gfx_set(.33,.33,.33,1);gfx_rect(tx+1,wirey-21,bw-2,42,0);
     );
-    gfx_setfont(1,"Arial",12);gfx_set(rawtyp>0?.9:.4,rawtyp>0?.9:.4,rawtyp>0?.9:.4,1);
+    gfx_setfont(1,"Arial",12);gfx_set(rawtyp>0 ? .9 : .4,rawtyp>0 ? .9 : .4,rawtyp>0 ? .9 : .4,1);
     gfx_x=tx+7;gfx_y=wirey-20;gfx_drawstr(rawtyp>0?"O":"-");
     (transform_menu_gi<0 && !options_open && controller_assign_ti<0 && hit(tx+2,wirey-22,22,18)) ? (
       mem[INST_TRANSFORM_TYPE_BASE+gi*TRANSFORM_SLOTS+k]=-rawtyp;panic_pending=1;

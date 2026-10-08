@@ -1,5 +1,14 @@
 # MIDI Human Looper: release history
 
+v1.22.0:
+- Four independent Smart Switches: exact-channel note/CC learning, silent commands,
+  instant/exclusive TAP/DOUBLE/HOLD and manual momentary assignment.
+- 64-position phrase-reference lists, forward/back/ping-pong/shuffle traversal,
+  independent RESUME/RESTART re-entry and step-position highlighting.
+- STOP/RESET/PANIC and stable instrument/type module targets with deferred bypass.
+- Compact switch editor, schema-3 appended configuration and schema-1/2 migration.
+- Native MIDI/GUI/gesture/persistence regressions; existing ci/eti isolation retained.
+
 Historical notes extracted from the JSFX source on v1.18.9. Most recent versions first.
 
 Free-time MIDI phrase instrument prototype for REAPER JSFX.

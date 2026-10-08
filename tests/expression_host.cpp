@@ -645,6 +645,7 @@ static void stress(Host &h, bool historical) {
   if (!historical)
     check(hashes.size() == 1, "concurrent audio/GFX render is stable");
 }
+#include "smart_switch_cases.hpp"
 int main(int argc, char **argv) {
   if (argc < 2)
     return 2;
@@ -660,6 +661,8 @@ int main(int argc, char **argv) {
   musical(h);
   Host ux(argv[1]);
   editor_ux(ux);
+  Host smart(argv[1]);
+  smart_switch_tests(smart);
   Host stable(argv[1]);
   stress(stable, false);
   printf("PASS: %d EEL2/GUI/MIDI checks\n", checks);

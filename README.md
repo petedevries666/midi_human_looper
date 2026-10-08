@@ -92,3 +92,14 @@ Transformer rails now match VOLUME's 18px height, with 34px row spacing. Assigne
 rails display their own live multipoint/bend preview. Choosing NONE closes the
 curve only when that parameter is displayed. MIDI processing and schema 2 are
 unchanged; the v1.21.0 GUI/audio counter isolation is retained.
+
+## v1.22.0 Smart Switches / Phrase Conductor
+
+Four programmable momentary note/CC switches provide TAP, DOUBLE and HOLD actions,
+64-position phrase-reference sequences, independent traversal and RESUME/RESTART
+on section re-entry. Special actions include targeted module control, sequence
+reset, phrase STOP and explicit global PANIC. Scroll below the expression editor
+for configuration and MIDI Learn. Update both JSFX and the Lua patch daemon;
+schema 3 reads existing schema-1/2 patches with switches disabled.
+
+See [configuration, persistence, tests and live acceptance](docs/smart-switches.md).

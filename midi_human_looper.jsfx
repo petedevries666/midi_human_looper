@@ -1,7 +1,9 @@
-desc:MIDI Human Looper v1.18.1
+desc:MIDI Human Looper v1.18.2
 options:gmem=MIDI_HUMAN_LOOPER
 
 // Free-time MIDI phrase instrument prototype for REAPER JSFX.
+// v1.18.2:
+// - replace invalid if() function syntax with EEL2 ternary conditional in MIDI trigger handling
 // v1.18.1:
 // - define record-finish helpers after infer_tempo to satisfy EEL2 function resolution
 // v1.18.0:
@@ -1655,7 +1657,7 @@ while (
       is_trigger_command=1;
     ) : (
       is_trigger_command=0;
-      if(is_note_on,
+      is_note_on ? (
         ti=0;
         loop(LAYERS,
           mem[PHRASE_NOTE_BASE+ti]==d1 ? (

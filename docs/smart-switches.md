@@ -197,3 +197,15 @@ In REAPER with the updated Lua daemon:
 6. Load old schema-1/2 patches, test unavailable phrases and duplicate learning,
    and change presets while a controller is held. Check releases remain silent
    and the confirmed expression-editor flashing fix stays intact during MIDI.
+
+## PHRASES trigger Learn (v1.22.2)
+
+The keyboard Learn icon immediately before M/S on each PHRASES row assigns an
+exact-channel MIDI note to PLAY that phrase. The learning press/release is silent;
+subsequent presses trigger ONCE/HOLD immediately or enable LOOP playback. Trigger
+releases are consumed and neither edge is recorded. An empty phrase does nothing.
+This control never arms recording/overdub. ONCE/HOLD playback also leaves an
+already armed overdub waiting for its separate recording input.
+Use the existing numbered phrase recording control to arm RECORD/OVERDUB separately.
+Assignments remain phrase-specific and persist through the existing patch payload.
+Smart Switch sequencing and re-entry are unchanged.

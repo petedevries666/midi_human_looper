@@ -1,5 +1,10 @@
 # MIDI Human Looper: release history
 
+v1.22.2:
+- PHRASES MIDI Learn assigns playback triggers instead of record/overdub commands.
+- Consume learned trigger press/release without recording them; retain separate
+  recording controls, patch assignments and Smart Switch playback behavior.
+
 v1.22.1:
 - OPTIONS close button, outside dismissal and Escape; cancel Learn on close.
 - Exclusive Learn target across switches/controllers/phrases, exact channel/type

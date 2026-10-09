@@ -35,6 +35,7 @@ Zynthian normally supplies its existing JACK graph. First inspect it:
 
 ```sh
 jack_lsp -t
+scripts/headless-check.sh
 DEMO_PATCH=1 scripts/headless-run.sh
 ```
 
@@ -169,3 +170,41 @@ Launcher logs go to the terminal; capture with your preferred supervisor/journal
 Rollback: PANIC, Ctrl-C, verify owned ports disappear, remove graph connections and
 return to the prior REAPER/Zynthian setup. No service is installed/enabled, no system
 configuration or REAPER JSFX source is modified. Do not remove saved patch files.
+
+## Continuing issue #18 and combined regression
+
+The runnable host remains #19; #20 adds the descriptor editor and #21 the policy
+core. The first-demo hardening branch `fix/zynthian-first-demo` stacks on #21.
+For that complete reviewed stack, fetch and switch explicitly:
+
+```sh
+git fetch origin fix/zynthian-first-demo
+git switch --track origin/fix/zynthian-first-demo
+scripts/headless-setup.sh
+scripts/headless-check.sh
+# Use the LAN token and MIDI_INPUT/MIDI_OUTPUT commands above.
+EDITOR_BIND=0.0.0.0 EDITOR_TOKEN_FILE=/tmp/midi-editor-token DEMO_PATCH=1 scripts/headless-run.sh
+```
+
+Preflight never starts JACK or changes the graph. Run it as the same user and in
+the same JACK session as Zynthian. `MOCK_MIDI=1` permits an offline desktop preflight.
+MIDI port names are checked when supplied.
+
+On desktop Linux, install the optional Python test packages in a virtual environment
+(`lupa playwright selenium`) and select its Python for the combined runner:
+
+```sh
+HEADLESS_BINARY="$PWD/.build/midi-headless-engine" YSFX_SOURCE="$PWD/.build/ysfx" \
+  NATIVE_PATCH_FIXTURE=/tmp/midi-native-patch.json \
+  python3 scripts/combined-test.py --native --jack --browser chromium
+# Stock Firefox ESR + geckodriver, with the same test virtual environment:
+HEADLESS_BINARY="$PWD/.build/midi-headless-engine" \
+  python3 scripts/combined-test.py --browser stock-firefox --timeout 90
+```
+
+`--jack` starts a separate named dummy desktop server: do not use it on Zynthian.
+Production Firefox needs neither Selenium nor Playwright. The runner reports failures
+and kills its subprocess group on timeout, including browser drivers and test hosts.
+Chromium is desktop evidence only. Stock Firefox initialization still times out in
+this restricted container; Playwright's Firefox download is blocked by the network
+domain filter. Actual Firefox/Pi acceptance remains required on the device.

@@ -1,5 +1,29 @@
 # MIDI Human Looper: release history
 
+v1.27.1 (modular UI integration):
+- Versioned full-precision REAPER project snapshots retain working state and both banks.
+- Reopen excludes runtime notes, Learn listeners and uncommitted switch drafts.
+- Complete popup dismissal shielding, viewport-aware OPTIONS and visible Instrument X.
+- Project init-order/truncation regressions and concurrent appended-curve rendering.
+
+v1.27.0 (modular UI stage 4):
+- Dynamic full Instrument panels, ADD, confirmed X deletion and fresh stable IDs.
+- Eight-panel DSP collection with independent routing, expression and Transformers.
+- Targeted note cleanup, shared destination ownership and stale command protection.
+- Schema 7 appends configuration/banks while all legacy layouts remain frozen.
+
+v1.26.0 (modular UI stage 3):
+- Sparse sixteen-switch engine collection, compact cards, ADD/EDIT and safe deletion.
+- Single draft editor: DONE commits, Cancel/dismissal discards settings and Learn.
+- Deliberate MIDI reassignment commits only on DONE; TEST previews draft actions.
+- Expanded runtime/banks and appended schema 6; unrelated legacy metadata preserved.
+
+v1.25.0 (modular UI stage 2):
+- Independent transpose, range and velocity instances with persistent type/ID metadata.
+- Visible serial note order, multiplicative velocity and safe deferred structural edits.
+- Independent third range curve; schema-5 append with schema-1/2/3/4 migration.
+- Deliberate single-instance ARP/polyphony restriction; queued ARP lifecycle cleanup.
+
 v1.24.0 (modular UI stage 1):
 - ADD TRANSFORMER closes with ×, Escape or either outside mouse button.
 - Independent CC MOD instances, expression curves, stable IDs and channel overrides.

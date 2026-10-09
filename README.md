@@ -131,3 +131,21 @@ show a warning and use deterministic last-writer behavior. Save uses schema 4;
 update the companion Lua daemon together with the JSFX. Old patches still load.
 
 See [CC generator behavior and the following modular stages](docs/modular-cc-generators.md).
+
+## v1.25.0 — stateless Transformer stacking
+
+Multiple transpose, range and velocity blocks own independent settings and
+expression curves. Stacked note processors use visible serial order; note-changing
+edits wait for source releases to preserve Note Off pairing. ARP and polyphony
+remain single-instance per instrument. See [stacking behavior](docs/transformer-stacking.md).
+
+## v1.26.0 — dynamic Smart Switches
+
+Compact cards replace the permanent four-switch panel. ADD/EDIT opens one draft
+editor; DONE commits, while Cancel or dismissal discards edits and cancels Learn.
+The engine and patch banks support sixteen independent switches with stable IDs.
+See [workflow and persistence](docs/dynamic-smart-switches.md).
+
+Dynamic Instrument panels and schema-7 compatibility: [implementation notes](docs/dynamic-instruments.md).
+
+Project reopen and popup integration: [validation notes](docs/project-persistence.md).

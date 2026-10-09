@@ -92,3 +92,5 @@ sustain instance while ordinary notes are playing.
    assume three instruments, so adding GUI-only cards would not implement this.
 
 Each stage needs a separately reviewable migration and runtime regression suite.
+
+The subsequent review stages are implemented in stacked PRs: [stateless Transformer stacking](transformer-stacking.md), [dynamic Smart Switches](dynamic-smart-switches.md), [dynamic Instruments](dynamic-instruments.md), and [project/popup integration](project-persistence.md). ARP/polyphony duplication inside a panel remains deliberately restricted.

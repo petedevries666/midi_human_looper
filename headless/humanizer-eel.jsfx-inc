@@ -1,0 +1,40 @@
+@init
+// Portable deterministic HUMANIZER reference functions. All scratch is local.
+// The scheduler must supply immutable original event/group IDs and apply the
+// same paired shift to Note On/Off. No MIDI or memory mutation happens here.
+function hu_u32(v) local(r) (r=v-floor(v/4294967296)*4294967296;r;);
+function hu_mul32(a,b) local(al,ah,bl,bh,cross)
+(al=a-floor(a/65536)*65536;ah=floor(a/65536);bl=b-floor(b/65536)*65536;bh=floor(b/65536);cross=ah*bl+al*bh;cross-=floor(cross/65536)*65536;hu_u32(al*bl+cross*65536););
+function hu_mix(h,datum) (hu_u32(h*1664525+1013904223+datum););
+function hu_hash(seed,scope,instance,phrase,iteration,note,group,evolving,stream,timing)
+local(h)
+(
+ h=hu_u32(seed);h=hu_mix(h,scope);h=hu_mix(h,instance);h=hu_mix(h,phrase);
+ h=hu_mix(h,evolving?iteration:0);h=hu_mix(h,timing?group:note);h=hu_mix(h,stream);
+ h=hu_u32(h~floor(h/65536));h=hu_mul32(h,2246822507);
+ h=hu_u32(h~floor(h/8192));h=hu_mul32(h,3266489909);
+ h=hu_u32(h~floor(h/65536));h;
+);
+function hu_unit(seed,scope,instance,phrase,iteration,note,group,evolving,feel,stream,timing)
+local(i,n,sum)
+(
+ i=0;n=feel?6:1;sum=0;
+ loop(n,sum+=2*hu_hash(seed,scope,instance,phrase,iteration,note,group,evolving,stream+i*7919,timing)/4294967295-1;i+=1;);
+ sum/n;
+);
+function hu_shift(seed,scope,instance,phrase,iteration,note,group,evolving,feel,timing_ms,original_on,factor,samplerate,enabled)
+local(jitter)
+(
+ !enabled || timing_ms==0 || original_on==0 ? 0 : (
+  jitter=floor(hu_unit(seed,scope,instance,phrase,iteration,note,group,evolving,feel,17,1)*timing_ms*samplerate/1000+.5);
+  max(1,original_on*factor+jitter)-original_on*factor;
+ );
+);
+function hu_velocity(seed,scope,instance,phrase,iteration,note,group,evolving,feel,amount,input,enabled)
+local(value)
+(
+ input==0 || !enabled || amount==0 ? input : (
+  value=floor(input+hu_unit(seed,scope,instance,phrase,iteration,note,group,evolving,feel,104729,0)*amount+.5);
+  max(1,min(127,value));
+ );
+);

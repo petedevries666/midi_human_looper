@@ -30,6 +30,8 @@ try:
     run([sys.executable,'tests/test_controller_integration.py'])
     run(['scripts/controller-test.sh'])
     run(['scripts/controller-test.sh'],{'SANITIZE':'1'})
+    run(['scripts/humanizer-test.sh'])
+    run(['scripts/humanizer-test.sh'],{'SANITIZE':'1'})
     if a.native:
         run(['tests/run_host_tests.sh'])
         run([sys.executable,'tests/test_patch_io.py'])

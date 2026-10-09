@@ -1,6 +1,7 @@
 // Executes the complete JSFX in ysfx/WDL EEL2, including real MIDI and LICE
 // frames.
 #include "ysfx.hpp"
+#include "../headless/humanizer.hpp"
 #include <atomic>
 #include <cmath>
 #include <cstdio>
@@ -662,6 +663,7 @@ static void stress(Host &h, bool historical, bool cc_instances = false, bool dyn
     check(hashes.size() == 1, "concurrent audio/GFX render is stable");
 }
 #include "midi_burst_cases.hpp"
+#include "humanizer_cases.hpp"
 #include "cc_instance_cases.hpp"
 #include "learn_ui_cases.hpp"
 #include "dynamic_switch_cases.hpp"
@@ -679,6 +681,7 @@ int main(int argc, char **argv) {
   if (argc>2 && std::string(argv[2])=="--instruments") {Host instruments(argv[1]);dynamic_instrument_tests(instruments);printf("PASS: %d instrument checks\n",checks);return 0;}
   if (argc>2 && std::string(argv[2])=="--instrument-voices") {Host instrument_voices(argv[1]);instrument_voice_tests(instrument_voices);printf("PASS: %d voice checks\n",checks);return 0;}
   if (argc>2 && std::string(argv[2])=="--project") {project_state_tests(argv[1]);printf("PASS: %d project checks\n",checks);return 0;}
+  if(argc>2 && std::string(argv[2])=="--humanizer"){humanizer_cases(argv[1]);printf("PASS: %d HUMANIZER EEL reference checks (scheduler not integrated)\n",checks);return 0;}
   Host h(argv[1]);
   if (argc > 2 && (std::string(argv[2]) == "--historical" ||
                    std::string(argv[2]) == "--isolated")) {
@@ -686,6 +689,7 @@ int main(int argc, char **argv) {
     return 0;
   }
   Host bursts(argv[1]);midi_burst_tests(bursts);
+  humanizer_cases(argv[1]);
   assignment(h);
   persistence(h, argv[2]);
   gui(h);

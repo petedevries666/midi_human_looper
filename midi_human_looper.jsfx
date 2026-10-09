@@ -598,7 +598,7 @@ function sw_defaults()
 local(si,b,j)
 (
   mem[SW_CFG_BASE]=SW_SCHEMA;mem[DS_CFG_BASE]=IO_SCHEMA;mem[DS_CFG_BASE+1]=5;si=0;loop(SW_COUNT,
-    b=sw_cfg(si);j=0;loop(SW_STRIDE,mem[b+j]=0;j+=1;);
+    b=sw_committed_cfg(si);j=0;loop(SW_STRIDE,mem[b+j]=0;j+=1;);
     mem[b+2]=0;mem[b+4]=60+si;mem[b+7]=300;mem[b+8]=800;
     mem[b+12]=127;mem[b+13]=0;mem[b+14]=SW_NEXT;mem[b+17]=si;mem[b+18]=si;mem[b+19]=si;mem[b+20]=si<4;mem[b+21]=si<4?si+1:0;j=0;si<4?loop(4,mem[b+112+j]=1;j+=1;);si+=1;
   );

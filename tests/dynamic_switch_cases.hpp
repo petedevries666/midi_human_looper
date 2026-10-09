@@ -1,4 +1,8 @@
 static void dynamic_switch_tests(Host &h) {
+  for (int i=0;i<4;++i) {
+    h.eq("mem[sw_committed_cfg("+std::to_string(i)+")+20]",1,"fresh startup publishes every legacy switch");
+    h.eq("mem[sw_committed_cfg("+std::to_string(i)+")+21]",i+1,"fresh startup preserves stable switch IDs");
+  }
   h.run(
       "sw_defaults();sw_runtime_reset();panic_pending=0;state=STATE_STOPPED;"
       "slider9=1;"

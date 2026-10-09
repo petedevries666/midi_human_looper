@@ -299,6 +299,13 @@ I_CC_RT_BASE=I_C_PENDING_BASE+75;I_ONCE_OUT_BASE=I_CC_RT_BASE+240;
 I_FALLBACK_BASE=I_ONCE_OUT_BASE+INST_CAP*2048;I_SUSTAIN_BASE=I_FALLBACK_BASE+4096;I_FALLBACK_SUSTAIN_BASE=I_SUSTAIN_BASE+INST_CAP*16;
 TF_QUEUE_BASE=I_SUSTAIN_BASE+INST_CAP*16+16;TF_QUEUE_STRIDE=5;
 I_QUEUE_BASE=TF_QUEUE_BASE+TF_QUEUE_SIZE*TF_QUEUE_STRIDE;I_QUEUE_SIZE=16;I_QUEUE_STRIDE=3;
+// Runtime only: voice identities and late physical releases never enter a patch.
+VOICE_INST_IDS_BASE=I_QUEUE_BASE+I_QUEUE_SIZE*I_QUEUE_STRIDE;
+VOICE_INST_IN_BASE=VOICE_INST_IDS_BASE+MAX_ONCE_VOICES*INST_CAP;
+I_QUARANTINE_BASE=VOICE_INST_IN_BASE+MAX_ONCE_VOICES*INST_CAP;
+I_QUARANTINE_DEADLINE_BASE=I_QUARANTINE_BASE+INST_CAP*2048;
+I_RUNTIME_END=I_QUARANTINE_DEADLINE_BASE+INST_CAP;
+once_route_voice=-1;i_release_mask=0;i_init_q=0;loop(INST_CAP*2048+INST_CAP,mem[I_QUARANTINE_BASE+i_init_q]=0;i_init_q+=1;);
 I_NEW_PRIMARY_TI=87;I_NEW_EXTRA_TI=157;UI_PARAM_TOTAL=232;
 PATCH_PAYLOAD_SIZE=I_LEGACY_PAYLOAD+I_CFG_SIZE;
 // Read-only address lookup tables. Never use GUI/audio scratch to resolve storage.
@@ -599,6 +606,25 @@ local(i)
   slider7=4;
 );
 
+function i_clear_runtime(gi)
+local(j,idx)
+(j=0;loop(2048,idx=gi*2048+j;mem[engine_addr(SW_LIVE_OUT_BASE,idx)]=0;mem[engine_addr(SW_PHRASE_OUT_BASE,idx)]=0;mem[engine_addr(SW_LOOP_INPUT_BASE,idx)]=0;mem[I_ONCE_OUT_BASE+idx]=0;
+ mem[input_addr(gi*2048+j)]=0;mem[input_addr((INST_CAP+gi)*2048+j)]=0;j+=1;);
+ j=0;loop(128,mem[engine_addr(ARP_HELD_COUNT_BASE,gi*128+j)]=0;mem[engine_addr(ARP_SOURCE_COUNT_BASE,gi*128+j)]=0;
+ mem[engine_addr(SW_ARP_PHRASE_BASE,gi*128+j)]=0;mem[engine_addr(SW_ARP_PHRASE_SOURCE_BASE,gi*128+j)]=0;
+ mem[engine_addr(MONO_HELD_COUNT_BASE,gi*128+j)]=0;mem[engine_addr(SW_MONO_PHRASE_BASE,gi*128+j)]=0;j+=1;);
+ j=0;loop(TRANSFORM_TYPES,mem[engine_addr(SW_MODULE_BASE,gi*TRANSFORM_TYPES+j)]=-999;j+=1;);
+ mem[engine_addr(PARAM_ACTIVE_BASE,gi)]=0;mem[engine_addr(ARP_ACTIVE_NOTE_BASE,gi)]=-1;mem[engine_addr(MONO_ACTIVE_NOTE_BASE,gi)]=-1;
+ mem[engine_addr(ARP_CURSOR_BASE,gi)]=-1;mem[engine_addr(ARP_STEP_REMAIN_BASE,gi)]=0;mem[engine_addr(ARP_GATE_REMAIN_BASE,gi)]=0;);
+
+function reset_note_runtime()
+local(pv_i)
+(pv_i=0;loop(MAX_ONCE_VOICES,mem[VOICE_ACTIVE_BASE+pv_i]=0;pv_i+=1;);once_route_voice=-1;
+ pv_i=0;loop(NOTE_REF_SIZE,mem[NOTE_REF_BASE+pv_i]=0;pv_i+=1;);pv_i=0;loop(16,mem[SUSTAIN_REF_BASE+pv_i]=0;pv_i+=1;);
+ pv_i=0;loop(INST_CAP,i_clear_runtime(pv_i);pv_i+=1;);
+);
+function cancel_patch_editors()
+(edit_name_type=0;phrase_context=-1;options_open=0;controller_assign_ti=-1;transform_menu_gi=-1;selected_transform_gi=-1;selected_transform_slot=-1;exp_editor_ti=-1;ui_capture_ti=-1;ui_i_delete_slot=-1;ui_sw_delete_slot=-1;);
 function cc_cfg(index) (engine_addr(CC_CFG_BASE,2+INSTRUMENTS+index*CC_STRIDE););
 function cc_index(gi,code) (gi*(TRANSFORM_SLOTS-1)+code-7;);
 function cc_id(gi,code) (code==6?mem[primary_cc_id_addr(gi)]:mem[cc_cfg(cc_index(gi,code))];);
@@ -888,7 +914,7 @@ local(pb,j,valid,oldslot)
 (
   oldslot=current_patch;
   oldslot!=slot ? (
-    save_patch(oldslot);
+    save_patch(oldslot);reset_note_runtime();cancel_patch_editors();
     valid = slot==1 ? patch_valid1 : patch_valid2;
     panic_pending=1;
     valid ? (
@@ -1302,7 +1328,7 @@ local(gi,j,idx)
 );
 
 function send_to_instruments(offs, st, d1, d2, extra_gain)
-local(srcch,typ,ii,in_ch,out_ch,outst,outd2,matched,velmul,nmode,tn)
+local(srcch,typ,ii,in_ch,out_ch,outst,outd2,matched,velmul,nmode,tn,input_ok)
 (
   srcch=(st&15)+1;
   typ=st&240;
@@ -1331,12 +1357,16 @@ local(srcch,typ,ii,in_ch,out_ch,outst,outd2,matched,velmul,nmode,tn)
           );
         ) :
         ((typ==128) || (typ==144 && d2==0)) ? (
+          input_ok=mem[I_IDS_BASE+ii]<=3 || mem[input_addr((ii*16+srcch-1)*128+d1)]>0;
+          !sw_playback_origin && (i_release_mask&(1<<ii))?input_ok=0;
+          input_ok?(
           sw_playback_origin ? mem[engine_addr(SW_LOOP_INPUT_BASE,(ii*16+srcch-1)*128+d1)]=max(0,mem[engine_addr(SW_LOOP_INPUT_BASE,(ii*16+srcch-1)*128+d1)]-1);
           param_track_input(ii,srcch-1,d1,0,0);
           tn=tf_pitch(ii,d1);
           tn>=0 && tn<=127 ? (
             nmode>0 ? route_mono_note(ii,offs,outst,tn,0,0,0) :
                       route_emit_note(ii,offs,outst,tn,0,0,0,0);
+          );
           );
         ) :
           midisend(offs,outst,d1|(d2*256));
@@ -1374,14 +1404,17 @@ local(ii,out_ch,ch,lev,mod)
 );
 
 function send_once_to_instruments(offs, st, d1, d2, phrase_gain)
-local(srcch,typ,ii,in_ch,out_ch,outst,outd2,matched,velmul,msg_chan,note_key,nmode,tn)
+local(srcch,typ,ii,in_ch,out_ch,outst,outd2,matched,velmul,msg_chan,note_key,nmode,tn,original_match,j)
 (
   srcch=(st&15)+1;
   typ=st&240;
-  matched=0;
+  matched=0;original_match=0;
+  once_route_voice>=0?(j=0;loop(INST_CAP,
+    mem[VOICE_INST_IDS_BASE+once_route_voice*INST_CAP+j]>0 && (mem[VOICE_INST_IN_BASE+once_route_voice*INST_CAP+j]==0 || mem[VOICE_INST_IN_BASE+once_route_voice*INST_CAP+j]==srcch)?original_match=1;j+=1;
+  ););
   ii=0;
   loop(INST_CAP,
-    mem[I_EXISTS_BASE+ii] && mem[engine_addr(INST_ENABLED_BASE,ii)]>0.5 ? (
+    mem[I_EXISTS_BASE+ii] && mem[engine_addr(INST_ENABLED_BASE,ii)]>0.5 && (once_route_voice<0 || mem[VOICE_INST_IDS_BASE+once_route_voice*INST_CAP+ii]==mem[I_IDS_BASE+ii]) ? (
       in_ch=mem[engine_addr(INST_IN_BASE,ii)];
       (in_ch==0 || in_ch==srcch) ? (
         matched=1;
@@ -1423,7 +1456,7 @@ local(srcch,typ,ii,in_ch,out_ch,outst,outd2,matched,velmul,msg_chan,note_key,nmo
     );
     ii+=1;
   );
-  matched==0 ? (
+  matched==0 && !original_match ? (
     msg_chan=st&15;
     typ==144 || typ==128 ? (
       note_key=I_FALLBACK_BASE+2048+msg_chan*128+d1;
@@ -1676,6 +1709,7 @@ local(j,n)
    (gmem[2]==5 && n==DS_LEGACY_PAYLOAD && gmem[IO_PAYLOAD_BASE+WORK_MEM_SIZE]==PARAM_SCHEMA && gmem[IO_PAYLOAD_BASE+SW_LEGACY_PAYLOAD]==SW_SCHEMA && gmem[IO_PAYLOAD_BASE+CC_LEGACY_PAYLOAD]==CC_SCHEMA && gmem[IO_PAYLOAD_BASE+TF_LEGACY_PAYLOAD]==TF_SCHEMA) ||
    (gmem[2]==DS_SCHEMA && n==I_LEGACY_PAYLOAD && gmem[IO_PAYLOAD_BASE+WORK_MEM_SIZE]==PARAM_SCHEMA && gmem[IO_PAYLOAD_BASE+SW_LEGACY_PAYLOAD]==SW_SCHEMA && gmem[IO_PAYLOAD_BASE+CC_LEGACY_PAYLOAD]==CC_SCHEMA && gmem[IO_PAYLOAD_BASE+TF_LEGACY_PAYLOAD]==TF_SCHEMA && gmem[IO_PAYLOAD_BASE+DS_LEGACY_PAYLOAD]==DS_SCHEMA) ||
    (gmem[2]==IO_SCHEMA && n==PATCH_PAYLOAD_SIZE && gmem[IO_PAYLOAD_BASE+WORK_MEM_SIZE]==PARAM_SCHEMA && gmem[IO_PAYLOAD_BASE+SW_LEGACY_PAYLOAD]==SW_SCHEMA && gmem[IO_PAYLOAD_BASE+CC_LEGACY_PAYLOAD]==CC_SCHEMA && gmem[IO_PAYLOAD_BASE+TF_LEGACY_PAYLOAD]==TF_SCHEMA && gmem[IO_PAYLOAD_BASE+DS_LEGACY_PAYLOAD]==DS_SCHEMA && gmem[IO_PAYLOAD_BASE+I_LEGACY_PAYLOAD]==IO_SCHEMA)) ? (
+    reset_note_runtime();cancel_patch_editors();
     // Patch memory only grows by appending fields, so older JSON patches remain valid prefixes.
     i_defaults();param_extension_reset();param_runtime_reset();sw_defaults();sw_runtime_reset();cc_defaults();cc_runtime_reset();tf_defaults();tf_runtime_reset();
     j=n;
@@ -1712,6 +1746,7 @@ local(pb,j,valid)
 (
   valid = current_patch==2 ? patch_valid2 : patch_valid1;
   valid ? (
+    reset_note_runtime();cancel_patch_editors();
     pb = current_patch==2 ? PATCH2_BASE : PATCH1_BASE;
     j=0;
     loop(WORK_MEM_SIZE,
@@ -1825,9 +1860,9 @@ function send_all_notes_off()
 local(ch,note)
 (
 
-  param_input_reset();
+  param_input_reset();ch=0;loop(INST_CAP*2048+INST_CAP,mem[I_QUARANTINE_BASE+ch]=0;ch+=1;);
  ch=0;loop(INST_CAP, note=0;loop(2048,mem[engine_addr(SW_LIVE_OUT_BASE,ch*2048+note)]=0;mem[engine_addr(SW_PHRASE_OUT_BASE,ch*2048+note)]=0;mem[engine_addr(SW_LOOP_INPUT_BASE,ch*2048+note)]=0;mem[I_ONCE_OUT_BASE+ch*2048+note]=0;note+=1;);ch+=1;);
- ch=0;loop(4096,mem[I_FALLBACK_BASE+ch]=0;ch+=1;);ch=0;loop(INST_CAP*16,mem[I_SUSTAIN_BASE+ch]=0;ch+=1;);
+ ch=0;loop(4096,mem[I_FALLBACK_BASE+ch]=0;ch+=1;);ch=0;loop(INST_CAP*16+16,mem[I_SUSTAIN_BASE+ch]=0;ch+=1;);
   ch=SW_PHRASE_OUT_BASE;loop(SW_MEMORY_END-SW_PHRASE_OUT_BASE,mem[ch]=0;ch+=1;);
   ch=0;
   loop(16,
@@ -1939,7 +1974,7 @@ local(grid,q,target)
 );
 
 function process_phrase_trigger(start_offset,play_only)
-local(requested_layer,voice_slot,vi)
+local(requested_layer,voice_slot,vi,vgi)
 (
 trigger_request>=0 ? (
   requested_layer=trigger_request;
@@ -1986,6 +2021,10 @@ trigger_request>=0 ? (
     voice_slot=0;
   );
 
+  vgi=0;loop(INST_CAP,
+    mem[VOICE_INST_IDS_BASE+voice_slot*INST_CAP+vgi]=mem[I_EXISTS_BASE+vgi] && mem[engine_addr(INST_ENABLED_BASE,vgi)]>.5?mem[I_IDS_BASE+vgi]:0;
+    mem[VOICE_INST_IN_BASE+voice_slot*INST_CAP+vgi]=mem[engine_addr(INST_IN_BASE,vgi)];vgi+=1;
+  );
   mem[VOICE_ACTIVE_BASE+voice_slot]=1;
   mem[VOICE_LAYER_BASE+voice_slot]=requested_layer;
   mem[VOICE_POS_BASE+voice_slot]=-max(0,min(samplesblock-1,start_offset));
@@ -2111,7 +2150,7 @@ local(b,r,step,phrase,gi,kind,k,c,found)
   ) : action==SW_STOP ? sw_stop_phrases() : action==SW_RESET || action==SW_STOP_RESET ? (
     action==SW_STOP_RESET ? sw_stop_phrases();
     target==SW_COUNT ? (k=0;loop(SW_COUNT,sw_reset(k);k+=1;);) : target>=0 && target<SW_COUNT ? sw_reset(target);
-  ) : action==SW_RESET_ALL ? (k=0;loop(SW_COUNT,sw_reset(k);k+=1;);) : action==SW_PANIC ? (sw_stop_phrases();send_all_notes_off();) :
+  ) : action==SW_RESET_ALL ? (k=0;loop(SW_COUNT,sw_reset(k);k+=1;);) : action==SW_PANIC ? (sw_stop_phrases();reset_note_runtime();send_all_notes_off();) :
   action>=SW_TOGGLE && action<=SW_DISABLE && target>=0 && target<INST_CAP*TRANSFORM_TYPES ? (
     // Stable instrument/type identity survives chain reordering. Wait for source releases.
     gi=floor(target/TRANSFORM_TYPES);kind=target%TRANSFORM_TYPES+1;c=max(0,min(TRANSFORM_SLOTS,mem[engine_addr(INST_TRANSFORM_COUNT_BASE,gi)]));k=0;found=0;
@@ -2423,21 +2462,19 @@ local(q,gi,op,arg,c,code,typ,b,j,idx,ready,limit,targetcode)
   );
 );
 
+function i_capture_release(st,note,value)
+local(gi,idx,mask)
+(mask=0;(st&240)==128 || ((st&240)==144 && value==0)?(
+ gi=0;loop(INST_CAP,idx=I_QUARANTINE_BASE+(gi*16+(st&15))*128+note;
+ mem[idx]>0?(mem[idx]-=1;mask|=1<<gi;);gi+=1;););mask;);
 function i_submit(op,gi,id)
 local(ui_q,ui_ok)
 (ui_ok=ui_i_write-i_read<I_QUEUE_SIZE;ui_ok?(ui_q=I_QUEUE_BASE+(ui_i_write%I_QUEUE_SIZE)*I_QUEUE_STRIDE;mem[ui_q]=op;mem[ui_q+1]=gi;mem[ui_q+2]=id;ui_i_write+=1;);ui_ok;);
-function i_clear_runtime(gi)
-local(j,idx)
-(j=0;loop(2048,idx=gi*2048+j;mem[engine_addr(SW_LIVE_OUT_BASE,idx)]=0;mem[engine_addr(SW_PHRASE_OUT_BASE,idx)]=0;mem[engine_addr(SW_LOOP_INPUT_BASE,idx)]=0;mem[I_ONCE_OUT_BASE+idx]=0;
- mem[input_addr(gi*2048+j)]=0;mem[input_addr((INST_CAP+gi)*2048+j)]=0;j+=1;);
- j=0;loop(128,mem[engine_addr(ARP_HELD_COUNT_BASE,gi*128+j)]=0;mem[engine_addr(ARP_SOURCE_COUNT_BASE,gi*128+j)]=0;
- mem[engine_addr(SW_ARP_PHRASE_BASE,gi*128+j)]=0;mem[engine_addr(SW_ARP_PHRASE_SOURCE_BASE,gi*128+j)]=0;
- mem[engine_addr(MONO_HELD_COUNT_BASE,gi*128+j)]=0;mem[engine_addr(SW_MONO_PHRASE_BASE,gi*128+j)]=0;j+=1;);
- mem[engine_addr(PARAM_ACTIVE_BASE,gi)]=0;mem[engine_addr(ARP_ACTIVE_NOTE_BASE,gi)]=-1;mem[engine_addr(MONO_ACTIVE_NOTE_BASE,gi)]=-1;
- mem[engine_addr(ARP_CURSOR_BASE,gi)]=-1;mem[engine_addr(ARP_STEP_REMAIN_BASE,gi)]=0;mem[engine_addr(ARP_GATE_REMAIN_BASE,gi)]=0;);
 function i_remove(gi,id)
 local(j,ch,n,idx,si,b,k,held)
 (gi>=0 && gi<INST_CAP && mem[I_EXISTS_BASE+gi] && mem[I_IDS_BASE+gi]==id?(
+ j=0;loop(2048,mem[I_QUARANTINE_BASE+gi*2048+j]+=max(0,mem[input_addr(gi*2048+j)]-mem[engine_addr(SW_LOOP_INPUT_BASE,gi*2048+j)]);j+=1;);
+ mem[I_QUARANTINE_DEADLINE_BASE+gi]=sw_clock+10*srate;
  mem[engine_addr(INST_ENABLED_BASE,gi)]=0;arp_release_instrument(gi);
  j=0;loop(2048,ch=floor(j/128);n=j%128;idx=gi*2048+j;
  mem[NOTE_REF_BASE+j]=max(0,mem[NOTE_REF_BASE+j]-mem[I_ONCE_OUT_BASE+idx]);
@@ -2467,8 +2504,9 @@ local(gi,k,ti,b,j)
  mem[I_EXISTS_BASE+gi]=1;
  );gi;);
 function i_queue_process()
-local(q,op,gi,id)
-(while(i_read<ui_i_write)(q=I_QUEUE_BASE+(i_read%I_QUEUE_SIZE)*I_QUEUE_STRIDE;op=mem[q];gi=mem[q+1];id=mem[q+2];
+local(q,op,gi,id,j)
+(gi=0;loop(INST_CAP,mem[I_QUARANTINE_DEADLINE_BASE+gi]>0 && mem[I_QUARANTINE_DEADLINE_BASE+gi]<=sw_clock?(j=0;loop(2048,mem[I_QUARANTINE_BASE+gi*2048+j]=0;j+=1;);mem[I_QUARANTINE_DEADLINE_BASE+gi]=0;);gi+=1;);
+while(i_read<ui_i_write)(q=I_QUEUE_BASE+(i_read%I_QUEUE_SIZE)*I_QUEUE_STRIDE;op=mem[q];gi=mem[q+1];id=mem[q+2];
  op==1?i_add():op==2?i_remove(gi,id);i_read+=1;););
 
 restore_after_init ? (
@@ -2544,7 +2582,7 @@ while (
     status=msg1&240;
     d1=msg23&127;
     d2=(msg23/256)&127;
-    is_note_on=(status==144 && d2>0);
+    is_note_on=(status==144 && d2>0);i_release_mask=i_capture_release(msg1,d1,d2);
 
     !sw_input(msg1,d1,d2,offset) ? (
     status==176 ? (
@@ -2609,6 +2647,7 @@ while (
   0;
 );
 
+i_release_mask=0;
 sw_poll(sw_clock+samplesblock,samplesblock-1);sw_clock+=samplesblock;
 
 // arm -> active exactly at the next wrap
@@ -2719,7 +2758,7 @@ loop(MAX_ONCE_VOICES,
         // HOLD replays the human attack exactly, but recorded Note Offs do not terminate it.
         // STOP / next phrase performs the release.
         is_recorded_noteoff=((out_status&240)==128) || ((out_status&240)==144 && out_d2==0);
-        !(mem[MODE_BASE+once_layer]>=1.5 && is_recorded_noteoff) ? send_once_to_instruments(out_offs,out_status,out_d1,out_d2,velmul);
+        once_route_voice=vi;!(mem[MODE_BASE+once_layer]>=1.5 && is_recorded_noteoff) ? send_once_to_instruments(out_offs,out_status,out_d1,out_d2,velmul);once_route_voice=-1;
       );
       i+=1;
     );
@@ -2946,7 +2985,7 @@ edit_name_type>0 && keychar>0 ? (
 gfx_set(.055,.055,.055,1);gfx_rect(12,10,1010,48,1);
 gfx_set(.42,.42,.42,1);gfx_rect(12,10,1010,48,0);
 gfx_setfont(1,"Courier New",22,'b');gfx_set(.95,.95,.08,1);
-gfx_x=24;gfx_y=20;gfx_drawstr("MIDI BAD MOTHERFUCKER V.1.26.0");
+gfx_x=24;gfx_y=20;gfx_drawstr("MIDI BAD MOTHERFUCKER V.1.27.0");
 gfx_setfont(1,"Courier New",14,'b');gfx_set(.68,.68,.68,1);
 gfx_x=760;gfx_y=25;gfx_drawstr("ANONYMALZ LIVE ENGINE");
 

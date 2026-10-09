@@ -29,3 +29,22 @@ serial Transformer stacks, independent CC output, removal, shared-pitch ownershi
 stale commands after slot reuse, both banks, eight-panel capacity and dismissal.
 The full previous Phrase/Smart Switch/CC/expression suite remains active.
 REAPER/Helix acceptance on hardware is still required.
+
+Follow-up lifecycle review: ONCE/HOLD voices snapshot enabled destination instrument
+IDs and input channels when triggered. Removing/reusing a slot cannot route an old
+voice's later Note Off into a newly created instrument. New panels join subsequent
+ONCE/HOLD retriggers; live and LOOP routing remain available for new incoming notes.
+New panels ignore source Note Off events for which they have no input owner.
+
+Deleting a panel quarantines its outstanding physical releases separately from
+playback. MIDI releases drain that quarantine before Learn/performance dispatch,
+even while the panel is absent. This protects a replacement's freshly held note.
+Missing releases expire after the established ten-second missing-release policy;
+PANIC clears the quarantine. Deletion also clears pending Smart Switch module actions
+so a reused slot cannot inherit an old bypass/enable command. Regression fixtures
+cover same-phrase overlap across deletion/recreation, live overlapping releases,
+absent-slot releases, Learn-consumed releases, timeout and PANIC sustain cleanup.
+
+Patch LOAD cancels prior runtime voices before applying new phrase/configuration data, preventing an old playback cursor from replaying events from the new patch.
+
+LOAD and explicit PANIC also clear old ONCE references and ARP/mono input ownership, preventing inherited held sources from sounding after the transition.

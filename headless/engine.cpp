@@ -1,5 +1,6 @@
 // Native JACK MIDI host. All EEL and ownership run on one processing thread.
 // Disk, sockets and JSON are confined to the control worker.
+#include "chain_mode.hpp"
 #include "controller_wire.hpp"
 #include "ysfx.hpp"
 #include <algorithm>
@@ -86,6 +87,10 @@ struct Snapshot {
   uint64_t samples = 0, blocks = 0, midi = 0, late = 0, last_sample = 0;
   int revision = 1;
   unsigned pendingOutput = 0;
+  bool chain = false, chainRun = false, chainArmed = false, chainRecord = false,
+       chainError = false;
+  uint64_t chainFrame = 0, chainLength = 0;
+  double chainBpm = 120;
   int backend = 0, sampleRate = 48000, blockSize = 128;
   uint64_t outputOverflow = 0;
   int active = 0, last_status = 0, last_note = 0, last_value = 0;
@@ -409,6 +414,11 @@ static std::string json(const Reply &r) {
     << r.id << ",\"engineSessionId\":" << engineSession
     << ",\"status\":" << quote(status[r.status])
     << ",\"backend\":" << quote(s.backend ? "jack" : "mock")
+    << ",\"chainMode\":" << s.chain << ",\"chainRunning\":" << s.chainRun
+    << ",\"chainArmed\":" << s.chainArmed
+    << ",\"chainRecording\":" << s.chainRecord
+    << ",\"chainError\":" << s.chainError << ",\"chainFrame\":" << s.chainFrame
+    << ",\"chainLength\":" << s.chainLength << ",\"chainBpm\":" << s.chainBpm
     << ",\"sampleRate\":" << s.sampleRate << ",\"blockSize\":" << s.blockSize
     << ",\"sampleClock\":" << s.samples << ",\"blocks\":" << s.blocks
     << ",\"midiCount\":" << s.midi << ",\"activeNotes\":" << s.active
@@ -677,10 +687,10 @@ static void control(int listener, Queue<Request, 64> &commands,
                       request.arg >> request.revision >> request.ch >>
                       request.note >> request.value) &&
                  request.id > 0 && request.id <= 9007199254740991ULL &&
-                 request.op >= 0 && request.op <= 19 && request.arg >= 0 &&
-                 request.arg <= (request.op == 13   ? 5
-                                 : request.op == 15 ? 3
-                                                    : 2) &&
+                 request.op >= 0 && request.op <= 20 && request.arg >= 0 &&
+                 request.arg <= (request.op == 13                       ? 5
+                                 : request.op == 15 || request.op == 20 ? 3
+                                                                        : 2) &&
                  request.ch >= 0 &&
                  (request.op == 11 ? request.ch <= 16 : request.ch < 16) &&
                  request.note >= 0 && request.note < 128 &&
@@ -738,6 +748,8 @@ static void control(int listener, Queue<Request, 64> &commands,
       valid = request.arg <= 1 && request.note <= 16;
     if (valid && request.op >= 11 && request.op <= 18)
       valid = request.target > 0 && request.target <= 16777215;
+    if (valid && request.op == 20)
+      valid = request.target >= 0 && request.target < 16;
     if (!valid)
       send_line(fd, "{\"status\":\"invalid\"}\n", shutdown);
     else if (!commands.push(request))
@@ -762,6 +774,9 @@ static void control(int listener, Queue<Request, 64> &commands,
           paused.store(false, std::memory_order_release);
           send_line(fd, document, shutdown);
         } else {
+          if (reply.status == 0 && request.op == 5 && reply.state.chain &&
+              patchValues[0] != double(reply.state.chainLength))
+            reply.status = 3;
           if (reply.status == 0 && request.op == 5) {
             std::vector<double> previous(9 + patch.memory.size());
             for (unsigned j = 0; j < 9; ++j)
@@ -818,13 +833,23 @@ int main(int argc, char **argv) {
                  "[--demo] [--input JACK_PORT] [--output JACK_PORT]\n";
     return 2;
   }
-  bool useJack = false, demo = false;
+  bool useJack = false, demo = false, chainMode = false;
+  std::string clientName = "midi_human_looper";
   std::string inputPort, outputPort;
   for (int i = 3; i < argc; ++i) {
     std::string a = argv[i];
     if (a == "--jack")
       useJack = true;
-    else if (a == "--demo")
+    else if (a == "--chain")
+      chainMode = true;
+    else if (a == "--client" && i + 1 < argc) {
+      clientName = argv[++i];
+      if (clientName.empty() || clientName.size() > 48 ||
+          clientName.find_first_not_of("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLM"
+                                       "NOPQRSTUVWXYZ0123456789_-") !=
+              std::string::npos)
+        return 2;
+    } else if (a == "--demo")
       demo = true;
     else if ((a == "--input" || a == "--output") && i + 1 < argc) {
       (a == "--input" ? inputPort : outputPort) = argv[++i];
@@ -854,7 +879,9 @@ int main(int argc, char **argv) {
       throw std::runtime_error("JSFX compilation");
     if (useJack) {
       jack_status_t status;
-      jack = jack_client_open("midi_human_looper", JackNoStartServer, &status);
+      jack = jack_client_open(
+          clientName.c_str(),
+          jack_options_t(JackNoStartServer | JackUseExactName), &status);
       if (!jack)
         throw std::runtime_error("JACK unavailable: start/connect Zynthian "
                                  "JACK first, or omit --jack for mock mode");
@@ -873,6 +900,12 @@ int main(int argc, char **argv) {
     ysfx_init(fx);
     if (variable(fx, "IO_SCHEMA") != 7)
       throw std::runtime_error("spike requires audited schema 7");
+    if (chainMode)
+      execute(fx, "ext_noinit=1;gmem[0]=0;slider9=1;remote_ci=0;loop(INST_CAP,"
+                  "mem[engine_addr(INST_ENABLED_BASE,remote_ci)]=remote_ci==0;"
+                  "remote_ci+=1;);mem[engine_addr(INST_IN_BASE,0)]=0;mem["
+                  "engine_addr(INST_OUT_BASE,0)]=0;");
+    ChainMode chain(fx, chainMode);
     if (demo)
       execute(
           fx,
@@ -1160,14 +1193,34 @@ int main(int argc, char **argv) {
              (request.revision != state.revision && request.revision != -1)))
           reply.status = 1;
         else if (request.op == 4 || request.op == 5) {
+          if (chainMode) {
+            chain.cancel();
+            NSEEL_code_execute(panic_bridge);
+          }
           if (request.op == 5)
             NSEEL_code_execute(panic_bridge);
           if (request.op == 5) {
+            chain.cancel();
             controllers.panic();
             ++state.revision;
             loading.store(true, std::memory_order_release);
           }
           maintenance = true;
+        } else if (request.op == 20) {
+          if (!chainMode)
+            reply.status = 3;
+          else {
+            if (request.arg == 0) {
+              controllers.panic();
+              NSEEL_code_execute(panic_bridge);
+            }
+            if (request.arg == 1 || request.arg == 2) {
+              if (jack)
+                jack_transport_start(jack);
+            }
+            if (!chain.command(request.arg, request.target))
+              reply.status = 3;
+          }
         } else if (request.op >= 14) {
           if (request.op == 14) {
             controller::Source source;
@@ -1387,10 +1440,20 @@ int main(int argc, char **argv) {
             ++state.revision;
           }
         } else if (request.op >= 6) {
-          *phraseTarget = request.target;
-          NSEEL_code_execute(request.op == 6   ? phrasePlay
-                             : request.op == 7 ? phraseRecord
-                                               : phraseStop);
+          if (chainMode) {
+            if (jack && request.op != 8)
+              jack_transport_start(jack);
+            if (!chain.command(request.op == 6   ? 1
+                               : request.op == 7 ? 2
+                                                 : 3,
+                               request.target))
+              reply.status = 3;
+          } else {
+            *phraseTarget = request.target;
+            NSEEL_code_execute(request.op == 6   ? phrasePlay
+                               : request.op == 7 ? phraseRecord
+                                                 : phraseStop);
+          }
         } else if (request.op == 1) {
           *target = request.target;
           *gesture = request.arg;
@@ -1398,6 +1461,7 @@ int main(int argc, char **argv) {
           if (*ok != 1)
             reply.status = 2;
         } else if (request.op == 2) {
+          chain.cancel();
           controllers.panic();
           ysfx_midi_clear(fx->midi.in.get());
           inputRead = inputWrite;
@@ -1423,6 +1487,40 @@ int main(int argc, char **argv) {
       if (controllers.tick((state.samples + frames) / double(sampleRate),
                            resolveBinding, applyBinding))
         ++state.revision;
+      if (chainMode) {
+        jack_position_t position{};
+        bool rolling =
+            jack ? jack_transport_query(jack, &position) == JackTransportRolling
+                 : true;
+        auto frame = jack ? uint64_t(position.frame) : state.samples;
+        double bpm =
+            position.valid & JackPositionBBT ? position.beats_per_minute : 120.;
+        if (!std::isfinite(bpm) || bpm < 30 || bpm > 240)
+          bpm = 120.;
+        if (chain.tick(frame, frames, sampleRate, rolling, bpm,
+                       jack ? uint64_t(jack_last_frame_time(jack)) : 0)) {
+          controllers.panic();
+          if (chain.run)
+            *ysfx_find_var(fx, "panic_pending") = 1;
+          else
+            NSEEL_code_execute(panic_bridge);
+        }
+        state.chain = true;
+        state.chainRun = chain.run;
+        state.chainArmed = chain.armed;
+        state.chainRecord = chain.recording;
+        state.chainError = chain.error;
+        state.chainFrame = frame;
+        state.chainLength = chain.length;
+        state.chainBpm = chain.bpm;
+        ysfx_time_info_t time{};
+        time.tempo = chain.bpm;
+        time.playback_state =
+            rolling ? ysfx_playback_playing : ysfx_playback_paused;
+        time.time_signature[0] = 4;
+        time.time_signature[1] = 4;
+        ysfx_set_time_info(fx, &time);
+      }
       ysfx_process_float(fx, nullptr, nullptr, 0, 0, frames);
       ysfx_midi_event_t event{};
       unsigned outputCount = 0;

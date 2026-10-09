@@ -2,6 +2,9 @@
 
 Experimental free-time MIDI phrase instrument for REAPER JSFX, designed through live playing rather than around a fixed sequencer workflow.
 
+For the native Zynthian Piano/Bass/Synthesizer prototype, see
+[installation, chain setup, physical test and rollback](docs/zynthian-native-chains.md).
+
 ## Core vocabulary
 
 - **Phrase**: a recorded expressive MIDI performance. A phrase may contain notes, velocity, CC, sustain, pitch bend and multiple MIDI channels. It can play as LOOP or ONCE.

@@ -26,7 +26,7 @@ def run(command,extra=None):
             os.killpg(child.pid,signal.SIGKILL);child.wait()
         raise
 try:
-    run(['scripts/headless-test.sh'],{'RUN_JACK_TESTS':'1' if a.jack else '0','RUN_NATIVE_TESTS':'0'})
+    run(['scripts/headless-test.sh'],{'RUN_JACK_TESTS':'1' if a.jack else '0','RUN_NATIVE_TESTS':'0','TEST_PYTHON':sys.executable,'RUN_CHAIN_BROWSER':'1' if a.browser=='chromium' else '0'})
     run([sys.executable,'tests/test_controller_integration.py'])
     run(['scripts/controller-test.sh'])
     run(['scripts/controller-test.sh'],{'SANITIZE':'1'})

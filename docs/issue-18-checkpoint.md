@@ -1,5 +1,11 @@
 # Issue #18 implementation checkpoint
 
+Issue #26 follow-up: stable PRs #19–#24 are now merged into main. The native
+three-chain Zynthian prototype is on `feat/zynthian-native-chains`; see
+[zynthian-native-chains.md](zynthian-native-chains.md) for installation and limitations.
+#25 remains an unmerged HUMANIZER foundation; its playback work is still pending.
+The historical dependency chain below describes the pre-merge work.
+
 Resume from branch **`feat/controller-host-integration`**. Do not rebuild the project
 from main or duplicate #19–#22. Nothing has been merged automatically.
 

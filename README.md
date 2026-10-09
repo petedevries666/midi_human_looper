@@ -112,3 +112,13 @@ for conflicts. FORGET clears only the selected MIDI mapping. TEST TAP / DOUBLE /
 HOLD use the same action dispatcher even for disabled switches. SAVE waits for
 pending switch edits before snapshotting the complete patch; update and restart
 the Lua daemon for the patch-script compatibility indication.
+
+## v1.23.0 Phrase TIME DECAY
+
+PHRASES has an independent bipolar TIME DECAY rail (×0.50–×2.00, neutral ×1.00,
+double-click reset). ONCE/HOLD voices scale original MIDI timestamps using the
+existing VEL DECAY retrigger/reset rules. Active overlapping voices retain their
+own factors. LOOP timing remains unchanged. The existing DECAY label is now VEL
+DECAY. Settings persist with the current schema-3 patch system.
+
+See [timing examples, reset rules and tests](docs/time-decay.md).

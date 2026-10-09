@@ -1,5 +1,12 @@
 # MIDI Human Looper: release history
 
+v1.23.0:
+- Independent per-phrase TIME DECAY, centered ×1.00 with double-click reset.
+- Playback-only original-timestamp scaling and per-voice timing snapshots;
+  established velocity-decay retrigger/reset conditions retained.
+- Rename DECAY to VEL DECAY without changing its percentage behavior.
+- Schema-3 reserved-field persistence/migration and MIDI sample-offset regressions.
+
 v1.22.2:
 - PHRASES MIDI Learn assigns playback triggers instead of record/overdub commands.
 - Consume learned trigger press/release without recording them; retain separate

@@ -343,24 +343,26 @@ static void smart_switch_tests(Host &h) {
   h.eq("mem[sw_cfg(2)+11]", 0, "schema2 migration default empty list");
   h.run("sw_defaults();sw_runtime_reset();ui_scroll=510;ui_sw_selected=0;"
         "controller_assign_ti=-1;transform_menu_gi=-1;options_open=0;");
-  h.frame(40, 1138, 1);
-  h.frame(40, 1138, 0);
-  h.block();
-  h.events();
-  h.eq("mem[sw_cfg(0)+11]", 1, "GUI pool appends via audio queue");
+  open_sw_editor(h, 0);
+  sw_editor_click(h, 40, 1138);
+  h.eq("mem[SW_DRAFT_BASE+11]", 1,
+       "GUI pool edits selected draft via audio queue");
+  h.eq("mem[sw_cfg(0)+11]", 0, "GUI pool edits never leak before DONE");
+  sw_editor_done(h);
   h.run("sw_submit(0,3,0,0);sw_queue_process();sw_traverse(0);");
   h.eq("mem[sw_rt(0)+7]", 0, "duplicate references have one active position");
+  open_sw_editor(h, 0);
   h.frame();
-  h.frame();
+  int highlight_y =
+      int(h.val("ui_sw_editor_y")) + 183 - int(h.val("ui_scroll"));
   auto pixel = [&](int x, int y) { return h.pixels[(y * 1040 + x) * 4]; };
-  check(pixel(25, 1163) != pixel(143, 1163),
-        "GUI highlights active position only for duplicate phrase IDs");
-  h.run("options_open=1;");
-  h.frame(40, 1138, 1);
-  h.frame(40, 1138, 0);
-  h.block();
-  h.events();
-  h.eq("mem[sw_cfg(0)+11]", 2, "popup prevents underlying switch pool clicks");
+  check(pixel(25, highlight_y) != pixel(143, highlight_y),
+        "editor highlights active position only for duplicate phrase IDs");
+  sw_editor_cancel(h);
+  h.run("ui_scroll=0;options_open=1;");
+  click(h, 40, 1138);
+  h.eq("mem[sw_cfg(0)+11]", 2,
+       "popup prevents underlying switch configuration changes");
   h.eq("SW_MEMORY_END<8388608", 1,
        "runtime allocation stays inside EEL2 RAM limit");
 }

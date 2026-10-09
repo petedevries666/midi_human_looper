@@ -4,6 +4,33 @@ static void click(Host &h, int x, int y) {
   h.block();
   h.events();
 }
+static void open_sw_editor(Host &h, int si) {
+  if (h.val("ui_sw_editor_open")) {
+    h.run("sw_submit(ui_sw_selected,13,0,0);");
+    h.block();
+    h.events();
+  }
+  int ordinal = 0;
+  for (int j = 0; j < si; j++)
+    if (h.eval("mem[sw_cfg(" + std::to_string(j) + ")+20]") > 0)
+      ordinal++;
+  click(h, 50 + (ordinal % 4) * 250,
+        1490 + 26 + (ordinal / 4) * 84 + 62 - int(h.val("ui_scroll")));
+  h.frame();
+  h.eq("sw_edit_target", si, "card EDIT opens exactly selected switch");
+}
+static void sw_editor_click(Host &h, int x, int old_y) {
+  click(h, x,
+        int(h.val("ui_sw_editor_y")) + old_y - 980 - int(h.val("ui_scroll")));
+}
+static void sw_editor_done(Host &h) {
+  click(h, 750, int(h.val("ui_sw_editor_y")) + 520 - int(h.val("ui_scroll")));
+  h.eq("ui_sw_editor_open", 0, "DONE commits and closes editor");
+}
+static void sw_editor_cancel(Host &h) {
+  click(h, 900, int(h.val("ui_sw_editor_y")) + 520 - int(h.val("ui_scroll")));
+  h.eq("ui_sw_editor_open", 0, "CANCEL discards and closes editor");
+}
 static void learn_ui_tests(Host &h) {
   h.run(
       "sw_defaults();sw_runtime_reset();panic_pending=0;state=STATE_STOPPED;"
@@ -18,20 +45,23 @@ static void learn_ui_tests(Host &h) {
       "mem[sw_cfg(0)+11]=2;mem[sw_cfg(0)+SW_LIST]=0;mem[sw_cfg(0)+SW_LIST+1]=6;"
       "mem[sw_cfg(1)+11]=2;mem[sw_cfg(1)+SW_LIST]=6;mem[sw_cfg(1)+SW_LIST+1]=0;"
       "ui_scroll=510;");
-  click(h, 320, 1046);
+  open_sw_editor(h, 0);
+  sw_editor_click(h, 320, 1046);
   h.eq("sw_learn", 0, "GUI stores precise VERSE learn target");
   h.midi(0x92, 72, 90);
   check(h.events().empty(), "capture does not trigger VERSE");
   h.midi(0x82, 72, 0);
   check(h.events().empty(), "learned release silent");
-  click(h, 170, 1018);
-  click(h, 320, 1046);
+  sw_editor_done(h);
+  open_sw_editor(h, 1);
+  sw_editor_click(h, 320, 1046);
   h.eq("sw_learn", 1, "GUI stores precise CHORUS learn target");
   h.midi(0x92, 73, 1);
   check(h.events().empty(), "capture does not trigger CHORUS");
   h.midi(0x82, 73, 0);
   h.events();
   h.eq("sw_learn", -1, "capture exits Learn");
+  sw_editor_done(h);
   h.eq("mem[sw_cfg(0)+4]", 72, "VERSE assignment retained");
   h.eq("mem[sw_cfg(1)+4]", 73, "CHORUS independent assignment");
   h.midi(0x92, 72, 90);
@@ -46,9 +76,10 @@ static void learn_ui_tests(Host &h) {
   h.events();
   h.eq("mem[sw_rt(1)+7]", 0, "B triggers CHORUS");
   h.eq("mem[sw_rt(0)+7]", 0, "B leaves VERSE position");
+  open_sw_editor(h, 1);
   // Switch conflicts remain visible and actionable while scrolled to the
   // editor.
-  click(h, 320, 1046);
+  sw_editor_click(h, 320, 1046);
   h.midi(0x92, 72, 90);
   h.events();
   h.eq("learn_conflict", 0, "CHORUS learn warns about existing VERSE input");
@@ -58,20 +89,21 @@ static void learn_ui_tests(Host &h) {
        "scrolled conflict cancel is visible and operable");
   h.midi(0x82, 72, 0);
   h.events();
+  sw_editor_cancel(h);
   h.run("ui_scroll=0;");
   click(h, 825, 80);
   h.eq("options_open", 1, "open OPTIONS");
   click(h, 982, 120);
   h.eq("options_open", 0, "visible close button dismisses OPTIONS");
   click(h, 825, 80);
-  h.run("learn_start(4);");
+  h.run("learn_start(SW_COUNT);");
   click(h, 30, 400);
   h.eq("options_open", 0, "outside click dismisses OPTIONS");
   h.eq("controller_learn", -1, "popup close cancels Learn");
   h.eq("state", 4, "outside dismissal does not activate underlying controls");
   h.eq("mem[sw_cfg(0)+4]", 72, "closing preserves VERSE assignment");
   click(h, 825, 80);
-  h.run("learn_start(4);");
+  h.run("learn_start(SW_COUNT);");
   ysfx_gfx_add_key(h.f, 0, 27, true);
   h.frame();
   ysfx_gfx_add_key(h.f, 0, 27, false);
@@ -105,7 +137,7 @@ static void learn_ui_tests(Host &h) {
   click(h, 810, 150);
   h.midi(0xB3, 21, 100);
   check(h.events().empty(), "conflicting learn message consumed");
-  h.eq("learn_conflict", 5,
+  h.eq("learn_conflict", h.val("SW_COUNT") + 1,
        "conflict identifies existing expression controller");
   h.eq("mem[CONTROLLER_CC_BASE]", -1, "conflict cannot overwrite target");
   click(h, 580, 385);
@@ -135,20 +167,26 @@ static void learn_ui_tests(Host &h) {
        "expression FORGET preserves other controller");
   click(h, 982, 120);
   h.run("ui_scroll=510;ui_sw_selected=0;");
-  click(h, 860, 1078);
+  open_sw_editor(h, 0);
+  sw_editor_click(h, 860, 1078);
+  sw_editor_done(h);
   h.eq("mem[sw_cfg(0)+2]", 0, "FORGET A removes only input kind");
   h.eq("mem[sw_cfg(1)+4]", 73, "FORGET A preserves B");
   h.eq("mem[sw_cfg(0)+11]", 2, "FORGET preserves sequence");
   h.eq("mem[sw_cfg(0)+14]", 1, "FORGET preserves gesture action");
-  click(h, 320, 1046);
+  open_sw_editor(h, 0);
+  sw_editor_click(h, 320, 1046);
   h.midi(0x92, 72, 90);
   h.events();
   h.midi(0x82, 72, 0);
   h.events();
+  sw_editor_done(h);
   h.eq("mem[sw_cfg(0)+2]", 1, "A can be relearned");
+  open_sw_editor(h, 0);
   h.run("mem[sw_cfg(0)]=0;sw_reset(0);sw_reset(1);last_trigger_layer=-1;");
-  h.frame(700, 1305, 1);
-  h.frame(700, 1305, 0);
+  int test_y = int(h.val("ui_sw_editor_y")) + 325 - int(h.val("ui_scroll"));
+  h.frame(700, test_y, 1);
+  h.frame(700, test_y, 0);
   h.block();
   auto e = h.events();
   bool note = false;
@@ -159,12 +197,20 @@ static void learn_ui_tests(Host &h) {
   h.eq("mem[sw_rt(0)+12]", 2, "TEST adds exactly one action");
   h.eq("mem[sw_rt(1)+7]", -1, "TEST uses selected switch only");
   h.eq("mem[sw_cfg(0)+4]", 72, "TEST does not alter assignment");
-  h.run("mem[sw_cfg(0)+15]=SW_RESET;mem[sw_cfg(0)+17]=0;mem[sw_cfg(0)+18]=0;"
-        "mem[sw_cfg(0)+16]=SW_STOP;");
-  click(h, 700, 1335);
+  h.run("mem[sw_edit_cfg(0)+15]=SW_RESET;mem[sw_edit_cfg(0)+17]=0;mem[sw_edit_"
+        "cfg(0)+18]=0;"
+        "mem[sw_edit_cfg(0)+16]=SW_STOP;");
+  sw_editor_click(h, 700, 1335);
   h.eq("mem[sw_rt(0)+7]", -1, "TEST DOUBLE dispatches configured reset");
-  click(h, 700, 1365);
+  sw_editor_click(h, 700, 1365);
   h.eq("mem[sw_rt(0)+11]", 2, "TEST HOLD dispatches configured stop");
+  sw_editor_done(h);
+  // Include a fifth committed switch in the real GUI SAVE snapshot.
+  h.run(
+      "sw_submit(0,14,0,0);sw_queue_process();mem[SW_DRAFT_BASE+2]=1;"
+      "mem[SW_DRAFT_BASE+3]=2;mem[SW_DRAFT_BASE+4]=75;mem[SW_DRAFT_BASE+11]=2;"
+      "mem[SW_DRAFT_BASE+SW_LIST]=0;mem[SW_DRAFT_BASE+SW_LIST+1]=6;sw_commit_"
+      "edit();");
   // Include an actual extra CC instance in the native GUI SAVE fixture.
   h.run("mem[INST_TRANSFORM_COUNT_BASE]=2;mem[INST_TRANSFORM_TYPE_BASE]=6;"
         "mem[INST_TRANSFORM_TYPE_BASE+1]=7;mem[cc_cfg(0)]=50;"
@@ -204,7 +250,9 @@ static void learn_ui_tests(Host &h) {
       file << h.eval("gmem[IO_PAYLOAD_BASE+" + std::to_string(i) + "]");
     }
     file << "],\"switch_tail_offset\":" << int(h.val("SW_LEGACY_PAYLOAD"))
-         << ",\"cc_tail_offset\":" << int(h.val("CC_LEGACY_PAYLOAD")) << "}";
+         << ",\"cc_tail_offset\":" << int(h.val("CC_LEGACY_PAYLOAD"))
+         << ",\"dynamic_switch_tail_offset\":"
+         << int(h.val("DS_LEGACY_PAYLOAD")) << "}";
   }
   h.run("sw_defaults();gmem[0]=3;");
   h.block();

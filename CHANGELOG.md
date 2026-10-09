@@ -1,5 +1,11 @@
 # MIDI Human Looper: release history
 
+v1.26.0 (modular UI stage 3):
+- Sparse sixteen-switch engine collection, compact cards, ADD/EDIT and safe deletion.
+- Single draft editor: DONE commits, Cancel/dismissal discards settings and Learn.
+- Deliberate MIDI reassignment commits only on DONE; TEST previews draft actions.
+- Expanded runtime/banks and appended schema 6; unrelated legacy metadata preserved.
+
 v1.25.0 (modular UI stage 2):
 - Independent transpose, range and velocity instances with persistent type/ID metadata.
 - Visible serial note order, multiplicative velocity and safe deferred structural edits.

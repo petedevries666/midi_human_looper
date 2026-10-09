@@ -6,12 +6,20 @@
 #include <jack/jack.h>
 #include <jack/midiport.h>
 #include <thread>
-std::atomic<unsigned> frame{0}, on{0}, off{0};
+std::atomic<unsigned> frame{0}, on{0}, off{0}, emergency{0};
+bool flood = false;
 jack_port_t *input, *output;
 int process(jack_nframes_t n, void *) {
   void *out = jack_port_get_buffer(output, n);
   jack_midi_clear_buffer(out);
   auto f = frame.fetch_add(1);
+  if (flood && f < 100) {
+    for (unsigned i = 0; i < 1024; ++i) {
+      unsigned char m[] = {144, 91, 90};
+      if (jack_midi_event_write(out, 0, m, 3))
+        break;
+    }
+  }
   if (f == 10 || f == 30) {
     unsigned char m[3] = {144, 72,
                           static_cast<unsigned char>(f == 10 ? 100 : 0)};
@@ -27,6 +35,8 @@ int process(jack_nframes_t n, void *) {
     jack_midi_event_t e;
     jack_midi_event_get(&e, in, i);
     if (e.size >= 3) {
+      if ((e.buffer[0] & 240) == 176 && e.buffer[1] == 120 && e.buffer[2] == 0)
+        ++emergency;
       if ((e.buffer[0] & 240) == 144 && e.buffer[2])
         ++on;
       else if ((e.buffer[0] & 240) == 128 ||
@@ -36,7 +46,8 @@ int process(jack_nframes_t n, void *) {
   }
   return 0;
 }
-int main() {
+int main(int argc, char **) {
+  flood = argc > 1;
   jack_status_t status;
   auto c = jack_client_open("midi_smoke", JackNoStartServer, &status);
   if (!c)
@@ -51,9 +62,10 @@ int main() {
   if (jack_connect(c, jack_port_name(output), "midi_human_looper:midi_in") ||
       jack_connect(c, "midi_human_looper:midi_out", jack_port_name(input)))
     return 3;
-  std::this_thread::sleep_for(std::chrono::seconds(2));
+  std::this_thread::sleep_for(std::chrono::seconds(flood ? 4 : 2));
   jack_deactivate(c);
   jack_client_close(c);
-  std::cout << "JACK notes on=" << on << " off=" << off << '\n';
-  return on >= 2 && off >= 2048 ? 0 : 1;
+  std::cout << "JACK notes on=" << on << " off=" << off
+            << " emergency=" << emergency << '\n';
+  return on >= 2 && off >= 2048 && (!flood || emergency >= 16) ? 0 : 1;
 }

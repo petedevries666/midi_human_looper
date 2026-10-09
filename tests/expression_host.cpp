@@ -661,6 +661,7 @@ static void stress(Host &h, bool historical, bool cc_instances = false, bool dyn
   if (!historical)
     check(hashes.size() == 1, "concurrent audio/GFX render is stable");
 }
+#include "midi_burst_cases.hpp"
 #include "cc_instance_cases.hpp"
 #include "learn_ui_cases.hpp"
 #include "dynamic_switch_cases.hpp"
@@ -684,6 +685,7 @@ int main(int argc, char **argv) {
     stress(h, std::string(argv[2]) == "--historical");
     return 0;
   }
+  Host bursts(argv[1]);midi_burst_tests(bursts);
   assignment(h);
   persistence(h, argv[2]);
   gui(h);

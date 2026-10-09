@@ -1,6 +1,6 @@
 # First Zynthian test: issue #18, runnable P0
 
-This branch starts from merged main after #17. It hosts the unchanged schema-7
+This branch starts from merged main after #17. It hosts the existing schema-7
 JSFX with ysfx, without `@gfx`, and uses **native JACK MIDI ports**. Stock ysfx does
 not provide LV2. Standalone JACK is the shortest test route; chain/service integration
 and an LV2 adapter remain later work. No SSH, actual Pi access or automatic deployment
@@ -101,6 +101,12 @@ callbacks remain responsive but MIDI processing is paused, then resumes stopped.
 Do not LOAD while performing timing-critical MIDI. No disk/JSON/socket work runs in
 the JACK processing callback. PANIC clears phrase playback, live ARP and owned notes.
 Large Note Off bursts drain through a bounded output FIFO across JACK blocks.
+Input processing is capped at 128 queued events per block. On FIFO overload the host
+discards stale pending events, sends channel sustain-off/all-notes-off/all-sound-off,
+and runs PANIC before resuming input. Overflow counters remain visible for diagnosis.
+The existing JSFX receive loop is also corrected to process every event in a block;
+previously its trailing constant stopped the loop after the first event. Same-block
+chord and exclusive MIDI Learn regressions cover this minimal REAPER fix.
 
 The current basic UI includes phrase PLAY, REC/OVERDUB and FINISH REC, Instrument
 routing/enabled/volume, existing Transformer cards, switch TAP/DOUBLE/HOLD TEST,

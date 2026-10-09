@@ -683,7 +683,7 @@ int main(int argc, char **argv) {
     unsigned outputRead = 0, outputWrite = 0;
     std::atomic<unsigned> outputPending{0};
     std::atomic<bool> finalAcknowledged{false};
-    bool muted = false;
+    bool muted = false, overflowRecovery = false;
     std::unique_ptr<std::array<MidiPacket, 8192>> inputQueue(
         new std::array<MidiPacket, 8192>());
     unsigned inputRead = 0, inputWrite = 0;
@@ -705,20 +705,35 @@ int main(int argc, char **argv) {
     std::function<int(jack_nframes_t)> process = [&](jack_nframes_t frames) {
       void *outBuffer =
           useJack ? jack_port_get_buffer(midiOut, frames) : nullptr;
+      bool recovering = overflowRecovery;
+      overflowRecovery = false;
       if (outBuffer) {
         jack_midi_clear_buffer(outBuffer);
-        flushOutput(outBuffer, frames);
+        if (recovering) {
+          outputRead = outputWrite;
+          inputRead = inputWrite;
+          ysfx_midi_clear(fx->midi.in.get());
+          NSEEL_code_execute(panic_bridge);
+          for (unsigned ch = 0; ch < 16; ++ch)
+            for (unsigned cc : {64u, 123u, 120u}) {
+              uint8_t data[] = {uint8_t(176 | ch), uint8_t(cc), 0};
+              if (jack_midi_event_write(outBuffer, 0, data, 3))
+                overflowRecovery = true;
+            }
+        } else
+          flushOutput(outBuffer, frames);
       }
-      if (useJack && !muted) {
+      if (useJack && !muted && !recovering) {
         void *in = jack_port_get_buffer(midiIn, frames);
         unsigned n = jack_midi_get_event_count(in);
         for (unsigned i = 0; i < n; ++i) {
           jack_midi_event_t e;
           if (!jack_midi_event_get(&e, in, i) &&
               !loading.load(std::memory_order_acquire)) {
-            if (inputWrite - inputRead >= 8192 || e.size > 256)
+            if (inputWrite - inputRead >= 8192 || e.size > 256) {
               ++state.outputOverflow;
-            else {
+              overflowRecovery = true;
+            } else {
               auto &m = (*inputQueue)[inputWrite++ % 8192];
               m.size = e.size;
               m.offset = e.time;
@@ -732,15 +747,20 @@ int main(int argc, char **argv) {
           (*inputQueue)[q % 8192].offset = 0;
         return 0;
       }
-      while (inputRead != inputWrite) {
+      unsigned inputBudget = 128;
+      while (inputRead != inputWrite && inputBudget--) {
         auto &m = (*inputQueue)[inputRead++ % 8192];
         ysfx_midi_event_t e{};
         e.offset = std::min(m.offset, frames - 1);
         e.size = m.size;
         e.data = m.data.data();
-        if (!ysfx_send_midi(fx, &e))
+        if (!ysfx_send_midi(fx, &e)) {
           ++state.outputOverflow;
+          overflowRecovery = true;
+        }
       }
+      for (unsigned q = inputRead; q != inputWrite; ++q)
+        (*inputQueue)[q % 8192].offset = 0;
       auto start = std::chrono::steady_clock::now();
       std::array<Reply, 8> pending{};
       unsigned count = 0;
@@ -806,9 +826,10 @@ int main(int argc, char **argv) {
       while (ysfx_receive_midi(fx, &event)) {
         ++state.midi;
         if (outBuffer) {
-          if (outputWrite - outputRead >= 8192 || event.size > 256)
+          if (outputWrite - outputRead >= 8192 || event.size > 256) {
             ++state.outputOverflow;
-          else {
+            overflowRecovery = true;
+          } else {
             auto &m = (*outputQueue)[outputWrite++ % 8192];
             m.size = event.size;
             m.offset = event.offset;

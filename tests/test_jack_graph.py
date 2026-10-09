@@ -35,6 +35,18 @@ with tempfile.TemporaryDirectory(prefix='midi-jack-') as temp:
         assert observer.wait(timeout=10)==0
         assert state['activeNotes']==0 and state['outputOverflow']==0,state
         print('PASS actual JACK graph: two Instruments, phrase switch, Note On/Off and PANIC')
+        deadline=time.monotonic()+5
+        while command(0,0,0,0,rev)['pendingOutput'] and time.monotonic()<deadline:time.sleep(.02)
+        flood=subprocess.Popen([probe,'--flood'],env=env)
+        time.sleep(2.6)
+        before=command(0,0,0,0,rev)
+        print('Flood diagnostic', {k:before[k] for k in ('midiCount','outputOverflow','pendingOutput','lateBlocks')},flush=True)
+        state=command(2,0,0,0,rev)
+        assert flood.wait(timeout=10)==0
+        assert before['outputOverflow']>0,before
+        assert state['activeNotes']==0,state
+        print('PASS actual JACK FIFO overflow: emergency channel releases, bounded recovery and final PANIC')
+
     finally:
         if engine is not None:engine.terminate();engine.communicate(timeout=10)
         server.terminate();server.communicate(timeout=5)

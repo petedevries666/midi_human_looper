@@ -1,4 +1,4 @@
-desc:MIDI Human Looper v1.22.0
+desc:MIDI Human Looper v1.22.1
 options:gmem=MIDI_HUMAN_LOOPER
 
 // Release history: CHANGELOG.md. Free-time MIDI phrase instrument.
@@ -176,7 +176,8 @@ SW_QUEUE_SIZE=64;SW_QUEUE_STRIDE=4;
 SW_RELEASE_BASE=SW_QUEUE_BASE+SW_QUEUE_SIZE*SW_QUEUE_STRIDE;
 SW_RELEASE_SIZE=16;
 SW_MODULE_BASE=SW_RELEASE_BASE+SW_RELEASE_SIZE*4;
-SW_PHRASE_OUT_BASE=SW_MODULE_BASE+INSTRUMENTS*TRANSFORM_TYPES;
+SW_LEARN_RELEASE_DEADLINE_BASE=SW_MODULE_BASE+INSTRUMENTS*TRANSFORM_TYPES;
+SW_PHRASE_OUT_BASE=SW_LEARN_RELEASE_DEADLINE_BASE+SW_RELEASE_SIZE;
 SW_LIVE_OUT_BASE=SW_PHRASE_OUT_BASE+INSTRUMENTS*16*128;
 SW_LOOP_INPUT_BASE=SW_LIVE_OUT_BASE+INSTRUMENTS*16*128;
 SW_MONO_PHRASE_BASE=SW_LOOP_INPUT_BASE+INSTRUMENTS*16*128;
@@ -508,11 +509,11 @@ local(si,r,j,t)
   si=0;loop(SW_COUNT,
     r=sw_rt(si);mem[r]>0 || mem[r+17]==3 ? (
       j=0;t=-1;loop(SW_RELEASE_SIZE,mem[SW_RELEASE_BASE+j*4]==0 && t<0?t=j;j+=1;);
-      t>=0 ? (t=SW_RELEASE_BASE+t*4;mem[t]=mem[r+13];mem[t+1]=mem[r+14];mem[t+2]=mem[r+15];mem[t+3]=mem[r+19];);
+      t>=0 ? (t=SW_RELEASE_BASE+t*4;mem[t]=mem[r+13];mem[t+1]=mem[r+14];mem[t+2]=mem[r+15];mem[t+3]=mem[r+19];mem[SW_LEARN_RELEASE_DEADLINE_BASE+(t-SW_RELEASE_BASE)/4]=0;);
     );
     j=0;loop(SW_RT_STRIDE,mem[r+j]=0;j+=1;);sw_reset(si);si+=1;
   );
-  sw_last_active=-1;sw_learn=-1;sw_learn_request=-1;sw_clock=0;
+  learn_candidate=-1;learn_conflict=-1;controller_learn=-1;phrase_note_learn=-1;sw_last_active=-1;sw_learn=-1;sw_learn_request=-1;sw_clock=0;
   sw_queue_read=0;sw_queue_write=0;sw_playback_origin=0;
   j=SW_PHRASE_OUT_BASE;loop(SW_MEMORY_END-SW_PHRASE_OUT_BASE,mem[j]=0;j+=1;);
   j=0;loop(INSTRUMENTS*TRANSFORM_TYPES,mem[SW_MODULE_BASE+j]=-999;j+=1;);
@@ -1250,6 +1251,7 @@ function external_patch_save_request(slot)
 local(j)
 (
   // Copy a stable snapshot to shared memory; Lua writes JSON outside the JSFX.
+  io_status=1;
   gmem[1]=slot;
   gmem[2]=IO_SCHEMA;
   gmem[3]=PATCH_PAYLOAD_SIZE;
@@ -1268,6 +1270,14 @@ local(j)
     j+=1;
   );
   gmem[0]=1;
+);
+
+function save_patch_file_snapshot(slot)
+local(previous)
+(
+  previous=current_patch;save_patch(slot);current_patch=previous;
+  // Only Lua's acknowledgement means the external file was saved.
+  save_flash=0;external_patch_save_request(slot);
 );
 
 function external_patch_load_request(slot)
@@ -1762,26 +1772,109 @@ local(b,r)
     );mem[r+5]=0;
   );
 );
+
+// One Learn target across switches (0..3), controllers (4..7), phrases (8..23).
+// Reserved schema-3 fields +24/+25 store controller channel (0 legacy ANY) / kind.
+// Fields +27..30 store exact phrase-trigger channels (0 legacy ANY).
+function learn_phrase_channel(layer)
+(sw_cfg(floor(layer/4))+27+layer%4;);
+function learn_cancel()
+(sw_learn=-1;controller_learn=-1;phrase_note_learn=-1;learn_candidate=-1;learn_conflict=-1;);
+function learn_start(target)
+(
+  learn_cancel();
+  target>=0 && target<SW_COUNT ? sw_learn=target :
+  target>=SW_COUNT && target<SW_COUNT+CONTROLLERS ? controller_learn=target-SW_COUNT :
+  target>=SW_COUNT+CONTROLLERS && target<SW_COUNT+CONTROLLERS+LAYERS ? phrase_note_learn=target-SW_COUNT-CONTROLLERS;
+);
+function learn_matches(target,kind,ch,num)
+local(b,index)
+(
+  target<SW_COUNT ? (
+    b=sw_cfg(target);mem[b+2]==kind && mem[b+3]==ch && mem[b+4]==num;
+  ) : target<SW_COUNT+CONTROLLERS ? (
+    index=target-SW_COUNT;b=sw_cfg(index);
+    mem[CONTROLLER_CC_BASE+index]==num && (mem[b+25]==0?kind==2:mem[b+25]==kind) && (mem[b+24]==0 || mem[b+24]==ch+1);
+  ) : (
+    index=target-SW_COUNT-CONTROLLERS;
+    kind==1 && mem[PHRASE_NOTE_BASE+index]==num && (mem[learn_phrase_channel(index)]==0 || mem[learn_phrase_channel(index)]==ch+1);
+  );
+);
+function learn_forget(target)
+local(b,index,r)
+(
+  target>=0 && target<SW_COUNT ? (
+    b=sw_cfg(target);mem[b+2]=0;r=sw_rt(target);mem[r+2]=1;mem[r+3]=0;mem[r+5]=0;mem[r+17]=0;
+  ) : target>=SW_COUNT && target<SW_COUNT+CONTROLLERS ? (
+    index=target-SW_COUNT;b=sw_cfg(index);mem[CONTROLLER_CC_BASE+index]=-1;mem[b+24]=0;mem[b+25]=0;
+  ) : target>=SW_COUNT+CONTROLLERS && target<SW_COUNT+CONTROLLERS+LAYERS ? (
+    index=target-SW_COUNT-CONTROLLERS;mem[PHRASE_NOTE_BASE+index]=-1;mem[learn_phrase_channel(index)]=0;
+  );
+);
+function learn_quarantine(kind,ch,num,release)
+local(j,t)
+(
+  j=0;t=-1;loop(SW_RELEASE_SIZE,mem[SW_RELEASE_BASE+j*4]==0 && t<0?t=SW_RELEASE_BASE+j*4;j+=1;);
+  t>=0 ? (mem[t]=kind;mem[t+1]=ch;mem[t+2]=num;mem[t+3]=release;mem[SW_LEARN_RELEASE_DEADLINE_BASE+(t-SW_RELEASE_BASE)/4]=sw_clock+10*srate;);
+);
+function learn_apply()
+local(b,index,r)
+(
+  learn_candidate>=0 ? (
+    learn_candidate<SW_COUNT ? (
+      b=sw_cfg(learn_candidate);mem[b+2]=learn_kind;mem[b+3]=learn_channel;mem[b+4]=learn_number;
+      mem[b+12]=learn_press;mem[b+13]=learn_release;mem[b]=1;mem[sw_rt(learn_candidate)+17]=0;
+    ) : learn_candidate<SW_COUNT+CONTROLLERS ? (
+      index=learn_candidate-SW_COUNT;b=sw_cfg(index);mem[CONTROLLER_CC_BASE+index]=learn_number;
+      mem[b+24]=learn_channel+1;mem[b+25]=learn_kind;
+    ) : (
+      index=learn_candidate-SW_COUNT-CONTROLLERS;mem[PHRASE_NOTE_BASE+index]=learn_number;
+      mem[learn_phrase_channel(index)]=learn_channel+1;
+    );learn_cancel();
+  );
+);
+function learn_capture(kind,ch,num,value,is_press)
+local(target,j,release,b)
+(
+  target=sw_learn>=0?sw_learn:controller_learn>=0?SW_COUNT+controller_learn:phrase_note_learn>=0?SW_COUNT+CONTROLLERS+phrase_note_learn:-1;
+  target>=0 && (is_press || kind==2 && target<SW_COUNT+CONTROLLERS) ? (
+    // Snapshot target and event before clearing all listeners. No performance path sees it.
+    learn_candidate=target;sw_learn=-1;controller_learn=-1;phrase_note_learn=-1;
+    learn_kind=kind;learn_channel=ch;learn_number=num;learn_press=kind==2?value:127;
+    learn_release=kind==2 && value==0?127:0;learn_conflict=-1;
+    j=0;loop(SW_COUNT+CONTROLLERS+LAYERS,
+      j!=target && learn_matches(j,kind,ch,num) && learn_conflict<0 ? learn_conflict=j;j+=1;
+    );
+    release=learn_release;
+    learn_conflict>=0 && learn_conflict<SW_COUNT ? (b=sw_cfg(learn_conflict);release=mem[b+13];);
+    learn_quarantine(kind,ch,num,release);
+    learn_conflict<0 ? learn_apply();1;
+  ) : 0;
+);
+function learn_confirm()
+local(j,target)
+(
+  learn_candidate>=0 && learn_conflict>=0 ? (
+    target=learn_candidate;j=0;loop(SW_COUNT+CONTROLLERS+LAYERS,
+      j!=target && learn_matches(j,learn_kind,learn_channel,learn_number)?learn_forget(j);j+=1;
+    );learn_apply();
+  );
+);
+
 function sw_input(st,num,value,offs)
 local(kind,ch,press,si,b,r,matched,thru,t,j,now)
 (
   kind=(st&240)==176?2:((st&240)==144 || (st&240)==128)?1:0;ch=st&15;
   press=kind==1 && (st&240)==144 && value>0;matched=-1;thru=0;now=sw_clock+offs;
-  sw_poll(now,offs);
   // Stale command releases from prior presets remain silent.
   j=0;loop(SW_RELEASE_SIZE,t=SW_RELEASE_BASE+j*4;
+    mem[SW_LEARN_RELEASE_DEADLINE_BASE+j]>0 && now>=mem[SW_LEARN_RELEASE_DEADLINE_BASE+j]?mem[t]=0;
     mem[t]==kind && kind>0 && mem[t+1]==ch && mem[t+2]==num ? (
       matched=-2;kind==1 && !press || kind==2 && value==mem[t+3] ? mem[t]=0;
     );j+=1;
   );
-  sw_learn>=0 && sw_learn<SW_COUNT && (press || kind==2) && matched==-1 ? (
-    si=sw_learn;b=sw_cfg(si);
-    sw_assign(si,kind,ch,num,kind==2?value:127,kind==2 && value==0?127:0) ? (
-      mem[b]=1;sw_learn=-1;matched=-2;
-      r=sw_rt(si);mem[r]=1;mem[r+1]=now;mem[r+2]=1;mem[r+3]=0;
-      mem[r+13]=kind;mem[r+14]=ch;mem[r+15]=num;mem[r+16]=0;mem[r+19]=mem[b+13];
-    ); // Rejected duplicate learn leaves the existing owner in control.
-  );
+  matched==-1 && learn_capture(kind,ch,num,value,press) ? matched=-2;
+  matched==-1 ? sw_poll(now,offs);
   si=0;loop(SW_COUNT,b=sw_cfg(si);r=sw_rt(si);
     matched==-1 && kind>0 && ((mem[r]>0 && mem[r+13]==kind && mem[r+14]==ch && mem[r+15]==num) ||
       (mem[b]>0 && mem[b+2]==kind && mem[b+3]==ch && mem[b+4]==num)) ? (
@@ -1796,12 +1889,13 @@ local(kind,ch,press,si,b,r,matched,thru,t,j,now)
 function sw_queue_process()
 local(q,si,op,arg,value,b,r,j,k,n,tmp,target,gi,kind,c)
 (
-  sw_learn_request!=-1 ? (sw_learn=sw_learn_request==-2?-1:sw_learn_request;sw_learn_request=-1;);
+  sw_learn_request!=-1 ? (learn_start(sw_learn_request);sw_learn_request=-1;);
   loop(min(SW_QUEUE_SIZE,sw_queue_write-sw_queue_read),
     q=SW_QUEUE_BASE+(sw_queue_read%SW_QUEUE_SIZE)*SW_QUEUE_STRIDE;si=mem[q];op=mem[q+1];arg=mem[q+2];value=mem[q+3];sw_queue_read+=1;
     si>=0 && si<SW_COUNT ? (
       b=sw_cfg(si);r=sw_rt(si);n=mem[b+11];
-      op==0 ? sw_fire(si,arg,0) : op==1 ? (
+      op==8 ? learn_forget(arg) : op==9 ? learn_confirm() : op==10 ? learn_cancel() :
+      op==0 ? (arg>=0 && arg<3 && mem[b+14+arg]>0 ? sw_action(si,mem[b+14+arg],mem[b+17+arg],0);) : op==1 ? (
         // Assign message fields atomically; conflicting assignments remain unchanged.
         sw_assign(si,arg,mem[b+3],value,mem[b+12],mem[b+13]);
       ) : op==2 ? (
@@ -1862,6 +1956,8 @@ gmem[0]==4 ? (io_status=4; gmem[0]=0;);
 gmem[0]==5 ? (io_status=5; gmem[0]=0;);
 
 sw_queue_process();
+// SAVE snapshots after pending GUI edits, on the DSP owner thread.
+patch_save_request>0 && gmem[0]==0 ? (save_patch_file_snapshot(patch_save_request);patch_save_request=0;);
 param_expression_tick();
 ii=0;
 loop(INSTRUMENTS,
@@ -1928,21 +2024,20 @@ while (
 
     !sw_input(msg1,d1,d2,offset) ? (
     status==176 ? (
-      controller_learn>=0 && controller_learn<CONTROLLERS ? (mem[CONTROLLER_CC_BASE+controller_learn]=d1;controller_learn=-1;);
-      ci=0;loop(CONTROLLERS,mem[CONTROLLER_CC_BASE+ci]>=0 && d1==mem[CONTROLLER_CC_BASE+ci]?controller_set_value(ci,d2/127);ci+=1;);
+      // Learning was already consumed by the exclusive input capture above.
+      ci=0;loop(CONTROLLERS,learn_matches(SW_COUNT+ci,2,msg1&15,d1)?controller_set_value(ci,d2/127);ci+=1;);
     );
 
-    // Learn a trigger without recording it; learned trigger notes are command-only.
-    phrase_note_learn>=0 && is_note_on ? (
-      mem[PHRASE_NOTE_BASE+phrase_note_learn]=d1;
-      phrase_note_learn=-1;
-      is_trigger_command=1;
-    ) : (
+    status==144 || status==128 ? (
+      ci=0;loop(CONTROLLERS,learn_matches(SW_COUNT+ci,1,msg1&15,d1)?controller_set_value(ci,is_note_on?1:0);ci+=1;);
+    );
+    // Learn capture is centralized; existing trigger behavior follows unchanged.
+    (
       is_trigger_command=0;
       is_note_on ? (
         ti=0;
         loop(LAYERS,
-          mem[PHRASE_NOTE_BASE+ti]==d1 ? (
+          learn_matches(SW_COUNT+CONTROLLERS+ti,1,msg1&15,d1) ? (
             select_phrase_record(ti);
             is_trigger_command=1;
           );
@@ -2187,7 +2282,7 @@ gfx_set(0,0,0,1); gfx_rect(0,0,gfx_w,ui_content_h,1);
 
 // Save input once. A modal popup owns this whole frame, including dismissal.
 ui_real_cap=mouse_cap;
-ui_frame_modal=ui_modal=controller_assign_ti>=0 || transform_menu_gi>=0 || options_open;
+ui_frame_modal=ui_modal=controller_assign_ti>=0 || transform_menu_gi>=0 || options_open || learn_candidate>=0;
 ui_modal ? mouse_cap=0;
 !(ui_real_cap&1) ? ui_capture_ti=-1;
 
@@ -2346,9 +2441,9 @@ smallbtn(246,py,52,30,"SAVE",0);
 smallbtn(310,py,92,30,"LOAD FILE",0);
 
 hit(20,py,70,30) ? current_patch=1;
-hit(96,py,52,30) ? external_patch_save_request(1);
+hit(96,py,52,30) ? patch_save_request=1;
 hit(170,py,70,30) ? current_patch=2;
-hit(246,py,52,30) ? external_patch_save_request(2);
+hit(246,py,52,30) ? patch_save_request=2;
 hit(310,py,92,30) ? external_patch_load_request(current_patch);
 
 save_flash>0 ? (
@@ -2362,10 +2457,11 @@ save_flash>0 ? (
 
 gfx_setfont(1,"Arial",12);
 gfx_x=420; gfx_y=116;
-gmem[15]>0.5 ? gfx_drawstr("FILE I/O READY") : gfx_drawstr("RUN PATCH I/O SCRIPT");
-io_status==3 ? (gfx_x=560; gfx_y=116; gfx_drawstr("LOADED"););
-io_status==4 ? (gfx_x=560; gfx_y=116; gfx_drawstr("SAVED"););
-io_status==5 ? (gfx_x=560; gfx_y=116; gfx_drawstr("I/O ERROR"););
+gmem[15]>0.5 ? (gmem[16]>=IO_SCHEMA?gfx_drawstr("FILE I/O READY"):gfx_drawstr("UPDATE PATCH I/O SCRIPT")) : gfx_drawstr("RUN PATCH I/O SCRIPT");
+patch_save_request>0 || io_status==1 ? (gfx_x=740;gfx_y=116;gfx_drawstr("SAVING..."););
+io_status==3 ? (gfx_x=740; gfx_y=116; gfx_drawstr("LOADED"););
+io_status==4 ? (gfx_x=740; gfx_y=116; gfx_drawstr("SAVED"););
+io_status==5 ? (gfx_x=740; gfx_y=116; gfx_drawstr("I/O ERROR"););
 
 hit(bx,by,bw,bh) ? (
   loop_len_samples>0 && (state==STATE_STOPPED || state==STATE_IDLE) ? (
@@ -2472,7 +2568,7 @@ loop(PHRASES_PER_PAGE,
 
     kx=226;mx=249;ui_sx=270;modex=294;trigx=336;
     phrase_icon(kx,rowy,20,28,0,phrase_note_learn==gui_layer);
-    hit(kx,rowy,20,28) ? phrase_note_learn=phrase_note_learn==gui_layer ? -1 : gui_layer;
+    hit(kx,rowy,20,28) ? sw_learn_request=phrase_note_learn==gui_layer?-2:SW_COUNT+CONTROLLERS+gui_layer;
     phrase_has_events ? (
       gfx_set(mem[MUTE_BASE+gui_layer]>0.5 ? .95 : .82,.82,.82,1);
       gfx_setfont(1,"Arial",12);gfx_x=mx+4;gfx_y=rowy+7;gfx_drawstr("M");
@@ -3209,10 +3305,11 @@ local(b,r,k,x,row,step,page,n,act,target)
   sw_ui_button(770,y+56,24,"-",0)?sw_submit(ui_sw_selected,1,mem[b+2],max(0,mem[b+4]-1));
   smallbtn(798,y+56,125,24,#sw_label,0);
   sw_ui_button(930,y+56,24,"+",0)?sw_submit(ui_sw_selected,1,mem[b+2],min(127,mem[b+4]+1));
+  sw_ui_button(790,y+88,170,"FORGET MIDI",0)?(sw_learn_request=-2;sw_submit(ui_sw_selected,8,ui_sw_selected,0););
   sprintf(#sw_label,"CHANNEL %d",mem[b+3]+1);sw_ui_adjust(20,y+88,220,3,0,15,1,#sw_label);
   sprintf(#sw_label,"CC PRESS %d",mem[b+12]);sw_ui_adjust(260,y+88,220,12,0,127,1,#sw_label);
   sprintf(#sw_label,"CC RELEASE %d",mem[b+13]);sw_ui_adjust(500,y+88,220,13,0,127,1,#sw_label);
-  gfx_x=735;gfx_y=y+94;gfx_drawstr("CC needs distinct press / release");
+
   mem[b+1]==0 ? (
     gfx_x=20;gfx_y=y+125;gfx_drawstr("PHRASE POOL: click to append (duplicates allowed)");
     k=0;loop(LAYERS,
@@ -3244,7 +3341,7 @@ local(b,r,k,x,row,step,page,n,act,target)
     sw_ui_button(110,row,215,sw_ui_action_name(act),act>0)?sw_submit(ui_sw_selected,2,14+k,mem[b+1]>0 && act==0?2:(act+1)%10);
     act==3 || act==5 ? sprintf(#sw_label,target==SW_COUNT?"TARGET: ALL SWITCHES":"TARGET: SWITCH %d",target+1) : act>=7 ? sprintf(#sw_label,"INST %d / %s",floor(target/TRANSFORM_TYPES)+1,target%TRANSFORM_TYPES==0?"TRANSPOSE":target%TRANSFORM_TYPES==1?"RANGE":target%TRANSFORM_TYPES==2?"MONO":target%TRANSFORM_TYPES==3?"VELOCITY":target%TRANSFORM_TYPES==4?"ARP":"CC / MOD") : strcpy(#sw_label,"GLOBAL / NO TARGET");
     sw_ui_button(340,row,300,#sw_label,0) && (act==3 || act==5 || act>=7)?sw_submit(ui_sw_selected,2,17+k,(target+1)%(act>=7?INSTRUMENTS*TRANSFORM_TYPES:SW_COUNT+1));
-    sw_ui_button(660,row,120,"TEST",0)?sw_submit(ui_sw_selected,0,k,0);k+=1;
+    sw_ui_button(660,row,120,k==0?"TEST TAP":k==1?"TEST DOUBLE":"TEST HOLD",0)?sw_submit(ui_sw_selected,0,k,0);k+=1;
   );
   sw_ui_button(20,y+420,220,mem[b+6]==0?"POLICY: INSTANT":"POLICY: EXCLUSIVE",mem[b+6]>0)?sw_submit(ui_sw_selected,2,6,1-mem[b+6]);
   sprintf(#sw_label,"DOUBLE %d ms",mem[b+7]);sw_ui_adjust(260,y+420,240,7,50,2000,50,#sw_label);
@@ -3256,7 +3353,7 @@ local(b,r,k,x,row,step,page,n,act,target)
 draw_smart_switches(1490);
 
 // Overlay input is restored after all underlying controls have finished.
-mouse_cap=ui_real_cap;ui_modal=0;
+mouse_cap=ui_real_cap;ui_modal=learn_candidate>=0;
 draw_transform_menu_overlay(0,transform_rows_y);
 draw_transform_menu_overlay(1,transform_rows_y+124);
 draw_transform_menu_overlay(2,transform_rows_y+248);
@@ -3278,16 +3375,37 @@ controller_assign_ti>=0 ? (
 controller_assign_ti>=0 && ((mouse_cap&1 && !(last_mouse_cap&1) &&
   (mouse_x<ax || mouse_x>=ax+aw || mouse_y<ay || mouse_y>=ay+132)) || keychar==27) ? controller_assign_ti=-1;
 
-options_open ? (
-  ox=560;oy=104;ow=322;oh=178;gfx_set(.025,.025,.025,1);gfx_rect(ox,oy,ow,oh,1);gfx_set(.82,.82,.82,1);gfx_rect(ox,oy,ow,oh,0);
-  gfx_setfont(1,"Arial",15);gfx_set(.9,.9,.9,1);gfx_x=ox+12;gfx_y=oy+10;gfx_drawstr("CONTROLLERS");
+
+options_open && learn_candidate<0 ? (
+  ox=500;oy=104;ow=500;oh=188;gfx_set(.025,.025,.025,1);gfx_rect(ox,oy,ow,oh,1);gfx_set(.82,.82,.82,1);gfx_rect(ox,oy,ow,oh,0);
+  gfx_setfont(1,"Arial",15);gfx_x=ox+12;gfx_y=oy+10;gfx_drawstr("CONTROLLERS");
+  smallbtn(ox+ow-30,oy+6,24,24,"×",0);
+  ui_close_options=hit(ox+ow-30,oy+6,24,24) || keychar==27 ||
+    (ui_frame_modal && (mouse_cap&1) && !(last_mouse_cap&1) && (mouse_x<ox || mouse_x>=ox+ow || mouse_y<oy || mouse_y>=oy+oh));
   ui_ci=0;loop(CONTROLLERS,
-    cy=oy+38+ui_ci*31;gfx_setfont(1,"Arial",11);gfx_set(.82,.82,.82,1);gfx_x=ox+12;gfx_y=cy+6;gfx_drawstr(controller_name(ui_ci));
-    gfx_setfont(1,"Arial",9);gfx_set(.62,.62,.62,1);gfx_x=ox+158;gfx_y=cy+7;
-    mem[CONTROLLER_CC_BASE+ui_ci]<0?gfx_drawstr("CC --"):(gfx_drawstr("CC ");gfx_drawnumber(mem[CONTROLLER_CC_BASE+ui_ci],0););
-    smallbtn(ox+228,cy,78,24,controller_learn==ui_ci?"LISTEN...":"LEARN",controller_learn==ui_ci);
-    hit(ox+228,cy,78,24)?controller_learn=ui_ci;ui_ci+=1;
+    cy=oy+38+ui_ci*34;gfx_setfont(1,"Arial",11);gfx_set(.82,.82,.82,1);gfx_x=ox+12;gfx_y=cy+6;gfx_drawstr(controller_name(ui_ci));
+    gfx_setfont(1,"Arial",10);gfx_x=ox+150;gfx_y=cy+7;
+    mem[CONTROLLER_CC_BASE+ui_ci]<0?gfx_drawstr("UNASSIGNED"):(
+      sprintf(#learn_label,"%s %d / CH %s",mem[sw_cfg(ui_ci)+25]==1?"NOTE":"CC",mem[CONTROLLER_CC_BASE+ui_ci],"ANY");
+      mem[sw_cfg(ui_ci)+24]>0?sprintf(#learn_label,"%s %d / CH %d",mem[sw_cfg(ui_ci)+25]==1?"NOTE":"CC",mem[CONTROLLER_CC_BASE+ui_ci],mem[sw_cfg(ui_ci)+24]);gfx_drawstr(#learn_label);
+    );
+    smallbtn(ox+300,cy,84,24,controller_learn==ui_ci?"CANCEL":"LEARN",controller_learn==ui_ci);
+    hit(ox+300,cy,84,24)?sw_learn_request=controller_learn==ui_ci?-2:SW_COUNT+ui_ci;
+    smallbtn(ox+390,cy,96,24,"FORGET",0);
+    hit(ox+390,cy,96,24)?(sw_learn_request=-2;sw_submit(0,8,SW_COUNT+ui_ci,0););
+    ui_ci+=1;
   );
+  ui_close_options ? (options_open=0;sw_learn_request=-2;);
+);
+// Explicit reassignment confirmation is modal and never activates underlying controls.
+ui_modal=0;
+learn_candidate>=0 && learn_conflict>=0 ? (
+  gfx_set(.04,.04,.04,1);gfx_rect(340,ui_scroll+330,620,108,1);gfx_set(.9,.9,.9,1);
+  sprintf(#learn_conflict_label,"Input assigned to %s %d. Reassign removes that mapping.",learn_conflict<SW_COUNT?"SWITCH":learn_conflict<SW_COUNT+CONTROLLERS?"CONTROLLER":"PHRASE",learn_conflict<SW_COUNT?learn_conflict+1:learn_conflict<SW_COUNT+CONTROLLERS?learn_conflict-SW_COUNT+1:learn_conflict-SW_COUNT-CONTROLLERS+1);
+  gfx_x=354;gfx_y=ui_scroll+342;gfx_drawstr(#learn_conflict_label);
+  sw_ui_button(354,ui_scroll+375,170,"REASSIGN",0)?sw_submit(0,9,0,0);
+  sw_ui_button(540,ui_scroll+375,120,"CANCEL",0)?sw_submit(0,10,0,0);
+  keychar==27?sw_submit(0,10,0,0);
 );
 
 // Present the scrolled viewport after the single topmost overlay pass.

@@ -1,5 +1,6 @@
 """Run the shipped Lua daemon with REAPER API adapters and real temporary files."""
 import json
+import os
 from pathlib import Path
 import tempfile
 import unittest
@@ -55,6 +56,36 @@ class PatchIO(unittest.TestCase):
                     self.assertEqual(self.mem[2], schema)
                     self.assertEqual([self.mem[i] for i in range(32, 32 + len(memory))], memory)
 
+    def test_smart_switch_save_tail(self):
+        fixture = os.environ.get('NATIVE_PATCH_FIXTURE')
+        if fixture:
+            data = json.loads(Path(fixture).read_text())
+            memory, globals_ = data['memory'], data['globals']
+            offset = data['switch_tail_offset']
+        else:
+            offset = 424
+            memory, globals_ = [0] * (offset + 513), [0] * 9
+            memory[offset] = 3
+            for switch, number in ((0, 74), (1, 73)):
+                b = offset + 1 + switch * 128
+                memory[b:b+5] = [1, 0, 1, 2, number]
+                memory[b+11], memory[b+14] = 2, 1
+                memory[b+48:b+50] = [0, 6] if switch == 0 else [6, 0]
+        self.mem[2], self.mem[3] = 3, len(memory)
+        for i, value in enumerate(globals_, 4): self.mem[i] = value
+        for i, value in enumerate(memory, 32): self.mem[i] = value
+        self.assertEqual(self.tick(1, 1), 4)
+        saved = json.loads((self.root / 'patch1.json').read_text())
+        self.assertEqual(saved['memory'], memory)
+        for switch, number in ((0, 74), (1, 73)):
+            b = offset + 1 + switch * 128
+            self.assertEqual(saved['memory'][b+4], number)
+            self.assertEqual(saved['memory'][b+11], 2)
+            self.assertEqual(saved['memory'][b+48:b+50], [0, 6] if switch == 0 else [6, 0])
+        self.lua.execute('for i=32,32+mem[3]-1 do mem[i]=0 end')
+        self.assertEqual(self.tick(2, 1), 3)
+        self.assertEqual([self.mem[i] for i in range(32,32+len(memory))], memory)
+
     def test_rejects_invalid_without_payload_writes(self):
         valid = dict(format='MIDI_HUMAN_LOOPER_PATCH', schema=1, work_mem_size=2,
                      globals=list(range(9)), memory=[144, 60])
@@ -74,12 +105,14 @@ class PatchIO(unittest.TestCase):
 
     def test_invalid_save_and_heartbeat(self):
         self.assertEqual(self.mem[15], 1)
+        self.assertEqual(self.mem[16], 3)
         self.mem[2], self.mem[3] = 2, 0
         self.assertEqual(self.tick(1, 1), 5)
         self.mem[2], self.mem[3] = 4, 2
         self.assertEqual(self.tick(1, 1), 5)
         self.lua.globals().shutdown()
         self.assertEqual(self.mem[15], 0)
+        self.assertEqual(self.mem[16], 0)
 
 if __name__ == '__main__':
     unittest.main()

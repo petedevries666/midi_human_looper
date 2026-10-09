@@ -103,3 +103,12 @@ for configuration and MIDI Learn. Update both JSFX and the Lua patch daemon;
 schema 3 reads existing schema-1/2 patches with switches disabled.
 
 See [configuration, persistence, tests and live acceptance](docs/smart-switches.md).
+
+## v1.22.1 Learn, popup, TEST and SAVE fixes
+
+OPTIONS now closes with ×, an outside click or Escape. MIDI Learn has one exact
+switch/controller target, consumes its capture event and offers explicit reassignment
+for conflicts. FORGET clears only the selected MIDI mapping. TEST TAP / DOUBLE /
+HOLD use the same action dispatcher even for disabled switches. SAVE waits for
+pending switch edits before snapshotting the complete patch; update and restart
+the Lua daemon for the patch-script compatibility indication.

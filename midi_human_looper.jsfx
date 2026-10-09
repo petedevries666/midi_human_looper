@@ -1,4 +1,4 @@
-desc:MIDI Human Looper v1.25.0
+desc:MIDI Human Looper v1.26.0
 options:gmem=MIDI_HUMAN_LOOPER
 
 // Release history: CHANGELOG.md. Free-time MIDI phrase instrument.
@@ -22,7 +22,8 @@ STATE_STOPPED = 4;
 // External patch I/O bridge (companion Lua ReaScript).
 // gmem[0] command: 0 idle, 1 SAVE request, 2 LOAD request, 3 LOAD ready, 4 SAVE done, 5 error.
 // gmem[1] selected slot, [2] schema, [3] PATCH_PAYLOAD_SIZE, [4..] globals, payload starts at 32.
-IO_SCHEMA = 5;
+IO_SCHEMA = 6;
+TF_SCHEMA=5;
 CC_SCHEMA=4;
 SW_SCHEMA=3;
 PARAM_SCHEMA=2;
@@ -211,7 +212,17 @@ TF_BANK1_BASE=TF_CFG_BASE+TF_CFG_SIZE;TF_BANK2_BASE=TF_BANK1_BASE+TF_CFG_SIZE;
 TF_LAST_BASE=TF_BANK2_BASE+TF_CFG_SIZE;TF_PENDING_BASE=TF_LAST_BASE+CC_EXTRA;
 TF_QUEUE_BASE=TF_PENDING_BASE+CC_EXTRA;TF_QUEUE_SIZE=32;TF_QUEUE_STRIDE=4;
 UI_PARAM_TOTAL=TF_TERTIARY_TI+CC_EXTRA;
-PATCH_PAYLOAD_SIZE=TF_LEGACY_PAYLOAD+TF_CFG_SIZE;
+DS_LEGACY_PAYLOAD=TF_LEGACY_PAYLOAD+TF_CFG_SIZE;
+DS_CFG_BASE=TF_QUEUE_BASE+TF_QUEUE_SIZE*TF_QUEUE_STRIDE;DS_CFG_SIZE=2+12*SW_STRIDE;
+DS_BANK1_BASE=DS_CFG_BASE+DS_CFG_SIZE;DS_BANK2_BASE=DS_BANK1_BASE+DS_CFG_SIZE;
+DS_RT_BASE=DS_BANK2_BASE+DS_CFG_SIZE;DS_BAG_BASE=DS_RT_BASE+12*SW_RT_STRIDE;
+DS_UNDO_BASE=DS_BAG_BASE+12*SW_STEPS;
+SW_DRAFT_BASE=DS_UNDO_BASE+12*SW_STRIDE;SW_DRAFT_UNDO_BASE=SW_DRAFT_BASE+SW_STRIDE;
+// Runtime quarantine grows with the actual engine collection, not GUI cards.
+SW_RELEASE_BASE=SW_DRAFT_UNDO_BASE+SW_STRIDE;SW_RELEASE_SIZE=32;
+SW_LEARN_RELEASE_DEADLINE_BASE=SW_RELEASE_BASE+SW_RELEASE_SIZE*4;
+SW_COUNT=16;
+PATCH_PAYLOAD_SIZE=DS_LEGACY_PAYLOAD+DS_CFG_SIZE;
 // Actions: NONE/NEXT/STOP/RESET/RESET ALL/STOP+RESET/PANIC/TOGGLE/ENABLE/DISABLE.
 SW_NONE=0;SW_NEXT=1;SW_STOP=2;SW_RESET=3;SW_RESET_ALL=4;SW_STOP_RESET=5;
 SW_PANIC=6;SW_TOGGLE=7;SW_ENABLE=8;SW_DISABLE=9;
@@ -480,7 +491,7 @@ cc_defaults();cc_runtime_reset();
 
 function tf_defaults()
 local(j,b,k)
-(mem[TF_CFG_BASE]=IO_SCHEMA;j=0;loop(INSTRUMENTS*TRANSFORM_TYPES,mem[TF_PRIMARY_IDS+j]=-j-1;j+=1;);
+(mem[TF_CFG_BASE]=TF_SCHEMA;j=0;loop(INSTRUMENTS*TRANSFORM_TYPES,mem[TF_PRIMARY_IDS+j]=-j-1;j+=1;);
  j=0;loop(CC_EXTRA,b=tf_record(j);k=0;loop(TF_STRIDE,mem[b+k]=0;k+=1;);mem[b]=6;
  mem[b+2]=2;mem[b+4]=1;mem[b+4+EXP_POINTS]=1;j+=1;););
 function tf_runtime_reset()
@@ -491,7 +502,7 @@ local(j,b)
 (b=slot==2?TF_BANK2_BASE:TF_BANK1_BASE;j=0;loop(TF_CFG_SIZE,mem[b+j]=mem[TF_CFG_BASE+j];j+=1;););
 function tf_bank_load(slot)
 local(j,b)
-(b=slot==2?TF_BANK2_BASE:TF_BANK1_BASE;tf_defaults();mem[b]==IO_SCHEMA?(
+(b=slot==2?TF_BANK2_BASE:TF_BANK1_BASE;tf_defaults();mem[b]==TF_SCHEMA?(
  j=0;loop(TF_CFG_SIZE,mem[TF_CFG_BASE+j]=mem[b+j];j+=1;););tf_runtime_reset(););
 tf_defaults();tf_runtime_reset();
 
@@ -513,7 +524,7 @@ function exp_count_addr(ti) (ti>=PARAM_TOTAL ? cc_curve(ti)+1 : ti<EXP_TOTAL ? I
 function exp_x_addr(ti) (ti>=PARAM_TOTAL ? cc_curve(ti)+2 : ti<EXP_TOTAL ? INST_EXP_X_BASE+ti*EXP_POINTS : PARAM_X_BASE+(ti-EXP_TOTAL)*EXP_POINTS;);
 function exp_y_addr(ti) (ti>=PARAM_TOTAL ? cc_curve(ti)+2+EXP_POINTS : ti<EXP_TOTAL ? INST_EXP_Y_BASE+ti*EXP_POINTS : PARAM_Y_BASE+(ti-EXP_TOTAL)*EXP_POINTS;);
 function exp_bend_addr(ti) (ti>=PARAM_TOTAL ? cc_curve(ti)+2+2*EXP_POINTS : ti<EXP_TOTAL ? INST_EXP_BEND_BASE+ti*EXP_POINTS : PARAM_BEND_BASE+(ti-EXP_TOTAL)*EXP_POINTS;);
-function payload_addr(j) (j>=TF_LEGACY_PAYLOAD?TF_CFG_BASE+j-TF_LEGACY_PAYLOAD:j>=CC_LEGACY_PAYLOAD ? CC_CFG_BASE+j-CC_LEGACY_PAYLOAD : j<WORK_MEM_SIZE ? j : j<SW_LEGACY_PAYLOAD ? PARAM_EXT_BASE+j-WORK_MEM_SIZE : SW_CFG_BASE+j-SW_LEGACY_PAYLOAD;);
+function payload_addr(j) (j>=DS_LEGACY_PAYLOAD?DS_CFG_BASE+j-DS_LEGACY_PAYLOAD:j>=TF_LEGACY_PAYLOAD?TF_CFG_BASE+j-TF_LEGACY_PAYLOAD:j>=CC_LEGACY_PAYLOAD ? CC_CFG_BASE+j-CC_LEGACY_PAYLOAD : j<WORK_MEM_SIZE ? j : j<SW_LEGACY_PAYLOAD ? PARAM_EXT_BASE+j-WORK_MEM_SIZE : SW_CFG_BASE+j-SW_LEGACY_PAYLOAD;);
 function param_addr(gi,kind)
 (
   kind==EXP_T_VEL ? INST_VEL_BASE+gi : kind==EXP_T_LEVEL ? INST_LEVEL_BASE+gi :
@@ -577,15 +588,19 @@ local(j)
   j=0;loop(PARAM_TOTAL,mem[PARAM_LAST_BASE+j]=-999;mem[PARAM_PENDING_BASE+j]=-999;j+=1;);
   param_input_reset();cc_runtime_reset();
 );
-function sw_cfg(si) (SW_CFG_BASE+1+si*SW_STRIDE;);
-function sw_rt(si) (SW_RT_BASE+si*SW_RT_STRIDE;);
+function sw_committed_cfg(si) (si<4?SW_CFG_BASE+1+si*SW_STRIDE:DS_CFG_BASE+2+(si-4)*SW_STRIDE;);
+function sw_cfg(si) (sw_preview_target==si?SW_DRAFT_BASE:sw_committed_cfg(si););
+function sw_edit_cfg(si) (sw_edit_target==si?SW_DRAFT_BASE:sw_cfg(si););
+function sw_bag(si) (si<4?SW_BAG_BASE+si*SW_STEPS:DS_BAG_BASE+(si-4)*SW_STEPS;);
+function sw_undo(si) (si<4?SW_UNDO_BASE+si*SW_STRIDE:DS_UNDO_BASE+(si-4)*SW_STRIDE;);
+function sw_rt(si) (si<4?SW_RT_BASE+si*SW_RT_STRIDE:DS_RT_BASE+(si-4)*SW_RT_STRIDE;);
 function sw_defaults()
 local(si,b,j)
 (
-  mem[SW_CFG_BASE]=SW_SCHEMA;si=0;loop(SW_COUNT,
+  mem[SW_CFG_BASE]=SW_SCHEMA;mem[DS_CFG_BASE]=IO_SCHEMA;mem[DS_CFG_BASE+1]=5;si=0;loop(SW_COUNT,
     b=sw_cfg(si);j=0;loop(SW_STRIDE,mem[b+j]=0;j+=1;);
     mem[b+2]=0;mem[b+4]=60+si;mem[b+7]=300;mem[b+8]=800;
-    mem[b+12]=127;mem[b+13]=0;mem[b+14]=SW_NEXT;mem[b+17]=si;mem[b+18]=si;mem[b+19]=si;j=0;loop(4,mem[b+112+j]=1;j+=1;);si+=1;
+    mem[b+12]=127;mem[b+13]=0;mem[b+14]=SW_NEXT;mem[b+17]=si;mem[b+18]=si;mem[b+19]=si;mem[b+20]=si<4;mem[b+21]=si<4?si+1:0;j=0;si<4?loop(4,mem[b+112+j]=1;j+=1;);si+=1;
   );
 );
 function sw_reset(si)
@@ -602,6 +617,7 @@ local(si,r,j,t)
     );
     j=0;loop(SW_RT_STRIDE,mem[r+j]=0;j+=1;);sw_reset(si);si+=1;
   );
+  sw_edit_target=-1;sw_preview_target=-1;sw_edit_new=0;sw_draft_undo_valid=0;ui_sw_editor_open=0;ui_sw_delete_slot=-1;
   learn_candidate=-1;learn_conflict=-1;controller_learn=-1;phrase_note_learn=-1;sw_last_active=-1;sw_learn=-1;sw_learn_request=-1;sw_clock=0;
   sw_queue_read=0;sw_queue_write=0;sw_playback_origin=0;
   j=SW_PHRASE_OUT_BASE;loop(SW_MEMORY_END-SW_PHRASE_OUT_BASE,mem[j]=0;j+=1;);
@@ -623,18 +639,29 @@ local(si,b,j,k,other)
       mem[b+14+j]=max(0,min(SW_DISABLE,floor(mem[b+14+j])));
       k=mem[b+14+j];mem[b+17+j]=max(0,min(k>=SW_TOGGLE?INSTRUMENTS*TRANSFORM_TYPES-1:SW_COUNT,floor(mem[b+17+j])));j+=1;
     );
-    j=0;loop(4,mem[b+112+j]=phrase_time_ratio(si*4+j);j+=1;);
+    j=0;si<4?loop(4,mem[b+112+j]=phrase_time_ratio(si*4+j);j+=1;);
     j=0;loop(si,other=sw_cfg(j);
       mem[other]>0 && mem[b+2]>0 && mem[other+2]==mem[b+2] && mem[other+3]==mem[b+3] && mem[other+4]==mem[b+4] ? mem[b]=0;j+=1;
     );
     si+=1;
   );
 );
+function ds_migrate()
+local(si,b,j)
+(mem[DS_CFG_BASE]=IO_SCHEMA;mem[DS_CFG_BASE+1]=5;si=0;loop(4,b=sw_cfg(si);mem[b+20]=1;mem[b+21]=si+1;j=0;
+ loop(3,(mem[b+14+j]==SW_RESET || mem[b+14+j]==SW_STOP_RESET) && mem[b+17+j]==4?mem[b+17+j]=SW_COUNT;j+=1;);si+=1;););
+function ds_bank_save(slot)
+local(b,j)
+(b=slot==2?DS_BANK2_BASE:DS_BANK1_BASE;j=0;loop(DS_CFG_SIZE,mem[b+j]=mem[DS_CFG_BASE+j];j+=1;););
+function ds_bank_load(slot)
+local(b,j)
+(b=slot==2?DS_BANK2_BASE:DS_BANK1_BASE;mem[b]==IO_SCHEMA?(j=0;loop(DS_CFG_SIZE,mem[DS_CFG_BASE+j]=mem[b+j];j+=1;);):ds_migrate(););
+
 function sw_bank_save(slot)
 local(b,j,pb)
 (
   b=slot==2?SW_BANK2_BASE:SW_BANK1_BASE;pb=slot==2?PATCH2_BASE:PATCH1_BASE;
-  mem[pb+10]=SW_SCHEMA;j=0;loop(SW_CFG_SIZE,mem[b+j]=mem[SW_CFG_BASE+j];j+=1;);
+  mem[pb+10]=SW_SCHEMA;j=0;loop(SW_CFG_SIZE,mem[b+j]=mem[SW_CFG_BASE+j];j+=1;);ds_bank_save(slot);
 );
 function sw_bank_load(slot)
 local(b,j,pb)
@@ -642,7 +669,7 @@ local(b,j,pb)
   pb=slot==2?PATCH2_BASE:PATCH1_BASE;sw_defaults();
   mem[pb+10]==SW_SCHEMA ? (
     b=slot==2?SW_BANK2_BASE:SW_BANK1_BASE;j=0;loop(SW_CFG_SIZE,mem[SW_CFG_BASE+j]=mem[b+j];j+=1;);
-  );sw_validate();sw_runtime_reset();
+  );ds_bank_load(slot);sw_validate();sw_runtime_reset();
 );
 sw_defaults();sw_runtime_reset();
 
@@ -1472,7 +1499,8 @@ local(j,n)
    (gmem[2]==2 && n==SW_LEGACY_PAYLOAD && gmem[IO_PAYLOAD_BASE+WORK_MEM_SIZE]==PARAM_SCHEMA) ||
    (gmem[2]==3 && n==CC_LEGACY_PAYLOAD && gmem[IO_PAYLOAD_BASE+WORK_MEM_SIZE]==PARAM_SCHEMA && gmem[IO_PAYLOAD_BASE+SW_LEGACY_PAYLOAD]==SW_SCHEMA) ||
    (gmem[2]==4 && n==TF_LEGACY_PAYLOAD && gmem[IO_PAYLOAD_BASE+WORK_MEM_SIZE]==PARAM_SCHEMA && gmem[IO_PAYLOAD_BASE+SW_LEGACY_PAYLOAD]==SW_SCHEMA && gmem[IO_PAYLOAD_BASE+CC_LEGACY_PAYLOAD]==CC_SCHEMA) ||
-   (gmem[2]==IO_SCHEMA && n==PATCH_PAYLOAD_SIZE && gmem[IO_PAYLOAD_BASE+WORK_MEM_SIZE]==PARAM_SCHEMA && gmem[IO_PAYLOAD_BASE+SW_LEGACY_PAYLOAD]==SW_SCHEMA && gmem[IO_PAYLOAD_BASE+CC_LEGACY_PAYLOAD]==CC_SCHEMA && gmem[IO_PAYLOAD_BASE+TF_LEGACY_PAYLOAD]==IO_SCHEMA)) ? (
+   (gmem[2]==5 && n==DS_LEGACY_PAYLOAD && gmem[IO_PAYLOAD_BASE+WORK_MEM_SIZE]==PARAM_SCHEMA && gmem[IO_PAYLOAD_BASE+SW_LEGACY_PAYLOAD]==SW_SCHEMA && gmem[IO_PAYLOAD_BASE+CC_LEGACY_PAYLOAD]==CC_SCHEMA && gmem[IO_PAYLOAD_BASE+TF_LEGACY_PAYLOAD]==TF_SCHEMA) ||
+   (gmem[2]==IO_SCHEMA && n==PATCH_PAYLOAD_SIZE && gmem[IO_PAYLOAD_BASE+WORK_MEM_SIZE]==PARAM_SCHEMA && gmem[IO_PAYLOAD_BASE+SW_LEGACY_PAYLOAD]==SW_SCHEMA && gmem[IO_PAYLOAD_BASE+CC_LEGACY_PAYLOAD]==CC_SCHEMA && gmem[IO_PAYLOAD_BASE+TF_LEGACY_PAYLOAD]==TF_SCHEMA && gmem[IO_PAYLOAD_BASE+DS_LEGACY_PAYLOAD]==IO_SCHEMA)) ? (
     // Patch memory only grows by appending fields, so older JSON patches remain valid prefixes.
     param_extension_reset();param_runtime_reset();sw_defaults();sw_runtime_reset();cc_defaults();cc_runtime_reset();tf_defaults();tf_runtime_reset();
     j=n;
@@ -1491,7 +1519,7 @@ local(j,n)
       mem[payload_addr(j)]=gmem[IO_PAYLOAD_BASE+j];
       j+=1;
     );
-    sw_validate();
+    gmem[2]<IO_SCHEMA?ds_migrate();sw_validate();
     record_sample_pos=0;
     play_sample_pos=0;
     overdub_armed=0;
@@ -1795,7 +1823,7 @@ trigger_request>=0 ? (
 function sw_assign(si,kind,ch,num,press,release)
 local(b,j,other,ok)
 (
-  b=sw_cfg(si);ok=si>=0 && si<SW_COUNT && kind>=0 && kind<=2 && ch>=0 && ch<16 && num>=0 && num<128;
+  b=sw_edit_cfg(si);ok=si>=0 && si<SW_COUNT && kind>=0 && kind<=2 && ch>=0 && ch<16 && num>=0 && num<128;
   kind==2 && (press==release || press<0 || press>127 || release<0 || release>127) ? ok=0;
   j=0;loop(SW_COUNT,
     other=sw_cfg(j);j!=si && kind>0 && mem[other]>0 && mem[other+2]==kind && mem[other+3]==ch && mem[other+4]==num ? ok=0;j+=1;
@@ -1822,21 +1850,21 @@ local(b,r,n,step,k,j,tmp,last,choice,restart)
     sw_last_active=si;
     mem[b+9]==3 ? (
       mem[r+9]<=0 ? (
-        k=0;loop(n,mem[SW_BAG_BASE+si*SW_STEPS+k]=k;k+=1;);
-        k=n-1;loop(n-1,j=floor(rand(k+1));tmp=mem[SW_BAG_BASE+si*SW_STEPS+k];mem[SW_BAG_BASE+si*SW_STEPS+k]=mem[SW_BAG_BASE+si*SW_STEPS+j];mem[SW_BAG_BASE+si*SW_STEPS+j]=tmp;k-=1;);
+        k=0;loop(n,mem[sw_bag(si)+k]=k;k+=1;);
+        k=n-1;loop(n-1,j=floor(rand(k+1));tmp=mem[sw_bag(si)+k];mem[sw_bag(si)+k]=mem[sw_bag(si)+j];mem[sw_bag(si)+j]=tmp;k-=1;);
         // Draw from the end. Avoid the same phrase at bag boundaries if possible.
         last=mem[r+10];choice=-1;k=0;
-        mem[b+SW_LIST+mem[SW_BAG_BASE+si*SW_STEPS+n-1]]==last ? loop(n-1,
-          mem[b+SW_LIST+mem[SW_BAG_BASE+si*SW_STEPS+k]]!=last && choice<0 ? choice=k;k+=1;
+        mem[b+SW_LIST+mem[sw_bag(si)+n-1]]==last ? loop(n-1,
+          mem[b+SW_LIST+mem[sw_bag(si)+k]]!=last && choice<0 ? choice=k;k+=1;
         );
-        choice>=0 ? (tmp=mem[SW_BAG_BASE+si*SW_STEPS+n-1];mem[SW_BAG_BASE+si*SW_STEPS+n-1]=mem[SW_BAG_BASE+si*SW_STEPS+choice];mem[SW_BAG_BASE+si*SW_STEPS+choice]=tmp;);
+        choice>=0 ? (tmp=mem[sw_bag(si)+n-1];mem[sw_bag(si)+n-1]=mem[sw_bag(si)+choice];mem[sw_bag(si)+choice]=tmp;);
         restart ? (
-          k=0;choice=0;loop(n,mem[SW_BAG_BASE+si*SW_STEPS+k]==0?choice=k;k+=1;);
-          tmp=mem[SW_BAG_BASE+si*SW_STEPS+n-1];mem[SW_BAG_BASE+si*SW_STEPS+n-1]=0;mem[SW_BAG_BASE+si*SW_STEPS+choice]=tmp;
+          k=0;choice=0;loop(n,mem[sw_bag(si)+k]==0?choice=k;k+=1;);
+          tmp=mem[sw_bag(si)+n-1];mem[sw_bag(si)+n-1]=0;mem[sw_bag(si)+choice]=tmp;
         );
         mem[r+9]=n;
       );
-      mem[r+9]-=1;step=mem[SW_BAG_BASE+si*SW_STEPS+mem[r+9]];
+      mem[r+9]-=1;step=mem[sw_bag(si)+mem[r+9]];
     ) : mem[b+9]==1 ? (step=restart?0:mem[r+6]<0?n-1:(mem[r+6]-1+n)%n;) : mem[b+9]==2 ? (
       mem[r+6]<0 ? step=0 : n==1 ? step=0 : (
         step=mem[r+6]+mem[r+8];step>=n?(mem[r+8]=-1;step=n-2;);step<0?(mem[r+8]=1;step=1;);
@@ -1964,7 +1992,7 @@ function learn_cancel()
 function learn_start(target)
 (
   learn_cancel();
-  target>=0 && target<SW_COUNT ? sw_learn=target :
+  target>=0 && target<SW_COUNT && (mem[sw_cfg(target)+20]>0 || sw_edit_target==target) ? sw_learn=target :
   target>=SW_COUNT && target<SW_COUNT+CONTROLLERS ? controller_learn=target-SW_COUNT :
   target>=SW_COUNT+CONTROLLERS && target<SW_COUNT+CONTROLLERS+LAYERS ? phrase_note_learn=target-SW_COUNT-CONTROLLERS;
 );
@@ -1972,7 +2000,7 @@ function learn_matches(target,kind,ch,num)
 local(b,index)
 (
   target<SW_COUNT ? (
-    b=sw_cfg(target);mem[b+2]==kind && mem[b+3]==ch && mem[b+4]==num;
+    b=sw_cfg(target);mem[b+20]>0 && mem[b+2]==kind && mem[b+3]==ch && mem[b+4]==num;
   ) : target<SW_COUNT+CONTROLLERS ? (
     index=target-SW_COUNT;b=sw_cfg(index);
     mem[CONTROLLER_CC_BASE+index]==num && (mem[b+25]==0?kind==2:mem[b+25]==kind) && (mem[b+24]==0 || mem[b+24]==ch+1);
@@ -1985,7 +2013,7 @@ function learn_forget(target)
 local(b,index,r)
 (
   target>=0 && target<SW_COUNT ? (
-    b=sw_cfg(target);mem[b+2]=0;r=sw_rt(target);mem[r+2]=1;mem[r+3]=0;mem[r+5]=0;mem[r+17]=0;
+    b=sw_edit_cfg(target);mem[b+2]=0;r=sw_rt(target);sw_edit_target!=target?(mem[r+2]=1;mem[r+3]=0;mem[r+5]=0;);mem[r+17]=0;
   ) : target>=SW_COUNT && target<SW_COUNT+CONTROLLERS ? (
     index=target-SW_COUNT;b=sw_cfg(index);mem[CONTROLLER_CC_BASE+index]=-1;mem[b+24]=0;mem[b+25]=0;
   ) : target>=SW_COUNT+CONTROLLERS && target<SW_COUNT+CONTROLLERS+LAYERS ? (
@@ -2003,7 +2031,7 @@ local(b,index,r)
 (
   learn_candidate>=0 ? (
     learn_candidate<SW_COUNT ? (
-      b=sw_cfg(learn_candidate);mem[b+2]=learn_kind;mem[b+3]=learn_channel;mem[b+4]=learn_number;
+      b=sw_edit_cfg(learn_candidate);mem[b+2]=learn_kind;mem[b+3]=learn_channel;mem[b+4]=learn_number;
       mem[b+12]=learn_press;mem[b+13]=learn_release;mem[b]=1;mem[sw_rt(learn_candidate)+17]=0;
     ) : learn_candidate<SW_COUNT+CONTROLLERS ? (
       index=learn_candidate-SW_COUNT;b=sw_cfg(index);mem[CONTROLLER_CC_BASE+index]=learn_number;
@@ -2036,9 +2064,9 @@ function learn_confirm()
 local(j,target)
 (
   learn_candidate>=0 && learn_conflict>=0 ? (
-    target=learn_candidate;j=0;loop(SW_COUNT+CONTROLLERS+LAYERS,
+    target=learn_candidate;sw_edit_target==target ? mem[SW_DRAFT_BASE+23]=1 : (j=0;loop(SW_COUNT+CONTROLLERS+LAYERS,
       j!=target && learn_matches(j,learn_kind,learn_channel,learn_number)?learn_forget(j);j+=1;
-    );learn_apply();
+    ););learn_apply();
   );
 );
 
@@ -2058,7 +2086,7 @@ local(kind,ch,press,si,b,r,matched,thru,t,j,now)
   matched==-1 ? sw_poll(now,offs);
   si=0;loop(SW_COUNT,b=sw_cfg(si);r=sw_rt(si);
     matched==-1 && kind>0 && ((mem[r]>0 && mem[r+13]==kind && mem[r+14]==ch && mem[r+15]==num) ||
-      (mem[b]>0 && mem[b+2]==kind && mem[b+3]==ch && mem[b+4]==num)) ? (
+      (mem[b+20]>0 && mem[b]>0 && mem[b+2]==kind && mem[b+3]==ch && mem[b+4]==num)) ? (
       matched=si;thru=mem[r]>0?mem[r+16]:mem[b+5];
       kind==1 ? sw_edge(si,press,now,offs) : (
         value==mem[b+12] ? sw_edge(si,1,now,offs) : value==(mem[r]>0?mem[r+19]:mem[b+13]) ? sw_edge(si,0,now,offs);
@@ -2067,16 +2095,55 @@ local(kind,ch,press,si,b,r,matched,thru,t,j,now)
   );
   matched!=-1 ? (thru>0 ? send_to_instruments(offs,st,num,value,1);1;) : 0;
 );
+function sw_end_edit()
+(learn_cancel();sw_edit_target=-1;sw_edit_new=0;sw_draft_undo_valid=0;ui_sw_editor_open=0;edit_name_type==3?edit_name_type=0;);
+function sw_quarantine_slot(si)
+local(r,j,actions,last)
+(r=sw_rt(si);actions=mem[r+12];last=mem[r+11];mem[r]>0?learn_quarantine(mem[r+13],mem[r+14],mem[r+15],mem[r+19]);j=0;loop(SW_RT_STRIDE,mem[r+j]=0;j+=1;);mem[r+12]=actions;mem[r+11]=last;sw_reset(si););
+function sw_begin_edit(si,is_new)
+local(b,j)
+(sw_end_edit();si>=0 && si<SW_COUNT?(
+ sw_edit_target=si;sw_edit_new=is_new;ui_sw_selected=si;ui_sw_step=0;ui_sw_editor_open=1;b=sw_cfg(si);j=0;
+ loop(SW_STRIDE,mem[SW_DRAFT_BASE+j]=mem[b+j];j+=1;);mem[SW_DRAFT_BASE+23]=0;
+ is_new ? (j=0;loop(24,mem[SW_DRAFT_BASE+j]=0;j+=1;);j=32;loop(80,mem[SW_DRAFT_BASE+j]=0;j+=1;);
+ mem[SW_DRAFT_BASE]=1;mem[SW_DRAFT_BASE+4]=60+si;mem[SW_DRAFT_BASE+7]=300;mem[SW_DRAFT_BASE+8]=800;
+ mem[SW_DRAFT_BASE+12]=127;mem[SW_DRAFT_BASE+14]=SW_NEXT;mem[SW_DRAFT_BASE+17]=si;mem[SW_DRAFT_BASE+18]=si;mem[SW_DRAFT_BASE+19]=si;
+ mem[SW_DRAFT_BASE+20]=1;mem[SW_DRAFT_BASE+21]=mem[DS_CFG_BASE+1];mem[DS_CFG_BASE+1]+=1;);
+ ););
+function sw_commit_edit()
+local(si,b,j,target,conflict,changed)
+(
+ si=sw_edit_target;si>=0?(
+  b=SW_DRAFT_BASE;conflict=-1;j=0;loop(SW_COUNT+CONTROLLERS+LAYERS,
+   j!=si && mem[b+2]>0 && learn_matches(j,mem[b+2],mem[b+3],mem[b+4])?conflict=j;j+=1;);
+  conflict<0 || mem[b+23]>0 ? (
+    // Explicit reassignment is applied only when DONE commits the complete draft.
+    mem[b+23]>0?(j=0;loop(SW_COUNT+CONTROLLERS+LAYERS,j!=si && mem[b+2]>0 && learn_matches(j,mem[b+2],mem[b+3],mem[b+4])?learn_forget(j);j+=1;););
+    target=sw_cfg(si);changed=sw_edit_new;j=0;loop(20,mem[target+j]!=mem[b+j]?changed=1;j+=1;);j=48;loop(64,mem[target+j]!=mem[b+j]?changed=1;j+=1;);
+    changed?sw_quarantine_slot(si);sw_edit_new?(mem[sw_rt(si)+11]=0;mem[sw_rt(si)+12]=0;);j=0;loop(24,mem[target+j]=mem[b+j];j+=1;);j=32;loop(80,mem[target+j]=mem[b+j];j+=1;);mem[target+23]=0;sw_end_edit();
+  ) : (mem[sw_rt(si)+17]=1;);
+ );
+);
+function sw_delete(si,id)
+local(b,j,k,other)
+(b=sw_cfg(si);si>=0 && si<SW_COUNT && mem[b+21]==id?(
+ sw_quarantine_slot(si);j=0;loop(24,mem[b+j]=0;j+=1;);j=32;loop(80,mem[b+j]=0;j+=1;);
+ k=0;loop(SW_COUNT,other=sw_cfg(k);j=0;loop(3,(mem[other+14+j]==SW_RESET || mem[other+14+j]==SW_STOP_RESET) && mem[other+17+j]==si?mem[other+14+j]=SW_NONE;j+=1;);k+=1;);
+ sw_last_active==si?sw_last_active=-1;sw_edit_target==si?sw_end_edit();learn_cancel();
+ ););
+
 function sw_queue_process()
-local(q,si,op,arg,value,b,r,j,k,n,tmp,target,gi,kind,c)
+local(q,si,op,arg,value,b,r,j,k,n,tmp,target,gi,kind,c,undo,editing)
 (
   sw_learn_request!=-1 ? (learn_start(sw_learn_request);sw_learn_request=-1;);
   loop(min(SW_QUEUE_SIZE,sw_queue_write-sw_queue_read),
     q=SW_QUEUE_BASE+(sw_queue_read%SW_QUEUE_SIZE)*SW_QUEUE_STRIDE;si=mem[q];op=mem[q+1];arg=mem[q+2];value=mem[q+3];sw_queue_read+=1;
     si>=0 && si<SW_COUNT ? (
-      b=sw_cfg(si);r=sw_rt(si);n=mem[b+11];
-      op==8 ? learn_forget(arg) : op==9 ? learn_confirm() : op==10 ? learn_cancel() :
-      op==0 ? (arg>=0 && arg<3 && mem[b+14+arg]>0 ? sw_action(si,mem[b+14+arg],mem[b+17+arg],0);) : op==1 ? (
+      b=sw_edit_cfg(si);r=sw_rt(si);editing=sw_edit_target==si;undo=editing?SW_DRAFT_UNDO_BASE:sw_undo(si);n=mem[b+11];
+      op==11 ? sw_begin_edit(si,0) : op==12 ? sw_commit_edit() : op==13 ? sw_end_edit() :
+      op==14 ? (j=0;target=-1;loop(SW_COUNT,mem[sw_cfg(j)+20]==0 && target<0?target=j;j+=1;);target>=0?sw_begin_edit(target,1);) :
+      op==15 ? sw_delete(si,value) : op==8 ? learn_forget(arg) : op==9 ? learn_confirm() : op==10 ? learn_cancel() :
+      op==0 ? (arg>=0 && arg<3 && mem[b+14+arg]>0 ? (sw_preview_target=editing?si:-1;sw_action(si,mem[b+14+arg],mem[b+17+arg],0);sw_preview_target=-1;);) : op==1 ? (
         // Assign message fields atomically; conflicting assignments remain unchanged.
         sw_assign(si,arg,mem[b+3],value,mem[b+12],mem[b+13]);
       ) : op==2 ? (
@@ -2085,23 +2152,22 @@ local(q,si,op,arg,value,b,r,j,k,n,tmp,target,gi,kind,c)
             arg==0 && value>0 ? (sw_assign(si,mem[b+2],mem[b+3],mem[b+4],mem[b+12],mem[b+13])?mem[b]=1;) : mem[b+arg]=value;
             arg==1 && value==1 && mem[b+14]==SW_NEXT ? mem[b+14]=SW_NONE;
             arg>=14 && arg<=16 ? mem[b+arg+3]=max(0,min(value>=SW_TOGGLE?INSTRUMENTS*TRANSFORM_TYPES-1:SW_COUNT,mem[b+arg+3]));
-            mem[r+3]=0;mem[r+2]=1;
-            arg==1 || arg==9 || arg==10 ? sw_reset(si);
+            !editing ? (mem[r+3]=0;mem[r+2]=1;(arg==1 || arg==9 || arg==10)?sw_reset(si););
           );
         );
       ) : op>=3 && op<=7 ? (
         // Single-level undo covers append/remove/clear/reorder (positions, not phrase IDs).
         j=0;loop(SW_STRIDE,
           // Phrase timing belongs to the patch, not switch-list undo.
-          (j<112 || j>115) ? (
-            op==7 && mem[r+18]>0 ? (tmp=mem[b+j];mem[b+j]=mem[SW_UNDO_BASE+si*SW_STRIDE+j];mem[SW_UNDO_BASE+si*SW_STRIDE+j]=tmp;) : op!=7 ? mem[SW_UNDO_BASE+si*SW_STRIDE+j]=mem[b+j];
+          (j<24 || (j>=32 && j<112)) ? (
+            op==7 && (editing?sw_draft_undo_valid:mem[r+18])>0 ? (tmp=mem[b+j];mem[b+j]=mem[undo+j];mem[undo+j]=tmp;) : op!=7 ? mem[undo+j]=mem[b+j];
           );j+=1;
         );
         op==3 && n<SW_STEPS && arg>=0 && arg<LAYERS ? (mem[b+SW_LIST+n]=arg;mem[b+11]=n+1;);
         op==4 && arg>=0 && arg<n ? (j=arg;loop(n-arg-1,mem[b+SW_LIST+j]=mem[b+SW_LIST+j+1];j+=1;);mem[b+11]=n-1;);
         op==5 ? mem[b+11]=0;
         op==6 && arg>=0 && arg<n && value>=0 && value<n ? (tmp=mem[b+SW_LIST+arg];mem[b+SW_LIST+arg]=mem[b+SW_LIST+value];mem[b+SW_LIST+value]=tmp;);
-        op!=7 ? mem[r+18]=1;sw_reset(si);
+        op!=7?(editing?sw_draft_undo_valid=1:mem[r+18]=1;);!editing?sw_reset(si);
       );
     );
   );
@@ -2519,7 +2585,7 @@ gfx_set(0,0,0,1); gfx_rect(0,0,gfx_w,ui_content_h,1);
 
 // Save input once. A modal popup owns this whole frame, including dismissal.
 ui_real_cap=mouse_cap;
-ui_frame_modal=ui_modal=controller_assign_ti>=0 || transform_menu_gi>=0 || options_open || learn_candidate>=0;
+ui_frame_modal=ui_modal=controller_assign_ti>=0 || transform_menu_gi>=0 || options_open || ui_sw_editor_open || ui_sw_delete_slot>=0 || learn_candidate>=0;
 ui_modal ? mouse_cap=0;
 !(ui_real_cap&1)?ui_td_reset_latch=0;
 !(ui_real_cap&1) ? ui_capture_ti=-1;
@@ -2645,13 +2711,13 @@ edit_name_type>0 && keychar>0 ? (
   keychar==13 || keychar==27 ? edit_name_type=0 :
   edit_name_type==1 ? edit_name_key(PHRASE_NAME_BASE+edit_name_index*NAME_CHARS,keychar) :
   edit_name_type==2 ? edit_name_key(INSTR_NAME_BASE+edit_name_index*NAME_CHARS,keychar) :
-  edit_name_type==3 ? edit_name_key(sw_cfg(edit_name_index)+SW_NAME,keychar);
+  edit_name_type==3 ? edit_name_key(sw_edit_cfg(edit_name_index)+SW_NAME,keychar);
 );
 // Hard square identity header.
 gfx_set(.055,.055,.055,1);gfx_rect(12,10,1010,48,1);
 gfx_set(.42,.42,.42,1);gfx_rect(12,10,1010,48,0);
 gfx_setfont(1,"Courier New",22,'b');gfx_set(.95,.95,.08,1);
-gfx_x=24;gfx_y=20;gfx_drawstr("MIDI BAD MOTHERFUCKER V.1.25.0");
+gfx_x=24;gfx_y=20;gfx_drawstr("MIDI BAD MOTHERFUCKER V.1.26.0");
 gfx_setfont(1,"Courier New",14,'b');gfx_set(.68,.68,.68,1);
 gfx_x=760;gfx_y=25;gfx_drawstr("ANONYMALZ LIVE ENGINE");
 
@@ -3550,20 +3616,15 @@ function sw_ui_action_name(action)
 function sw_ui_adjust(x,y,w,field,lo,hi,delta,label)
 local(b)
 (
-  b=sw_cfg(ui_sw_selected);gfx_set(.8,.8,.8,1);gfx_x=x+27;gfx_y=y+5;gfx_drawstr(label);
+  b=sw_edit_cfg(ui_sw_selected);gfx_set(.8,.8,.8,1);gfx_x=x+27;gfx_y=y+5;gfx_drawstr(label);
   sw_ui_button(x,y,22,"-",0)?sw_submit(ui_sw_selected,2,field,max(lo,mem[b+field]-delta));
   sw_ui_button(x+w-22,y,22,"+",0)?sw_submit(ui_sw_selected,2,field,min(hi,mem[b+field]+delta));
 );
-function draw_smart_switches(y)
+function draw_smart_switch_editor(y)
 local(b,r,k,x,row,step,page,n,act,target)
 (
-  ui_sw_selected=max(0,min(SW_COUNT-1,ui_sw_selected));b=sw_cfg(ui_sw_selected);r=sw_rt(ui_sw_selected);
+  ui_sw_selected=max(0,min(SW_COUNT-1,ui_sw_selected));b=sw_edit_cfg(ui_sw_selected);r=sw_rt(ui_sw_selected);
   gfx_set(.75,.75,.75,1);gfx_x=20;gfx_y=y;gfx_drawstr("SMART SWITCHES / PHRASE CONDUCTOR");
-  k=0;loop(SW_COUNT,
-    sprintf(#sw_label,"SWITCH %d",k+1);
-    sw_ui_button(20+k*140,y+24,130,#sw_label,k==ui_sw_selected)?(ui_sw_selected=k;ui_sw_step=0;);
-    k+=1;
-  );
   sw_ui_button(600,y+24,120,mem[b]>0?"ENABLED":"DISABLED",mem[b]>0)?sw_submit(ui_sw_selected,2,0,1-mem[b]);
   sw_ui_button(730,y+24,230,mem[b+1]==0?"TYPE: PHRASE":"TYPE: SPECIAL",0)?sw_submit(ui_sw_selected,2,1,1-mem[b+1]);
   smallbtn(20,y+56,250,24,"",0);draw_name_chars(b+SW_NAME,28,y+61);
@@ -3621,13 +3682,53 @@ local(b,r,k,x,row,step,page,n,act,target)
   sprintf(#sw_label,"Actions: %d | Last: %s | %s",mem[r+12],sw_ui_action_name(mem[r+11]),mem[r+17]==1?"ASSIGNMENT CONFLICT / INVALID CC":mem[r+17]==2?"EMPTY / UNAVAILABLE PHRASE":mem[r+17]==3?"MISSING RELEASE: 10s timeout":mem[r+17]==4?"MODULE NOT IN CHAIN":"READY");
   gfx_x=20;gfx_y=y+480;gfx_drawstr(#sw_label);
 );
-draw_smart_switches(1490);
+function draw_smart_switch_cards(y)
+local(ui_i,ui_n,ui_b,ui_r,ui_x,ui_y)
+(
+  gfx_setfont(1,"Arial",14);gfx_set(.8,.8,.8,1);gfx_x=20;gfx_y=y;gfx_drawstr("SMART SWITCHES");ui_i=0;ui_n=0;
+  loop(SW_COUNT,ui_b=sw_committed_cfg(ui_i);mem[ui_b+20]>0?(
+    ui_x=20+(ui_n%4)*250;ui_y=y+26+floor(ui_n/4)*84;ui_r=sw_rt(ui_i);
+    gfx_set(.1,.1,.1,1);gfx_rect(ui_x,ui_y,240,78,1);gfx_set(.5,.5,.5,1);gfx_rect(ui_x,ui_y,240,78,0);
+    gfx_setfont(1,"Arial",11);gfx_set(.9,.9,.9,1);
+    name_len(ui_b+SW_NAME)>0?draw_name_chars(ui_b+SW_NAME,ui_x+8,ui_y+6):(
+      sprintf(#sw_label,"SWITCH %d",mem[ui_b+21]);gfx_x=ui_x+8;gfx_y=ui_y+6;gfx_drawstr(#sw_label););
+    gfx_setfont(1,"Arial",9);sprintf(#sw_label,"%s / %s %d / CH %d",mem[ui_b+1]==0?"PHRASE":"SPECIAL",mem[ui_b+2]==0?"UNASSIGNED":mem[ui_b+2]==1?"NOTE":"CC",mem[ui_b+4],mem[ui_b+3]+1);
+    gfx_x=ui_x+8;gfx_y=ui_y+25;gfx_drawstr(#sw_label);
+    sprintf(#sw_label,"STEP %d / %d | ID %d",mem[ui_r+7]+1,mem[ui_b+11],mem[ui_b+21]);gfx_x=ui_x+8;gfx_y=ui_y+42;gfx_drawstr(#sw_label);
+    sw_ui_button(ui_x+8,ui_y+53,74,"EDIT",0)?sw_submit(ui_i,11,0,0);
+    sw_ui_button(ui_x+188,ui_y+3,44,mem[ui_b]>0?"ON":"OFF",mem[ui_b]>0)?sw_submit(ui_i,2,0,1-mem[ui_b]);
+    sw_ui_button(ui_x+212,ui_y+53,22,"×",0)?(ui_sw_delete_slot=ui_i;ui_sw_delete_id=mem[ui_b+21];);
+    ui_n+=1;
+  );ui_i+=1;);
+  sw_ui_button(20,y+26+ceil(ui_n/4)*84,190,"+ ADD SMART SWITCH",0)?sw_submit(0,14,0,0);
+  ui_n==SW_COUNT?(gfx_x=230;gfx_y=y+31+ceil(ui_n/4)*84;gfx_drawstr("ENGINE CAPACITY: 16 SWITCHES"););
+);
+draw_smart_switch_cards(1490);
 
 // Overlay input is restored after all underlying controls have finished.
 mouse_cap=ui_real_cap;ui_modal=learn_candidate>=0;
 draw_transform_menu_overlay(0,transform_rows_y);
 draw_transform_menu_overlay(1,transform_rows_y+124);
 draw_transform_menu_overlay(2,transform_rows_y+248);
+
+ui_sw_editor_open && learn_candidate<0 ? (
+  ui_modal=0;ui_sw_editor_y=max(ui_scroll+8,min(ui_scroll+gfx_h-554,1490));
+  gfx_set(.025,.025,.025,1);gfx_rect(10,ui_sw_editor_y-6,990,548,1);gfx_set(.75,.75,.75,1);gfx_rect(10,ui_sw_editor_y-6,990,548,0);
+  draw_smart_switch_editor(ui_sw_editor_y);
+  sw_ui_button(690,ui_sw_editor_y+508,130,"DONE",0)?sw_submit(ui_sw_selected,12,0,0);
+  sw_ui_button(830,ui_sw_editor_y+508,130,"CANCEL",0)?sw_submit(ui_sw_selected,13,0,0);
+  sw_ui_button(960,ui_sw_editor_y,28,"×",0)?sw_submit(ui_sw_selected,13,0,0);
+  keychar==27 || (ui_frame_modal && (mouse_cap&3) && !(last_mouse_cap&3) && (mouse_x<10 || mouse_x>=1000 || mouse_y<ui_sw_editor_y-6 || mouse_y>=ui_sw_editor_y+542))?sw_submit(ui_sw_selected,13,0,0);
+  ui_modal=1;
+);
+ui_sw_delete_slot>=0 && learn_candidate<0 ? (
+  ui_modal=0;ui_sw_delete_y=ui_scroll+max(8,(gfx_h-130)/2);
+  gfx_set(.035,.035,.035,1);gfx_rect(240,ui_sw_delete_y,540,130,1);gfx_set(.85,.85,.85,1);gfx_rect(240,ui_sw_delete_y,540,130,0);
+  gfx_x=260;gfx_y=ui_sw_delete_y+20;gfx_drawstr("DELETE THIS SMART SWITCH? Phrase data is retained.");
+  sw_ui_button(270,ui_sw_delete_y+75,180,"DELETE",0)?(sw_submit(ui_sw_delete_slot,15,0,ui_sw_delete_id);ui_sw_delete_slot=-1;);
+  (sw_ui_button(480,ui_sw_delete_y+75,180,"CANCEL",0) || keychar==27 || (ui_frame_modal && (mouse_cap&3) && !(last_mouse_cap&3) && (mouse_x<240 || mouse_x>=780 || mouse_y<ui_sw_delete_y || mouse_y>=ui_sw_delete_y+130)))?ui_sw_delete_slot=-1;
+  ui_modal=1;
+);
 
 // Named controller assignment popup.
 controller_assign_ti>=0 ? (
@@ -3657,8 +3758,8 @@ options_open && learn_candidate<0 ? (
     cy=oy+38+ui_ci*34;gfx_setfont(1,"Arial",11);gfx_set(.82,.82,.82,1);gfx_x=ox+12;gfx_y=cy+6;gfx_drawstr(controller_name(ui_ci));
     gfx_setfont(1,"Arial",10);gfx_x=ox+150;gfx_y=cy+7;
     mem[CONTROLLER_CC_BASE+ui_ci]<0?gfx_drawstr("UNASSIGNED"):(
-      sprintf(#learn_label,"%s %d / CH %s",mem[sw_cfg(ui_ci)+25]==1?"NOTE":"CC",mem[CONTROLLER_CC_BASE+ui_ci],"ANY");
-      mem[sw_cfg(ui_ci)+24]>0?sprintf(#learn_label,"%s %d / CH %d",mem[sw_cfg(ui_ci)+25]==1?"NOTE":"CC",mem[CONTROLLER_CC_BASE+ui_ci],mem[sw_cfg(ui_ci)+24]);gfx_drawstr(#learn_label);
+      sprintf(#learn_label,"%s %d / CH %s",mem[sw_committed_cfg(ui_ci)+25]==1?"NOTE":"CC",mem[CONTROLLER_CC_BASE+ui_ci],"ANY");
+      mem[sw_committed_cfg(ui_ci)+24]>0?sprintf(#learn_label,"%s %d / CH %d",mem[sw_committed_cfg(ui_ci)+25]==1?"NOTE":"CC",mem[CONTROLLER_CC_BASE+ui_ci],mem[sw_committed_cfg(ui_ci)+24]);gfx_drawstr(#learn_label);
     );
     smallbtn(ox+300,cy,84,24,controller_learn==ui_ci?"CANCEL":"LEARN",controller_learn==ui_ci);
     hit(ox+300,cy,84,24)?sw_learn_request=controller_learn==ui_ci?-2:SW_COUNT+ui_ci;
@@ -3676,7 +3777,8 @@ learn_candidate>=0 && learn_conflict>=0 ? (
   gfx_x=354;gfx_y=ui_scroll+342;gfx_drawstr(#learn_conflict_label);
   sw_ui_button(354,ui_scroll+375,170,"REASSIGN",0)?sw_submit(0,9,0,0);
   sw_ui_button(540,ui_scroll+375,120,"CANCEL",0)?sw_submit(0,10,0,0);
-  keychar==27?sw_submit(0,10,0,0);
+  sw_ui_button(928,ui_scroll+334,24,"×",0)?sw_submit(0,10,0,0);
+  keychar==27 || (ui_frame_modal && (mouse_cap&3) && !(last_mouse_cap&3) && (mouse_x<340 || mouse_x>=960 || mouse_y<ui_scroll+330 || mouse_y>=ui_scroll+438))?sw_submit(0,10,0,0);
 );
 
 // Present the scrolled viewport after the single topmost overlay pass.

@@ -656,6 +656,7 @@ static void stress(Host &h, bool historical, bool cc_instances = false) {
 }
 #include "cc_instance_cases.hpp"
 #include "learn_ui_cases.hpp"
+#include "dynamic_switch_cases.hpp"
 #include "phrase_play_cases.hpp"
 #include "smart_switch_cases.hpp"
 #include "time_decay_cases.hpp"
@@ -679,6 +680,8 @@ int main(int argc, char **argv) {
   smart_switch_tests(smart);
   Host learn(argv[1]);
   learn_ui_tests(learn);
+  Host dynamic_sw(argv[1]);
+  dynamic_switch_tests(dynamic_sw);
   Host phrase(argv[1]);
   phrase_play_tests(phrase);
   Host timing(argv[1]);

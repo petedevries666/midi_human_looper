@@ -138,3 +138,10 @@ Multiple transpose, range and velocity blocks own independent settings and
 expression curves. Stacked note processors use visible serial order; note-changing
 edits wait for source releases to preserve Note Off pairing. ARP and polyphony
 remain single-instance per instrument. See [stacking behavior](docs/transformer-stacking.md).
+
+## v1.26.0 — dynamic Smart Switches
+
+Compact cards replace the permanent four-switch panel. ADD/EDIT opens one draft
+editor; DONE commits, while Cancel or dismissal discards edits and cancels Learn.
+The engine and patch banks support sixteen independent switches with stable IDs.
+See [workflow and persistence](docs/dynamic-smart-switches.md).

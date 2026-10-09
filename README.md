@@ -131,3 +131,10 @@ show a warning and use deterministic last-writer behavior. Save uses schema 4;
 update the companion Lua daemon together with the JSFX. Old patches still load.
 
 See [CC generator behavior and the following modular stages](docs/modular-cc-generators.md).
+
+## v1.25.0 — stateless Transformer stacking
+
+Multiple transpose, range and velocity blocks own independent settings and
+expression curves. Stacked note processors use visible serial order; note-changing
+edits wait for source releases to preserve Note Off pairing. ARP and polyphony
+remain single-instance per instrument. See [stacking behavior](docs/transformer-stacking.md).

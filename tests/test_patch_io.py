@@ -37,7 +37,7 @@ class PatchIO(unittest.TestCase):
         return self.mem[0]
 
     def test_schema_and_slots_roundtrip(self):
-        for schema in (1, 2, 3, 4):
+        for schema in (1, 2, 3, 4, 5):
             for slot in (1, 2):
                 with self.subTest(schema=schema, slot=slot):
                     # Include a prefix and an extension-sized tail; Lua preserves all entries.
@@ -78,7 +78,7 @@ class PatchIO(unittest.TestCase):
         saved = json.loads((self.root / 'patch1.json').read_text())
         self.assertEqual(saved['memory'], memory)
         if fixture:
-            self.assertEqual(saved['schema'], 4)
+            self.assertEqual(saved['schema'], 5)
             cc = data['cc_tail_offset'] + 2 + 3
             self.assertEqual(saved['memory'][cc:cc+4], [50, 71, 64, 12])
             self.assertEqual(saved['memory'][cc+4+2+12], .25)
@@ -94,7 +94,7 @@ class PatchIO(unittest.TestCase):
     def test_rejects_invalid_without_payload_writes(self):
         valid = dict(format='MIDI_HUMAN_LOOPER_PATCH', schema=1, work_mem_size=2,
                      globals=list(range(9)), memory=[144, 60])
-        cases = [dict(valid, schema=5), dict(valid, work_mem_size=3),
+        cases = [dict(valid, schema=6), dict(valid, work_mem_size=3),
                  dict(valid, globals=[0]), dict(valid, format='other'),
                  dict(valid, work_mem_size=1000001), dict(valid, memory=['invalid', 60]),
                  dict(valid, memory=[1e309, 60])]
@@ -110,10 +110,10 @@ class PatchIO(unittest.TestCase):
 
     def test_invalid_save_and_heartbeat(self):
         self.assertEqual(self.mem[15], 1)
-        self.assertEqual(self.mem[16], 4)
+        self.assertEqual(self.mem[16], 5)
         self.mem[2], self.mem[3] = 2, 0
         self.assertEqual(self.tick(1, 1), 5)
-        self.mem[2], self.mem[3] = 5, 2
+        self.mem[2], self.mem[3] = 6, 2
         self.assertEqual(self.tick(1, 1), 5)
         self.lua.globals().shutdown()
         self.assertEqual(self.mem[15], 0)

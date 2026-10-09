@@ -1,4 +1,4 @@
-# Smart Switches and Phrase Conductor (v1.22.0)
+# Smart Switches and Phrase Conductor (v1.22.1)
 
 Four independent switches conduct the existing phrase pool. Each holds up to 64
 references, not copies of phrase data. No new recorder, overdub mechanism,
@@ -12,7 +12,10 @@ Scroll below the expression editor to SMART SWITCHES / PHRASE CONDUCTOR.
    Enter or Escape ends name editing. Choose PHRASE or SPECIAL.
 2. Click MIDI LEARN, then press a momentary Helix switch. Learning captures the
    exact channel, note/CC number and message type. Learning itself is silent and
-   does not execute an action. Click LISTENING again to cancel.
+   does not execute an action. Click LISTENING again to cancel. Learn is exclusive across Smart Switches,
+   expression controllers and phrase triggers; starting another target cancels the
+   previous listener. An input owned elsewhere opens a REASSIGN / CANCEL warning.
+   REASSIGN removes only conflicting MIDI mappings, preserving their musical settings.
 3. Alternatively cycle INPUT through UNASSIGNED / NOTE / CC, adjust NUMBER and
    CHANNEL, then enable the switch. MIDI THRU defaults OFF: command press and
    release never reach instruments or the existing recorder. With THRU ON,
@@ -23,12 +26,22 @@ Scroll below the expression editor to SMART SWITCHES / PHRASE CONDUCTOR.
    release values are rejected. Intermediate values do not execute actions.
 5. Choose actions independently for TAP, DOUBLE and HOLD, then choose targets
    where applicable. TEST executes that configured action without MIDI input;
-   it tests action routing, not physical gesture timing.
+   it tests action routing, not physical gesture timing. TEST TAP / TEST DOUBLE /
+   TEST HOLD use the hardware action dispatcher and work when a switch is disabled
+   or unassigned; they do not enable it or modify its MIDI assignment.
+
+FORGET MIDI removes only the selected switch's assignment. Its name, sequence,
+actions, timings and traversal settings remain intact. In OPTIONS, each expression
+controller has its own FORGET button and displays the learned channel, message type
+and number. Close OPTIONS with ×, an outside click or Escape; closing cancels Learn
+and preserves previous assignments. The closing click never activates an underlying
+control. Older expression CC assignments retain their legacy ANY-channel behavior
+until relearned, when they receive an exact channel/type identity.
 
 Note On with any positive velocity is a press. Note Off or Note On velocity 0 is
 a release. Repeated press messages while down do not execute another action.
-Duplicate enabled channel/type/number assignments are rejected without replacing
-the existing owner. A missing release unlocks gesture detection after 10 seconds
+Learn conflicts leave all assignments unchanged until explicitly confirmed.
+Manual duplicate switch assignments remain rejected without replacing the existing owner. A missing release unlocks gesture detection after 10 seconds
 and displays a warning; use a controller that supplies a reliable release.
 
 ## Phrase sequences
@@ -124,7 +137,16 @@ RAM offsets are unchanged. The schema-2 expression marker remains 2; schema 3 ad
 
 - One extension marker (3).
 - Four 128-value switch configurations: fields 0–19, 16 name characters at 32,
-  and 64 phrase references at 48. Remaining values are reserved.
+  and 64 phrase references at 48. Fields 24/25 now store the corresponding expression
+  controller's channel (0 legacy ANY, 1–16 exact) and type (0 legacy CC, 1 note,
+  2 CC). Fields 27–30 store four phrase-trigger channels per record. These formerly
+  reserved values keep the schema-3 payload length unchanged.
+
+The plugin SAVE button takes its snapshot on the DSP thread after pending switch
+edits are applied, then sends the complete schema-3 payload to the Lua daemon and
+updates the internal bank. Wait for the file I/O SAVED indication before closing
+REAPER. If the UI says UPDATE PATCH I/O SCRIPT, install and restart the shipped Lua
+daemon. SAVE requires the FX to be processing MIDI/audio and the daemon to be running.
 
 Both internal patch banks preserve switch configuration. Cursors, bags, gesture
 state, learn mode, pending module actions and undo state are runtime-only and reset
@@ -147,7 +169,15 @@ modes, duplicate weighting and highlight pixels, independent re-entry, list edit
 module targeting/deferred changes, targeted STOP, preset migration and GUI popup
 isolation. Existing transformation, expression, recording/overdub, bank and
 concurrent GUI/audio tests continue to run. No live REAPER/Helix test is claimed by
-the headless host suite.
+the headless host suite. `tests/learn_ui_cases.hpp` additionally exercises two-switch
+Learn isolation, conflict cancellation/reassignment, OPTIONS lifecycle, FORGET,
+all TEST actions and the actual GUI SAVE snapshot. To test that snapshot through
+real Lua JSON file I/O:
+
+```sh
+NATIVE_PATCH_FIXTURE=/tmp/switch-save.json YSFX_SOURCE=/workspace/setup-tools/ysfx tests/run_host_tests.sh
+NATIVE_PATCH_FIXTURE=/tmp/switch-save.json /workspace/setup-tools/venv/bin/python tests/test_patch_io.py
+```
 
 ## Live acceptance checklist
 

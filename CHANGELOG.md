@@ -1,5 +1,13 @@
 # MIDI Human Looper: release history
 
+v1.22.1:
+- OPTIONS close button, outside dismissal and Escape; cancel Learn on close.
+- Exclusive Learn target across switches/controllers/phrases, exact channel/type
+  capture, silent learning events and deliberate reassignment of conflicts.
+- Per-assignment FORGET; separate TEST TAP/DOUBLE/HOLD work for disabled switches.
+- SAVE snapshots after queued edits on the DSP thread and updates the internal bank.
+- Regression coverage for two-switch isolation, popup lifecycle, TEST and real JSON I/O.
+
 v1.22.0:
 - Four independent Smart Switches: exact-channel note/CC learning, silent commands,
   instant/exclusive TAP/DOUBLE/HOLD and manual momentary assignment.

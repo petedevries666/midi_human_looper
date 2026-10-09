@@ -5,6 +5,7 @@
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
+#include <fstream>
 #include <map>
 #include <set>
 #include <string>
@@ -645,6 +646,7 @@ static void stress(Host &h, bool historical) {
   if (!historical)
     check(hashes.size() == 1, "concurrent audio/GFX render is stable");
 }
+#include "learn_ui_cases.hpp"
 #include "smart_switch_cases.hpp"
 int main(int argc, char **argv) {
   if (argc < 2)
@@ -663,6 +665,8 @@ int main(int argc, char **argv) {
   editor_ux(ux);
   Host smart(argv[1]);
   smart_switch_tests(smart);
+  Host learn(argv[1]);
+  learn_ui_tests(learn);
   Host stable(argv[1]);
   stress(stable, false);
   printf("PASS: %d EEL2/GUI/MIDI checks\n", checks);

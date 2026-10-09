@@ -62,6 +62,31 @@ with tempfile.TemporaryDirectory(prefix='midi-jack-') as temp:
         state=command(2,0,0,0,1)
         assert state['activeNotes']==0 and state['outputOverflow']==0,state
         print('PASS actual JACK timestamp ordering: nonmonotonic generation sorted in one block; equal-time Note On/Off stable')
+        engine.terminate();engine.communicate(timeout=10);engine=None
+        marker='scheduled_tick();scheduled_clock+=samplesblock;'
+        assert source.count(marker)==1
+        injection="""d1==99 && d2==127 && msg1==146 && !remote_schedule_fixture ? (
+remote_schedule_fixture=1;
+remote_schedule_token=scheduled_start(0,0,scheduled_clock+400,1,90,100,6);
+scheduled_pair(0,0,scheduled_clock+16,scheduled_clock+528,2,91,100,6);
+scheduled_pair(0,0,scheduled_clock+220,scheduled_clock+732,3,92,100,6);
+);
+d1==99 && d2==0 && msg1==146 && remote_schedule_token && !remote_schedule_sealed ? (
+remote_schedule_sealed=1;scheduled_seal(0,0,remote_schedule_token,scheduled_clock+400);
+);
+"""
+        fixture=Path(temp)/'scheduled.jsfx';fixture.write_text(source.replace(marker,injection+marker))
+        engine=subprocess.Popen([binary,str(fixture),path,'--jack','--demo'],env=env,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+        deadline=time.monotonic()+15
+        while not Path(path).exists() and time.monotonic()<deadline:
+            if engine.poll() is not None:raise RuntimeError(engine.stderr.read().decode())
+            time.sleep(.02)
+        observer=subprocess.Popen([probe,'--scheduled'],env=env)
+        assert observer.wait(timeout=10)==0,'scheduled pair timestamps/channel ownership failed'
+        state=command(2,0,0,0,1)
+        assert state['activeNotes']==0 and state['outputOverflow']==0,state
+        print('PASS actual JACK shared scheduler: reverse admission, precise offsets, channel pairing, next-block releases and live duration sealing')
+
 
 
     finally:

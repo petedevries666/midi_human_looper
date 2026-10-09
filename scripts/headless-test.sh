@@ -5,6 +5,7 @@ cd "$(dirname "$0")/.."
 export HEADLESS_BINARY
 "$HEADLESS_BINARY" --queue-test
 python3 tests/test_headless_mvp.py
+python3 tests/test_module_registry.py
 if [[ "${RUN_NATIVE_TESTS:-0}" == 1 ]];then tests/run_host_tests.sh;fi
 if [[ "${RUN_JACK_TESTS:-0}" == 1 ]];then
   test_dir=$(mktemp -d);trap 'rm -rf "$test_dir"' EXIT

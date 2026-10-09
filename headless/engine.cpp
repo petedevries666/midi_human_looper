@@ -50,9 +50,15 @@ public:
                         read.load(std::memory_order_acquire));
   }
 };
+struct ParameterChange {
+  int kind = 0;
+  double value = 0;
+};
 struct Request {
   uint64_t id = 0, session = 0;
   int op = 0, target = 0, arg = 0, revision = 1, ch = 0, note = 0, value = 0;
+  int module = 0, count = 0;
+  std::array<ParameterChange, 4> parameters{};
 };
 struct Switch {
   int id = 0, on = 0, type = 0, kind = 0, ch = 0, num = 0, length = 0, step = 0;
@@ -62,6 +68,10 @@ struct Instrument {
   int id = 0, on = 0, input = 0, output = 0, level = 0;
   char name[17]{};
   std::array<int, 6> transformerIds{}, transformerTypes{}, transformerOn{};
+  std::array<std::array<double, 4>, 6> transformerValues{};
+  std::array<std::array<int, 4>, 6> transformerKinds{},
+      transformerAssignments{};
+  std::array<int, 6> parameterCounts{};
   int transformerCount = 0;
 };
 struct Phrase {
@@ -118,6 +128,39 @@ struct Model {
   std::array<double *, 8> tfCount;
   std::array<std::array<double *, 6>, 8> tfCodes;
   std::array<std::array<double *, 12>, 8> tfIds, tfTypes;
+  std::array<std::array<std::array<double *, 4>, 12>, 8> values, assignments;
+  std::array<std::array<std::array<int, 4>, 12>, 8> kinds;
+  void initParameters(ysfx_t *fx) {
+    auto i = NSEEL_VM_regvar(fx->vm.get(), "remote_pi"),
+         c = NSEEL_VM_regvar(fx->vm.get(), "remote_pc"),
+         r = NSEEL_VM_regvar(fx->vm.get(), "remote_pr"),
+         k = NSEEL_VM_regvar(fx->vm.get(), "remote_pk"),
+         a = NSEEL_VM_regvar(fx->vm.get(), "remote_pa"),
+         b = NSEEL_VM_regvar(fx->vm.get(), "remote_pb");
+    auto lookup = NSEEL_code_compile(
+        fx->vm.get(),
+        "remote_pk=param_editor_kind(transform_type(remote_pi,remote_pc),"
+        "remote_pr);remote_pti=remote_pc<7?param_ti(remote_pi,remote_pk):cc_ti("
+        "cc_index(remote_pi,remote_pc),remote_pr);remote_pa=remote_pc<7?param_"
+        "addr(remote_pi,remote_pk):cc_cfg(cc_index(remote_pi,remote_pc))+("
+        "remote_pr==0?2:remote_pr==1?1:3);remote_pb=exp_assign_addr(remote_pti)"
+        ";",
+        0);
+    if (!lookup)
+      throw std::runtime_error("parameter descriptors");
+    for (unsigned gi = 0; gi < 8; ++gi)
+      for (unsigned code = 1; code < 12; ++code)
+        for (unsigned row = 0; row < 4; ++row) {
+          *i = gi;
+          *c = code;
+          *r = row;
+          NSEEL_code_execute(lookup);
+          kinds[gi][code][row] = int(*k);
+          values[gi][code][row] = cell(fx, unsigned(*a));
+          assignments[gi][code][row] = cell(fx, unsigned(*b));
+        }
+    NSEEL_code_free(lookup);
+  }
   explicit Model(ysfx_t *fx) {
     auto gi = NSEEL_VM_regvar(fx->vm.get(), "remote_model_i"),
          c = NSEEL_VM_regvar(fx->vm.get(), "remote_model_c"),
@@ -156,6 +199,7 @@ struct Model {
     }
     NSEEL_code_free(lookup);
     NSEEL_code_free(identity);
+    initParameters(fx);
     for (unsigned i = 0; i < 16; ++i) {
       unsigned b =
           i < 4 ? unsigned(variable(fx, "SW_CFG_BASE")) + 1 + i * 128
@@ -223,6 +267,27 @@ struct Model {
         v.transformerTypes[j] =
             k > 0 && k < 12 ? (k < 7 ? k : int(*tfTypes[i][k])) : 0;
         v.transformerOn[j] = code > 0;
+        if (k <= 0 || k >= 12 || v.transformerTypes[j] < 1 ||
+            v.transformerTypes[j] > 6) {
+          v.parameterCounts[j] = 0;
+          continue;
+        }
+        int type = v.transformerTypes[j];
+        v.parameterCounts[j] = type == 2   ? 3
+                               : type == 5 ? 4
+                               : type == 6 ? 2
+                                           : 1;
+        for (int r = 0; r < v.parameterCounts[j]; ++r) {
+          v.transformerValues[j][r] = *values[i][k][r];
+          v.transformerAssignments[j][r] = int(*assignments[i][k][r]);
+          v.transformerKinds[j][r] = type == 1   ? 7
+                                     : type == 2 ? 8 + r
+                                     : type == 3 ? 11
+                                     : type == 4 ? 0
+                                     : type == 5 ? (r < 3 ? 4 + r : 12)
+                                     : r == 0    ? 2
+                                                 : 13;
+        }
       }
 
       for (unsigned j = 0; j < 16; ++j)
@@ -288,7 +353,15 @@ static std::string json(const Reply &r) {
           o << ',';
         o << "{\"id\":" << v.transformerIds[j]
           << ",\"type\":" << v.transformerTypes[j]
-          << ",\"enabled\":" << v.transformerOn[j] << '}';
+          << ",\"enabled\":" << v.transformerOn[j] << ",\"parameters\":[";
+        for (int r = 0; r < v.parameterCounts[j]; ++r) {
+          if (r)
+            o << ',';
+          o << "{\"kind\":" << v.transformerKinds[j][r]
+            << ",\"value\":" << v.transformerValues[j][r]
+            << ",\"assignment\":" << v.transformerAssignments[j][r] << '}';
+        }
+        o << "]}";
       }
       o << "]}";
     }
@@ -458,8 +531,9 @@ static void control(int listener, Queue<Request, 64> &commands,
                       request.arg >> request.revision >> request.ch >>
                       request.note >> request.value) &&
                  request.id > 0 && request.id <= 9007199254740991ULL &&
-                 request.op >= 0 && request.op <= 10 && request.arg >= 0 &&
-                 request.arg <= 2 && request.ch >= 0 && request.ch < 16 &&
+                 request.op >= 0 && request.op <= 13 && request.arg >= 0 &&
+                 request.arg <= (request.op == 13 ? 5 : 2) && request.ch >= 0 &&
+                 (request.op == 11 ? request.ch <= 16 : request.ch < 16) &&
                  request.note >= 0 && request.note < 128 &&
                  request.value >= 0 && request.value < 128;
     input >> std::ws;
@@ -474,13 +548,34 @@ static void control(int listener, Queue<Request, 64> &commands,
         patchValues.push_back(x);
       valid =
           input.eof() && patch.validate(unsigned(request.target), patchValues);
+    } else if (valid && request.op == 13) {
+      valid = bool(input >> request.module) && request.module >= 0 &&
+              request.module <= 16777215;
+      if (input >> extra)
+        valid = false;
+    } else if (valid && request.op == 12) {
+      valid = bool(input >> request.module >> request.count) &&
+              request.module > 0 && request.module <= 16777215 &&
+              request.count > 0 && request.count <= 4;
+      for (int j = 0; valid && j < request.count; ++j)
+        valid = bool(input >> request.parameters[j].kind >>
+                     request.parameters[j].value) &&
+                request.parameters[j].kind >= 0 &&
+                request.parameters[j].kind < 14 &&
+                std::isfinite(request.parameters[j].value);
+      if (input >> extra)
+        valid = false;
     } else if (valid && (input >> extra))
       valid = false;
     if (valid && request.op >= 6 && request.op <= 8)
       valid = request.target >= 0 && request.target < 16;
-    if (valid && request.op >= 9)
+    if (valid && request.op >= 9 && request.op <= 10)
       valid = request.target > 0 && request.target <= 16777215 &&
               (request.arg == 2 || request.value <= 16);
+    if (valid && request.op == 11)
+      valid = request.arg <= 1 && request.note <= 16;
+    if (valid && request.op >= 11)
+      valid = request.target > 0 && request.target <= 16777215;
     if (!valid)
       send_line(fd, "{\"status\":\"invalid\"}\n", shutdown);
     else if (!commands.push(request))
@@ -647,6 +742,29 @@ int main(int argc, char **argv) {
         "finish_phrase_record();overdub_armed=0;overdub_active=0;", 0);
     if (!phrasePlay || !phraseRecord || !phraseStop)
       throw std::runtime_error("phrase bridge compilation");
+    auto editI = NSEEL_VM_regvar(fx->vm.get(), "remote_edit_i"),
+         editCode = NSEEL_VM_regvar(fx->vm.get(), "remote_edit_code"),
+         editKind = NSEEL_VM_regvar(fx->vm.get(), "remote_edit_kind"),
+         editValue = NSEEL_VM_regvar(fx->vm.get(), "remote_edit_value"),
+         editRow = NSEEL_VM_regvar(fx->vm.get(), "remote_edit_row");
+    auto editOp = NSEEL_VM_regvar(fx->vm.get(), "remote_edit_op"),
+         editArg = NSEEL_VM_regvar(fx->vm.get(), "remote_edit_arg"),
+         editResult = NSEEL_VM_regvar(fx->vm.get(), "remote_edit_result");
+    auto structure =
+        NSEEL_code_compile(fx->vm.get(),
+                           "remote_edit_result=tf_submit(remote_edit_i,remote_"
+                           "edit_op,remote_edit_arg);",
+                           0);
+    if (!structure)
+      throw std::runtime_error("module lifecycle bridge");
+    auto edit = NSEEL_code_compile(
+        fx->vm.get(),
+        "remote_edit_code<7?param_apply(remote_edit_i,remote_edit_kind,remote_"
+        "edit_value):mem[param_pending_addr(cc_ti(cc_index(remote_edit_i,"
+        "remote_edit_code),remote_edit_row))]=remote_edit_value;",
+        0);
+    if (!edit)
+      throw std::runtime_error("typed parameter bridge");
     Model model(fx);
     PatchModel patch(fx);
     sockaddr_un address{};
@@ -781,6 +899,123 @@ int main(int argc, char **argv) {
             loading.store(true, std::memory_order_release);
           }
           maintenance = true;
+        } else if (request.op == 13) {
+          model.snapshot(state);
+          unsigned i = 0;
+          for (; i < 8; ++i)
+            if (state.instruments[i].id == request.target)
+              break;
+          if (i == 8)
+            reply.status = 2;
+          else {
+            auto &inst = state.instruments[i];
+            int slot = -1;
+            for (int j = 0; j < inst.transformerCount; ++j)
+              if (inst.transformerIds[j] == request.module)
+                slot = j;
+            if (request.arg == 1) {
+              bool duplicate = false;
+              for (int j = 0; j < inst.transformerCount; ++j)
+                if (inst.transformerTypes[j] == request.note)
+                  duplicate = true;
+              if (request.note < 1 || request.note > 6 ||
+                  inst.transformerCount >= 6 ||
+                  ((request.note == 3 || request.note == 5) && duplicate))
+                reply.status = 3;
+            } else if (slot < 0)
+              reply.status = 2;
+            if (!reply.status) {
+              if (request.arg >= 4) {
+                int destination = slot + (request.arg == 4 ? -1 : 1);
+                if (destination < 0 || destination >= inst.transformerCount)
+                  reply.status = 3;
+                else {
+                  NSEEL_code_execute(panic_bridge);
+                  std::swap(*model.tfCodes[i][slot],
+                            *model.tfCodes[i][destination]);
+                  ++state.revision;
+                }
+              } else {
+                *editI = i;
+                *editOp = request.arg;
+                *editArg = request.arg == 1 ? request.note : slot;
+                NSEEL_code_execute(structure);
+                if (*editResult != 1)
+                  reply.status = 3;
+                else
+                  ++state.revision;
+              }
+            }
+          }
+        } else if (request.op == 11 || request.op == 12) {
+          unsigned i = 0;
+          for (; i < 8; ++i)
+            if (*model.inst[i][0] && int(*model.inst[i][1]) == request.target)
+              break;
+          if (i == 8)
+            reply.status = 2;
+          else if (request.op == 11) {
+            NSEEL_code_execute(panic_bridge);
+            *model.inst[i][2] = request.arg;
+            *model.inst[i][3] = request.ch;
+            *model.inst[i][4] = request.note;
+            *model.inst[i][5] = request.value;
+            ++state.revision;
+          } else {
+            model.snapshot(state);
+            int slot = -1;
+            for (int j = 0; j < state.instruments[i].transformerCount; ++j)
+              if (state.instruments[i].transformerIds[j] == request.module)
+                slot = j;
+            if (slot < 0)
+              reply.status = 2;
+            else {
+              auto &inst = state.instruments[i];
+              std::array<int, 4> rows{};
+              bool valid = true;
+              for (int j = 0; j < request.count; ++j) {
+                auto &change = request.parameters[j];
+                int row = -1;
+                for (int r = 0; r < inst.parameterCounts[slot]; ++r)
+                  if (inst.transformerKinds[slot][r] == change.kind)
+                    row = r;
+                if (row < 0 || inst.transformerAssignments[slot][row])
+                  valid = false;
+                else
+                  rows[j] = row;
+                double low = change.kind == 7   ? -48
+                             : change.kind == 0 ? .2
+                             : change.kind == 5 ? .25
+                             : change.kind == 6 ? .02
+                                                : 0;
+                double high = change.kind == 7                        ? 48
+                              : change.kind == 0                      ? 3
+                              : change.kind == 5                      ? 16
+                              : change.kind == 6 || change.kind == 12 ? 1
+                              : change.kind == 4                      ? 2
+                              : change.kind == 8 || change.kind == 11 ? 3
+                                                                      : 127;
+                if (change.value < low || change.value > high)
+                  valid = false;
+                for (int prior = 0; prior < j; ++prior)
+                  if (request.parameters[prior].kind == change.kind)
+                    valid = false;
+              }
+              if (!valid)
+                reply.status = 3;
+              else {
+                *editI = i;
+                *editCode = std::abs(int(*model.tfCodes[i][slot]));
+                for (int j = 0; j < request.count; ++j) {
+                  *editKind = request.parameters[j].kind;
+                  *editValue = request.parameters[j].value;
+                  *editRow = rows[j];
+                  NSEEL_code_execute(edit);
+                }
+                ++state.revision;
+              }
+            }
+          }
         } else if (request.op >= 9) {
           unsigned i = 0;
           for (; i < 8; ++i)
@@ -956,6 +1191,8 @@ int main(int argc, char **argv) {
     NSEEL_code_free(phrasePlay);
     NSEEL_code_free(phraseRecord);
     NSEEL_code_free(phraseStop);
+    NSEEL_code_free(edit);
+    NSEEL_code_free(structure);
   } catch (const std::exception &e) {
     std::cerr << e.what() << '\n';
     if (listener >= 0)

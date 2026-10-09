@@ -11,6 +11,7 @@ import struct
 import os
 import math
 import time
+from registry import REGISTRY
 import socket
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -25,13 +26,16 @@ class Control:
         self.lock = threading.Lock()
         self.ids = itertools.count(1)
 
-    def request(self, op=0, target=0, arg=0, revision=1, ch=0, note=0, value=0, session=0, patch=None):
+    def request(self, op=0, target=0, arg=0, revision=1, ch=0, note=0, value=0, session=0, patch=None, parameters=None, module=0):
         # One worker producer owns the engine's command queue; HTTP threads never
         # inspect live engine state. A timeout does not cancel an already executed TEST.
         with self.lock:
             request_id = next(self.ids)
             line = f'{request_id} {op} {target} {arg} {revision} {ch} {note} {value}\n'
             if session:line=line.rstrip('\n')+f' session {session}\n'
+            if op==13:line=line.rstrip('\n')+f' {module}\n'
+            if parameters is not None:
+                line=line.rstrip('\n')+f' {module} {len(parameters)} '+ ' '.join(f"{p['kind']} {p['value']:.17g}" for p in parameters)+'\n'
             if patch is not None:
                 line = line.rstrip('\n') + ' ' + ' '.join(format(v, '.17g') for v in patch['globals']+patch['memory'])+'\n'
             with socket.socket(socket.AF_UNIX) as client:
@@ -141,6 +145,8 @@ class Handler(BaseHTTPRequestHandler):
             return
         if path=='/api/v1/ws' and self.headers.get('Upgrade','').lower()=='websocket':
             self.websocket();return
+        if path == '/api/v1/descriptors':
+            self.respond(200,REGISTRY.document());return
         if path == '/api/v1/state':
             self.engine()
             return
@@ -185,7 +191,30 @@ class Handler(BaseHTTPRequestHandler):
                 args = dict(op=1, target=target, arg=('tap', 'double', 'hold').index(gesture))
             elif action == 'panic':
                 args = dict(op=2)
+            elif action=='module_structure':
+                target=data.get('instrumentId');module=data.get('moduleId',0);op=data.get('operation');type_=data.get('engineType',0)
+                if any(type(v) is not int or not 0<=v<=16777215 for v in (target,module,type_)) or not target or op not in ('add','delete','bypass','up','down'):raise ValueError()
+                if op=='add' and type_ not in REGISTRY.engine_types:raise ValueError()
+                args=dict(op=13,target=target,module=module,arg=('add','delete','bypass','up','down').index(op)+1,note=type_)
+            elif action=='instrument_commit':
+                target=data.get('instrumentId');values=[data.get(k) for k in ('enabled','input','output','level')]
+                if type(target) is not int or not 1<=target<=16777215 or any(type(v) is not int or not 0<=v<=limit for v,limit in zip(values,(1,16,16,127))):raise ValueError()
+                args=dict(op=11,target=target,arg=values[0],ch=values[1],note=values[2],value=values[3])
+            elif action=='module_commit':
+                target=data.get('instrumentId');module=data.get('moduleId');parameters=data.get('parameters')
+                if any(type(v) is not int or not 1<=v<=16777215 for v in (target,module)) or not isinstance(parameters,list) or not 1<=len(parameters)<=4:raise ValueError()
+                seen=set()
+                for p in parameters:
+                    if not isinstance(p,dict) or type(p.get('kind')) is not int or p['kind'] in seen or type(p.get('value')) not in (int,float) or not math.isfinite(p['value']):raise ValueError()
+                    descriptor=next((d for d in REGISTRY.parameters.values() if d['engineKind']==p['kind']),None)
+                    if not descriptor or not descriptor['min']<=p['value']<=descriptor['max']:raise ValueError()
+                    # Current native kinds are quantized with the exact JSFX step.
+                    step=descriptor['step']
+                    if abs(p['value']/step-round(p['value']/step))>1e-6:raise ValueError()
+                    seen.add(p['kind'])
+                args=dict(op=12,target=target,module=module,parameters=parameters)
             elif action in ('instrument_route','instrument_enabled'):
+
                 target=data.get('instrumentId');field=data.get('field','enabled');value=data.get('value')
                 if type(target) is not int or not 1<=target<=16777215 or field not in ('input','output','level','enabled') or type(value) is not int or not 0<=value<=(127 if field=='level' else 1 if field=='enabled' else 16):raise ValueError()
                 args=dict(op=10 if field=='enabled' else 9,target=target,arg=('input','output','level').index(field) if field!='enabled' else 0,value=value)

@@ -208,3 +208,28 @@ and kills its subprocess group on timeout, including browser drivers and test ho
 Chromium is desktop evidence only. Stock Firefox initialization still times out in
 this restricted container; Playwright's Firefox download is blocked by the network
 domain filter. Actual Firefox/Pi acceptance remains required on the device.
+
+## Controller-enabled first demo
+
+The Controller integration branch stacks on `fix/zynthian-first-demo`:
+
+```sh
+git fetch origin feat/controller-host-integration
+git switch --track origin/feat/controller-host-integration
+scripts/headless-setup.sh
+scripts/headless-check.sh
+EDITOR_BIND=0.0.0.0 EDITOR_TOKEN_FILE=/tmp/midi-editor-token DEMO_PATCH=1 scripts/headless-run.sh
+```
+
+In Firefox, CONNECT with the token, TEST a Smart Switch and verify downstream notes.
+ADD CONTROLLER SOURCE → MIDI LEARN → move an unused Helix CC/pedal. Verify exact
+channel/type/number, then ADD MAPPING to Instrument VOLUME or a phrase decay target.
+Set TAKEOVER=2 (GLIDE), BACK TO STATE=1 (IDLE), GLIDE=0.2 s, IDLE WAIT=1 s and
+RETURN RAMP=0.5 s. DONE; move the pedal and observe the ramp/return and audible change.
+SAVE PATCH, PANIC, LOAD PATCH; verify committed bases and assignments return. Close
+and reopen Firefox; the engine must continue without a browser. Perform PANIC before
+stopping the launcher. Use EXPORT REAPER BASE only when transferring to REAPER.
+
+See [Controller integration](controller-engine-integration.md) for exact limits and
+the explicit REAPER extension boundary. No claim of completed Pi/Firefox acceptance
+is made from desktop Chromium tests.

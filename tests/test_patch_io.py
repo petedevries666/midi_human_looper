@@ -118,6 +118,17 @@ class PatchIO(unittest.TestCase):
         self.assertEqual(self.tick(2, 1), 5)
         self.assertEqual(self.tick(2, 2), 5)
 
+    def test_headless_controller_files_are_not_silently_erased(self):
+        wire=[0]*2177;wire[0]=1;wire[1]=101
+        data=dict(format='MIDI_HUMAN_LOOPER_PATCH',schema=1,work_mem_size=2,globals=[0]*9,memory=[144,60],controllerEngine=dict(version=1,configuration=wire))
+        path=self.root/'patch1.json';original=json.dumps(data);path.write_text(original)
+        self.mem[32]=123
+        self.assertEqual(self.tick(2,1),5);self.assertEqual(self.mem[32],123)
+        self.mem[2],self.mem[3]=1,2
+        self.assertEqual(self.tick(1,1),5);self.assertEqual(path.read_text(),original)
+        del data['controllerEngine'];path.write_text(json.dumps(data))
+        self.assertEqual(self.tick(2,1),3);self.assertEqual(self.mem[32],144)
+
     def test_invalid_save_and_heartbeat(self):
         self.assertEqual(self.mem[15], 1)
         self.assertEqual(self.mem[16], 7)

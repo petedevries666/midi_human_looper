@@ -1,4 +1,4 @@
-desc:MIDI Human Looper v1.26.0
+desc:MIDI Human Looper v1.27.0
 options:gmem=MIDI_HUMAN_LOOPER
 
 // Release history: CHANGELOG.md. Free-time MIDI phrase instrument.
@@ -22,7 +22,8 @@ STATE_STOPPED = 4;
 // External patch I/O bridge (companion Lua ReaScript).
 // gmem[0] command: 0 idle, 1 SAVE request, 2 LOAD request, 3 LOAD ready, 4 SAVE done, 5 error.
 // gmem[1] selected slot, [2] schema, [3] PATCH_PAYLOAD_SIZE, [4..] globals, payload starts at 32.
-IO_SCHEMA = 6;
+IO_SCHEMA = 7;
+DS_SCHEMA=6;
 TF_SCHEMA=5;
 CC_SCHEMA=4;
 SW_SCHEMA=3;
@@ -223,6 +224,151 @@ SW_RELEASE_BASE=SW_DRAFT_UNDO_BASE+SW_STRIDE;SW_RELEASE_SIZE=32;
 SW_LEARN_RELEASE_DEADLINE_BASE=SW_RELEASE_BASE+SW_RELEASE_SIZE*4;
 SW_COUNT=16;
 PATCH_PAYLOAD_SIZE=DS_LEGACY_PAYLOAD+DS_CFG_SIZE;
+
+// Schema 7: append dynamic instrument storage; legacy addresses and wire prefix stay frozen.
+INST_CAP=8;INSTANCE_EXTRA=INST_CAP*(TRANSFORM_SLOTS-1);CC_RT_COUNT=INST_CAP*TRANSFORM_SLOTS;
+I_LEGACY_PAYLOAD=DS_LEGACY_PAYLOAD+DS_CFG_SIZE;
+I_CFG_BASE=SW_LEARN_RELEASE_DEADLINE_BASE+SW_RELEASE_SIZE;
+I_EXISTS_BASE=I_CFG_BASE+2;I_IDS_BASE=I_EXISTS_BASE+INST_CAP;I_CC_IDS_BASE=I_IDS_BASE+INST_CAP;
+I_INST_IN_BASE=I_CC_IDS_BASE+5;
+I_INST_OUT_BASE=I_INST_IN_BASE+5;
+I_INST_VEL_BASE=I_INST_OUT_BASE+5;
+I_INST_LEVEL_BASE=I_INST_VEL_BASE+5;
+I_INST_MOD_BASE=I_INST_LEVEL_BASE+5;
+I_INST_ENABLED_BASE=I_INST_MOD_BASE+5;
+I_INST_LEVEL_CC_BASE=I_INST_ENABLED_BASE+5;
+I_INST_ARP_ENABLED_BASE=I_INST_LEVEL_CC_BASE+5;
+I_INST_ARP_RATE_BASE=I_INST_ARP_ENABLED_BASE+5;
+I_INST_ARP_GATE_BASE=I_INST_ARP_RATE_BASE+5;
+I_INST_ARP_HOLD_BASE=I_INST_ARP_GATE_BASE+5;
+I_INST_ARP_MODE_BASE=I_INST_ARP_HOLD_BASE+5;
+I_INST_NOTE_MODE_BASE=I_INST_ARP_MODE_BASE+5;
+I_INST_RANGE_MODE_BASE=I_INST_NOTE_MODE_BASE+5;
+I_INST_RANGE_LOW_BASE=I_INST_RANGE_MODE_BASE+5;
+I_INST_RANGE_HIGH_BASE=I_INST_RANGE_LOW_BASE+5;
+I_INST_TRANSPOSE_BASE=I_INST_RANGE_HIGH_BASE+5;
+I_INST_TRANSFORM_COUNT_BASE=I_INST_TRANSPOSE_BASE+5;
+I_PARAM_MOD_CC_BASE=I_INST_TRANSFORM_COUNT_BASE+5;
+I_INST_EXP_ASSIGN_BASE=I_PARAM_MOD_CC_BASE+5;
+I_INST_EXP_COUNT_BASE=I_INST_EXP_ASSIGN_BASE+35;
+I_INST_EXP_X_BASE=I_INST_EXP_COUNT_BASE+35;
+I_INST_EXP_Y_BASE=I_INST_EXP_X_BASE+210;
+I_INST_EXP_BEND_BASE=I_INST_EXP_Y_BASE+210;
+I_PARAM_ASSIGN_BASE=I_INST_EXP_BEND_BASE+210;
+I_PARAM_COUNT_BASE=I_PARAM_ASSIGN_BASE+35;
+I_PARAM_X_BASE=I_PARAM_COUNT_BASE+35;
+I_PARAM_Y_BASE=I_PARAM_X_BASE+210;
+I_PARAM_BEND_BASE=I_PARAM_Y_BASE+210;
+I_INSTR_NAME_BASE=I_PARAM_BEND_BASE+210;
+I_INST_TRANSFORM_TYPE_BASE=I_INSTR_NAME_BASE+80;
+I_CC_CFG_BASE=I_INST_TRANSFORM_TYPE_BASE+30;
+I_TF_PRIMARY_IDS=I_CC_CFG_BASE+1100;
+I_TF_RECORD_BASE=I_TF_PRIMARY_IDS+30;
+I_CFG_SIZE=I_TF_RECORD_BASE+525-I_CFG_BASE;
+I_BANK1_BASE=I_CFG_BASE+I_CFG_SIZE;I_BANK2_BASE=I_BANK1_BASE+I_CFG_SIZE;
+I_CC_DIRTY_BASE=I_BANK2_BASE+I_CFG_SIZE;
+I_CC_DIRTY_MOD_BASE=I_CC_DIRTY_BASE+5;
+I_ARP_ACTIVE_NOTE_BASE=I_CC_DIRTY_MOD_BASE+5;
+I_ARP_ACTIVE_CH_BASE=I_ARP_ACTIVE_NOTE_BASE+5;
+I_ARP_STEP_REMAIN_BASE=I_ARP_ACTIVE_CH_BASE+5;
+I_ARP_GATE_REMAIN_BASE=I_ARP_STEP_REMAIN_BASE+5;
+I_ARP_CURSOR_BASE=I_ARP_GATE_REMAIN_BASE+5;
+I_MONO_ACTIVE_NOTE_BASE=I_ARP_CURSOR_BASE+5;
+I_MONO_ACTIVE_CH_BASE=I_MONO_ACTIVE_NOTE_BASE+5;
+I_PARAM_ACTIVE_BASE=I_MONO_ACTIVE_CH_BASE+5;
+I_PARAM_MOD_CC_LAST_BASE=I_PARAM_ACTIVE_BASE+5;
+I_PARAM_MOD_ON_LAST_BASE=I_PARAM_MOD_CC_LAST_BASE+5;
+I_SW_MONO_OWNER_BASE=I_PARAM_MOD_ON_LAST_BASE+5;
+I_ARP_HELD_COUNT_BASE=I_SW_MONO_OWNER_BASE+5;
+I_ARP_HELD_VEL_BASE=I_ARP_HELD_COUNT_BASE+640;
+I_ARP_SOURCE_COUNT_BASE=I_ARP_HELD_VEL_BASE+640;
+I_MONO_HELD_COUNT_BASE=I_ARP_SOURCE_COUNT_BASE+640;
+I_MONO_HELD_VEL_BASE=I_MONO_HELD_COUNT_BASE+640;
+I_MONO_ORDER_BASE=I_MONO_HELD_VEL_BASE+640;
+I_SW_MONO_PHRASE_BASE=I_MONO_ORDER_BASE+640;
+I_SW_ARP_PHRASE_BASE=I_SW_MONO_PHRASE_BASE+640;
+I_SW_ARP_PHRASE_SOURCE_BASE=I_SW_ARP_PHRASE_BASE+640;
+I_EXP_LAST_VALUE_BASE=I_SW_ARP_PHRASE_SOURCE_BASE+640;
+I_SW_MODULE_BASE=I_EXP_LAST_VALUE_BASE+35;
+I_SW_PHRASE_OUT_BASE=I_SW_MODULE_BASE+30;
+I_SW_LIVE_OUT_BASE=I_SW_PHRASE_OUT_BASE+10240;
+I_SW_LOOP_INPUT_BASE=I_SW_LIVE_OUT_BASE+10240;
+I_INPUT_BASE=I_SW_LOOP_INPUT_BASE+10240;I_P_LAST_BASE=I_INPUT_BASE+20480;I_P_PENDING_BASE=I_P_LAST_BASE+70;
+I_C_LAST_BASE=I_P_PENDING_BASE+70;I_C_PENDING_BASE=I_C_LAST_BASE+75;
+I_CC_RT_BASE=I_C_PENDING_BASE+75;I_ONCE_OUT_BASE=I_CC_RT_BASE+240;
+I_FALLBACK_BASE=I_ONCE_OUT_BASE+INST_CAP*2048;I_SUSTAIN_BASE=I_FALLBACK_BASE+4096;I_FALLBACK_SUSTAIN_BASE=I_SUSTAIN_BASE+INST_CAP*16;
+TF_QUEUE_BASE=I_SUSTAIN_BASE+INST_CAP*16+16;TF_QUEUE_STRIDE=5;
+I_QUEUE_BASE=TF_QUEUE_BASE+TF_QUEUE_SIZE*TF_QUEUE_STRIDE;I_QUEUE_SIZE=16;I_QUEUE_STRIDE=3;
+I_NEW_PRIMARY_TI=87;I_NEW_EXTRA_TI=157;UI_PARAM_TOTAL=232;
+PATCH_PAYLOAD_SIZE=I_LEGACY_PAYLOAD+I_CFG_SIZE;
+// Read-only address lookup tables. Never use GUI/audio scratch to resolve storage.
+mem[1000000+INST_IN_BASE]=3;mem[1700000+INST_IN_BASE]=I_INST_IN_BASE-3;
+mem[1000000+INST_OUT_BASE]=3;mem[1700000+INST_OUT_BASE]=I_INST_OUT_BASE-3;
+mem[1000000+INST_VEL_BASE]=3;mem[1700000+INST_VEL_BASE]=I_INST_VEL_BASE-3;
+mem[1000000+INST_LEVEL_BASE]=3;mem[1700000+INST_LEVEL_BASE]=I_INST_LEVEL_BASE-3;
+mem[1000000+INST_MOD_BASE]=3;mem[1700000+INST_MOD_BASE]=I_INST_MOD_BASE-3;
+mem[1000000+INST_ENABLED_BASE]=3;mem[1700000+INST_ENABLED_BASE]=I_INST_ENABLED_BASE-3;
+mem[1000000+INST_LEVEL_CC_BASE]=3;mem[1700000+INST_LEVEL_CC_BASE]=I_INST_LEVEL_CC_BASE-3;
+mem[1000000+INST_ARP_ENABLED_BASE]=3;mem[1700000+INST_ARP_ENABLED_BASE]=I_INST_ARP_ENABLED_BASE-3;
+mem[1000000+INST_ARP_RATE_BASE]=3;mem[1700000+INST_ARP_RATE_BASE]=I_INST_ARP_RATE_BASE-3;
+mem[1000000+INST_ARP_GATE_BASE]=3;mem[1700000+INST_ARP_GATE_BASE]=I_INST_ARP_GATE_BASE-3;
+mem[1000000+INST_ARP_HOLD_BASE]=3;mem[1700000+INST_ARP_HOLD_BASE]=I_INST_ARP_HOLD_BASE-3;
+mem[1000000+INST_ARP_MODE_BASE]=3;mem[1700000+INST_ARP_MODE_BASE]=I_INST_ARP_MODE_BASE-3;
+mem[1000000+INST_NOTE_MODE_BASE]=3;mem[1700000+INST_NOTE_MODE_BASE]=I_INST_NOTE_MODE_BASE-3;
+mem[1000000+INST_RANGE_MODE_BASE]=3;mem[1700000+INST_RANGE_MODE_BASE]=I_INST_RANGE_MODE_BASE-3;
+mem[1000000+INST_RANGE_LOW_BASE]=3;mem[1700000+INST_RANGE_LOW_BASE]=I_INST_RANGE_LOW_BASE-3;
+mem[1000000+INST_RANGE_HIGH_BASE]=3;mem[1700000+INST_RANGE_HIGH_BASE]=I_INST_RANGE_HIGH_BASE-3;
+mem[1000000+INST_TRANSPOSE_BASE]=3;mem[1700000+INST_TRANSPOSE_BASE]=I_INST_TRANSPOSE_BASE-3;
+mem[1000000+INST_TRANSFORM_COUNT_BASE]=3;mem[1700000+INST_TRANSFORM_COUNT_BASE]=I_INST_TRANSFORM_COUNT_BASE-3;
+mem[1000000+PARAM_MOD_CC_BASE]=3;mem[1700000+PARAM_MOD_CC_BASE]=I_PARAM_MOD_CC_BASE-3;
+mem[1000000+INST_EXP_ASSIGN_BASE]=21;mem[1700000+INST_EXP_ASSIGN_BASE]=I_INST_EXP_ASSIGN_BASE-21;
+mem[1000000+INST_EXP_COUNT_BASE]=21;mem[1700000+INST_EXP_COUNT_BASE]=I_INST_EXP_COUNT_BASE-21;
+mem[1000000+INST_EXP_X_BASE]=126;mem[1700000+INST_EXP_X_BASE]=I_INST_EXP_X_BASE-126;
+mem[1000000+INST_EXP_Y_BASE]=126;mem[1700000+INST_EXP_Y_BASE]=I_INST_EXP_Y_BASE-126;
+mem[1000000+INST_EXP_BEND_BASE]=126;mem[1700000+INST_EXP_BEND_BASE]=I_INST_EXP_BEND_BASE-126;
+mem[1000000+PARAM_ASSIGN_BASE]=21;mem[1700000+PARAM_ASSIGN_BASE]=I_PARAM_ASSIGN_BASE-21;
+mem[1000000+PARAM_COUNT_BASE]=21;mem[1700000+PARAM_COUNT_BASE]=I_PARAM_COUNT_BASE-21;
+mem[1000000+PARAM_X_BASE]=126;mem[1700000+PARAM_X_BASE]=I_PARAM_X_BASE-126;
+mem[1000000+PARAM_Y_BASE]=126;mem[1700000+PARAM_Y_BASE]=I_PARAM_Y_BASE-126;
+mem[1000000+PARAM_BEND_BASE]=126;mem[1700000+PARAM_BEND_BASE]=I_PARAM_BEND_BASE-126;
+mem[1000000+INSTR_NAME_BASE]=48;mem[1700000+INSTR_NAME_BASE]=I_INSTR_NAME_BASE-48;
+mem[1000000+INST_TRANSFORM_TYPE_BASE]=18;mem[1700000+INST_TRANSFORM_TYPE_BASE]=I_INST_TRANSFORM_TYPE_BASE-18;
+mem[1000000+CC_CFG_BASE]=665;mem[1700000+CC_CFG_BASE]=I_CC_CFG_BASE-665;
+mem[1000000+TF_PRIMARY_IDS]=18;mem[1700000+TF_PRIMARY_IDS]=I_TF_PRIMARY_IDS-18;
+mem[1000000+TF_RECORD_BASE]=315;mem[1700000+TF_RECORD_BASE]=I_TF_RECORD_BASE-315;
+mem[1000000+CC_DIRTY_BASE]=3;mem[1700000+CC_DIRTY_BASE]=I_CC_DIRTY_BASE-3;
+mem[1000000+CC_DIRTY_MOD_BASE]=3;mem[1700000+CC_DIRTY_MOD_BASE]=I_CC_DIRTY_MOD_BASE-3;
+mem[1000000+ARP_ACTIVE_NOTE_BASE]=3;mem[1700000+ARP_ACTIVE_NOTE_BASE]=I_ARP_ACTIVE_NOTE_BASE-3;
+mem[1000000+ARP_ACTIVE_CH_BASE]=3;mem[1700000+ARP_ACTIVE_CH_BASE]=I_ARP_ACTIVE_CH_BASE-3;
+mem[1000000+ARP_STEP_REMAIN_BASE]=3;mem[1700000+ARP_STEP_REMAIN_BASE]=I_ARP_STEP_REMAIN_BASE-3;
+mem[1000000+ARP_GATE_REMAIN_BASE]=3;mem[1700000+ARP_GATE_REMAIN_BASE]=I_ARP_GATE_REMAIN_BASE-3;
+mem[1000000+ARP_CURSOR_BASE]=3;mem[1700000+ARP_CURSOR_BASE]=I_ARP_CURSOR_BASE-3;
+mem[1000000+MONO_ACTIVE_NOTE_BASE]=3;mem[1700000+MONO_ACTIVE_NOTE_BASE]=I_MONO_ACTIVE_NOTE_BASE-3;
+mem[1000000+MONO_ACTIVE_CH_BASE]=3;mem[1700000+MONO_ACTIVE_CH_BASE]=I_MONO_ACTIVE_CH_BASE-3;
+mem[1000000+PARAM_ACTIVE_BASE]=3;mem[1700000+PARAM_ACTIVE_BASE]=I_PARAM_ACTIVE_BASE-3;
+mem[1000000+PARAM_MOD_CC_LAST_BASE]=3;mem[1700000+PARAM_MOD_CC_LAST_BASE]=I_PARAM_MOD_CC_LAST_BASE-3;
+mem[1000000+PARAM_MOD_ON_LAST_BASE]=3;mem[1700000+PARAM_MOD_ON_LAST_BASE]=I_PARAM_MOD_ON_LAST_BASE-3;
+mem[1000000+SW_MONO_OWNER_BASE]=3;mem[1700000+SW_MONO_OWNER_BASE]=I_SW_MONO_OWNER_BASE-3;
+mem[1000000+ARP_HELD_COUNT_BASE]=384;mem[1700000+ARP_HELD_COUNT_BASE]=I_ARP_HELD_COUNT_BASE-384;
+mem[1000000+ARP_HELD_VEL_BASE]=384;mem[1700000+ARP_HELD_VEL_BASE]=I_ARP_HELD_VEL_BASE-384;
+mem[1000000+ARP_SOURCE_COUNT_BASE]=384;mem[1700000+ARP_SOURCE_COUNT_BASE]=I_ARP_SOURCE_COUNT_BASE-384;
+mem[1000000+MONO_HELD_COUNT_BASE]=384;mem[1700000+MONO_HELD_COUNT_BASE]=I_MONO_HELD_COUNT_BASE-384;
+mem[1000000+MONO_HELD_VEL_BASE]=384;mem[1700000+MONO_HELD_VEL_BASE]=I_MONO_HELD_VEL_BASE-384;
+mem[1000000+MONO_ORDER_BASE]=384;mem[1700000+MONO_ORDER_BASE]=I_MONO_ORDER_BASE-384;
+mem[1000000+SW_MONO_PHRASE_BASE]=384;mem[1700000+SW_MONO_PHRASE_BASE]=I_SW_MONO_PHRASE_BASE-384;
+mem[1000000+SW_ARP_PHRASE_BASE]=384;mem[1700000+SW_ARP_PHRASE_BASE]=I_SW_ARP_PHRASE_BASE-384;
+mem[1000000+SW_ARP_PHRASE_SOURCE_BASE]=384;mem[1700000+SW_ARP_PHRASE_SOURCE_BASE]=I_SW_ARP_PHRASE_SOURCE_BASE-384;
+mem[1000000+EXP_LAST_VALUE_BASE]=21;mem[1700000+EXP_LAST_VALUE_BASE]=I_EXP_LAST_VALUE_BASE-21;
+mem[1000000+SW_MODULE_BASE]=18;mem[1700000+SW_MODULE_BASE]=I_SW_MODULE_BASE-18;
+mem[1000000+SW_PHRASE_OUT_BASE]=6144;mem[1700000+SW_PHRASE_OUT_BASE]=I_SW_PHRASE_OUT_BASE-6144;
+mem[1000000+SW_LIVE_OUT_BASE]=6144;mem[1700000+SW_LIVE_OUT_BASE]=I_SW_LIVE_OUT_BASE-6144;
+mem[1000000+SW_LOOP_INPUT_BASE]=6144;mem[1700000+SW_LOOP_INPUT_BASE]=I_SW_LOOP_INPUT_BASE-6144;
+function engine_addr(base,offset)
+(offset>=mem[1000000+base]?mem[1700000+base]+offset:base+offset;);
+function input_addr(offset)
+(offset<6144?PARAM_INPUT_BASE+offset:offset>=16384 && offset<22528?PARAM_INPUT_BASE+offset-10240:offset<16384?I_INPUT_BASE+offset-6144:I_INPUT_BASE+offset-12288;);
+function primary_cc_id_addr(gi) (gi<3?CC_CFG_BASE+2+gi:I_CC_IDS_BASE+gi-3;);
+function cc_rt_addr(index) (index<18?CC_RT_BASE+index*CC_RT_STRIDE:I_CC_RT_BASE+(index-18)*CC_RT_STRIDE;);
 // Actions: NONE/NEXT/STOP/RESET/RESET ALL/STOP+RESET/PANIC/TOGGLE/ENABLE/DISABLE.
 SW_NONE=0;SW_NEXT=1;SW_STOP=2;SW_RESET=3;SW_RESET_ALL=4;SW_STOP_RESET=5;
 SW_PANIC=6;SW_TOGGLE=7;SW_ENABLE=8;SW_DISABLE=9;
@@ -263,20 +409,20 @@ loop(16,
   ri+=1;
 );
 ii=0;
-loop(INSTRUMENTS,
-  mem[CC_DIRTY_BASE+ii]=0;
-  mem[CC_DIRTY_MOD_BASE+ii]=0;
-  mem[ARP_ACTIVE_NOTE_BASE+ii]=-1;
-  mem[ARP_ACTIVE_CH_BASE+ii]=0;
-  mem[ARP_STEP_REMAIN_BASE+ii]=0;
-  mem[ARP_GATE_REMAIN_BASE+ii]=0;
-  et=0; loop(EXP_TARGETS, mem[EXP_LAST_VALUE_BASE+ii*EXP_TARGETS+et]=-1; et+=1;);
-  mem[ARP_CURSOR_BASE+ii]=-1;
+loop(INST_CAP,
+  mem[engine_addr(CC_DIRTY_BASE,ii)]=0;
+  mem[engine_addr(CC_DIRTY_MOD_BASE,ii)]=0;
+  mem[engine_addr(ARP_ACTIVE_NOTE_BASE,ii)]=-1;
+  mem[engine_addr(ARP_ACTIVE_CH_BASE,ii)]=0;
+  mem[engine_addr(ARP_STEP_REMAIN_BASE,ii)]=0;
+  mem[engine_addr(ARP_GATE_REMAIN_BASE,ii)]=0;
+  et=0; loop(EXP_TARGETS, mem[engine_addr(EXP_LAST_VALUE_BASE,ii*EXP_TARGETS+et)]=-1; et+=1;);
+  mem[engine_addr(ARP_CURSOR_BASE,ii)]=-1;
   nn=0;
   loop(128,
-    mem[ARP_HELD_COUNT_BASE+ii*128+nn]=0;
-    mem[ARP_HELD_VEL_BASE+ii*128+nn]=0;
-    mem[ARP_SOURCE_COUNT_BASE+ii*128+nn]=0;
+    mem[engine_addr(ARP_HELD_COUNT_BASE,ii*128+nn)]=0;
+    mem[engine_addr(ARP_HELD_VEL_BASE,ii*128+nn)]=0;
+    mem[engine_addr(ARP_SOURCE_COUNT_BASE,ii*128+nn)]=0;
     nn+=1;
   );
   ii+=1;
@@ -302,53 +448,53 @@ loop(LAYERS,
 // Instrument 1 enabled by default as transparent ALL -> ORIGINAL route.
 // Others are available but disabled until configured.
 ii=0;
-loop(INSTRUMENTS,
-  mem[INST_IN_BASE+ii]=0;
-  mem[INST_OUT_BASE+ii]=0;
-  mem[INST_VEL_BASE+ii]=1;
-  mem[INST_LEVEL_BASE+ii]=127;
-  mem[INST_MOD_BASE+ii]=0;
-  mem[INST_ENABLED_BASE+ii]=(ii==0);
-  mem[INST_LEVEL_CC_BASE+ii]=7;
-  mem[INST_ARP_ENABLED_BASE+ii]=0;
-  mem[INST_ARP_RATE_BASE+ii]=4;   // x BPM: 4 = 16th notes
-  mem[INST_ARP_GATE_BASE+ii]=0.5;
-  mem[INST_ARP_HOLD_BASE+ii]=0;
-  mem[INST_ARP_MODE_BASE+ii]=0;
-  mem[INST_NOTE_MODE_BASE+ii]=0;
-  mem[INST_RANGE_MODE_BASE+ii]=0;
-  mem[INST_RANGE_LOW_BASE+ii]=0;
-  mem[INST_RANGE_HIGH_BASE+ii]=127;
-  mem[INST_TRANSPOSE_BASE+ii]=0;
-  mem[INST_TRANSFORM_COUNT_BASE+ii]=0;
-  ts=0; loop(TRANSFORM_SLOTS, mem[INST_TRANSFORM_TYPE_BASE+ii*TRANSFORM_SLOTS+ts]=0; ts+=1;);
-  mem[MONO_ACTIVE_NOTE_BASE+ii]=-1;
-  mem[MONO_ACTIVE_CH_BASE+ii]=0;
+loop(INST_CAP,
+  mem[engine_addr(INST_IN_BASE,ii)]=0;
+  mem[engine_addr(INST_OUT_BASE,ii)]=0;
+  mem[engine_addr(INST_VEL_BASE,ii)]=1;
+  mem[engine_addr(INST_LEVEL_BASE,ii)]=127;
+  mem[engine_addr(INST_MOD_BASE,ii)]=0;
+  mem[engine_addr(INST_ENABLED_BASE,ii)]=(ii==0);
+  mem[engine_addr(INST_LEVEL_CC_BASE,ii)]=7;
+  mem[engine_addr(INST_ARP_ENABLED_BASE,ii)]=0;
+  mem[engine_addr(INST_ARP_RATE_BASE,ii)]=4;   // x BPM: 4 = 16th notes
+  mem[engine_addr(INST_ARP_GATE_BASE,ii)]=0.5;
+  mem[engine_addr(INST_ARP_HOLD_BASE,ii)]=0;
+  mem[engine_addr(INST_ARP_MODE_BASE,ii)]=0;
+  mem[engine_addr(INST_NOTE_MODE_BASE,ii)]=0;
+  mem[engine_addr(INST_RANGE_MODE_BASE,ii)]=0;
+  mem[engine_addr(INST_RANGE_LOW_BASE,ii)]=0;
+  mem[engine_addr(INST_RANGE_HIGH_BASE,ii)]=127;
+  mem[engine_addr(INST_TRANSPOSE_BASE,ii)]=0;
+  mem[engine_addr(INST_TRANSFORM_COUNT_BASE,ii)]=0;
+  ts=0; loop(TRANSFORM_SLOTS, mem[engine_addr(INST_TRANSFORM_TYPE_BASE,ii*TRANSFORM_SLOTS+ts)]=0; ts+=1;);
+  mem[engine_addr(MONO_ACTIVE_NOTE_BASE,ii)]=-1;
+  mem[engine_addr(MONO_ACTIVE_CH_BASE,ii)]=0;
   nn=0;
   loop(128,
-    mem[MONO_HELD_COUNT_BASE+ii*128+nn]=0;
-    mem[MONO_HELD_VEL_BASE+ii*128+nn]=0;
-    mem[MONO_ORDER_BASE+ii*128+nn]=0;
+    mem[engine_addr(MONO_HELD_COUNT_BASE,ii*128+nn)]=0;
+    mem[engine_addr(MONO_HELD_VEL_BASE,ii*128+nn)]=0;
+    mem[engine_addr(MONO_ORDER_BASE,ii*128+nn)]=0;
     nn+=1;
   );
   et=0;
   loop(EXP_TARGETS,
     eti=ii*EXP_TARGETS+et;
-    mem[INST_EXP_ASSIGN_BASE+eti]=0;
-    mem[INST_EXP_COUNT_BASE+eti]=2;
-    mem[INST_EXP_X_BASE+eti*EXP_POINTS+0]=0;
-    mem[INST_EXP_Y_BASE+eti*EXP_POINTS+0]=0;
-    mem[INST_EXP_X_BASE+eti*EXP_POINTS+1]=1;
-    mem[INST_EXP_Y_BASE+eti*EXP_POINTS+1]=1;
+    mem[engine_addr(INST_EXP_ASSIGN_BASE,eti)]=0;
+    mem[engine_addr(INST_EXP_COUNT_BASE,eti)]=2;
+    mem[engine_addr(INST_EXP_X_BASE,eti*EXP_POINTS+0)]=0;
+    mem[engine_addr(INST_EXP_Y_BASE,eti*EXP_POINTS+0)]=0;
+    mem[engine_addr(INST_EXP_X_BASE,eti*EXP_POINTS+1)]=1;
+    mem[engine_addr(INST_EXP_Y_BASE,eti*EXP_POINTS+1)]=1;
     ep=2;
     loop(EXP_POINTS-2,
-      mem[INST_EXP_X_BASE+eti*EXP_POINTS+ep]=0;
-      mem[INST_EXP_Y_BASE+eti*EXP_POINTS+ep]=0;
+      mem[engine_addr(INST_EXP_X_BASE,eti*EXP_POINTS+ep)]=0;
+      mem[engine_addr(INST_EXP_Y_BASE,eti*EXP_POINTS+ep)]=0;
       ep+=1;
     );
     ep=0;
     loop(EXP_POINTS,
-      mem[INST_EXP_BEND_BASE+eti*EXP_POINTS+ep]=0;
+      mem[engine_addr(INST_EXP_BEND_BASE,eti*EXP_POINTS+ep)]=0;
       ep+=1;
     );
     et+=1;
@@ -453,46 +599,66 @@ local(i)
   slider7=4;
 );
 
-function cc_cfg(index) (CC_CFG_BASE+2+INSTRUMENTS+index*CC_STRIDE;);
+function cc_cfg(index) (engine_addr(CC_CFG_BASE,2+INSTRUMENTS+index*CC_STRIDE););
 function cc_index(gi,code) (gi*(TRANSFORM_SLOTS-1)+code-7;);
-function cc_id(gi,code) (code==6?mem[CC_CFG_BASE+2+gi]:mem[cc_cfg(cc_index(gi,code))];);
-function cc_ti(index,row) (row==2?TF_TERTIARY_TI+index:PARAM_TOTAL+index*2+row;);
-function extra_index(ti) (ti>=TF_TERTIARY_TI?ti-TF_TERTIARY_TI:floor((ti-PARAM_TOTAL)/2););
-function extra_row(ti) (ti>=TF_TERTIARY_TI?2:(ti-PARAM_TOTAL)%2;);
-function tf_record(index) (TF_RECORD_BASE+index*TF_STRIDE;);
+function cc_id(gi,code) (code==6?mem[primary_cc_id_addr(gi)]:mem[cc_cfg(cc_index(gi,code))];);
+
+function cc_ti(index,row) (index>=15?I_NEW_EXTRA_TI+(index-15)*3+row:row==2?TF_TERTIARY_TI+index:PARAM_TOTAL+index*2+row;);
+
+function extra_index(ti) (ti>=I_NEW_EXTRA_TI?15+floor((ti-I_NEW_EXTRA_TI)/3):ti>=TF_TERTIARY_TI?ti-TF_TERTIARY_TI:floor((ti-PARAM_TOTAL)/2););
+
+function extra_row(ti) (ti>=I_NEW_EXTRA_TI?(ti-I_NEW_EXTRA_TI)%3:ti>=TF_TERTIARY_TI?2:(ti-PARAM_TOTAL)%2;);
+
+function tf_record(index) (engine_addr(TF_RECORD_BASE,index*TF_STRIDE););
 function transform_type(gi,code) (code<7?code:mem[tf_record(cc_index(gi,code))];);
-function tf_id(gi,code) (code<6?mem[TF_PRIMARY_IDS+gi*TRANSFORM_TYPES+code-1]:cc_id(gi,code););
-function cc_curve(ti) (ti>=TF_TERTIARY_TI?tf_record(extra_index(ti))+1:cc_cfg(extra_index(ti))+4+extra_row(ti)*(2+3*EXP_POINTS););
-function param_last_addr(ti) (ti>=TF_TERTIARY_TI?TF_LAST_BASE+extra_index(ti):ti<PARAM_TOTAL?PARAM_LAST_BASE+ti:CC_PARAM_LAST_BASE+ti-PARAM_TOTAL;);
-function param_pending_addr(ti) (ti>=TF_TERTIARY_TI?TF_PENDING_BASE+extra_index(ti):ti<PARAM_TOTAL?PARAM_PENDING_BASE+ti:CC_PARAM_PENDING_BASE+ti-PARAM_TOTAL;);
+function tf_id(gi,code) (code<6?mem[engine_addr(TF_PRIMARY_IDS,gi*TRANSFORM_TYPES+code-1)]:cc_id(gi,code););
+function cc_curve(ti) (extra_row(ti)==2?tf_record(extra_index(ti))+1:cc_cfg(extra_index(ti))+4+extra_row(ti)*(2+3*EXP_POINTS););
+
+function param_last_addr(ti) (ti>=I_NEW_EXTRA_TI?I_C_LAST_BASE+ti-I_NEW_EXTRA_TI:ti>=I_NEW_PRIMARY_TI?I_P_LAST_BASE+ti-I_NEW_PRIMARY_TI:ti>=TF_TERTIARY_TI?TF_LAST_BASE+extra_index(ti):ti<PARAM_TOTAL?PARAM_LAST_BASE+ti:CC_PARAM_LAST_BASE+ti-PARAM_TOTAL;);
+
+function param_pending_addr(ti) (ti>=I_NEW_EXTRA_TI?I_C_PENDING_BASE+ti-I_NEW_EXTRA_TI:ti>=I_NEW_PRIMARY_TI?I_P_PENDING_BASE+ti-I_NEW_PRIMARY_TI:ti>=TF_TERTIARY_TI?TF_PENDING_BASE+extra_index(ti):ti<PARAM_TOTAL?PARAM_PENDING_BASE+ti:CC_PARAM_PENDING_BASE+ti-PARAM_TOTAL;);
+
+function i_defaults()
+local(j)
+(mem[I_CFG_BASE]=IO_SCHEMA;mem[I_CFG_BASE+1]=4;j=0;loop(INST_CAP,mem[I_EXISTS_BASE+j]=(j<3);mem[I_IDS_BASE+j]=j<3?j+1:0;j+=1;);j=0;loop(5,mem[I_CC_IDS_BASE+j]=0;j+=1;););
+function i_bank_save(slot)
+local(j,b)
+(b=slot==2?I_BANK2_BASE:I_BANK1_BASE;j=0;loop(I_CFG_SIZE,mem[b+j]=mem[I_CFG_BASE+j];j+=1;););
+function i_bank_load(slot)
+local(j,b)
+(b=slot==2?I_BANK2_BASE:I_BANK1_BASE;mem[b]==IO_SCHEMA?(j=0;loop(I_CFG_SIZE,mem[I_CFG_BASE+j]=mem[b+j];j+=1;);):i_defaults(););
+i_defaults();ui_i_delete_slot=-1;i_read=0;ui_i_write=0;
+
 function cc_defaults()
 local(j,b,k,row,a)
 (
-  mem[CC_CFG_BASE]=CC_SCHEMA;mem[CC_CFG_BASE+1]=INSTRUMENTS+1;j=0;
-  loop(INSTRUMENTS,mem[CC_CFG_BASE+2+j]=j+1;j+=1;);j=0;
-  loop(CC_EXTRA,b=cc_cfg(j);k=0;loop(CC_STRIDE,mem[b+k]=0;k+=1;);
+  mem[CC_CFG_BASE]=CC_SCHEMA;mem[engine_addr(CC_CFG_BASE,1)]=INSTRUMENTS+1;j=0;
+  loop(INSTRUMENTS,mem[engine_addr(CC_CFG_BASE,2+j)]=j+1;j+=1;);j=0;
+  loop(INSTANCE_EXTRA,b=cc_cfg(j);k=0;loop(CC_STRIDE,mem[b+k]=0;k+=1;);
     mem[b+1]=1;row=0;loop(2,a=b+4+row*(2+3*EXP_POINTS);mem[a+1]=2;
       mem[a+2+1]=1;mem[a+2+EXP_POINTS+1]=1;row+=1;);j+=1;
   );
 );
 function cc_runtime_reset()
-local(j)
-(j=0;loop((CC_EXTRA+INSTRUMENTS)*CC_RT_STRIDE,mem[CC_RT_BASE+j]=-999;j+=1;);
- j=0;loop(CC_EXTRA*2,mem[CC_PARAM_LAST_BASE+j]=-999;mem[CC_PARAM_PENDING_BASE+j]=-999;j+=1;););
+local(j,k,r)
+(j=0;loop(CC_RT_COUNT,r=cc_rt_addr(j);k=0;loop(CC_RT_STRIDE,mem[r+k]=-999;k+=1;);j+=1;);
+ j=0;loop(CC_EXTRA*2,mem[CC_PARAM_LAST_BASE+j]=-999;mem[CC_PARAM_PENDING_BASE+j]=-999;j+=1;);
+ j=0;loop(75,mem[I_C_LAST_BASE+j]=-999;mem[I_C_PENDING_BASE+j]=-999;j+=1;););
+
 function cc_bank_save(slot)
 local(b,j,pb)
 (b=slot==2?CC_BANK2_BASE:CC_BANK1_BASE;pb=slot==2?PATCH2_BASE:PATCH1_BASE;
- mem[pb+11]=CC_SCHEMA;j=0;loop(CC_CFG_SIZE,mem[b+j]=mem[CC_CFG_BASE+j];j+=1;););
+ mem[pb+11]=CC_SCHEMA;j=0;loop(CC_CFG_SIZE,mem[b+j]=mem[engine_addr(CC_CFG_BASE,j)];j+=1;););
 function cc_bank_load(slot)
 local(b,j,pb)
 (pb=slot==2?PATCH2_BASE:PATCH1_BASE;cc_defaults();mem[pb+11]==CC_SCHEMA?(
- b=slot==2?CC_BANK2_BASE:CC_BANK1_BASE;j=0;loop(CC_CFG_SIZE,mem[CC_CFG_BASE+j]=mem[b+j];j+=1;););cc_runtime_reset(););
+ b=slot==2?CC_BANK2_BASE:CC_BANK1_BASE;j=0;loop(CC_CFG_SIZE,mem[engine_addr(CC_CFG_BASE,j)]=mem[b+j];j+=1;););cc_runtime_reset(););
 cc_defaults();cc_runtime_reset();
 
 function tf_defaults()
 local(j,b,k)
-(mem[TF_CFG_BASE]=TF_SCHEMA;j=0;loop(INSTRUMENTS*TRANSFORM_TYPES,mem[TF_PRIMARY_IDS+j]=-j-1;j+=1;);
- j=0;loop(CC_EXTRA,b=tf_record(j);k=0;loop(TF_STRIDE,mem[b+k]=0;k+=1;);mem[b]=6;
+(mem[TF_CFG_BASE]=TF_SCHEMA;j=0;loop(INST_CAP*TRANSFORM_TYPES,mem[engine_addr(TF_PRIMARY_IDS,j)]=-j-1;j+=1;);
+ j=0;loop(INSTANCE_EXTRA,b=tf_record(j);k=0;loop(TF_STRIDE,mem[b+k]=0;k+=1;);mem[b]=6;
  mem[b+2]=2;mem[b+4]=1;mem[b+4+EXP_POINTS]=1;j+=1;););
 function tf_runtime_reset()
 local(j)
@@ -508,32 +674,32 @@ tf_defaults();tf_runtime_reset();
 
 function param_ti(gi,kind)
 (
-  gi>=0 && gi<INSTRUMENTS && gi==floor(gi) && kind>=0 && kind<PARAM_TARGETS && kind==floor(kind) ?
-    (kind<EXP_TARGETS ? gi*EXP_TARGETS+kind : EXP_TOTAL+gi*(PARAM_TARGETS-EXP_TARGETS)+kind-EXP_TARGETS) : -1;
+  gi>=0 && gi<INST_CAP && gi==floor(gi) && kind>=0 && kind<PARAM_TARGETS && kind==floor(kind) ?
+    (gi>=3?I_NEW_PRIMARY_TI+(gi-3)*PARAM_TARGETS+kind:kind<EXP_TARGETS ? gi*EXP_TARGETS+kind : EXP_TOTAL+gi*(PARAM_TARGETS-EXP_TARGETS)+kind-EXP_TARGETS) : -1;
 );
 function param_gi(ti)
 (
-  ti>=PARAM_TOTAL ? floor(extra_index(ti)/(TRANSFORM_SLOTS-1)) : ti<EXP_TOTAL ? floor(ti/EXP_TARGETS) : floor((ti-EXP_TOTAL)/(PARAM_TARGETS-EXP_TARGETS));
+  ti>=I_NEW_PRIMARY_TI && ti<I_NEW_EXTRA_TI ? 3+floor((ti-I_NEW_PRIMARY_TI)/PARAM_TARGETS) : ti>=PARAM_TOTAL ? floor(extra_index(ti)/(TRANSFORM_SLOTS-1)) : ti<EXP_TOTAL ? floor(ti/EXP_TARGETS) : floor((ti-EXP_TOTAL)/(PARAM_TARGETS-EXP_TARGETS));
 );
 function param_kind(ti)
 (
-  ti>=PARAM_TOTAL ? (mem[tf_record(extra_index(ti))]==1?PARAM_TRANSPOSE:mem[tf_record(extra_index(ti))]==2?PARAM_RANGE_MODE+extra_row(ti):mem[tf_record(extra_index(ti))]==4?EXP_T_VEL:extra_row(ti)==0?EXP_T_MOD:PARAM_MOD_CC) : ti<EXP_TOTAL ? ti%EXP_TARGETS : EXP_TARGETS+(ti-EXP_TOTAL)%(PARAM_TARGETS-EXP_TARGETS);
+  ti>=I_NEW_PRIMARY_TI && ti<I_NEW_EXTRA_TI ? (ti-I_NEW_PRIMARY_TI)%PARAM_TARGETS : ti>=PARAM_TOTAL ? (mem[tf_record(extra_index(ti))]==1?PARAM_TRANSPOSE:mem[tf_record(extra_index(ti))]==2?PARAM_RANGE_MODE+extra_row(ti):mem[tf_record(extra_index(ti))]==4?EXP_T_VEL:extra_row(ti)==0?EXP_T_MOD:PARAM_MOD_CC) : ti<EXP_TOTAL ? ti%EXP_TARGETS : EXP_TARGETS+(ti-EXP_TOTAL)%(PARAM_TARGETS-EXP_TARGETS);
 );
-function exp_assign_addr(ti) (ti>=PARAM_TOTAL ? cc_curve(ti)+0 : ti<EXP_TOTAL ? INST_EXP_ASSIGN_BASE+ti : PARAM_ASSIGN_BASE+ti-EXP_TOTAL;);
-function exp_count_addr(ti) (ti>=PARAM_TOTAL ? cc_curve(ti)+1 : ti<EXP_TOTAL ? INST_EXP_COUNT_BASE+ti : PARAM_COUNT_BASE+ti-EXP_TOTAL;);
-function exp_x_addr(ti) (ti>=PARAM_TOTAL ? cc_curve(ti)+2 : ti<EXP_TOTAL ? INST_EXP_X_BASE+ti*EXP_POINTS : PARAM_X_BASE+(ti-EXP_TOTAL)*EXP_POINTS;);
-function exp_y_addr(ti) (ti>=PARAM_TOTAL ? cc_curve(ti)+2+EXP_POINTS : ti<EXP_TOTAL ? INST_EXP_Y_BASE+ti*EXP_POINTS : PARAM_Y_BASE+(ti-EXP_TOTAL)*EXP_POINTS;);
-function exp_bend_addr(ti) (ti>=PARAM_TOTAL ? cc_curve(ti)+2+2*EXP_POINTS : ti<EXP_TOTAL ? INST_EXP_BEND_BASE+ti*EXP_POINTS : PARAM_BEND_BASE+(ti-EXP_TOTAL)*EXP_POINTS;);
-function payload_addr(j) (j>=DS_LEGACY_PAYLOAD?DS_CFG_BASE+j-DS_LEGACY_PAYLOAD:j>=TF_LEGACY_PAYLOAD?TF_CFG_BASE+j-TF_LEGACY_PAYLOAD:j>=CC_LEGACY_PAYLOAD ? CC_CFG_BASE+j-CC_LEGACY_PAYLOAD : j<WORK_MEM_SIZE ? j : j<SW_LEGACY_PAYLOAD ? PARAM_EXT_BASE+j-WORK_MEM_SIZE : SW_CFG_BASE+j-SW_LEGACY_PAYLOAD;);
+function exp_assign_addr(ti) (ti>=I_NEW_PRIMARY_TI && ti<I_NEW_EXTRA_TI ? (param_kind(ti)<7?engine_addr(INST_EXP_ASSIGN_BASE,(param_gi(ti)*7+param_kind(ti))):engine_addr(PARAM_ASSIGN_BASE,(param_gi(ti)*7+param_kind(ti)-7))) : ti>=PARAM_TOTAL ? cc_curve(ti)+0 : ti<EXP_TOTAL ? engine_addr(INST_EXP_ASSIGN_BASE,ti): engine_addr(PARAM_ASSIGN_BASE,ti-EXP_TOTAL););
+function exp_count_addr(ti) (ti>=I_NEW_PRIMARY_TI && ti<I_NEW_EXTRA_TI ? (param_kind(ti)<7?engine_addr(INST_EXP_COUNT_BASE,(param_gi(ti)*7+param_kind(ti))):engine_addr(PARAM_COUNT_BASE,(param_gi(ti)*7+param_kind(ti)-7))) : ti>=PARAM_TOTAL ? cc_curve(ti)+1 : ti<EXP_TOTAL ? engine_addr(INST_EXP_COUNT_BASE,ti): engine_addr(PARAM_COUNT_BASE,ti-EXP_TOTAL););
+function exp_x_addr(ti) (ti>=I_NEW_PRIMARY_TI && ti<I_NEW_EXTRA_TI ? (param_kind(ti)<7?engine_addr(INST_EXP_X_BASE,(param_gi(ti)*7+param_kind(ti))*EXP_POINTS):engine_addr(PARAM_X_BASE,(param_gi(ti)*7+param_kind(ti)-7)*EXP_POINTS)) : ti>=PARAM_TOTAL ? cc_curve(ti)+2 : ti<EXP_TOTAL ? engine_addr(INST_EXP_X_BASE,ti*EXP_POINTS): engine_addr(PARAM_X_BASE,(ti-EXP_TOTAL)*EXP_POINTS););
+function exp_y_addr(ti) (ti>=I_NEW_PRIMARY_TI && ti<I_NEW_EXTRA_TI ? (param_kind(ti)<7?engine_addr(INST_EXP_Y_BASE,(param_gi(ti)*7+param_kind(ti))*EXP_POINTS):engine_addr(PARAM_Y_BASE,(param_gi(ti)*7+param_kind(ti)-7)*EXP_POINTS)) : ti>=PARAM_TOTAL ? cc_curve(ti)+2+EXP_POINTS : ti<EXP_TOTAL ? engine_addr(INST_EXP_Y_BASE,ti*EXP_POINTS): engine_addr(PARAM_Y_BASE,(ti-EXP_TOTAL)*EXP_POINTS););
+function exp_bend_addr(ti) (ti>=I_NEW_PRIMARY_TI && ti<I_NEW_EXTRA_TI ? (param_kind(ti)<7?engine_addr(INST_EXP_BEND_BASE,(param_gi(ti)*7+param_kind(ti))*EXP_POINTS):engine_addr(PARAM_BEND_BASE,(param_gi(ti)*7+param_kind(ti)-7)*EXP_POINTS)) : ti>=PARAM_TOTAL ? cc_curve(ti)+2+2*EXP_POINTS : ti<EXP_TOTAL ? engine_addr(INST_EXP_BEND_BASE,ti*EXP_POINTS): engine_addr(PARAM_BEND_BASE,(ti-EXP_TOTAL)*EXP_POINTS););
+function payload_addr(j) (j>=I_LEGACY_PAYLOAD?I_CFG_BASE+j-I_LEGACY_PAYLOAD:j>=DS_LEGACY_PAYLOAD?DS_CFG_BASE+j-DS_LEGACY_PAYLOAD:j>=TF_LEGACY_PAYLOAD?TF_CFG_BASE+j-TF_LEGACY_PAYLOAD:j>=CC_LEGACY_PAYLOAD ? engine_addr(CC_CFG_BASE,j-CC_LEGACY_PAYLOAD): j<WORK_MEM_SIZE ? j : j<SW_LEGACY_PAYLOAD ? PARAM_EXT_BASE+j-WORK_MEM_SIZE : SW_CFG_BASE+j-SW_LEGACY_PAYLOAD;);
 function param_addr(gi,kind)
 (
-  kind==EXP_T_VEL ? INST_VEL_BASE+gi : kind==EXP_T_LEVEL ? INST_LEVEL_BASE+gi :
-  kind==EXP_T_MOD ? INST_MOD_BASE+gi : kind==EXP_T_ARP_ON ? INST_ARP_ENABLED_BASE+gi :
-  kind==EXP_T_ARP_MODE ? INST_ARP_MODE_BASE+gi : kind==EXP_T_ARP_RATE ? INST_ARP_RATE_BASE+gi :
-  kind==EXP_T_ARP_GATE ? INST_ARP_GATE_BASE+gi : kind==PARAM_TRANSPOSE ? INST_TRANSPOSE_BASE+gi :
-  kind==PARAM_RANGE_MODE ? INST_RANGE_MODE_BASE+gi : kind==PARAM_RANGE_LOW ? INST_RANGE_LOW_BASE+gi :
-  kind==PARAM_RANGE_HIGH ? INST_RANGE_HIGH_BASE+gi : kind==PARAM_NOTE_MODE ? INST_NOTE_MODE_BASE+gi :
-  kind==PARAM_ARP_HOLD ? INST_ARP_HOLD_BASE+gi : PARAM_MOD_CC_BASE+gi;
+  kind==EXP_T_VEL ? engine_addr(INST_VEL_BASE,gi): kind==EXP_T_LEVEL ? engine_addr(INST_LEVEL_BASE,gi):
+  kind==EXP_T_MOD ? engine_addr(INST_MOD_BASE,gi): kind==EXP_T_ARP_ON ? engine_addr(INST_ARP_ENABLED_BASE,gi):
+  kind==EXP_T_ARP_MODE ? engine_addr(INST_ARP_MODE_BASE,gi): kind==EXP_T_ARP_RATE ? engine_addr(INST_ARP_RATE_BASE,gi):
+  kind==EXP_T_ARP_GATE ? engine_addr(INST_ARP_GATE_BASE,gi): kind==PARAM_TRANSPOSE ? engine_addr(INST_TRANSPOSE_BASE,gi):
+  kind==PARAM_RANGE_MODE ? engine_addr(INST_RANGE_MODE_BASE,gi): kind==PARAM_RANGE_LOW ? engine_addr(INST_RANGE_LOW_BASE,gi):
+  kind==PARAM_RANGE_HIGH ? engine_addr(INST_RANGE_HIGH_BASE,gi): kind==PARAM_NOTE_MODE ? engine_addr(INST_NOTE_MODE_BASE,gi):
+  kind==PARAM_ARP_HOLD ? engine_addr(INST_ARP_HOLD_BASE,gi): engine_addr(PARAM_MOD_CC_BASE,gi);
 );
 function param_min(kind)
 (kind==PARAM_TRANSPOSE ? -48 : kind==EXP_T_VEL ? .2 : kind==EXP_T_ARP_RATE ? .25 : kind==EXP_T_ARP_GATE ? .02 : 0;);
@@ -570,22 +736,23 @@ function param_extension_reset()
 local(j,k,ti,gi)
 (
   mem[PARAM_EXT_BASE]=PARAM_SCHEMA;
-  j=0;loop(PARAM_EXTRA,
-    ti=EXP_TOTAL+j;mem[exp_assign_addr(ti)]=0;mem[exp_count_addr(ti)]=2;
+  j=0;loop(INST_CAP*7,
+    ti=param_ti(floor(j/7),7+j%7);mem[exp_assign_addr(ti)]=0;mem[exp_count_addr(ti)]=2;
     k=0;loop(EXP_POINTS,
       mem[exp_x_addr(ti)+k]=(k==1);mem[exp_y_addr(ti)+k]=(k==1);
       mem[exp_bend_addr(ti)+k]=0;k+=1;
     );j+=1;
   );
-  gi=0;loop(INSTRUMENTS,mem[PARAM_MOD_CC_BASE+gi]=1;gi+=1;);
+  gi=0;loop(INST_CAP,mem[engine_addr(PARAM_MOD_CC_BASE,gi)]=1;gi+=1;);
 );
 function param_input_reset()
 local(j)
-(j=0;loop(PARAM_INPUT_SIZE+INSTRUMENTS,mem[PARAM_INPUT_BASE+j]=0;j+=1;););
+(j=0;loop(INST_CAP*4096,mem[input_addr(j)]=0;j+=1;);j=0;loop(INST_CAP,mem[engine_addr(PARAM_ACTIVE_BASE,j)]=0;j+=1;););
+
 function param_runtime_reset()
 local(j)
 (
-  j=0;loop(PARAM_TOTAL,mem[PARAM_LAST_BASE+j]=-999;mem[PARAM_PENDING_BASE+j]=-999;j+=1;);
+  j=0;loop(PARAM_TOTAL,mem[PARAM_LAST_BASE+j]=-999;mem[PARAM_PENDING_BASE+j]=-999;j+=1;);j=0;loop(70,mem[I_P_LAST_BASE+j]=-999;mem[I_P_PENDING_BASE+j]=-999;j+=1;);
   param_input_reset();cc_runtime_reset();
 );
 function sw_committed_cfg(si) (si<4?SW_CFG_BASE+1+si*SW_STRIDE:DS_CFG_BASE+2+(si-4)*SW_STRIDE;);
@@ -597,7 +764,7 @@ function sw_rt(si) (si<4?SW_RT_BASE+si*SW_RT_STRIDE:DS_RT_BASE+(si-4)*SW_RT_STRI
 function sw_defaults()
 local(si,b,j)
 (
-  mem[SW_CFG_BASE]=SW_SCHEMA;mem[DS_CFG_BASE]=IO_SCHEMA;mem[DS_CFG_BASE+1]=5;si=0;loop(SW_COUNT,
+  mem[SW_CFG_BASE]=SW_SCHEMA;mem[DS_CFG_BASE]=DS_SCHEMA;mem[DS_CFG_BASE+1]=5;si=0;loop(SW_COUNT,
     b=sw_committed_cfg(si);j=0;loop(SW_STRIDE,mem[b+j]=0;j+=1;);
     mem[b+2]=0;mem[b+4]=60+si;mem[b+7]=300;mem[b+8]=800;
     mem[b+12]=127;mem[b+13]=0;mem[b+14]=SW_NEXT;mem[b+17]=si;mem[b+18]=si;mem[b+19]=si;mem[b+20]=si<4;mem[b+21]=si<4?si+1:0;j=0;si<4?loop(4,mem[b+112+j]=1;j+=1;);si+=1;
@@ -621,7 +788,7 @@ local(si,r,j,t)
   learn_candidate=-1;learn_conflict=-1;controller_learn=-1;phrase_note_learn=-1;sw_last_active=-1;sw_learn=-1;sw_learn_request=-1;sw_clock=0;
   sw_queue_read=0;sw_queue_write=0;sw_playback_origin=0;
   j=SW_PHRASE_OUT_BASE;loop(SW_MEMORY_END-SW_PHRASE_OUT_BASE,mem[j]=0;j+=1;);
-  j=0;loop(INSTRUMENTS*TRANSFORM_TYPES,mem[SW_MODULE_BASE+j]=-999;j+=1;);
+  j=0;loop(INST_CAP*TRANSFORM_TYPES,mem[engine_addr(SW_MODULE_BASE,j)]=-999;j+=1;);
 );
 // Normalize only the appended configuration; existing patch fields stay untouched.
 function sw_validate()
@@ -637,7 +804,7 @@ local(si,b,j,k,other)
     mem[b+2]==2 && mem[b+12]==mem[b+13] ? mem[b]=0;
     j=0;loop(3,
       mem[b+14+j]=max(0,min(SW_DISABLE,floor(mem[b+14+j])));
-      k=mem[b+14+j];mem[b+17+j]=max(0,min(k>=SW_TOGGLE?INSTRUMENTS*TRANSFORM_TYPES-1:SW_COUNT,floor(mem[b+17+j])));j+=1;
+      k=mem[b+14+j];mem[b+17+j]=max(0,min(k>=SW_TOGGLE?INST_CAP*TRANSFORM_TYPES-1:SW_COUNT,floor(mem[b+17+j])));j+=1;
     );
     j=0;si<4?loop(4,mem[b+112+j]=phrase_time_ratio(si*4+j);j+=1;);
     j=0;loop(si,other=sw_cfg(j);
@@ -648,14 +815,14 @@ local(si,b,j,k,other)
 );
 function ds_migrate()
 local(si,b,j)
-(mem[DS_CFG_BASE]=IO_SCHEMA;mem[DS_CFG_BASE+1]=5;si=0;loop(4,b=sw_cfg(si);mem[b+20]=1;mem[b+21]=si+1;j=0;
+(mem[DS_CFG_BASE]=DS_SCHEMA;mem[DS_CFG_BASE+1]=5;si=0;loop(4,b=sw_cfg(si);mem[b+20]=1;mem[b+21]=si+1;j=0;
  loop(3,(mem[b+14+j]==SW_RESET || mem[b+14+j]==SW_STOP_RESET) && mem[b+17+j]==4?mem[b+17+j]=SW_COUNT;j+=1;);si+=1;););
 function ds_bank_save(slot)
 local(b,j)
 (b=slot==2?DS_BANK2_BASE:DS_BANK1_BASE;j=0;loop(DS_CFG_SIZE,mem[b+j]=mem[DS_CFG_BASE+j];j+=1;););
 function ds_bank_load(slot)
 local(b,j)
-(b=slot==2?DS_BANK2_BASE:DS_BANK1_BASE;mem[b]==IO_SCHEMA?(j=0;loop(DS_CFG_SIZE,mem[DS_CFG_BASE+j]=mem[b+j];j+=1;);):ds_migrate(););
+(b=slot==2?DS_BANK2_BASE:DS_BANK1_BASE;mem[b]==DS_SCHEMA?(j=0;loop(DS_CFG_SIZE,mem[DS_CFG_BASE+j]=mem[b+j];j+=1;);):ds_migrate(););
 
 function sw_bank_save(slot)
 local(b,j,pb)
@@ -684,7 +851,7 @@ local(j,b,pb)
     b=slot==2 ? PARAM_BANK2_BASE : PARAM_BANK1_BASE;j=0;
     loop(PARAM_EXT_SIZE,mem[PARAM_EXT_BASE+j]=mem[b+j];j+=1;);
   ) : param_extension_reset();
-  param_runtime_reset();sw_bank_load(slot);cc_bank_load(slot);tf_bank_load(slot);
+  param_runtime_reset();sw_bank_load(slot);cc_bank_load(slot);tf_bank_load(slot);i_bank_load(slot);
 );
 param_extension_reset();param_runtime_reset();
 
@@ -704,7 +871,7 @@ local(pb,j)
   mem[pb+9]=PARAM_SCHEMA;
   param_bank_save(slot);
   sw_bank_save(slot);
-  cc_bank_save(slot);tf_bank_save(slot);
+  cc_bank_save(slot);tf_bank_save(slot);i_bank_save(slot);
   j=0;
   loop(WORK_MEM_SIZE,
     mem[pb+PATCH_HEADER_SIZE+j]=mem[j];
@@ -743,7 +910,7 @@ local(pb,j,valid,oldslot)
       record_layer=mem[pb+8];
     ) : (
       reset_all_phrases();
-      param_extension_reset();param_runtime_reset();sw_defaults();sw_runtime_reset();cc_defaults();cc_runtime_reset();tf_defaults();tf_runtime_reset();
+      i_defaults();param_extension_reset();param_runtime_reset();sw_defaults();sw_runtime_reset();cc_defaults();cc_runtime_reset();tf_defaults();tf_runtime_reset();
       slider4=0;
       slider5=0;
       slider6=120;
@@ -802,17 +969,17 @@ local(count,base)
 function arp_capture_note(gi, outst, note, vel, is_on)
 local(idx,sidx)
 (
-  idx=ARP_HELD_COUNT_BASE+gi*128+note;
-  sidx=ARP_SOURCE_COUNT_BASE+gi*128+note;
+  idx=engine_addr(ARP_HELD_COUNT_BASE,gi*128+note);
+  sidx=engine_addr(ARP_SOURCE_COUNT_BASE,gi*128+note);
   is_on ? (
     mem[sidx]+=1;
     mem[idx]+=1;
-    mem[ARP_HELD_VEL_BASE+gi*128+note]=vel;
-    mem[ARP_ACTIVE_CH_BASE+gi]=outst&15;
+    mem[engine_addr(ARP_HELD_VEL_BASE,gi*128+note)]=vel;
+    mem[engine_addr(ARP_ACTIVE_CH_BASE,gi)]=outst&15;
   ) : (
     mem[sidx]=max(0,mem[sidx]-1);
     // HOLD OFF follows source releases. HOLD ON keeps the note latched.
-    mem[INST_ARP_HOLD_BASE+gi]<0.5 ? mem[idx]=max(0,mem[idx]-1);
+    mem[engine_addr(INST_ARP_HOLD_BASE,gi)]<0.5 ? mem[idx]=max(0,mem[idx]-1);
   );
 );
 
@@ -821,23 +988,29 @@ local(n,sidx,hidx)
 (
   n=0;
   loop(128,
-    sidx=ARP_SOURCE_COUNT_BASE+gi*128+n;
-    hidx=ARP_HELD_COUNT_BASE+gi*128+n;
+    sidx=engine_addr(ARP_SOURCE_COUNT_BASE,gi*128+n);
+    hidx=engine_addr(ARP_HELD_COUNT_BASE,gi*128+n);
     // When leaving HOLD, retain only notes that are physically/source-held now.
     mem[hidx]=mem[sidx];
-    mem[SW_ARP_PHRASE_BASE+gi*128+n]=mem[SW_ARP_PHRASE_SOURCE_BASE+gi*128+n];
+    mem[engine_addr(SW_ARP_PHRASE_BASE,gi*128+n)]=mem[engine_addr(SW_ARP_PHRASE_SOURCE_BASE,gi*128+n)];
     n+=1;
   );
 );
 
+function instrument_output_owners(ch,note,skip_arp)
+local(j,total,idx)
+(total=mem[I_FALLBACK_BASE+ch*128+note]+mem[I_FALLBACK_BASE+2048+ch*128+note];j=0;loop(INST_CAP,
+ idx=(j*16+ch)*128+note;total+=mem[engine_addr(SW_LIVE_OUT_BASE,idx)]+mem[engine_addr(SW_PHRASE_OUT_BASE,idx)];
+ j!=skip_arp && mem[engine_addr(ARP_ACTIVE_NOTE_BASE,j)]==note && mem[engine_addr(ARP_ACTIVE_CH_BASE,j)]==ch?total+=1;j+=1;);total;);
+
 function arp_release_instrument(gi)
 local(an,ch)
 (
-  an=mem[ARP_ACTIVE_NOTE_BASE+gi];
-  ch=mem[ARP_ACTIVE_CH_BASE+gi]&15;
-  an>=0 ? midisend(0,128|ch,an);
-  mem[ARP_ACTIVE_NOTE_BASE+gi]=-1;
-  mem[ARP_GATE_REMAIN_BASE+gi]=0;
+  an=mem[engine_addr(ARP_ACTIVE_NOTE_BASE,gi)];
+  ch=mem[engine_addr(ARP_ACTIVE_CH_BASE,gi)]&15;
+  an>=0 && instrument_output_owners(ch,an,gi)<=0 ? midisend(0,128|ch,an);
+  mem[engine_addr(ARP_ACTIVE_NOTE_BASE,gi)]=-1;
+  mem[engine_addr(ARP_GATE_REMAIN_BASE,gi)]=0;
 );
 
 
@@ -845,17 +1018,17 @@ function arp_flush_nonhold_sources()
 local(ai,n)
 (
   ai=0;
-  loop(INSTRUMENTS,
-    mem[INST_ARP_ENABLED_BASE+ai]>0.5 && mem[INST_ARP_HOLD_BASE+ai]<0.5 ? (
+  loop(INST_CAP,
+    mem[engine_addr(INST_ARP_ENABLED_BASE,ai)]>0.5 && mem[engine_addr(INST_ARP_HOLD_BASE,ai)]<0.5 ? (
       n=0;
       loop(128,
-        mem[ARP_SOURCE_COUNT_BASE+ai*128+n]=0;
-        mem[ARP_HELD_COUNT_BASE+ai*128+n]=0;
-        mem[SW_ARP_PHRASE_BASE+ai*128+n]=0;mem[SW_ARP_PHRASE_SOURCE_BASE+ai*128+n]=0;
+        mem[engine_addr(ARP_SOURCE_COUNT_BASE,ai*128+n)]=0;
+        mem[engine_addr(ARP_HELD_COUNT_BASE,ai*128+n)]=0;
+        mem[engine_addr(SW_ARP_PHRASE_BASE,ai*128+n)]=0;mem[engine_addr(SW_ARP_PHRASE_SOURCE_BASE,ai*128+n)]=0;
         n+=1;
       );
       arp_release_instrument(ai);
-      mem[ARP_STEP_REMAIN_BASE+ai]=0;
+      mem[engine_addr(ARP_STEP_REMAIN_BASE,ai)]=0;
     );
     ai+=1;
   );
@@ -864,9 +1037,9 @@ local(ai,n)
 function transformer_on(gi, typ)
 local(k,c,found)
 (
-  k=0;found=0;c=max(0,min(TRANSFORM_SLOTS,floor(mem[INST_TRANSFORM_COUNT_BASE+gi]+.5)));
+  k=0;found=0;c=max(0,min(TRANSFORM_SLOTS,floor(mem[engine_addr(INST_TRANSFORM_COUNT_BASE,gi)]+.5)));
   loop(c,
-    mem[INST_TRANSFORM_TYPE_BASE+gi*TRANSFORM_SLOTS+k]==typ ? found=1;
+    mem[engine_addr(INST_TRANSFORM_TYPE_BASE,gi*TRANSFORM_SLOTS+k)]==typ ? found=1;
     k+=1;
   );
   found;
@@ -874,27 +1047,27 @@ local(k,c,found)
 function arp_process_instrument(gi)
 local(rate,gate,step_samples,step_rem,gate_rem,held,n,choice,pick,vel,ch,an,offs)
 (
-  mem[INST_ARP_ENABLED_BASE+gi]>0.5 && transformer_on(gi,5) ? (
-    rate=max(0.25,min(16,mem[INST_ARP_RATE_BASE+gi]));
-    gate=max(0.02,min(1,mem[INST_ARP_GATE_BASE+gi]));
+  mem[engine_addr(INST_ARP_ENABLED_BASE,gi)]>0.5 && transformer_on(gi,5) ? (
+    rate=max(0.25,min(16,mem[engine_addr(INST_ARP_RATE_BASE,gi)]));
+    gate=max(0.02,min(1,mem[engine_addr(INST_ARP_GATE_BASE,gi)]));
     step_samples=max(1,srate*60/max(1,tempo)/rate);
 
-    step_rem=mem[ARP_STEP_REMAIN_BASE+gi];
-    gate_rem=mem[ARP_GATE_REMAIN_BASE+gi];
+    step_rem=mem[engine_addr(ARP_STEP_REMAIN_BASE,gi)];
+    gate_rem=mem[engine_addr(ARP_GATE_REMAIN_BASE,gi)];
 
     // Gate-off may happen inside this audio block.
-    an=mem[ARP_ACTIVE_NOTE_BASE+gi];
+    an=mem[engine_addr(ARP_ACTIVE_NOTE_BASE,gi)];
     an>=0 && gate_rem<=samplesblock ? (
       offs=max(0,min(samplesblock-1,gate_rem));
-      ch=mem[ARP_ACTIVE_CH_BASE+gi]&15;
-      midisend(offs,128|ch,an);
-      mem[ARP_ACTIVE_NOTE_BASE+gi]=-1;
+      ch=mem[engine_addr(ARP_ACTIVE_CH_BASE,gi)]&15;
+      instrument_output_owners(ch,an,gi)<=0?midisend(offs,128|ch,an);
+      mem[engine_addr(ARP_ACTIVE_NOTE_BASE,gi)]=-1;
       gate_rem=0;
     ) : gate_rem=max(0,gate_rem-samplesblock);
 
     held=0; n=0;
     loop(128,
-      mem[ARP_HELD_COUNT_BASE+gi*128+n]>0 ? held+=1;
+      mem[engine_addr(ARP_HELD_COUNT_BASE,gi*128+n)]>0 ? held+=1;
       n+=1;
     );
 
@@ -906,19 +1079,19 @@ local(rate,gate,step_samples,step_rem,gate_rem,held,n,choice,pick,vel,ch,an,offs
       step_rem<=0 ? step_rem=0;
       while(step_rem<samplesblock) (
         // End previous arp note before retriggering the next one.
-        an=mem[ARP_ACTIVE_NOTE_BASE+gi];
+        an=mem[engine_addr(ARP_ACTIVE_NOTE_BASE,gi)];
         an>=0 ? (
-          ch=mem[ARP_ACTIVE_CH_BASE+gi]&15;
-          midisend(max(0,min(samplesblock-1,step_rem)),128|ch,an);
-          mem[ARP_ACTIVE_NOTE_BASE+gi]=-1;
+          ch=mem[engine_addr(ARP_ACTIVE_CH_BASE,gi)]&15;
+          instrument_output_owners(ch,an,gi)<=0?midisend(max(0,min(samplesblock-1,step_rem)),128|ch,an);
+          mem[engine_addr(ARP_ACTIVE_NOTE_BASE,gi)]=-1;
         );
 
-        mode=floor(mem[INST_ARP_MODE_BASE+gi]+0.5);
+        mode=floor(mem[engine_addr(INST_ARP_MODE_BASE,gi)]+0.5);
         choice=-1;
         mode==0 ? (
           pick=floor(rand(held)); n=0;
           loop(128,
-            mem[ARP_HELD_COUNT_BASE+gi*128+n]>0 ? (
+            mem[engine_addr(ARP_HELD_COUNT_BASE,gi*128+n)]>0 ? (
               pick<=0 && choice<0 ? choice=n;
               pick-=1;
             );
@@ -926,22 +1099,22 @@ local(rate,gate,step_samples,step_rem,gate_rem,held,n,choice,pick,vel,ch,an,offs
           );
         ) : mode==1 ? (
           // UP: next held note above cursor, wrapping to the lowest.
-          cur=mem[ARP_CURSOR_BASE+gi]; n=0;
-          loop(128, n>cur && choice<0 && mem[ARP_HELD_COUNT_BASE+gi*128+n]>0 ? choice=n; n+=1;);
-          choice<0 ? (n=0; loop(128, choice<0 && mem[ARP_HELD_COUNT_BASE+gi*128+n]>0 ? choice=n; n+=1;););
+          cur=mem[engine_addr(ARP_CURSOR_BASE,gi)]; n=0;
+          loop(128, n>cur && choice<0 && mem[engine_addr(ARP_HELD_COUNT_BASE,gi*128+n)]>0 ? choice=n; n+=1;);
+          choice<0 ? (n=0; loop(128, choice<0 && mem[engine_addr(ARP_HELD_COUNT_BASE,gi*128+n)]>0 ? choice=n; n+=1;););
         ) : (
           // DOWN: next held note below cursor, wrapping to the highest.
-          cur=mem[ARP_CURSOR_BASE+gi]; n=127;
-          loop(128, n<cur && choice<0 && mem[ARP_HELD_COUNT_BASE+gi*128+n]>0 ? choice=n; n-=1;);
-          choice<0 ? (n=127; loop(128, choice<0 && mem[ARP_HELD_COUNT_BASE+gi*128+n]>0 ? choice=n; n-=1;););
+          cur=mem[engine_addr(ARP_CURSOR_BASE,gi)]; n=127;
+          loop(128, n<cur && choice<0 && mem[engine_addr(ARP_HELD_COUNT_BASE,gi*128+n)]>0 ? choice=n; n-=1;);
+          choice<0 ? (n=127; loop(128, choice<0 && mem[engine_addr(ARP_HELD_COUNT_BASE,gi*128+n)]>0 ? choice=n; n-=1;););
         );
-        choice>=0 ? mem[ARP_CURSOR_BASE+gi]=choice;
+        choice>=0 ? mem[engine_addr(ARP_CURSOR_BASE,gi)]=choice;
         choice>=0 ? (
-          vel=max(1,min(127,mem[ARP_HELD_VEL_BASE+gi*128+choice]));
-          ch=mem[ARP_ACTIVE_CH_BASE+gi]&15;
+          vel=max(1,min(127,mem[engine_addr(ARP_HELD_VEL_BASE,gi*128+choice)]));
+          ch=mem[engine_addr(ARP_ACTIVE_CH_BASE,gi)]&15;
           offs=max(0,min(samplesblock-1,step_rem));
           midisend(offs,144|ch,choice|(vel*256));
-          mem[ARP_ACTIVE_NOTE_BASE+gi]=choice;
+          mem[engine_addr(ARP_ACTIVE_NOTE_BASE,gi)]=choice;
           gate_rem=step_samples*gate;
         );
         step_rem+=step_samples;
@@ -949,21 +1122,21 @@ local(rate,gate,step_samples,step_rem,gate_rem,held,n,choice,pick,vel,ch,an,offs
       step_rem-=samplesblock;
     );
 
-    mem[ARP_STEP_REMAIN_BASE+gi]=step_rem;
-    mem[ARP_GATE_REMAIN_BASE+gi]=gate_rem;
+    mem[engine_addr(ARP_STEP_REMAIN_BASE,gi)]=step_rem;
+    mem[engine_addr(ARP_GATE_REMAIN_BASE,gi)]=gate_rem;
   ) : (
     // Turning ARP off must never leave a generated note hanging.
     arp_release_instrument(gi);
-    mem[ARP_STEP_REMAIN_BASE+gi]=0;
+    mem[engine_addr(ARP_STEP_REMAIN_BASE,gi)]=0;
   );
 );
 
 function note_in_range(gi, note)
 local(rm,lo,hi,ok)
 (
-  rm=floor(mem[INST_RANGE_MODE_BASE+gi]+0.5);
-  lo=max(0,min(127,floor(mem[INST_RANGE_LOW_BASE+gi]+0.5)));
-  hi=max(0,min(127,floor(mem[INST_RANGE_HIGH_BASE+gi]+0.5)));
+  rm=floor(mem[engine_addr(INST_RANGE_MODE_BASE,gi)]+0.5);
+  lo=max(0,min(127,floor(mem[engine_addr(INST_RANGE_LOW_BASE,gi)]+0.5)));
+  hi=max(0,min(127,floor(mem[engine_addr(INST_RANGE_HIGH_BASE,gi)]+0.5)));
   ok=1;
   rm==1 ? ok=(note>=lo) :
   rm==2 ? ok=(note<=hi) :
@@ -975,19 +1148,19 @@ local(rm,lo,hi,ok)
 // stateless duplicate opts the note processors into the visible serial order.
 function tf_serial(gi)
 local(k,c,code,typ,found)
-(k=0;found=0;c=max(0,min(TRANSFORM_SLOTS,floor(mem[INST_TRANSFORM_COUNT_BASE+gi])));loop(c,code=mem[INST_TRANSFORM_TYPE_BASE+gi*TRANSFORM_SLOTS+k];code>=7?(typ=transform_type(gi,code);typ==1 || typ==2 || typ==4?found=1;);k+=1;);found;);
+(k=0;found=0;c=max(0,min(TRANSFORM_SLOTS,floor(mem[engine_addr(INST_TRANSFORM_COUNT_BASE,gi)])));loop(c,code=mem[engine_addr(INST_TRANSFORM_TYPE_BASE,gi*TRANSFORM_SLOTS+k)];code>=7?(typ=transform_type(gi,code);typ==1 || typ==2 || typ==4?found=1;);k+=1;);found;);
 function tf_pitch(gi,note)
 local(k,c,code,typ,b,mode,lo,hi)
 (
-  !tf_serial(gi) ? (note+=transformer_on(gi,1)?floor(mem[INST_TRANSPOSE_BASE+gi]+.5):0;
+  !tf_serial(gi) ? (note+=transformer_on(gi,1)?floor(mem[engine_addr(INST_TRANSPOSE_BASE,gi)]+.5):0;
     transformer_on(gi,2) && !note_in_range(gi,note)?note=-1;
   ) : (
-    k=0;c=max(0,min(TRANSFORM_SLOTS,floor(mem[INST_TRANSFORM_COUNT_BASE+gi])));loop(c,code=mem[INST_TRANSFORM_TYPE_BASE+gi*TRANSFORM_SLOTS+k];
+    k=0;c=max(0,min(TRANSFORM_SLOTS,floor(mem[engine_addr(INST_TRANSFORM_COUNT_BASE,gi)])));loop(c,code=mem[engine_addr(INST_TRANSFORM_TYPE_BASE,gi*TRANSFORM_SLOTS+k)];
       code>0 && note>=0 && note<=127?(
         typ=transform_type(gi,code);b=code>=7?cc_cfg(cc_index(gi,code)):-1;
-        typ==1?note+=floor((b>=0?mem[b+2]:mem[INST_TRANSPOSE_BASE+gi])+.5);
+        typ==1?note+=floor((b>=0?mem[b+2]:mem[engine_addr(INST_TRANSPOSE_BASE,gi)])+.5);
         typ==2?(
-          mode=b>=0?mem[b+2]:mem[INST_RANGE_MODE_BASE+gi];lo=b>=0?mem[b+1]:mem[INST_RANGE_LOW_BASE+gi];hi=b>=0?mem[b+3]:mem[INST_RANGE_HIGH_BASE+gi];
+          mode=b>=0?mem[b+2]:mem[engine_addr(INST_RANGE_MODE_BASE,gi)];lo=b>=0?mem[b+1]:mem[engine_addr(INST_RANGE_LOW_BASE,gi)];hi=b>=0?mem[b+3]:mem[engine_addr(INST_RANGE_HIGH_BASE,gi)];
           ((mode==1 && note<lo) || (mode==2 && note>hi) || (mode==3 && (note<lo || note>hi)))?note=-1;
         );
       );k+=1;
@@ -997,9 +1170,9 @@ local(k,c,code,typ,b,mode,lo,hi)
 function tf_velocity(gi,vel,gain)
 local(k,c,code)
 (
-  !tf_serial(gi)?gain*=transformer_on(gi,4)?mem[INST_VEL_BASE+gi]:1:(
-    k=0;c=max(0,min(TRANSFORM_SLOTS,floor(mem[INST_TRANSFORM_COUNT_BASE+gi])));loop(c,code=mem[INST_TRANSFORM_TYPE_BASE+gi*TRANSFORM_SLOTS+k];
-      code>0 && transform_type(gi,code)==4?gain*=code>=7?mem[cc_cfg(cc_index(gi,code))+2]:mem[INST_VEL_BASE+gi];k+=1;
+  !tf_serial(gi)?gain*=transformer_on(gi,4)?mem[engine_addr(INST_VEL_BASE,gi)]:1:(
+    k=0;c=max(0,min(TRANSFORM_SLOTS,floor(mem[engine_addr(INST_TRANSFORM_COUNT_BASE,gi)])));loop(c,code=mem[engine_addr(INST_TRANSFORM_TYPE_BASE,gi*TRANSFORM_SLOTS+k)];
+      code>0 && transform_type(gi,code)==4?gain*=code>=7?mem[cc_cfg(cc_index(gi,code))+2]:mem[engine_addr(INST_VEL_BASE,gi)];k+=1;
     );
   );max(1,min(127,floor(vel*gain+.5)));
 );
@@ -1009,26 +1182,26 @@ local(ch,key,origin,idx)
 (
   ch=outst&15;origin=origin_override==0?(owned || sw_playback_origin):origin_override>0;
   idx=(gi*16+ch)*128+note;
-  !(mem[INST_ARP_ENABLED_BASE+gi]>.5 && transformer_on(gi,5)) ? (
-    origin ? (is_on?mem[SW_PHRASE_OUT_BASE+idx]+=1:mem[SW_PHRASE_OUT_BASE+idx]=max(0,mem[SW_PHRASE_OUT_BASE+idx]-1);) :
-      (is_on?mem[SW_LIVE_OUT_BASE+idx]+=1:mem[SW_LIVE_OUT_BASE+idx]=max(0,mem[SW_LIVE_OUT_BASE+idx]-1););
+  !(mem[engine_addr(INST_ARP_ENABLED_BASE,gi)]>.5 && transformer_on(gi,5)) ? (
+    origin ? (is_on?mem[engine_addr(SW_PHRASE_OUT_BASE,idx)]+=1:mem[engine_addr(SW_PHRASE_OUT_BASE,idx)]=max(0,mem[engine_addr(SW_PHRASE_OUT_BASE,idx)]-1);) :
+      (is_on?mem[engine_addr(SW_LIVE_OUT_BASE,idx)]+=1:mem[engine_addr(SW_LIVE_OUT_BASE,idx)]=max(0,mem[engine_addr(SW_LIVE_OUT_BASE,idx)]-1););
   );
-  mem[INST_ARP_ENABLED_BASE+gi]>0.5 && transformer_on(gi,5) ? (
+  mem[engine_addr(INST_ARP_ENABLED_BASE,gi)]>0.5 && transformer_on(gi,5) ? (
     origin ? (
-      is_on ? (mem[SW_ARP_PHRASE_SOURCE_BASE+gi*128+note]+=1;mem[SW_ARP_PHRASE_BASE+gi*128+note]+=1;) : (mem[SW_ARP_PHRASE_SOURCE_BASE+gi*128+note]=max(0,mem[SW_ARP_PHRASE_SOURCE_BASE+gi*128+note]-1);mem[INST_ARP_HOLD_BASE+gi]<.5 ? mem[SW_ARP_PHRASE_BASE+gi*128+note]=max(0,mem[SW_ARP_PHRASE_BASE+gi*128+note]-1););
+      is_on ? (mem[engine_addr(SW_ARP_PHRASE_SOURCE_BASE,gi*128+note)]+=1;mem[engine_addr(SW_ARP_PHRASE_BASE,gi*128+note)]+=1;) : (mem[engine_addr(SW_ARP_PHRASE_SOURCE_BASE,gi*128+note)]=max(0,mem[engine_addr(SW_ARP_PHRASE_SOURCE_BASE,gi*128+note)]-1);mem[engine_addr(INST_ARP_HOLD_BASE,gi)]<.5 ? mem[engine_addr(SW_ARP_PHRASE_BASE,gi*128+note)]=max(0,mem[engine_addr(SW_ARP_PHRASE_BASE,gi*128+note)]-1););
     );
     arp_capture_note(gi,outst,note,vel,is_on);
   ) : owned ? (
     key=NOTE_REF_BASE+ch*128+note;
     is_on ? (
-      mem[key]+=1;
+      mem[key]+=1;mem[I_ONCE_OUT_BASE+idx]+=1;
       midisend(offs,outst,note|(vel*256));
     ) : (
-      mem[key]=max(0,mem[key]-1);
-      mem[key]<=0 ? midisend(offs,128|ch,note);
+      mem[key]=max(0,mem[key]-1);mem[I_ONCE_OUT_BASE+idx]=max(0,mem[I_ONCE_OUT_BASE+idx]-1);
+      mem[key]<=0 && instrument_output_owners(ch,note,-1)<=0 ? midisend(offs,128|ch,note);
     );
   ) : (
-    is_on ? midisend(offs,outst,note|(vel*256)) : midisend(offs,128|ch,note);
+    is_on ? midisend(offs,outst,note|(vel*256)) : instrument_output_owners(ch,note,-1)<=0?midisend(offs,128|ch,note);
   );
 );
 
@@ -1039,14 +1212,14 @@ local(n,best,best_order,ord)
   mode==1 ? (
     n=0;
     loop(128,
-      best<0 && mem[MONO_HELD_COUNT_BASE+gi*128+n]>0 ? best=n;
+      best<0 && mem[engine_addr(MONO_HELD_COUNT_BASE,gi*128+n)]>0 ? best=n;
       n+=1;
     );
   ) : (
     best_order=-1; n=0;
     loop(128,
-      mem[MONO_HELD_COUNT_BASE+gi*128+n]>0 ? (
-        ord=mem[MONO_ORDER_BASE+gi*128+n];
+      mem[engine_addr(MONO_HELD_COUNT_BASE,gi*128+n)]>0 ? (
+        ord=mem[engine_addr(MONO_ORDER_BASE,gi*128+n)];
         ord>best_order ? (best_order=ord; best=n;);
       );
       n+=1;
@@ -1058,28 +1231,28 @@ local(n,best,best_order,ord)
 function route_mono_note(gi, offs, outst, note, vel, is_on, owned)
 local(mode,idx,desired,active,active_ch,newst,newvel,old_owner,new_owner,key)
 (
-  mode=floor(mem[INST_NOTE_MODE_BASE+gi]+0.5);
-  idx=MONO_HELD_COUNT_BASE+gi*128+note;
-  owned || sw_playback_origin ? (is_on?mem[SW_MONO_PHRASE_BASE+gi*128+note]+=1:mem[SW_MONO_PHRASE_BASE+gi*128+note]=max(0,mem[SW_MONO_PHRASE_BASE+gi*128+note]-1););
+  mode=floor(mem[engine_addr(INST_NOTE_MODE_BASE,gi)]+0.5);
+  idx=engine_addr(MONO_HELD_COUNT_BASE,gi*128+note);
+  owned || sw_playback_origin ? (is_on?mem[engine_addr(SW_MONO_PHRASE_BASE,gi*128+note)]+=1:mem[engine_addr(SW_MONO_PHRASE_BASE,gi*128+note)]=max(0,mem[engine_addr(SW_MONO_PHRASE_BASE,gi*128+note)]-1););
   is_on ? (
     mem[idx]+=1;
-    mem[MONO_HELD_VEL_BASE+gi*128+note]=vel;
+    mem[engine_addr(MONO_HELD_VEL_BASE,gi*128+note)]=vel;
     mono_order_counter+=1;
-    mem[MONO_ORDER_BASE+gi*128+note]=mono_order_counter;
+    mem[engine_addr(MONO_ORDER_BASE,gi*128+note)]=mono_order_counter;
   ) : (
     mem[idx]=max(0,mem[idx]-1);
   );
 
   desired=mono_desired_note(gi,mode);
-  active=mem[MONO_ACTIVE_NOTE_BASE+gi];
-  active_ch=mem[MONO_ACTIVE_CH_BASE+gi]&15;
-  old_owner=mem[SW_MONO_OWNER_BASE+gi];
-  new_owner=desired>=0 && mem[SW_MONO_PHRASE_BASE+gi*128+desired]>=mem[MONO_HELD_COUNT_BASE+gi*128+desired]?1:-1;
+  active=mem[engine_addr(MONO_ACTIVE_NOTE_BASE,gi)];
+  active_ch=mem[engine_addr(MONO_ACTIVE_CH_BASE,gi)]&15;
+  old_owner=mem[engine_addr(SW_MONO_OWNER_BASE,gi)];
+  new_owner=desired>=0 && mem[engine_addr(SW_MONO_PHRASE_BASE,gi*128+desired)]>=mem[engine_addr(MONO_HELD_COUNT_BASE,gi*128+desired)]?1:-1;
 
   desired!=active ? (
     desired>=0 ? (
       newst=144|(outst&15);
-      newvel=max(1,min(127,mem[MONO_HELD_VEL_BASE+gi*128+desired]));
+      newvel=max(1,min(127,mem[engine_addr(MONO_HELD_VEL_BASE,gi*128+desired)]));
       mode==3 ? (
         // LEGATO: overlap the transition so mono synths can engage their own legato/glide behavior.
         route_emit_note(gi,offs,newst,desired,newvel,1,owned,new_owner);
@@ -1088,23 +1261,23 @@ local(mode,idx,desired,active,active_ch,newst,newvel,old_owner,new_owner,key)
         active>=0 ? route_emit_note(gi,offs,128|active_ch,active,0,0,owned,old_owner);
         route_emit_note(gi,offs,newst,desired,newvel,1,owned,new_owner);
       );
-      mem[SW_MONO_OWNER_BASE+gi]=new_owner;mem[MONO_ACTIVE_NOTE_BASE+gi]=desired;
-      mem[MONO_ACTIVE_CH_BASE+gi]=outst&15;
+      mem[engine_addr(SW_MONO_OWNER_BASE,gi)]=new_owner;mem[engine_addr(MONO_ACTIVE_NOTE_BASE,gi)]=desired;
+      mem[engine_addr(MONO_ACTIVE_CH_BASE,gi)]=outst&15;
     ) : (
       active>=0 ? route_emit_note(gi,offs,128|active_ch,active,0,0,owned,old_owner);
-      mem[MONO_ACTIVE_NOTE_BASE+gi]=-1;
+      mem[engine_addr(MONO_ACTIVE_NOTE_BASE,gi)]=-1;
     );
   );
   // A mono transition may be caused by the other source owner. Track the
   // resulting audible voice, rather than attributing its note-off to that input.
-  !(mem[INST_ARP_ENABLED_BASE+gi]>.5 && transformer_on(gi,5)) ? (
+  !(mem[engine_addr(INST_ARP_ENABLED_BASE,gi)]>.5 && transformer_on(gi,5)) ? (
     active>=0 && active!=desired ? (
-      key=(gi*16+active_ch)*128+active;mem[SW_LIVE_OUT_BASE+key]=0;mem[SW_PHRASE_OUT_BASE+key]=0;
+      key=(gi*16+active_ch)*128+active;mem[engine_addr(SW_LIVE_OUT_BASE,key)]=0;mem[engine_addr(SW_PHRASE_OUT_BASE,key)]=0;
     );
     desired>=0 ? (
-      key=(gi*16+mem[MONO_ACTIVE_CH_BASE+gi])*128+desired;
-      mem[SW_LIVE_OUT_BASE+key]=mem[MONO_HELD_COUNT_BASE+gi*128+desired]>mem[SW_MONO_PHRASE_BASE+gi*128+desired];
-      mem[SW_PHRASE_OUT_BASE+key]=mem[SW_MONO_PHRASE_BASE+gi*128+desired]>0;
+      key=(gi*16+mem[engine_addr(MONO_ACTIVE_CH_BASE,gi)])*128+desired;
+      mem[engine_addr(SW_LIVE_OUT_BASE,key)]=mem[engine_addr(MONO_HELD_COUNT_BASE,gi*128+desired)]>mem[engine_addr(SW_MONO_PHRASE_BASE,gi*128+desired)];
+      mem[engine_addr(SW_PHRASE_OUT_BASE,key)]=mem[engine_addr(SW_MONO_PHRASE_BASE,gi*128+desired)]>0;
     );
   );
 );
@@ -1112,18 +1285,18 @@ local(mode,idx,desired,active,active_ch,newst,newvel,old_owner,new_owner,key)
 function param_track_input(gi,ch,note,is_on,owned)
 local(idx)
 (
-  idx=PARAM_INPUT_BASE+((owned*INSTRUMENTS+gi)*16+ch)*128+note;
-  is_on ? (mem[idx]+=1;mem[PARAM_ACTIVE_BASE+gi]+=1;) : mem[idx]>0 ? (
-    mem[idx]-=1;mem[PARAM_ACTIVE_BASE+gi]=max(0,mem[PARAM_ACTIVE_BASE+gi]-1);
+  idx=input_addr(((owned*INST_CAP+gi)*16+ch)*128+note);
+  is_on ? (mem[idx]+=1;mem[engine_addr(PARAM_ACTIVE_BASE,gi)]+=1;) : mem[idx]>0 ? (
+    mem[idx]-=1;mem[engine_addr(PARAM_ACTIVE_BASE,gi)]=max(0,mem[engine_addr(PARAM_ACTIVE_BASE,gi)]-1);
   );
 );
 function param_release_owned()
 local(gi,j,idx)
 (
-  gi=0;loop(INSTRUMENTS,
+  gi=0;loop(INST_CAP,
     j=0;loop(16*128,
-      idx=PARAM_INPUT_BASE+(INSTRUMENTS+gi)*16*128+j;
-      mem[PARAM_ACTIVE_BASE+gi]=max(0,mem[PARAM_ACTIVE_BASE+gi]-mem[idx]);mem[idx]=0;j+=1;
+      idx=input_addr((INST_CAP+gi)*16*128+j);
+      mem[engine_addr(PARAM_ACTIVE_BASE,gi)]=max(0,mem[engine_addr(PARAM_ACTIVE_BASE,gi)]-mem[idx]);mem[idx]=0;j+=1;
     );gi+=1;
   );
 );
@@ -1135,20 +1308,20 @@ local(srcch,typ,ii,in_ch,out_ch,outst,outd2,matched,velmul,nmode,tn)
   typ=st&240;
   matched=0;
   ii=0;
-  loop(INSTRUMENTS,
-    mem[INST_ENABLED_BASE+ii]>0.5 ? (
-      in_ch=mem[INST_IN_BASE+ii];
+  loop(INST_CAP,
+    mem[I_EXISTS_BASE+ii] && mem[engine_addr(INST_ENABLED_BASE,ii)]>0.5 ? (
+      in_ch=mem[engine_addr(INST_IN_BASE,ii)];
       (in_ch==0 || in_ch==srcch) ? (
         matched=1;
-        out_ch=mem[INST_OUT_BASE+ii];
+        out_ch=mem[engine_addr(INST_OUT_BASE,ii)];
         outst=st;
         out_ch>0 ? outst=(st&240)|(max(1,min(16,out_ch))-1);
         outd2=d2;
-        nmode=transformer_on(ii,3) ? floor(mem[INST_NOTE_MODE_BASE+ii]+0.5) : 0;
+        nmode=transformer_on(ii,3) ? floor(mem[engine_addr(INST_NOTE_MODE_BASE,ii)]+0.5) : 0;
 
-        typ==176 && d1==64 ? (sw_playback_origin ? mem[SW_PHRASE_SUSTAIN_BASE+(outst&15)]=d2 : mem[SW_LIVE_SUSTAIN_BASE+(outst&15)]=d2;);
+        typ==176 && d1==64 ? (mem[I_SUSTAIN_BASE+ii*16+(outst&15)]=d2;sw_playback_origin ? mem[SW_PHRASE_SUSTAIN_BASE+(outst&15)]=d2 : mem[SW_LIVE_SUSTAIN_BASE+(outst&15)]=d2;);
         (typ==144 && d2>0) ? (
-          sw_playback_origin ? mem[SW_LOOP_INPUT_BASE+(ii*16+srcch-1)*128+d1]+=1;
+          sw_playback_origin ? mem[engine_addr(SW_LOOP_INPUT_BASE,(ii*16+srcch-1)*128+d1)]+=1;
           param_track_input(ii,srcch-1,d1,1,0);
           tn=tf_pitch(ii,d1);
           tn>=0 && tn<=127 ? (
@@ -1158,7 +1331,7 @@ local(srcch,typ,ii,in_ch,out_ch,outst,outd2,matched,velmul,nmode,tn)
           );
         ) :
         ((typ==128) || (typ==144 && d2==0)) ? (
-          sw_playback_origin ? mem[SW_LOOP_INPUT_BASE+(ii*16+srcch-1)*128+d1]=max(0,mem[SW_LOOP_INPUT_BASE+(ii*16+srcch-1)*128+d1]-1);
+          sw_playback_origin ? mem[engine_addr(SW_LOOP_INPUT_BASE,(ii*16+srcch-1)*128+d1)]=max(0,mem[engine_addr(SW_LOOP_INPUT_BASE,(ii*16+srcch-1)*128+d1)]-1);
           param_track_input(ii,srcch-1,d1,0,0);
           tn=tf_pitch(ii,d1);
           tn>=0 && tn<=127 ? (
@@ -1173,10 +1346,10 @@ local(srcch,typ,ii,in_ch,out_ch,outst,outd2,matched,velmul,nmode,tn)
   );
   matched==0 ? (
     typ==144 || typ==128 ? (
-      nmode=(st&15)*128+d1;tn=SW_LIVE_OUT_BASE+nmode;sw_playback_origin?tn=SW_PHRASE_OUT_BASE+nmode;
+      nmode=(st&15)*128+d1;tn=I_FALLBACK_BASE+nmode;sw_playback_origin?tn=I_FALLBACK_BASE+2048+nmode;
       typ==144 && d2>0 ? mem[tn]+=1 : mem[tn]=max(0,mem[tn]-1);
     );
-    typ==176 && d1==64 ? (sw_playback_origin?mem[SW_PHRASE_SUSTAIN_BASE+(st&15)]=d2:mem[SW_LIVE_SUSTAIN_BASE+(st&15)]=d2;);
+    typ==176 && d1==64 ? (mem[I_FALLBACK_SUSTAIN_BASE+(st&15)]=d2;sw_playback_origin?mem[SW_PHRASE_SUSTAIN_BASE+(st&15)]=d2:mem[SW_LIVE_SUSTAIN_BASE+(st&15)]=d2;);
     midisend(offs,st,d1|(d2*256));
   );
 );
@@ -1185,14 +1358,14 @@ function send_expression_ccs()
 local(ii,out_ch,ch,lev,mod)
 (
   ii=0;
-  loop(INSTRUMENTS,
-    mem[INST_ENABLED_BASE+ii]>0.5 ? (
-      out_ch=mem[INST_OUT_BASE+ii];
+  loop(INST_CAP,
+    mem[I_EXISTS_BASE+ii] && mem[engine_addr(INST_ENABLED_BASE,ii)]>0.5 ? (
+      out_ch=mem[engine_addr(INST_OUT_BASE,ii)];
       ch=out_ch>0 ? max(1,min(16,out_ch))-1 : 0;
       // EXP A currently drives LEVEL, EXP B drives MOD. These are test sources;
       // the next mapping layer will make source/target/range freely assignable.
-      lev=max(0,min(127,floor(mem[INST_LEVEL_BASE+ii]+0.5)));
-      mod=max(0,min(127,floor(mem[INST_MOD_BASE+ii]+0.5)));
+      lev=max(0,min(127,floor(mem[engine_addr(INST_LEVEL_BASE,ii)]+0.5)));
+      mod=max(0,min(127,floor(mem[engine_addr(INST_MOD_BASE,ii)]+0.5)));
       midisend(0,176|ch,7,lev);
       midisend(0,176|ch,1,mod);
     );
@@ -1207,17 +1380,17 @@ local(srcch,typ,ii,in_ch,out_ch,outst,outd2,matched,velmul,msg_chan,note_key,nmo
   typ=st&240;
   matched=0;
   ii=0;
-  loop(INSTRUMENTS,
-    mem[INST_ENABLED_BASE+ii]>0.5 ? (
-      in_ch=mem[INST_IN_BASE+ii];
+  loop(INST_CAP,
+    mem[I_EXISTS_BASE+ii] && mem[engine_addr(INST_ENABLED_BASE,ii)]>0.5 ? (
+      in_ch=mem[engine_addr(INST_IN_BASE,ii)];
       (in_ch==0 || in_ch==srcch) ? (
         matched=1;
-        out_ch=mem[INST_OUT_BASE+ii];
+        out_ch=mem[engine_addr(INST_OUT_BASE,ii)];
         outst=st;
         out_ch>0 ? outst=(st&240)|(max(1,min(16,out_ch))-1);
         msg_chan=outst&15;
         outd2=d2;
-        nmode=transformer_on(ii,3) ? floor(mem[INST_NOTE_MODE_BASE+ii]+0.5) : 0;
+        nmode=transformer_on(ii,3) ? floor(mem[engine_addr(INST_NOTE_MODE_BASE,ii)]+0.5) : 0;
 
         (typ==144 && d2>0) ? (
           param_track_input(ii,srcch-1,d1,1,1);
@@ -1253,7 +1426,7 @@ local(srcch,typ,ii,in_ch,out_ch,outst,outd2,matched,velmul,msg_chan,note_key,nmo
   matched==0 ? (
     msg_chan=st&15;
     typ==144 || typ==128 ? (
-      note_key=SW_PHRASE_OUT_BASE+msg_chan*128+d1;
+      note_key=I_FALLBACK_BASE+2048+msg_chan*128+d1;
       typ==144 && d2>0?mem[note_key]+=1:mem[note_key]=max(0,mem[note_key]-1);
     );
     typ==176 && d1==64 ? mem[SW_PHRASE_SUSTAIN_BASE+msg_chan]=d2;
@@ -1264,7 +1437,7 @@ local(srcch,typ,ii,in_ch,out_ch,outst,outd2,matched,velmul,msg_chan,note_key,nmo
     ) :
     ((typ==128)||(typ==144&&d2==0)) ? (
       note_key=NOTE_REF_BASE+msg_chan*128+d1; mem[note_key]=max(0,mem[note_key]-1);
-      mem[note_key]<=0 ? midisend(offs,128|msg_chan,d1);
+      mem[note_key]<=0 && instrument_output_owners(msg_chan,d1,-1)<=0 ? midisend(offs,128|msg_chan,d1);
     ) : midisend(offs,st,d1|(d2*256));
   );
 );
@@ -1355,12 +1528,12 @@ local(addr,old,ti,unsafe)
     value=max(param_min(kind),min(param_max(kind),value));
     unsafe=(kind==PARAM_TRANSPOSE || kind==PARAM_RANGE_MODE || kind==PARAM_RANGE_LOW ||
             kind==PARAM_RANGE_HIGH || kind==PARAM_NOTE_MODE || kind==EXP_T_ARP_ON);
-    unsafe && mem[PARAM_ACTIVE_BASE+gi]>0 ? mem[param_pending_addr(ti)]=value : (
+    unsafe && mem[engine_addr(PARAM_ACTIVE_BASE,gi)]>0 ? mem[param_pending_addr(ti)]=value : (
       mem[param_pending_addr(ti)]=-999;
       old!=value ? (
         mem[addr]=value;
-        kind==EXP_T_LEVEL ? mem[CC_DIRTY_BASE+gi]=1;
-        kind==EXP_T_MOD || kind==PARAM_MOD_CC ? mem[CC_DIRTY_MOD_BASE+gi]=1;
+        kind==EXP_T_LEVEL ? mem[engine_addr(CC_DIRTY_BASE,gi)]=1;
+        kind==EXP_T_MOD || kind==PARAM_MOD_CC ? mem[engine_addr(CC_DIRTY_MOD_BASE,gi)]=1;
         kind==PARAM_ARP_HOLD && value<.5 ? arp_clear_latch(gi);
         kind==EXP_T_ARP_ON && value<.5 ? (arp_release_instrument(gi);arp_clear_latch(gi););
       );
@@ -1368,10 +1541,10 @@ local(addr,old,ti,unsafe)
   );
 );
 function param_expression_tick()
-local(ti,gi,kind,asg,value,pending)
+local(ti,gi,kind,asg,value,pending,pindex)
 (
-  ti=0;loop(PARAM_TOTAL,
-    gi=param_gi(ti);kind=param_kind(ti);asg=floor(mem[exp_assign_addr(ti)]+.5);
+  pindex=0;loop(INST_CAP*PARAM_TARGETS,
+    gi=floor(pindex/PARAM_TARGETS);kind=pindex%PARAM_TARGETS;ti=param_ti(gi,kind);asg=floor(mem[exp_assign_addr(ti)]+.5);
     pending=mem[param_pending_addr(ti)];
     asg>=1 && asg<=CONTROLLERS ? (
       value=param_scale(kind,exp_curve_value(ti,controller_value(asg-1)));
@@ -1379,18 +1552,18 @@ local(ti,gi,kind,asg,value,pending)
         param_apply(gi,kind,value);mem[param_last_addr(ti)]=value;
       );
     ) : pending!=-999 ? param_apply(gi,kind,pending);
-    ti+=1;
+    pindex+=1;
   );
 );
 function cc_expression_tick()
 local(j,row,ti,b,asg,value,pending,kind,typ,addr,unsafe)
 (
-  j=0;loop(CC_EXTRA,b=cc_cfg(j);mem[b]>0?(
+  j=0;loop(INSTANCE_EXTRA,b=cc_cfg(j);mem[b]>0?(
     typ=mem[tf_record(j)];row=0;loop(typ==2?3:typ==6?2:1,
       ti=cc_ti(j,row);kind=param_kind(ti);asg=floor(mem[exp_assign_addr(ti)]+.5);pending=mem[param_pending_addr(ti)];
       asg>=1 && asg<=CONTROLLERS ? value=param_scale(kind,exp_curve_value(ti,controller_value(asg-1))) : value=pending;
       value!=-999 ? (
-        unsafe=(typ==1 || typ==2) && mem[PARAM_ACTIVE_BASE+floor(j/(TRANSFORM_SLOTS-1))]>0;
+        unsafe=(typ==1 || typ==2) && mem[engine_addr(PARAM_ACTIVE_BASE,floor(j/(TRANSFORM_SLOTS-1)))]>0;
         unsafe ? mem[param_pending_addr(ti)]=value : (
           addr=b+(row==0?2:row==1?1:3);mem[addr]=max(param_min(kind),min(param_max(kind),value));mem[param_pending_addr(ti)]=-999;
         );
@@ -1400,51 +1573,52 @@ local(j,row,ti,b,asg,value,pending,kind,typ,addr,unsafe)
 );
 function cc_route_channel(gi,override)
 local(ch)
-(ch=override>0?override:mem[INST_OUT_BASE+gi]>0?mem[INST_OUT_BASE+gi]:mem[INST_IN_BASE+gi]>0?mem[INST_IN_BASE+gi]:1;
+(ch=override>0?override:mem[engine_addr(INST_OUT_BASE,gi)]>0?mem[engine_addr(INST_OUT_BASE,gi)]:mem[engine_addr(INST_IN_BASE,gi)]>0?mem[engine_addr(INST_IN_BASE,gi)]:1;
  max(0,min(15,floor(ch)-1)););
-function cc_record(gi,code) (CC_RT_BASE+(code==6?CC_EXTRA+gi:cc_index(gi,code))*CC_RT_STRIDE;);
+function cc_record(gi,code) (cc_rt_addr(gi<3?(code==6?CC_EXTRA+gi:cc_index(gi,code)):18+(gi-3)*6+(code==6?5:code-7)););
+
 function cc_generators_tick()
 local(gi,k,c,code,index,b,r,ch,cc,value,on,dirty,j,other)
 (
-  gi=0;loop(INSTRUMENTS,
-    k=0;c=max(0,min(TRANSFORM_SLOTS,floor(mem[INST_TRANSFORM_COUNT_BASE+gi])));
+  gi=0;loop(INST_CAP,
+    k=0;c=max(0,min(TRANSFORM_SLOTS,floor(mem[engine_addr(INST_TRANSFORM_COUNT_BASE,gi)])));
     loop(TRANSFORM_SLOTS,
       code=k==TRANSFORM_SLOTS-1?6:k+7;r=cc_record(gi,code);on=0;
-      j=0;loop(c,mem[INST_TRANSFORM_TYPE_BASE+gi*TRANSFORM_SLOTS+j]==code?on=1;j+=1;);
-      code==6 ? (ch=cc_route_channel(gi,0);cc=mem[PARAM_MOD_CC_BASE+gi];value=mem[INST_MOD_BASE+gi];) : (
+      j=0;loop(c,mem[engine_addr(INST_TRANSFORM_TYPE_BASE,gi*TRANSFORM_SLOTS+j)]==code?on=1;j+=1;);
+      code==6 ? (ch=cc_route_channel(gi,0);cc=mem[engine_addr(PARAM_MOD_CC_BASE,gi)];value=mem[engine_addr(INST_MOD_BASE,gi)];) : (
         b=cc_cfg(cc_index(gi,code));on=on && mem[b]>0 && mem[tf_record(cc_index(gi,code))]==6;ch=cc_route_channel(gi,mem[b+3]);cc=mem[b+1];value=mem[b+2];
       );
-      mem[r+4]=on && mem[INST_ENABLED_BASE+gi]>.5;mem[r+5]=ch;
+      mem[r+4]=on && mem[I_EXISTS_BASE+gi] && mem[engine_addr(INST_ENABLED_BASE,gi)]>.5;mem[r+5]=ch;
       mem[r+6]=max(0,min(127,floor(cc+.5)));mem[r+7]=max(0,min(127,floor(value+.5)));k+=1;
     );gi+=1;
   );
   // A CC64 destination is released using its saved channel before it disappears.
-  index=0;loop(CC_EXTRA+INSTRUMENTS,r=CC_RT_BASE+index*CC_RT_STRIDE;
+  index=0;loop(CC_RT_COUNT,r=cc_rt_addr(index);
     mem[r]>0 && mem[r+2]==64 && (!mem[r+4] || mem[r+1]!=mem[r+5] || mem[r+2]!=mem[r+6]) ? midisend(0,176|mem[r+1],64,0);
     index+=1;
   );
-  gi=0;loop(INSTRUMENTS,k=0;c=max(0,min(TRANSFORM_SLOTS,floor(mem[INST_TRANSFORM_COUNT_BASE+gi])));
-    loop(c,code=mem[INST_TRANSFORM_TYPE_BASE+gi*TRANSFORM_SLOTS+k];code>=6 && code<=11 && transform_type(gi,code)==6?(
+  gi=0;loop(INST_CAP,k=0;c=max(0,min(TRANSFORM_SLOTS,floor(mem[engine_addr(INST_TRANSFORM_COUNT_BASE,gi)])));
+    loop(c,code=mem[engine_addr(INST_TRANSFORM_TYPE_BASE,gi*TRANSFORM_SLOTS+k)];code>=6 && code<=11 && transform_type(gi,code)==6?(
       r=cc_record(gi,code);on=mem[r+4];ch=mem[r+5];cc=mem[r+6];value=mem[r+7];dirty=0;
-      j=0;loop(CC_EXTRA+INSTRUMENTS,other=CC_RT_BASE+j*CC_RT_STRIDE;
+      j=0;loop(CC_RT_COUNT,other=cc_rt_addr(j);
         // Both old and new targets participate: removing the last writer restores
         // the preceding writer immediately, even if its own value did not change.
         ((mem[other+4]>0 && mem[other+5]==ch && mem[other+6]==cc) || (mem[other]>0 && mem[other+1]==ch && mem[other+2]==cc)) &&
           (mem[other]!=mem[other+4] || mem[other+1]!=mem[other+5] || mem[other+2]!=mem[other+6] || mem[other+3]!=mem[other+7]) ? dirty=1;
         j+=1;
       );
-      on && (dirty || mem[CC_DIRTY_MOD_BASE+gi]>0) ? midisend(0,176|ch,cc,value);
+      on && (dirty || mem[engine_addr(CC_DIRTY_MOD_BASE,gi)]>0) ? midisend(0,176|ch,cc,value);
     );k+=1;);gi+=1;
   );
-  index=0;loop(CC_EXTRA+INSTRUMENTS,r=CC_RT_BASE+index*CC_RT_STRIDE;j=0;loop(4,mem[r+j]=mem[r+4+j];j+=1;);index+=1;);
+  index=0;loop(CC_RT_COUNT,r=cc_rt_addr(index);j=0;loop(4,mem[r+j]=mem[r+4+j];j+=1;);index+=1;);
 );
 
 function send_instrument_cc(gi, cc, value)
 local(in_ch,out_ch,ch)
 (
-  mem[INST_ENABLED_BASE+gi]>0.5 ? (
-    in_ch=mem[INST_IN_BASE+gi];
-    out_ch=mem[INST_OUT_BASE+gi];
+  mem[engine_addr(INST_ENABLED_BASE,gi)]>0.5 ? (
+    in_ch=mem[engine_addr(INST_IN_BASE,gi)];
+    out_ch=mem[engine_addr(INST_OUT_BASE,gi)];
     // Fixed OUT wins. ORIGINAL follows a fixed IN channel; ALL+ORIGINAL uses CH1.
     ch=out_ch>0 ? max(1,min(16,out_ch))-1 :
        in_ch>0 ? max(1,min(16,in_ch))-1 : 0;
@@ -1500,9 +1674,10 @@ local(j,n)
    (gmem[2]==3 && n==CC_LEGACY_PAYLOAD && gmem[IO_PAYLOAD_BASE+WORK_MEM_SIZE]==PARAM_SCHEMA && gmem[IO_PAYLOAD_BASE+SW_LEGACY_PAYLOAD]==SW_SCHEMA) ||
    (gmem[2]==4 && n==TF_LEGACY_PAYLOAD && gmem[IO_PAYLOAD_BASE+WORK_MEM_SIZE]==PARAM_SCHEMA && gmem[IO_PAYLOAD_BASE+SW_LEGACY_PAYLOAD]==SW_SCHEMA && gmem[IO_PAYLOAD_BASE+CC_LEGACY_PAYLOAD]==CC_SCHEMA) ||
    (gmem[2]==5 && n==DS_LEGACY_PAYLOAD && gmem[IO_PAYLOAD_BASE+WORK_MEM_SIZE]==PARAM_SCHEMA && gmem[IO_PAYLOAD_BASE+SW_LEGACY_PAYLOAD]==SW_SCHEMA && gmem[IO_PAYLOAD_BASE+CC_LEGACY_PAYLOAD]==CC_SCHEMA && gmem[IO_PAYLOAD_BASE+TF_LEGACY_PAYLOAD]==TF_SCHEMA) ||
-   (gmem[2]==IO_SCHEMA && n==PATCH_PAYLOAD_SIZE && gmem[IO_PAYLOAD_BASE+WORK_MEM_SIZE]==PARAM_SCHEMA && gmem[IO_PAYLOAD_BASE+SW_LEGACY_PAYLOAD]==SW_SCHEMA && gmem[IO_PAYLOAD_BASE+CC_LEGACY_PAYLOAD]==CC_SCHEMA && gmem[IO_PAYLOAD_BASE+TF_LEGACY_PAYLOAD]==TF_SCHEMA && gmem[IO_PAYLOAD_BASE+DS_LEGACY_PAYLOAD]==IO_SCHEMA)) ? (
+   (gmem[2]==DS_SCHEMA && n==I_LEGACY_PAYLOAD && gmem[IO_PAYLOAD_BASE+WORK_MEM_SIZE]==PARAM_SCHEMA && gmem[IO_PAYLOAD_BASE+SW_LEGACY_PAYLOAD]==SW_SCHEMA && gmem[IO_PAYLOAD_BASE+CC_LEGACY_PAYLOAD]==CC_SCHEMA && gmem[IO_PAYLOAD_BASE+TF_LEGACY_PAYLOAD]==TF_SCHEMA && gmem[IO_PAYLOAD_BASE+DS_LEGACY_PAYLOAD]==DS_SCHEMA) ||
+   (gmem[2]==IO_SCHEMA && n==PATCH_PAYLOAD_SIZE && gmem[IO_PAYLOAD_BASE+WORK_MEM_SIZE]==PARAM_SCHEMA && gmem[IO_PAYLOAD_BASE+SW_LEGACY_PAYLOAD]==SW_SCHEMA && gmem[IO_PAYLOAD_BASE+CC_LEGACY_PAYLOAD]==CC_SCHEMA && gmem[IO_PAYLOAD_BASE+TF_LEGACY_PAYLOAD]==TF_SCHEMA && gmem[IO_PAYLOAD_BASE+DS_LEGACY_PAYLOAD]==DS_SCHEMA && gmem[IO_PAYLOAD_BASE+I_LEGACY_PAYLOAD]==IO_SCHEMA)) ? (
     // Patch memory only grows by appending fields, so older JSON patches remain valid prefixes.
-    param_extension_reset();param_runtime_reset();sw_defaults();sw_runtime_reset();cc_defaults();cc_runtime_reset();tf_defaults();tf_runtime_reset();
+    i_defaults();param_extension_reset();param_runtime_reset();sw_defaults();sw_runtime_reset();cc_defaults();cc_runtime_reset();tf_defaults();tf_runtime_reset();
     j=n;
     n<WORK_MEM_SIZE ? loop(WORK_MEM_SIZE-n, mem[j]=0; j+=1;);
     loop_len_samples=gmem[4];
@@ -1519,7 +1694,7 @@ local(j,n)
       mem[payload_addr(j)]=gmem[IO_PAYLOAD_BASE+j];
       j+=1;
     );
-    gmem[2]<IO_SCHEMA?ds_migrate();sw_validate();
+    gmem[2]<DS_SCHEMA?ds_migrate();sw_validate();
     record_sample_pos=0;
     play_sample_pos=0;
     overdub_armed=0;
@@ -1651,6 +1826,8 @@ local(ch,note)
 (
 
   param_input_reset();
+ ch=0;loop(INST_CAP, note=0;loop(2048,mem[engine_addr(SW_LIVE_OUT_BASE,ch*2048+note)]=0;mem[engine_addr(SW_PHRASE_OUT_BASE,ch*2048+note)]=0;mem[engine_addr(SW_LOOP_INPUT_BASE,ch*2048+note)]=0;mem[I_ONCE_OUT_BASE+ch*2048+note]=0;note+=1;);ch+=1;);
+ ch=0;loop(4096,mem[I_FALLBACK_BASE+ch]=0;ch+=1;);ch=0;loop(INST_CAP*16,mem[I_SUSTAIN_BASE+ch]=0;ch+=1;);
   ch=SW_PHRASE_OUT_BASE;loop(SW_MEMORY_END-SW_PHRASE_OUT_BASE,mem[ch]=0;ch+=1;);
   ch=0;
   loop(16,
@@ -1678,7 +1855,7 @@ local(ch,note,key,mi,mn)
       key=NOTE_REF_BASE + ch*128 + note;
       mem[key]>0 ? (
         midisend(0,128|ch,note,0);
-        mi=0;loop(INSTRUMENTS,mem[SW_PHRASE_OUT_BASE+(mi*16+ch)*128+note]=0;mi+=1;);
+        mi=0;loop(INST_CAP,mem[engine_addr(SW_PHRASE_OUT_BASE,(mi*16+ch)*128+note)]=0;mem[I_ONCE_OUT_BASE+(mi*16+ch)*128+note]=0;mi+=1;);
         mem[key]=0;
       );
       note+=1;
@@ -1691,14 +1868,14 @@ local(ch,note,key,mi,mn)
   );
   // A phrase choke / HOLD stop also forgets mono source ownership.
   mi=0;
-  loop(INSTRUMENTS,
-    mem[MONO_ACTIVE_NOTE_BASE+mi]=-1;
+  loop(INST_CAP,
+    mem[engine_addr(MONO_ACTIVE_NOTE_BASE,mi)]=-1;
     mn=0;
     loop(128,
-      mem[MONO_HELD_COUNT_BASE+mi*128+mn]=0;
-      mem[SW_MONO_PHRASE_BASE+mi*128+mn]=0;
-      mem[MONO_HELD_VEL_BASE+mi*128+mn]=0;
-      mem[MONO_ORDER_BASE+mi*128+mn]=0;
+      mem[engine_addr(MONO_HELD_COUNT_BASE,mi*128+mn)]=0;
+      mem[engine_addr(SW_MONO_PHRASE_BASE,mi*128+mn)]=0;
+      mem[engine_addr(MONO_HELD_VEL_BASE,mi*128+mn)]=0;
+      mem[engine_addr(MONO_ORDER_BASE,mi*128+mn)]=0;
       mn+=1;
     );
     mi+=1;
@@ -1877,33 +2054,33 @@ function sw_stop_phrases()
 local(gi,ch,n,key,live,mi,idx,remain,old,desired,mode,src)
 (
   // Stop only playback-owned output. Live-through output remains untouched.
-  gi=0;loop(INSTRUMENTS,
+  gi=0;loop(INST_CAP,
     n=0;loop(128,
-      idx=MONO_HELD_COUNT_BASE+gi*128+n;
-      mem[idx]=max(0,mem[idx]-mem[SW_MONO_PHRASE_BASE+gi*128+n]);mem[SW_MONO_PHRASE_BASE+gi*128+n]=0;
-      src=mem[SW_ARP_PHRASE_BASE+gi*128+n];
-      mem[ARP_HELD_COUNT_BASE+gi*128+n]=max(0,mem[ARP_HELD_COUNT_BASE+gi*128+n]-src);
-      mem[ARP_SOURCE_COUNT_BASE+gi*128+n]=max(0,mem[ARP_SOURCE_COUNT_BASE+gi*128+n]-mem[SW_ARP_PHRASE_SOURCE_BASE+gi*128+n]);mem[SW_ARP_PHRASE_SOURCE_BASE+gi*128+n]=0;mem[SW_ARP_PHRASE_BASE+gi*128+n]=0;n+=1;
+      idx=engine_addr(MONO_HELD_COUNT_BASE,gi*128+n);
+      mem[idx]=max(0,mem[idx]-mem[engine_addr(SW_MONO_PHRASE_BASE,gi*128+n)]);mem[engine_addr(SW_MONO_PHRASE_BASE,gi*128+n)]=0;
+      src=mem[engine_addr(SW_ARP_PHRASE_BASE,gi*128+n)];
+      mem[engine_addr(ARP_HELD_COUNT_BASE,gi*128+n)]=max(0,mem[engine_addr(ARP_HELD_COUNT_BASE,gi*128+n)]-src);
+      mem[engine_addr(ARP_SOURCE_COUNT_BASE,gi*128+n)]=max(0,mem[engine_addr(ARP_SOURCE_COUNT_BASE,gi*128+n)]-mem[engine_addr(SW_ARP_PHRASE_SOURCE_BASE,gi*128+n)]);mem[engine_addr(SW_ARP_PHRASE_SOURCE_BASE,gi*128+n)]=0;mem[engine_addr(SW_ARP_PHRASE_BASE,gi*128+n)]=0;n+=1;
     );
-    old=mem[MONO_ACTIVE_NOTE_BASE+gi];mode=floor(mem[INST_NOTE_MODE_BASE+gi]+.5);desired=mono_desired_note(gi,mode);
-    old>=0 && desired==old ? mem[SW_LIVE_OUT_BASE+(gi*16+mem[MONO_ACTIVE_CH_BASE+gi])*128+old]=max(1,mem[SW_LIVE_OUT_BASE+(gi*16+mem[MONO_ACTIVE_CH_BASE+gi])*128+old]);
+    old=mem[engine_addr(MONO_ACTIVE_NOTE_BASE,gi)];mode=floor(mem[engine_addr(INST_NOTE_MODE_BASE,gi)]+.5);desired=mono_desired_note(gi,mode);
+    old>=0 && desired==old ? mem[engine_addr(SW_LIVE_OUT_BASE,(gi*16+mem[engine_addr(MONO_ACTIVE_CH_BASE,gi)])*128+old)]=max(1,mem[engine_addr(SW_LIVE_OUT_BASE,(gi*16+mem[engine_addr(MONO_ACTIVE_CH_BASE,gi)])*128+old)]);
     // A retained live mono source is re-voiced after stopping the phrase if needed.
-    old!=desired ? mem[MONO_ACTIVE_NOTE_BASE+gi]=-1;
-    n=mem[ARP_ACTIVE_NOTE_BASE+gi];n>=0 && mem[ARP_HELD_COUNT_BASE+gi*128+n]<=0 ? arp_release_instrument(gi);
+    old!=desired ? mem[engine_addr(MONO_ACTIVE_NOTE_BASE,gi)]=-1;
+    n=mem[engine_addr(ARP_ACTIVE_NOTE_BASE,gi)];n>=0 && mem[engine_addr(ARP_HELD_COUNT_BASE,gi*128+n)]<=0 ? arp_release_instrument(gi);
     ch=0;loop(16,n=0;loop(128,
-      key=SW_PHRASE_OUT_BASE+(gi*16+ch)*128+n;
+      key=engine_addr(SW_PHRASE_OUT_BASE,(gi*16+ch)*128+n);
       mem[key]>0 ? (
-        live=0;mi=0;loop(INSTRUMENTS,live+=mem[SW_LIVE_OUT_BASE+(mi*16+ch)*128+n];mi+=1;);
+        live=0;mi=0;loop(INST_CAP,live+=mem[engine_addr(SW_LIVE_OUT_BASE,(mi*16+ch)*128+n)];mi+=1;);
         live<=0 && mem[NOTE_REF_BASE+ch*128+n]!=-1 ? midisend(0,128|ch,n);
         // Mark this pitch released for the remainder of this targeted stop.
         mem[NOTE_REF_BASE+ch*128+n]=-1;
         mem[key]=0;
       );
-      src=mem[SW_LOOP_INPUT_BASE+(gi*16+ch)*128+n];idx=PARAM_INPUT_BASE+(gi*16+ch)*128+n;
-      mem[idx]=max(0,mem[idx]-src);mem[PARAM_ACTIVE_BASE+gi]=max(0,mem[PARAM_ACTIVE_BASE+gi]-src);mem[SW_LOOP_INPUT_BASE+(gi*16+ch)*128+n]=0;n+=1;
+      src=mem[engine_addr(SW_LOOP_INPUT_BASE,(gi*16+ch)*128+n)];idx=input_addr((gi*16+ch)*128+n);
+      mem[idx]=max(0,mem[idx]-src);mem[engine_addr(PARAM_ACTIVE_BASE,gi)]=max(0,mem[engine_addr(PARAM_ACTIVE_BASE,gi)]-src);mem[engine_addr(SW_LOOP_INPUT_BASE,(gi*16+ch)*128+n)]=0;n+=1;
     );ch+=1;);
     old!=desired && desired>=0 ? (
-      route_emit_note(gi,0,144|mem[MONO_ACTIVE_CH_BASE+gi],desired,mem[MONO_HELD_VEL_BASE+gi*128+desired],1,0,-1);mem[SW_MONO_OWNER_BASE+gi]=-1;mem[MONO_ACTIVE_NOTE_BASE+gi]=desired;
+      route_emit_note(gi,0,144|mem[engine_addr(MONO_ACTIVE_CH_BASE,gi)],desired,mem[engine_addr(MONO_HELD_VEL_BASE,gi*128+desired)],1,0,-1);mem[engine_addr(SW_MONO_OWNER_BASE,gi)]=-1;mem[engine_addr(MONO_ACTIVE_NOTE_BASE,gi)]=desired;
     );gi+=1;
   );
   ch=0;loop(16,
@@ -1911,6 +2088,8 @@ local(gi,ch,n,key,live,mi,idx,remain,old,desired,mode,src)
     mem[SW_PHRASE_SUSTAIN_BASE+ch]=0;mem[SUSTAIN_REF_BASE+ch]=0;
     n=0;loop(128,mem[NOTE_REF_BASE+ch*128+n]=0;n+=1;);ch+=1;
   );
+  gi=0;loop(INST_CAP*2048,mem[I_ONCE_OUT_BASE+gi]=0;gi+=1;);
+  gi=0;loop(2048,mem[I_FALLBACK_BASE+2048+gi]>0 && mem[I_FALLBACK_BASE+gi]<=0?midisend(0,128|floor(gi/128),gi%128);mem[I_FALLBACK_BASE+2048+gi]=0;gi+=1;);
   param_release_owned();gi=0;loop(MAX_ONCE_VOICES,mem[VOICE_ACTIVE_BASE+gi]=0;gi+=1;);
   gi=0;loop(LAYERS,mem[TRIG_BASE+gi]=0;mem[HOLD_ACTIVE_BASE+gi]=0;gi+=1;);
   trigger_request=-1;hold_stop_request=-1;last_trigger_layer=-1;
@@ -1933,12 +2112,12 @@ local(b,r,step,phrase,gi,kind,k,c,found)
     action==SW_STOP_RESET ? sw_stop_phrases();
     target==SW_COUNT ? (k=0;loop(SW_COUNT,sw_reset(k);k+=1;);) : target>=0 && target<SW_COUNT ? sw_reset(target);
   ) : action==SW_RESET_ALL ? (k=0;loop(SW_COUNT,sw_reset(k);k+=1;);) : action==SW_PANIC ? (sw_stop_phrases();send_all_notes_off();) :
-  action>=SW_TOGGLE && action<=SW_DISABLE && target>=0 && target<INSTRUMENTS*TRANSFORM_TYPES ? (
+  action>=SW_TOGGLE && action<=SW_DISABLE && target>=0 && target<INST_CAP*TRANSFORM_TYPES ? (
     // Stable instrument/type identity survives chain reordering. Wait for source releases.
-    gi=floor(target/TRANSFORM_TYPES);kind=target%TRANSFORM_TYPES+1;c=max(0,min(TRANSFORM_SLOTS,mem[INST_TRANSFORM_COUNT_BASE+gi]));k=0;found=0;
+    gi=floor(target/TRANSFORM_TYPES);kind=target%TRANSFORM_TYPES+1;c=max(0,min(TRANSFORM_SLOTS,mem[engine_addr(INST_TRANSFORM_COUNT_BASE,gi)]));k=0;found=0;
     loop(c,
-      abs(mem[INST_TRANSFORM_TYPE_BASE+gi*TRANSFORM_SLOTS+k])==kind ? (
-        found=1;mem[SW_MODULE_BASE+target]=action==SW_TOGGLE ? -(mem[SW_MODULE_BASE+target]!=-999?mem[SW_MODULE_BASE+target]:mem[INST_TRANSFORM_TYPE_BASE+gi*TRANSFORM_SLOTS+k]) : action==SW_ENABLE?kind:-kind;
+      abs(mem[engine_addr(INST_TRANSFORM_TYPE_BASE,gi*TRANSFORM_SLOTS+k)])==kind ? (
+        found=1;mem[engine_addr(SW_MODULE_BASE,target)]=action==SW_TOGGLE ? -(mem[engine_addr(SW_MODULE_BASE,target)]!=-999?mem[engine_addr(SW_MODULE_BASE,target)]:mem[engine_addr(INST_TRANSFORM_TYPE_BASE,gi*TRANSFORM_SLOTS+k)]) : action==SW_ENABLE?kind:-kind;
       );k+=1;
     );found==0?mem[r+17]=4;
   );
@@ -2151,7 +2330,7 @@ local(q,si,op,arg,value,b,r,j,k,n,tmp,target,gi,kind,c,undo,editing)
           arg>=0 && arg<32 ? (
             arg==0 && value>0 ? (sw_assign(si,mem[b+2],mem[b+3],mem[b+4],mem[b+12],mem[b+13])?mem[b]=1;) : mem[b+arg]=value;
             arg==1 && value==1 && mem[b+14]==SW_NEXT ? mem[b+14]=SW_NONE;
-            arg>=14 && arg<=16 ? mem[b+arg+3]=max(0,min(value>=SW_TOGGLE?INSTRUMENTS*TRANSFORM_TYPES-1:SW_COUNT,mem[b+arg+3]));
+            arg>=14 && arg<=16 ? mem[b+arg+3]=max(0,min(value>=SW_TOGGLE?INST_CAP*TRANSFORM_TYPES-1:SW_COUNT,mem[b+arg+3]));
             !editing ? (mem[r+3]=0;mem[r+2]=1;(arg==1 || arg==9 || arg==10)?sw_reset(si););
           );
         );
@@ -2171,15 +2350,15 @@ local(q,si,op,arg,value,b,r,j,k,n,tmp,target,gi,kind,c,undo,editing)
       );
     );
   );
-  target=0;loop(INSTRUMENTS*TRANSFORM_TYPES,
-    mem[SW_MODULE_BASE+target]!=-999 ? (
+  target=0;loop(INST_CAP*TRANSFORM_TYPES,
+    mem[engine_addr(SW_MODULE_BASE,target)]!=-999 ? (
       gi=floor(target/TRANSFORM_TYPES);kind=target%TRANSFORM_TYPES+1;
-      mem[PARAM_ACTIVE_BASE+gi]<=0 ? (
-        c=max(0,min(TRANSFORM_SLOTS,mem[INST_TRANSFORM_COUNT_BASE+gi]));k=0;loop(c,
-          abs(mem[INST_TRANSFORM_TYPE_BASE+gi*TRANSFORM_SLOTS+k])==kind ? mem[INST_TRANSFORM_TYPE_BASE+gi*TRANSFORM_SLOTS+k]=mem[SW_MODULE_BASE+target];k+=1;
+      mem[engine_addr(PARAM_ACTIVE_BASE,gi)]<=0 ? (
+        c=max(0,min(TRANSFORM_SLOTS,mem[engine_addr(INST_TRANSFORM_COUNT_BASE,gi)]));k=0;loop(c,
+          abs(mem[engine_addr(INST_TRANSFORM_TYPE_BASE,gi*TRANSFORM_SLOTS+k)])==kind ? mem[engine_addr(INST_TRANSFORM_TYPE_BASE,gi*TRANSFORM_SLOTS+k)]=mem[engine_addr(SW_MODULE_BASE,target)];k+=1;
         );
-        kind==5 && mem[SW_MODULE_BASE+target]<0 ? arp_release_instrument(gi);
-        mem[SW_MODULE_BASE+target]=-999;
+        kind==5 && mem[engine_addr(SW_MODULE_BASE,target)]<0 ? arp_release_instrument(gi);
+        mem[engine_addr(SW_MODULE_BASE,target)]=-999;
       );
     );target+=1;
   );
@@ -2192,56 +2371,105 @@ local(j)
  mem[param_last_addr(ti)]=-999;mem[param_pending_addr(ti)]=-999;);
 function tf_has_code(gi,code)
 local(j,found)
-(j=0;found=0;loop(max(0,min(TRANSFORM_SLOTS,floor(mem[INST_TRANSFORM_COUNT_BASE+gi]))),abs(mem[INST_TRANSFORM_TYPE_BASE+gi*TRANSFORM_SLOTS+j])==code?found=1;j+=1;);found;);
+(j=0;found=0;loop(max(0,min(TRANSFORM_SLOTS,floor(mem[engine_addr(INST_TRANSFORM_COUNT_BASE,gi)]))),abs(mem[engine_addr(INST_TRANSFORM_TYPE_BASE,gi*TRANSFORM_SLOTS+j)])==code?found=1;j+=1;);found;);
 function tf_submit(gi,op,arg)
 local(ui_q,ui_ok,ui_code)
-(ui_ok=gi>=0 && gi<INSTRUMENTS && ui_tf_queue_write-tf_queue_read<TF_QUEUE_SIZE;ui_ok?(
+(ui_ok=gi>=0 && gi<INST_CAP && ui_tf_queue_write-tf_queue_read<TF_QUEUE_SIZE;ui_ok?(
  ui_q=TF_QUEUE_BASE+(ui_tf_queue_write%TF_QUEUE_SIZE)*TF_QUEUE_STRIDE;
- ui_code=op==1?arg:abs(mem[INST_TRANSFORM_TYPE_BASE+gi*TRANSFORM_SLOTS+arg]);
- mem[ui_q]=gi;mem[ui_q+1]=op;mem[ui_q+2]=ui_code;mem[ui_q+3]=op==1?0:tf_id(gi,ui_code);ui_tf_queue_write+=1;
+ ui_code=op==1?arg:abs(mem[engine_addr(INST_TRANSFORM_TYPE_BASE,gi*TRANSFORM_SLOTS+arg)]);
+ mem[ui_q]=gi;mem[ui_q+1]=op;mem[ui_q+2]=ui_code;mem[ui_q+3]=op==1?0:tf_id(gi,ui_code);mem[ui_q+4]=mem[I_IDS_BASE+gi];ui_tf_queue_write+=1;
  );ui_ok;);
 function tf_queue_process()
 local(q,gi,op,arg,c,code,typ,b,j,idx,ready,limit,targetcode)
 (
   limit=TF_QUEUE_SIZE;while(tf_queue_read<ui_tf_queue_write && limit>0)(
-    q=TF_QUEUE_BASE+(tf_queue_read%TF_QUEUE_SIZE)*TF_QUEUE_STRIDE;gi=mem[q];op=mem[q+1];arg=mem[q+2];c=max(0,min(TRANSFORM_SLOTS,floor(mem[INST_TRANSFORM_COUNT_BASE+gi])));
-    op!=1 ? (targetcode=arg;arg=-1;j=0;loop(c,abs(mem[INST_TRANSFORM_TYPE_BASE+gi*TRANSFORM_SLOTS+j])==targetcode && tf_id(gi,targetcode)==mem[q+3]?arg=j;j+=1;););
-    code=op==1?arg:arg>=0 && arg<c?abs(mem[INST_TRANSFORM_TYPE_BASE+gi*TRANSFORM_SLOTS+arg]):0;
-    typ=op==1?arg:transform_type(gi,code);ready=(typ==6 || mem[PARAM_ACTIVE_BASE+gi]<=0);
+    q=TF_QUEUE_BASE+(tf_queue_read%TF_QUEUE_SIZE)*TF_QUEUE_STRIDE;gi=mem[q];op=mem[q+1];arg=mem[q+2];c=max(0,min(TRANSFORM_SLOTS,floor(mem[engine_addr(INST_TRANSFORM_COUNT_BASE,gi)])));
+    op!=1 ? (targetcode=arg;arg=-1;j=0;loop(c,abs(mem[engine_addr(INST_TRANSFORM_TYPE_BASE,gi*TRANSFORM_SLOTS+j)])==targetcode && tf_id(gi,targetcode)==mem[q+3]?arg=j;j+=1;););
+    code=op==1?arg:arg>=0 && arg<c?abs(mem[engine_addr(INST_TRANSFORM_TYPE_BASE,gi*TRANSFORM_SLOTS+arg)]):0;
+    typ=op==1?arg:transform_type(gi,code);ready=(typ==6 || mem[engine_addr(PARAM_ACTIVE_BASE,gi)]<=0);
+    (!mem[I_EXISTS_BASE+gi] || mem[I_IDS_BASE+gi]!=mem[q+4]) ? (op=0;ready=1;);
     ready ? (
       op==1 && c<TRANSFORM_SLOTS && (arg==1 || arg==2 || arg==4 || arg==6 || !tf_has_code(gi,arg)) ? (
         code=arg;tf_has_code(gi,arg)?(code=7;while(code<=11 && tf_has_code(gi,code))(code+=1;););
         code<=11 ? (
           code>=7 ? (
             idx=cc_index(gi,code);b=cc_cfg(idx);mem[tf_record(idx)]=arg;
-            mem[b]=mem[CC_CFG_BASE+1];mem[CC_CFG_BASE+1]+=1;
+            mem[b]=mem[engine_addr(CC_CFG_BASE,1)];mem[engine_addr(CC_CFG_BASE,1)]+=1;
             mem[b+1]=arg==6?1:0;mem[b+2]=arg==4?1:0;mem[b+3]=arg==2?127:0;
             j=0;loop(3,tf_linear(cc_ti(idx,j));j+=1;);
           ) : (
-            code==6?(mem[CC_CFG_BASE+2+gi]=mem[CC_CFG_BASE+1];mem[CC_CFG_BASE+1]+=1;mem[PARAM_MOD_CC_BASE+gi]=1;mem[INST_MOD_BASE+gi]=0;tf_linear(param_ti(gi,EXP_T_MOD));tf_linear(param_ti(gi,PARAM_MOD_CC));):(
-              mem[TF_PRIMARY_IDS+gi*TRANSFORM_TYPES+code-1]=mem[CC_CFG_BASE+1];mem[CC_CFG_BASE+1]+=1;
-              code==1?(mem[INST_TRANSPOSE_BASE+gi]=0;tf_linear(param_ti(gi,PARAM_TRANSPOSE)););
-              code==2?(mem[INST_RANGE_MODE_BASE+gi]=0;mem[INST_RANGE_LOW_BASE+gi]=0;mem[INST_RANGE_HIGH_BASE+gi]=127;j=0;loop(3,tf_linear(param_ti(gi,PARAM_RANGE_MODE+j));j+=1;););
-              code==4?(mem[INST_VEL_BASE+gi]=1;tf_linear(param_ti(gi,EXP_T_VEL)););
+            code==6?(mem[primary_cc_id_addr(gi)]=mem[engine_addr(CC_CFG_BASE,1)];mem[engine_addr(CC_CFG_BASE,1)]+=1;mem[engine_addr(PARAM_MOD_CC_BASE,gi)]=1;mem[engine_addr(INST_MOD_BASE,gi)]=0;tf_linear(param_ti(gi,EXP_T_MOD));tf_linear(param_ti(gi,PARAM_MOD_CC));):(
+              mem[engine_addr(TF_PRIMARY_IDS,gi*TRANSFORM_TYPES+code-1)]=mem[engine_addr(CC_CFG_BASE,1)];mem[engine_addr(CC_CFG_BASE,1)]+=1;
+              code==1?(mem[engine_addr(INST_TRANSPOSE_BASE,gi)]=0;tf_linear(param_ti(gi,PARAM_TRANSPOSE)););
+              code==2?(mem[engine_addr(INST_RANGE_MODE_BASE,gi)]=0;mem[engine_addr(INST_RANGE_LOW_BASE,gi)]=0;mem[engine_addr(INST_RANGE_HIGH_BASE,gi)]=127;j=0;loop(3,tf_linear(param_ti(gi,PARAM_RANGE_MODE+j));j+=1;););
+              code==4?(mem[engine_addr(INST_VEL_BASE,gi)]=1;tf_linear(param_ti(gi,EXP_T_VEL)););
             );
           );
-          mem[INST_TRANSFORM_TYPE_BASE+gi*TRANSFORM_SLOTS+c]=code;mem[INST_TRANSFORM_COUNT_BASE+gi]=c+1;
+          mem[engine_addr(INST_TRANSFORM_TYPE_BASE,gi*TRANSFORM_SLOTS+c)]=code;mem[engine_addr(INST_TRANSFORM_COUNT_BASE,gi)]=c+1;
         );
       );
       op==2 && arg>=0 && arg<c ? (
-        j=arg;loop(c-arg-1,mem[INST_TRANSFORM_TYPE_BASE+gi*TRANSFORM_SLOTS+j]=mem[INST_TRANSFORM_TYPE_BASE+gi*TRANSFORM_SLOTS+j+1];j+=1;);
-        mem[INST_TRANSFORM_TYPE_BASE+gi*TRANSFORM_SLOTS+c-1]=0;mem[INST_TRANSFORM_COUNT_BASE+gi]=c-1;
+        j=arg;loop(c-arg-1,mem[engine_addr(INST_TRANSFORM_TYPE_BASE,gi*TRANSFORM_SLOTS+j)]=mem[engine_addr(INST_TRANSFORM_TYPE_BASE,gi*TRANSFORM_SLOTS+j+1)];j+=1;);
+        mem[engine_addr(INST_TRANSFORM_TYPE_BASE,gi*TRANSFORM_SLOTS+c-1)]=0;mem[engine_addr(INST_TRANSFORM_COUNT_BASE,gi)]=c-1;
       );
-      op==3 && arg>=0 && arg<c?mem[INST_TRANSFORM_TYPE_BASE+gi*TRANSFORM_SLOTS+arg]*=-1;
+      op==3 && arg>=0 && arg<c?mem[engine_addr(INST_TRANSFORM_TYPE_BASE,gi*TRANSFORM_SLOTS+arg)]*=-1;
       (op==2 || op==3) && typ==5 ? (
-        arp_release_instrument(gi);j=0;loop(128,mem[ARP_SOURCE_COUNT_BASE+gi*128+j]=0;mem[ARP_HELD_COUNT_BASE+gi*128+j]=0;
-          mem[SW_ARP_PHRASE_BASE+gi*128+j]=0;mem[SW_ARP_PHRASE_SOURCE_BASE+gi*128+j]=0;j+=1;);
+        arp_release_instrument(gi);j=0;loop(128,mem[engine_addr(ARP_SOURCE_COUNT_BASE,gi*128+j)]=0;mem[engine_addr(ARP_HELD_COUNT_BASE,gi*128+j)]=0;
+          mem[engine_addr(SW_ARP_PHRASE_BASE,gi*128+j)]=0;mem[engine_addr(SW_ARP_PHRASE_SOURCE_BASE,gi*128+j)]=0;j+=1;);
       );
       tf_queue_read+=1;
     ) : limit=0;
     limit-=1;
   );
 );
+
+function i_submit(op,gi,id)
+local(ui_q,ui_ok)
+(ui_ok=ui_i_write-i_read<I_QUEUE_SIZE;ui_ok?(ui_q=I_QUEUE_BASE+(ui_i_write%I_QUEUE_SIZE)*I_QUEUE_STRIDE;mem[ui_q]=op;mem[ui_q+1]=gi;mem[ui_q+2]=id;ui_i_write+=1;);ui_ok;);
+function i_clear_runtime(gi)
+local(j,idx)
+(j=0;loop(2048,idx=gi*2048+j;mem[engine_addr(SW_LIVE_OUT_BASE,idx)]=0;mem[engine_addr(SW_PHRASE_OUT_BASE,idx)]=0;mem[engine_addr(SW_LOOP_INPUT_BASE,idx)]=0;mem[I_ONCE_OUT_BASE+idx]=0;
+ mem[input_addr(gi*2048+j)]=0;mem[input_addr((INST_CAP+gi)*2048+j)]=0;j+=1;);
+ j=0;loop(128,mem[engine_addr(ARP_HELD_COUNT_BASE,gi*128+j)]=0;mem[engine_addr(ARP_SOURCE_COUNT_BASE,gi*128+j)]=0;
+ mem[engine_addr(SW_ARP_PHRASE_BASE,gi*128+j)]=0;mem[engine_addr(SW_ARP_PHRASE_SOURCE_BASE,gi*128+j)]=0;
+ mem[engine_addr(MONO_HELD_COUNT_BASE,gi*128+j)]=0;mem[engine_addr(SW_MONO_PHRASE_BASE,gi*128+j)]=0;j+=1;);
+ mem[engine_addr(PARAM_ACTIVE_BASE,gi)]=0;mem[engine_addr(ARP_ACTIVE_NOTE_BASE,gi)]=-1;mem[engine_addr(MONO_ACTIVE_NOTE_BASE,gi)]=-1;
+ mem[engine_addr(ARP_CURSOR_BASE,gi)]=-1;mem[engine_addr(ARP_STEP_REMAIN_BASE,gi)]=0;mem[engine_addr(ARP_GATE_REMAIN_BASE,gi)]=0;);
+function i_remove(gi,id)
+local(j,ch,n,idx,si,b,k,held)
+(gi>=0 && gi<INST_CAP && mem[I_EXISTS_BASE+gi] && mem[I_IDS_BASE+gi]==id?(
+ mem[engine_addr(INST_ENABLED_BASE,gi)]=0;arp_release_instrument(gi);
+ j=0;loop(2048,ch=floor(j/128);n=j%128;idx=gi*2048+j;
+ mem[NOTE_REF_BASE+j]=max(0,mem[NOTE_REF_BASE+j]-mem[I_ONCE_OUT_BASE+idx]);
+ b=mem[engine_addr(SW_LIVE_OUT_BASE,idx)]+mem[engine_addr(SW_PHRASE_OUT_BASE,idx)];
+ mem[engine_addr(SW_LIVE_OUT_BASE,idx)]=0;mem[engine_addr(SW_PHRASE_OUT_BASE,idx)]=0;
+ b>0 && instrument_output_owners(ch,n,-1)<=0?midisend(0,128|ch,n);j+=1;);
+ ch=0;loop(16,held=mem[I_SUSTAIN_BASE+gi*16+ch];mem[I_SUSTAIN_BASE+gi*16+ch]=0;b=mem[I_FALLBACK_SUSTAIN_BASE+ch];j=0;loop(INST_CAP,b=max(b,mem[I_SUSTAIN_BASE+j*16+ch]);j+=1;);
+ j=0;loop(INST_CAP,k=0;loop(TRANSFORM_SLOTS,idx=cc_record(j,k==5?6:k+7);mem[I_EXISTS_BASE+j] && mem[engine_addr(INST_ENABLED_BASE,j)] && j!=gi && mem[idx+4] && mem[idx+5]==ch && mem[idx+6]==64?b=max(b,mem[idx+7]);k+=1;);j+=1;);
+ held>=64 && b<64?midisend(0,176|ch,64,0);ch+=1;);
+ i_clear_runtime(gi);mem[I_EXISTS_BASE+gi]=0;mem[engine_addr(INST_TRANSFORM_COUNT_BASE,gi)]=0;
+ si=0;loop(SW_COUNT,b=sw_committed_cfg(si);k=0;loop(3,mem[b+14+k]>=SW_TOGGLE && floor(mem[b+17+k]/TRANSFORM_TYPES)==gi?mem[b+14+k]=SW_NONE;k+=1;);si+=1;);
+ ui_sw_editor_open?(k=0;loop(3,mem[SW_DRAFT_BASE+14+k]>=SW_TOGGLE && floor(mem[SW_DRAFT_BASE+17+k]/TRANSFORM_TYPES)==gi?mem[SW_DRAFT_BASE+14+k]=SW_NONE;k+=1;););
+ selected_transform_gi==gi?(selected_transform_gi=-1;selected_transform_slot=-1;);
+ exp_editor_ti>=0 && param_gi(exp_editor_ti)==gi?exp_editor_ti=-1;
+ controller_assign_ti>=0 && param_gi(controller_assign_ti)==gi?controller_assign_ti=-1;
+ transform_menu_gi==gi?transform_menu_gi=-1;
+ ););
+function i_add()
+local(gi,k,ti,b,j)
+(gi=0;while(gi<INST_CAP && mem[I_EXISTS_BASE+gi])(gi+=1;);gi<INST_CAP?(
+ i_clear_runtime(gi);mem[I_IDS_BASE+gi]=mem[I_CFG_BASE+1];mem[I_CFG_BASE+1]+=1;
+ k=0;loop(PARAM_TARGETS,ti=param_ti(gi,k);tf_linear(ti);mem[param_addr(gi,k)]=k==EXP_T_VEL?1:k==EXP_T_LEVEL || k==PARAM_RANGE_HIGH?127:k==EXP_T_ARP_RATE?4:k==EXP_T_ARP_GATE?.5:k==PARAM_MOD_CC?1:0;k+=1;);
+ mem[engine_addr(INST_IN_BASE,gi)]=0;mem[engine_addr(INST_OUT_BASE,gi)]=0;mem[engine_addr(INST_ENABLED_BASE,gi)]=0;
+ mem[engine_addr(INST_LEVEL_CC_BASE,gi)]=7;mem[engine_addr(INST_TRANSFORM_COUNT_BASE,gi)]=0;
+ j=0;loop(NAME_CHARS,mem[engine_addr(INSTR_NAME_BASE,gi*NAME_CHARS)+j]=0;j+=1;);
+ j=0;loop(5,b=cc_cfg(gi*5+j);mem[b]=0;k=0;loop(3,tf_linear(cc_ti(gi*5+j,k));k+=1;);j+=1;);
+ mem[I_EXISTS_BASE+gi]=1;
+ );gi;);
+function i_queue_process()
+local(q,op,gi,id)
+(while(i_read<ui_i_write)(q=I_QUEUE_BASE+(i_read%I_QUEUE_SIZE)*I_QUEUE_STRIDE;op=mem[q];gi=mem[q+1];id=mem[q+2];
+ op==1?i_add():op==2?i_remove(gi,id);i_read+=1;););
 
 restore_after_init ? (
   restore_after_init=0;
@@ -2263,20 +2491,20 @@ gmem[0]==3 ? external_patch_apply();
 gmem[0]==4 ? (io_status=4; gmem[0]=0;);
 gmem[0]==5 ? (io_status=5; gmem[0]=0;);
 
-sw_queue_process();tf_queue_process();
+i_queue_process();sw_queue_process();tf_queue_process();
 param_expression_tick();cc_expression_tick();
 // SAVE includes safe pending parameter edits as well as queued switch edits.
 patch_save_request>0 && gmem[0]==0 ? (save_patch_file_snapshot(patch_save_request);patch_save_request=0;);
 ii=0;
-loop(INSTRUMENTS,
-  mem[CC_DIRTY_BASE+ii]>0.5 ? (
-    send_instrument_cc(ii,mem[INST_LEVEL_CC_BASE+ii],mem[INST_LEVEL_BASE+ii]);
-    mem[CC_DIRTY_BASE+ii]=0;
+loop(INST_CAP,
+  mem[engine_addr(CC_DIRTY_BASE,ii)]>0.5 ? (
+    send_instrument_cc(ii,mem[engine_addr(INST_LEVEL_CC_BASE,ii)],mem[engine_addr(INST_LEVEL_BASE,ii)]);
+    mem[engine_addr(CC_DIRTY_BASE,ii)]=0;
   );
   ii+=1;
 );
 cc_generators_tick();
-ii=0;loop(INSTRUMENTS,mem[CC_DIRTY_MOD_BASE+ii]=0;ii+=1;);
+ii=0;loop(INST_CAP,mem[engine_addr(CC_DIRTY_MOD_BASE,ii)]=0;ii+=1;);
 
 save_flash>0 ? save_flash-=samplesblock;
 save_flash<0 ? save_flash=0;
@@ -2536,7 +2764,7 @@ overdub_active ? (
 
 // POST instrument arpeggiators
 ii=0;
-loop(INSTRUMENTS,
+loop(INST_CAP,
   arp_process_instrument(ii);
   ii+=1;
 );
@@ -2570,7 +2798,8 @@ exp_editor_ti<0 || exp_editor_ti>=UI_PARAM_TOTAL || exp_editor_ti!=floor(exp_edi
 );
 // Small-window vertical scrolling.
 // Existing GUI is rendered unchanged into an offscreen content buffer, then a viewport is blitted.
-ui_content_h=2020;
+ui_visible_instruments=0;ui_inst_g=0;loop(INST_CAP,ui_visible_instruments+=mem[I_EXISTS_BASE+ui_inst_g]>0;ui_inst_g+=1;);
+ui_content_h=2020+(ui_visible_instruments-3)*124;
 ui_view_h=gfx_h;
 ui_max_scroll=max(0,ui_content_h-ui_view_h);
 mouse_wheel!=0 ? (
@@ -2585,7 +2814,7 @@ gfx_set(0,0,0,1); gfx_rect(0,0,gfx_w,ui_content_h,1);
 
 // Save input once. A modal popup owns this whole frame, including dismissal.
 ui_real_cap=mouse_cap;
-ui_frame_modal=ui_modal=controller_assign_ti>=0 || transform_menu_gi>=0 || options_open || ui_sw_editor_open || ui_sw_delete_slot>=0 || learn_candidate>=0;
+ui_frame_modal=ui_modal=controller_assign_ti>=0 || transform_menu_gi>=0 || options_open || ui_sw_editor_open || ui_sw_delete_slot>=0 || ui_i_delete_slot>=0 || learn_candidate>=0;
 ui_modal ? mouse_cap=0;
 !(ui_real_cap&1)?ui_td_reset_latch=0;
 !(ui_real_cap&1) ? ui_capture_ti=-1;
@@ -2710,7 +2939,7 @@ keychar=gfx_getchar();
 edit_name_type>0 && keychar>0 ? (
   keychar==13 || keychar==27 ? edit_name_type=0 :
   edit_name_type==1 ? edit_name_key(PHRASE_NAME_BASE+edit_name_index*NAME_CHARS,keychar) :
-  edit_name_type==2 ? edit_name_key(INSTR_NAME_BASE+edit_name_index*NAME_CHARS,keychar) :
+  edit_name_type==2 ? edit_name_key(engine_addr(INSTR_NAME_BASE,edit_name_index*NAME_CHARS),keychar) :
   edit_name_type==3 ? edit_name_key(sw_edit_cfg(edit_name_index)+SW_NAME,keychar);
 );
 // Hard square identity header.
@@ -2992,7 +3221,7 @@ local(cnt,ui_k,x0,y0,x1,y1,t,bend,res)
   max(0,min(1,res));
 );
 
-// --- INSTRUMENTS -----------------------------------------------------------
+// --- INST_CAP -----------------------------------------------------------
 // Curve preset helpers -------------------------------------------------------
 function curve_clear_bends(ti)
 local(ui_k)
@@ -3156,25 +3385,25 @@ local(pc,oct)
 function transform_has(gi, ui_typ)
 local(ui_k,c,found)
 (
-  found=0; c=max(0,min(TRANSFORM_SLOTS,floor(mem[INST_TRANSFORM_COUNT_BASE+gi]+0.5))); ui_k=0;
-  loop(c, abs(mem[INST_TRANSFORM_TYPE_BASE+gi*TRANSFORM_SLOTS+ui_k])==ui_typ ? found=1; ui_k+=1;);
+  found=0; c=max(0,min(TRANSFORM_SLOTS,floor(mem[engine_addr(INST_TRANSFORM_COUNT_BASE,gi)]+0.5))); ui_k=0;
+  loop(c, abs(mem[engine_addr(INST_TRANSFORM_TYPE_BASE,gi*TRANSFORM_SLOTS+ui_k)])==ui_typ ? found=1; ui_k+=1;);
   found;
 );
 // Separate evaluator: EEL2 function-local storage must not be shared by GFX/DSP.
 function cc_ui_route_channel(gi,override)
 local(ui_ch)
-(ui_ch=override>0?override:mem[INST_OUT_BASE+gi]>0?mem[INST_OUT_BASE+gi]:mem[INST_IN_BASE+gi]>0?mem[INST_IN_BASE+gi]:1;
+(ui_ch=override>0?override:mem[engine_addr(INST_OUT_BASE,gi)]>0?mem[engine_addr(INST_OUT_BASE,gi)]:mem[engine_addr(INST_IN_BASE,gi)]>0?mem[engine_addr(INST_IN_BASE,gi)]:1;
  max(0,min(15,floor(ui_ch)-1)););
 function cc_ui_duplicate(gi,ui_code)
 local(ui_g,ui_k,ui_c,ui_other,ui_ch,ui_cc,ui_b,ui_ob,ui_targetch,ui_targetcc,ui_found)
 (
   ui_b=ui_code==6?-1:cc_cfg(cc_index(gi,ui_code));
-  ui_ch=cc_ui_route_channel(gi,ui_b<0?0:mem[ui_b+3]);ui_cc=ui_b<0?mem[PARAM_MOD_CC_BASE+gi]:mem[ui_b+1];
-  ui_found=0;ui_g=0;loop(INSTRUMENTS,ui_k=0;ui_c=max(0,min(TRANSFORM_SLOTS,mem[INST_TRANSFORM_COUNT_BASE+ui_g]));
-    loop(ui_c,ui_other=mem[INST_TRANSFORM_TYPE_BASE+ui_g*TRANSFORM_SLOTS+ui_k];
-      ui_other>=6 && ui_other<=11 && transform_type(ui_g,ui_other)==6 && (ui_g!=gi || ui_other!=ui_code) && mem[INST_ENABLED_BASE+ui_g]>.5?(
+  ui_ch=cc_ui_route_channel(gi,ui_b<0?0:mem[ui_b+3]);ui_cc=ui_b<0?mem[engine_addr(PARAM_MOD_CC_BASE,gi)]:mem[ui_b+1];
+  ui_found=0;ui_g=0;loop(INST_CAP,ui_k=0;ui_c=max(0,min(TRANSFORM_SLOTS,mem[engine_addr(INST_TRANSFORM_COUNT_BASE,ui_g)]));
+    loop(ui_c,ui_other=mem[engine_addr(INST_TRANSFORM_TYPE_BASE,ui_g*TRANSFORM_SLOTS+ui_k)];
+      ui_other>=6 && ui_other<=11 && transform_type(ui_g,ui_other)==6 && (ui_g!=gi || ui_other!=ui_code) && mem[engine_addr(INST_ENABLED_BASE,ui_g)]>.5?(
         ui_ob=ui_other==6?-1:cc_cfg(cc_index(ui_g,ui_other));
-        ui_targetch=cc_ui_route_channel(ui_g,ui_ob<0?0:mem[ui_ob+3]);ui_targetcc=ui_ob<0?mem[PARAM_MOD_CC_BASE+ui_g]:mem[ui_ob+1];
+        ui_targetch=cc_ui_route_channel(ui_g,ui_ob<0?0:mem[ui_ob+3]);ui_targetcc=ui_ob<0?mem[engine_addr(PARAM_MOD_CC_BASE,ui_g)]:mem[ui_ob+1];
         ui_targetch==ui_ch && ui_targetcc==ui_cc?ui_found=1;
       );ui_k+=1;
     );ui_g+=1;
@@ -3199,25 +3428,26 @@ function draw_instrument_row(gi, iy)
 local(basey,boxh,nx,nw,vx,vw,wirey,tx,bw,gap,c,ui_k,rawtyp,ui_code,ui_typ,ti,addx,addy,subtitle)
 (
   boxh=28;basey=iy;
+ smallbtn(994,basey-4,24,18,"×",0);!ui_modal && hit(994,basey-4,24,18)?(ui_i_delete_slot=gi;ui_i_delete_id=mem[I_IDS_BASE+gi];);
   gfx_set(.075,.075,.075,1);gfx_rect(12,basey-5,1010,116,1);
   gfx_set(.20,.20,.20,1);gfx_rect(12,basey-5,1010,116,0);
-  smallbtn(22,basey+14,46,boxh,mem[INST_ENABLED_BASE+gi]>.5?"ON":"OFF",mem[INST_ENABLED_BASE+gi]>.5);
-  (transform_menu_gi<0 && !options_open && controller_assign_ti<0 && hit(22,basey+14,46,boxh))?(mem[INST_ENABLED_BASE+gi]=1-mem[INST_ENABLED_BASE+gi];panic_pending=1;);
+  smallbtn(22,basey+14,46,boxh,mem[engine_addr(INST_ENABLED_BASE,gi)]>.5?"ON":"OFF",mem[engine_addr(INST_ENABLED_BASE,gi)]>.5);
+  (transform_menu_gi<0 && !options_open && controller_assign_ti<0 && hit(22,basey+14,46,boxh))?(mem[engine_addr(INST_ENABLED_BASE,gi)]=1-mem[engine_addr(INST_ENABLED_BASE,gi)];panic_pending=1;);
   nx=78;nw=170;gfx_set(.12,.12,.12,1);gfx_rect(nx,basey+14,nw,boxh,1);
   gfx_set(.36,.36,.36,1);gfx_rect(nx,basey+14,nw,boxh,0);gfx_setfont(1,"Arial",11);gfx_set(.82,.82,.82,1);
-  name_len(INSTR_NAME_BASE+gi*NAME_CHARS)>0?draw_name_chars(INSTR_NAME_BASE+gi*NAME_CHARS,nx+7,basey+21):(gfx_x=nx+7;gfx_y=basey+21;gfx_drawstr("INSTRUMENT ");gfx_drawnumber(gi+1,0););
+  name_len(engine_addr(INSTR_NAME_BASE,gi*NAME_CHARS))>0?draw_name_chars(engine_addr(INSTR_NAME_BASE,gi*NAME_CHARS),nx+7,basey+21):(gfx_x=nx+7;gfx_y=basey+21;gfx_drawstr("INSTRUMENT ");gfx_drawnumber(mem[I_IDS_BASE+gi],0););
   (transform_menu_gi<0 && !options_open && controller_assign_ti<0 && hit(nx,basey+14,nw,boxh))?(edit_name_type=2;edit_name_index=gi;);
   gfx_setfont(1,"Arial",8);gfx_set(.48,.48,.48,1);gfx_x=266;gfx_y=basey+1;gfx_drawstr("MIDI IN");
   smallbtn(262,basey+14,58,boxh,"",0);
-  (transform_menu_gi<0 && !options_open && controller_assign_ti<0 && hit(262,basey+14,58,boxh))?mem[INST_IN_BASE+gi]=(mem[INST_IN_BASE+gi]+1)%17;
-  gfx_setfont(1,"Arial",10);gfx_set(.86,.86,.86,1);mem[INST_IN_BASE+gi]==0?centered_text(262,basey+14,58,boxh,"ALL"):(gfx_x=286;gfx_y=basey+21;gfx_drawnumber(mem[INST_IN_BASE+gi],0););
+  (transform_menu_gi<0 && !options_open && controller_assign_ti<0 && hit(262,basey+14,58,boxh))?mem[engine_addr(INST_IN_BASE,gi)]=(mem[engine_addr(INST_IN_BASE,gi)]+1)%17;
+  gfx_setfont(1,"Arial",10);gfx_set(.86,.86,.86,1);mem[engine_addr(INST_IN_BASE,gi)]==0?centered_text(262,basey+14,58,boxh,"ALL"):(gfx_x=286;gfx_y=basey+21;gfx_drawnumber(mem[engine_addr(INST_IN_BASE,gi)],0););
   gfx_setfont(1,"Arial",8);gfx_set(.48,.48,.48,1);gfx_x=338;gfx_y=basey+1;gfx_drawstr("MIDI OUT");
   smallbtn(334,basey+14,66,boxh,"",0);
-  (transform_menu_gi<0 && !options_open && controller_assign_ti<0 && hit(334,basey+14,66,boxh))?mem[INST_OUT_BASE+gi]=(mem[INST_OUT_BASE+gi]+1)%17;
-  gfx_setfont(1,"Arial",10);gfx_set(.86,.86,.86,1);mem[INST_OUT_BASE+gi]==0?centered_text(334,basey+14,66,boxh,"ORIG"):(gfx_x=362;gfx_y=basey+21;gfx_drawnumber(mem[INST_OUT_BASE+gi],0););
+  (transform_menu_gi<0 && !options_open && controller_assign_ti<0 && hit(334,basey+14,66,boxh))?mem[engine_addr(INST_OUT_BASE,gi)]=(mem[engine_addr(INST_OUT_BASE,gi)]+1)%17;
+  gfx_setfont(1,"Arial",10);gfx_set(.86,.86,.86,1);mem[engine_addr(INST_OUT_BASE,gi)]==0?centered_text(334,basey+14,66,boxh,"ORIG"):(gfx_x=362;gfx_y=basey+21;gfx_drawnumber(mem[engine_addr(INST_OUT_BASE,gi)],0););
   gfx_setfont(1,"Arial",8);gfx_set(.48,.48,.48,1);gfx_x=418;gfx_y=basey+1;gfx_drawstr("VOLUME");
-  ti=gi*EXP_TARGETS+EXP_T_LEVEL;
-  vx=414;vw=150;gfx_set(.16,.16,.16,1);gfx_rect(vx,basey+19,vw,18,1);gfx_set(.70,.70,.70,1);gfx_rect(vx,basey+19,vw*mem[INST_LEVEL_BASE+gi]/127,18,1);
+  ti=param_ti(gi,EXP_T_LEVEL);
+  vx=414;vw=150;gfx_set(.16,.16,.16,1);gfx_rect(vx,basey+19,vw,18,1);gfx_set(.70,.70,.70,1);gfx_rect(vx,basey+19,vw*mem[engine_addr(INST_LEVEL_BASE,gi)]/127,18,1);
   !ui_modal && hit(vx,basey+14,vw,28) ? (
     mem[exp_assign_addr(ti)]>0 ? (
       exp_editor_ti=ti;exp_drag_point=-1;exp_drag_segment=-1;exp_bend_segment=-1;
@@ -3227,12 +3457,12 @@ local(basey,boxh,nx,nw,vx,vw,wirey,tx,bw,gap,c,ui_k,rawtyp,ui_code,ui_typ,ti,add
     mem[param_pending_addr(ti)]=floor(127*max(0,min(1,(mouse_x-vx)/vw))+.5);
   transform_menu_gi<0 && !options_open && controller_assign_ti<0 && (mouse_cap&2)&&!(last_mouse_cap&2)&&mouse_x>=vx&&mouse_x<vx+vw&&mouse_y>=basey+14&&mouse_y<basey+42?(controller_assign_ti=ti;controller_assign_x=mouse_x;controller_assign_y=mouse_y;ui_modal=1;ui_capture_ti=-1;);
   draw_exp_badge(ti,vx,basey+19,vw,18);
-  gfx_setfont(1,"Arial",10);gfx_set(.88,.88,.88,1);gfx_x=574;gfx_y=basey+21;gfx_drawnumber(mem[INST_LEVEL_BASE+gi],0);
+  gfx_setfont(1,"Arial",10);gfx_set(.88,.88,.88,1);gfx_x=574;gfx_y=basey+21;gfx_drawnumber(mem[engine_addr(INST_LEVEL_BASE,gi)],0);
 
   wirey=basey+72;gfx_set(.38,.38,.38,1);gfx_line(34,wirey,994,wirey);gfx_set(.62,.62,.62,1);gfx_circle(34,wirey,3,1,1);gfx_circle(994,wirey,3,1,1);
-  tx=54;bw=132;gap=18;c=max(0,min(TRANSFORM_SLOTS,floor(mem[INST_TRANSFORM_COUNT_BASE+gi]+.5)));ui_k=0;
+  tx=54;bw=132;gap=18;c=max(0,min(TRANSFORM_SLOTS,floor(mem[engine_addr(INST_TRANSFORM_COUNT_BASE,gi)]+.5)));ui_k=0;
   loop(c,
-    rawtyp=floor(mem[INST_TRANSFORM_TYPE_BASE+gi*TRANSFORM_SLOTS+ui_k]);ui_code=abs(rawtyp);ui_typ=transform_type(gi,ui_code);
+    rawtyp=floor(mem[engine_addr(INST_TRANSFORM_TYPE_BASE,gi*TRANSFORM_SLOTS+ui_k)]);ui_code=abs(rawtyp);ui_typ=transform_type(gi,ui_code);
     // Selected and bypassed states are independent.
     gfx_set(selected_transform_gi==gi && selected_transform_slot==ui_k ? .32 : .16,.16,.16,1);
     gfx_rect(tx,wirey-22,bw,44,1);
@@ -3241,12 +3471,12 @@ local(basey,boxh,nx,nw,vx,vw,wirey,tx,bw,gap,c,ui_k,rawtyp,ui_code,ui_typ,ti,add
     gfx_setfont(1,"Arial",9);gfx_set(.88,.88,.88,1);
     centered_text(tx,wirey-17,bw,12,ui_typ==1?"TRANSPOSE":ui_typ==2?"NOTE RANGE":ui_typ==3?"POLYPHONY":ui_typ==4?"VELOCITY":ui_typ==5?"ARPEGGIATOR":"CC / MOD");
     gfx_setfont(1,"Arial",10);gfx_set(.92,.92,.20,1);
-    ui_typ==1 ? (gfx_x=tx+42;gfx_y=wirey-2;gfx_drawnumber(ui_code>=7?mem[cc_cfg(cc_index(gi,ui_code))+2]:mem[INST_TRANSPOSE_BASE+gi],0);gfx_drawstr(" st"););
-    ui_typ==2 ? centered_text(tx,wirey-2,bw,12,(ui_code>=7?mem[cc_cfg(cc_index(gi,ui_code))+2]:mem[INST_RANGE_MODE_BASE+gi])<.5?"FULL":(ui_code>=7?mem[cc_cfg(cc_index(gi,ui_code))+2]:mem[INST_RANGE_MODE_BASE+gi])<1.5?"DOWN":(ui_code>=7?mem[cc_cfg(cc_index(gi,ui_code))+2]:mem[INST_RANGE_MODE_BASE+gi])<2.5?"UP":"BOTH");
-    ui_typ==3 ? centered_text(tx,wirey-2,bw,12,mem[INST_NOTE_MODE_BASE+gi]<.5?"POLY":mem[INST_NOTE_MODE_BASE+gi]<1.5?"BASS":mem[INST_NOTE_MODE_BASE+gi]<2.5?"LAST":"LEGATO");
-    ui_typ==4 ? (gfx_set(.24,.24,.24,1);gfx_rect(tx+10,wirey-1,bw-20,12,1);gfx_set(.70,.70,.70,1);gfx_rect(tx+10,wirey-1,(bw-20)*max(0,min(1,((ui_code>=7?mem[cc_cfg(cc_index(gi,ui_code))+2]:mem[INST_VEL_BASE+gi])-.2)/2.8)),12,1););
-    ui_typ==5 ? centered_text(tx,wirey-2,bw,12,mem[INST_ARP_MODE_BASE+gi]<.5?"RANDOM":mem[INST_ARP_MODE_BASE+gi]<1.5?"UP":"DOWN");
-    ui_typ>=6 ? (gfx_x=tx+35;gfx_y=wirey-2;gfx_drawstr("CC");gfx_drawnumber(ui_code==6?mem[PARAM_MOD_CC_BASE+gi]:mem[cc_cfg(cc_index(gi,ui_code))+1],0););
+    ui_typ==1 ? (gfx_x=tx+42;gfx_y=wirey-2;gfx_drawnumber(ui_code>=7?mem[cc_cfg(cc_index(gi,ui_code))+2]:mem[engine_addr(INST_TRANSPOSE_BASE,gi)],0);gfx_drawstr(" st"););
+    ui_typ==2 ? centered_text(tx,wirey-2,bw,12,(ui_code>=7?mem[cc_cfg(cc_index(gi,ui_code))+2]:mem[engine_addr(INST_RANGE_MODE_BASE,gi)])<.5?"FULL":(ui_code>=7?mem[cc_cfg(cc_index(gi,ui_code))+2]:mem[engine_addr(INST_RANGE_MODE_BASE,gi)])<1.5?"DOWN":(ui_code>=7?mem[cc_cfg(cc_index(gi,ui_code))+2]:mem[engine_addr(INST_RANGE_MODE_BASE,gi)])<2.5?"UP":"BOTH");
+    ui_typ==3 ? centered_text(tx,wirey-2,bw,12,mem[engine_addr(INST_NOTE_MODE_BASE,gi)]<.5?"POLY":mem[engine_addr(INST_NOTE_MODE_BASE,gi)]<1.5?"BASS":mem[engine_addr(INST_NOTE_MODE_BASE,gi)]<2.5?"LAST":"LEGATO");
+    ui_typ==4 ? (gfx_set(.24,.24,.24,1);gfx_rect(tx+10,wirey-1,bw-20,12,1);gfx_set(.70,.70,.70,1);gfx_rect(tx+10,wirey-1,(bw-20)*max(0,min(1,((ui_code>=7?mem[cc_cfg(cc_index(gi,ui_code))+2]:mem[engine_addr(INST_VEL_BASE,gi)])-.2)/2.8)),12,1););
+    ui_typ==5 ? centered_text(tx,wirey-2,bw,12,mem[engine_addr(INST_ARP_MODE_BASE,gi)]<.5?"RANDOM":mem[engine_addr(INST_ARP_MODE_BASE,gi)]<1.5?"UP":"DOWN");
+    ui_typ>=6 ? (gfx_x=tx+35;gfx_y=wirey-2;gfx_drawstr("CC");gfx_drawnumber(ui_code==6?mem[engine_addr(PARAM_MOD_CC_BASE,gi)]:mem[cc_cfg(cc_index(gi,ui_code))+1],0););
     rawtyp<0 ? (gfx_set(.05,.05,.05,.76);gfx_rect(tx+1,wirey-21,bw-2,42,1););
     gfx_setfont(1,"Arial",11);gfx_set(rawtyp>0?.92:.42,rawtyp>0?.92:.42,rawtyp>0?.92:.42,1);
     gfx_x=tx+6;gfx_y=wirey-20;gfx_drawstr(rawtyp>0?"O":"-");
@@ -3265,7 +3495,7 @@ function draw_transform_menu_overlay(gi, iy)
 local(c,ui_k,tx,bw,gap,addx,choicey,cw,ui_close)
 (
   transform_menu_gi==gi ? (
-    c=max(0,min(TRANSFORM_SLOTS,floor(mem[INST_TRANSFORM_COUNT_BASE+gi]+.5)));
+    c=max(0,min(TRANSFORM_SLOTS,floor(mem[engine_addr(INST_TRANSFORM_COUNT_BASE,gi)]+.5)));
     tx=54+c*(132+18); addx=min(tx,842); choicey=max(ui_scroll+8,min(ui_scroll+gfx_h-186,iy+94)); cw=142;
     // Opaque floating panel: this is intentionally drawn after all instrument cards.
     gfx_set(.035,.035,.035,1);gfx_rect(addx-3,choicey-3,cw+6,TRANSFORM_TYPES*24+32,1);
@@ -3289,15 +3519,13 @@ local(c,ui_k,tx,bw,gap,addx,choicey,cw,ui_close)
 inst_y=190 + PHRASES_PER_PAGE*38 + 18;
 gfx_setfont(1,"Arial",16); gfx_set(0.72,0.72,0.72,1); gfx_x=20; gfx_y=inst_y; gfx_drawstr("INSTRUMENTS / TRANSFORMER CHAINS");
 gfx_setfont(1,"Arial",9); gfx_set(0.46,0.46,0.46,1); gfx_x=330; gfx_y=inst_y+3; gfx_drawstr("Stacked notes: serial / CC: left > right");
-tf_queue_read<ui_tf_queue_write ? (gfx_setfont(1,"Arial",9);gfx_set(1,.6,.15,1);gfx_x=735;gfx_y=inst_y+3;gfx_drawstr("WAITING FOR NOTE RELEASE"););
-inst_y+=30;
-draw_instrument_row(0,inst_y);
-draw_instrument_row(1,inst_y+124);
-draw_instrument_row(2,inst_y+248);
+tf_queue_read<ui_tf_queue_write ? (gfx_setfont(1,"Arial",9);gfx_set(1,.6,.15,1);gfx_x=550;gfx_y=inst_y+3;gfx_drawstr("WAITING FOR NOTE RELEASE"););
+smallbtn(790,inst_y-4,214,24,ui_visible_instruments<INST_CAP?"+ ADD INSTRUMENT":"8 INSTRUMENT CAPACITY",0);!ui_modal && ui_visible_instruments<INST_CAP && hit(790,inst_y-4,214,24)?i_submit(1,0,0);
+inst_y+=30;ui_inst_row=0;ui_inst_g=0;loop(INST_CAP,mem[I_EXISTS_BASE+ui_inst_g]?(draw_instrument_row(ui_inst_g,inst_y+ui_inst_row*124);ui_inst_row+=1;);ui_inst_g+=1;);
 
 // Keep base Y for the final top-most transformer-menu overlay pass.
 transform_rows_y=inst_y;
-inst_y+=372;
+inst_y+=ui_inst_row*124;
 
 // Contextual editor left, manual controller tests right.
 exp_y=inst_y+6;
@@ -3306,21 +3534,21 @@ gfx_set(.09,.09,.09,1);gfx_rect(667,exp_y,355,205,1);gfx_set(.35,.35,.35,1);gfx_
 gfx_setfont(1,"Arial",13);gfx_set(.85,.85,.85,1);
 gfx_x=24;gfx_y=exp_y+9;gfx_drawstr("TRANSFORMER EDITOR");
 gfx_x=679;gfx_y=exp_y+9;gfx_drawstr("CONTROLLERS / TEST");
-selected_transform_gi>=0 && selected_transform_gi<INSTRUMENTS ? (
+selected_transform_gi>=0 && selected_transform_gi<INST_CAP ? (
   eg=selected_transform_gi;es=selected_transform_slot;
-  ec=max(0,min(TRANSFORM_SLOTS,floor(mem[INST_TRANSFORM_COUNT_BASE+eg]+.5)));
+  ec=max(0,min(TRANSFORM_SLOTS,floor(mem[engine_addr(INST_TRANSFORM_COUNT_BASE,eg)]+.5)));
   es>=0 && es<ec ? (
-    ecode=abs(floor(mem[INST_TRANSFORM_TYPE_BASE+eg*TRANSFORM_SLOTS+es]));etyp=transform_type(eg,ecode);
+    ecode=abs(floor(mem[engine_addr(INST_TRANSFORM_TYPE_BASE,eg*TRANSFORM_SLOTS+es)]));etyp=transform_type(eg,ecode);
     gfx_setfont(1,"Arial",11);gfx_set(.95,.95,.15,1);
     gfx_x=24;gfx_y=exp_y+34;gfx_drawstr("INSTRUMENT ");gfx_drawnumber(eg+1,0);gfx_drawstr(" / ");
     gfx_drawstr(etyp==1?"TRANSPOSE":etyp==2?"NOTE RANGE":etyp==3?"POLYPHONY":etyp==4?"VELOCITY":etyp==5?"ARPEGGIATOR":"CC / MOD");
     etyp==5 ? (
       arp_ui_ti=param_ti(eg,EXP_T_ARP_ON);
-      smallbtn(507,exp_y+30,126,20,mem[INST_ARP_ENABLED_BASE+eg]>.5?"ARP ON":"ARP OFF",mem[INST_ARP_ENABLED_BASE+eg]>.5);
+      smallbtn(507,exp_y+30,126,20,mem[engine_addr(INST_ARP_ENABLED_BASE,eg)]>.5?"ARP ON":"ARP OFF",mem[engine_addr(INST_ARP_ENABLED_BASE,eg)]>.5);
       draw_exp_badge(arp_ui_ti,507,exp_y+30,126,20);
       !ui_modal && hit(507,exp_y+30,126,20) ? (
         mem[exp_assign_addr(arp_ui_ti)]>0 ? exp_editor_ti=arp_ui_ti :
-          mem[param_pending_addr(arp_ui_ti)]=!(mem[INST_ARP_ENABLED_BASE+eg]>.5);
+          mem[param_pending_addr(arp_ui_ti)]=!(mem[engine_addr(INST_ARP_ENABLED_BASE,eg)]>.5);
       );
       !ui_modal && mouse_cap&2 && !(last_mouse_cap&2) && mouse_x>=507 && mouse_x<633 && mouse_y>=exp_y+30 && mouse_y<exp_y+50 ? (
         controller_assign_ti=arp_ui_ti;controller_assign_x=mouse_x;controller_assign_y=mouse_y;ui_modal=1;ui_capture_ti=-1;
@@ -3672,7 +3900,7 @@ local(b,r,k,x,row,step,page,n,act,target)
     gfx_x=20;gfx_y=row+5;gfx_drawstr(k==0?"TAP":k==1?"DOUBLE":"HOLD");
     sw_ui_button(110,row,215,sw_ui_action_name(act),act>0)?sw_submit(ui_sw_selected,2,14+k,mem[b+1]>0 && act==0?2:(act+1)%10);
     act==3 || act==5 ? sprintf(#sw_label,target==SW_COUNT?"TARGET: ALL SWITCHES":"TARGET: SWITCH %d",target+1) : act>=7 ? sprintf(#sw_label,"INST %d / %s",floor(target/TRANSFORM_TYPES)+1,target%TRANSFORM_TYPES==0?"TRANSPOSE":target%TRANSFORM_TYPES==1?"RANGE":target%TRANSFORM_TYPES==2?"MONO":target%TRANSFORM_TYPES==3?"VELOCITY":target%TRANSFORM_TYPES==4?"ARP":"CC / MOD") : strcpy(#sw_label,"GLOBAL / NO TARGET");
-    sw_ui_button(340,row,300,#sw_label,0) && (act==3 || act==5 || act>=7)?sw_submit(ui_sw_selected,2,17+k,(target+1)%(act>=7?INSTRUMENTS*TRANSFORM_TYPES:SW_COUNT+1));
+    sw_ui_button(340,row,300,#sw_label,0) && (act==3 || act==5 || act>=7)?sw_submit(ui_sw_selected,2,17+k,(target+1)%(act>=7?INST_CAP*TRANSFORM_TYPES:SW_COUNT+1));
     sw_ui_button(660,row,120,k==0?"TEST TAP":k==1?"TEST DOUBLE":"TEST HOLD",0)?sw_submit(ui_sw_selected,0,k,0);k+=1;
   );
   sw_ui_button(20,y+420,220,mem[b+6]==0?"POLICY: INSTANT":"POLICY: EXCLUSIVE",mem[b+6]>0)?sw_submit(ui_sw_selected,2,6,1-mem[b+6]);
@@ -3703,16 +3931,14 @@ local(ui_i,ui_n,ui_b,ui_r,ui_x,ui_y)
   sw_ui_button(20,y+26+ceil(ui_n/4)*84,190,"+ ADD SMART SWITCH",0)?sw_submit(0,14,0,0);
   ui_n==SW_COUNT?(gfx_x=230;gfx_y=y+31+ceil(ui_n/4)*84;gfx_drawstr("ENGINE CAPACITY: 16 SWITCHES"););
 );
-draw_smart_switch_cards(1490);
+draw_smart_switch_cards(exp_y+430);
 
 // Overlay input is restored after all underlying controls have finished.
 mouse_cap=ui_real_cap;ui_modal=learn_candidate>=0;
-draw_transform_menu_overlay(0,transform_rows_y);
-draw_transform_menu_overlay(1,transform_rows_y+124);
-draw_transform_menu_overlay(2,transform_rows_y+248);
+ui_menu_row=0;ui_inst_g=0;loop(INST_CAP,mem[I_EXISTS_BASE+ui_inst_g]?(draw_transform_menu_overlay(ui_inst_g,transform_rows_y+ui_menu_row*124);ui_menu_row+=1;);ui_inst_g+=1;);
 
 ui_sw_editor_open && learn_candidate<0 ? (
-  ui_modal=0;ui_sw_editor_y=max(ui_scroll+8,min(ui_scroll+gfx_h-554,1490));
+  ui_modal=0;ui_sw_editor_y=max(ui_scroll+8,min(ui_scroll+gfx_h-554,exp_y+430));
   gfx_set(.025,.025,.025,1);gfx_rect(10,ui_sw_editor_y-6,990,548,1);gfx_set(.75,.75,.75,1);gfx_rect(10,ui_sw_editor_y-6,990,548,0);
   draw_smart_switch_editor(ui_sw_editor_y);
   sw_ui_button(690,ui_sw_editor_y+508,130,"DONE",0)?sw_submit(ui_sw_selected,12,0,0);
@@ -3788,6 +4014,14 @@ gfx_blit(1,1,0, 0,ui_scroll,gfx_w,gfx_h, 0,0,gfx_w,gfx_h);
 
 // Restore physical mouse Y for the fixed viewport scrollbar.
 mouse_y=screen_mouse_y;
+ui_i_delete_slot>=0 ? (
+ ui_i_y=ui_scroll+(gfx_h-130)/2;gfx_set(.04,.04,.04,1);gfx_rect(260,ui_i_y,520,130,1);gfx_set(.8,.8,.8,1);gfx_rect(260,ui_i_y,520,130,0);
+ gfx_setfont(1,"Arial",13);centered_text(270,ui_i_y+16,500,24,"REMOVE INSTRUMENT AND RELEASE ITS NOTES?");
+ smallbtn(350,ui_i_y+74,130,30,"REMOVE",0);smallbtn(530,ui_i_y+74,130,30,"CANCEL",0);
+ hit(350,ui_i_y+74,130,30)?(i_submit(2,ui_i_delete_slot,ui_i_delete_id);ui_i_delete_slot=-1;);
+ hit(530,ui_i_y+74,130,30) || keychar==27 || (ui_frame_modal && (mouse_cap&3) && !(last_mouse_cap&3) && (mouse_x<260 || mouse_x>=780 || mouse_y<ui_i_y || mouse_y>=ui_i_y+130))?ui_i_delete_slot=-1;
+);
+
 ui_max_scroll=max(0,ui_content_h-gfx_h);
 ui_max_scroll>0 ? (
   sbw=12; sbx=gfx_w-sbw-3; sby=3; sbh=max(30,gfx_h-6);

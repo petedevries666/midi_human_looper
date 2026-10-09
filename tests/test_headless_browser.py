@@ -60,6 +60,9 @@ try:
         after=api.call()
         assert after['engineSessionId']==before['engineSessionId']
         assert after['sampleClock']>before['sampleClock']
+        deadline=time.monotonic()+1.5
+        while after['midiCount']<=before['midiCount'] and time.monotonic()<deadline:
+            page.wait_for_timeout(40);after=api.call()
         assert after['midiCount']>before['midiCount']
         browser.close()
         # Closing the real browser also leaves the actual JSFX engine playing.

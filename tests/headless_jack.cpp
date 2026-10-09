@@ -13,9 +13,10 @@ int process(jack_nframes_t n, void *) {
   void *out = jack_port_get_buffer(output, n);
   jack_midi_clear_buffer(out);
   auto f = frame.fetch_add(1);
-  if (flood && f < 100) {
+  if (flood && f < 200) {
     for (unsigned i = 0; i < 1024; ++i) {
-      unsigned char m[] = {144, 91, 90};
+      unsigned char m[] = {144, 91,
+                           static_cast<unsigned char>((i & 1) ? 0 : 90)};
       if (jack_midi_event_write(out, 0, m, 3))
         break;
     }

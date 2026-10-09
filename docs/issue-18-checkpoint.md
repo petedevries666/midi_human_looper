@@ -2,14 +2,15 @@
 
 Resume feature work from branch **`feat/humanizer-engine`**; use **`fix/jack-midi-ordering`**
 for the first Zynthian demo. Do not rebuild the project
-from main or duplicate #19–#22. Nothing has been merged automatically.
+from main or duplicate #19–#25. Nothing has been merged automatically.
 
 ## Published dependency chain and implemented work
 
 `main` → #19 `feat/zynthian-runnable-mvp` → #20 `feat/module-descriptors-editor`
 → #21 `feat/controller-policy-core` → #22 `fix/zynthian-first-demo`
 → #23 Controller integration `feat/controller-host-integration` → #24 timestamp
-delivery correction `fix/jack-midi-ordering` → HUMANIZER foundation `feat/humanizer-engine`.
+delivery correction `fix/jack-midi-ordering` → #25 HUMANIZER foundation
+`feat/humanizer-engine`.
 
 The current integration includes 16 logical note/CC sources, one exclusive Learn
 lease, explicit conflict confirmation, FORGET, 32 mappings, real parameter application,
@@ -23,6 +24,10 @@ exact MIDI ports, LAN token and Firefox demo. [Controller boundaries](controller
 cover the headless extension, capacities and remaining compatibility work.
 
 ## Last complete regression
+
+The complete combined command passed after rebasing the HUMANIZER foundation onto
+#24, including all three actual JACK cases and all three Chromium browser suites.
+The final documentation-only follow-up does not change executable code.
 
 Native: 2,764 checks and three stable concurrent GUI render hashes. HTTP/native:
 14 baseline plus nine Controller integration tests. Registry: three tests. Lua: five.

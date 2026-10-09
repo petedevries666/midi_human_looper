@@ -1,4 +1,4 @@
-desc:MIDI Human Looper v1.22.2
+desc:MIDI Human Looper v1.23.0
 options:gmem=MIDI_HUMAN_LOOPER
 
 // Release history: CHANGELOG.md. Free-time MIDI phrase instrument.
@@ -187,6 +187,8 @@ SW_PHRASE_SUSTAIN_BASE=SW_ARP_PHRASE_SOURCE_BASE+INSTRUMENTS*128;
 SW_LIVE_SUSTAIN_BASE=SW_PHRASE_SUSTAIN_BASE+16;
 SW_MONO_OWNER_BASE=SW_LIVE_SUSTAIN_BASE+16;
 SW_MEMORY_END=SW_MONO_OWNER_BASE+INSTRUMENTS;
+// Voice factors are separate from output ownership tables cleared by note release.
+VOICE_TIME_BASE=SW_MEMORY_END;
 SW_LEGACY_PAYLOAD=WORK_MEM_SIZE+PARAM_EXT_SIZE;
 PATCH_PAYLOAD_SIZE=SW_LEGACY_PAYLOAD+SW_CFG_SIZE;
 // Actions: NONE/NEXT/STOP/RESET/RESET ALL/STOP+RESET/PANIC/TOGGLE/ENABLE/DISABLE.
@@ -372,6 +374,19 @@ local(addr)
   addr;
 );
 
+// Reserved schema-3 fields +112..115 hold four phrase timing ratios per record.
+function phrase_time_addr(layer)
+(SW_CFG_BASE+1+floor(layer/4)*SW_STRIDE+112+layer%4;);
+function phrase_time_ratio(layer)
+local(r)
+(r=mem[phrase_time_addr(layer)];r<=0?1:max(.5,min(2,r)););
+function phrase_time_factor(layer)
+local(exponent)
+(
+  // Bound the exponent before pow(), including very long retrigger sessions.
+  exponent=max(-log(64),min(log(64),log(phrase_time_ratio(layer))*mem[REPEAT_BASE+layer]));
+  exp(exponent);
+);
 function clear_layer(layer)
 (
   set_layer_count(layer,0);
@@ -496,7 +511,7 @@ local(si,b,j)
   mem[SW_CFG_BASE]=IO_SCHEMA;si=0;loop(SW_COUNT,
     b=sw_cfg(si);j=0;loop(SW_STRIDE,mem[b+j]=0;j+=1;);
     mem[b+2]=0;mem[b+4]=60+si;mem[b+7]=300;mem[b+8]=800;
-    mem[b+12]=127;mem[b+13]=0;mem[b+14]=SW_NEXT;mem[b+17]=si;mem[b+18]=si;mem[b+19]=si;si+=1;
+    mem[b+12]=127;mem[b+13]=0;mem[b+14]=SW_NEXT;mem[b+17]=si;mem[b+18]=si;mem[b+19]=si;j=0;loop(4,mem[b+112+j]=1;j+=1;);si+=1;
   );
 );
 function sw_reset(si)
@@ -534,6 +549,7 @@ local(si,b,j,k,other)
       mem[b+14+j]=max(0,min(SW_DISABLE,floor(mem[b+14+j])));
       k=mem[b+14+j];mem[b+17+j]=max(0,min(k>=SW_TOGGLE?INSTRUMENTS*TRANSFORM_TYPES-1:SW_COUNT,floor(mem[b+17+j])));j+=1;
     );
+    j=0;loop(4,mem[b+112+j]=phrase_time_ratio(si*4+j);j+=1;);
     j=0;loop(si,other=sw_cfg(j);
       mem[other]>0 && mem[b+2]>0 && mem[other+2]==mem[b+2] && mem[other+3]==mem[b+3] && mem[other+4]==mem[b+4] ? mem[b]=0;j+=1;
     );
@@ -1604,6 +1620,7 @@ trigger_request>=0 ? (
   mem[VOICE_ACTIVE_BASE+voice_slot]=1;
   mem[VOICE_LAYER_BASE+voice_slot]=requested_layer;
   mem[VOICE_POS_BASE+voice_slot]=-max(0,min(samplesblock-1,start_offset));
+  mem[VOICE_TIME_BASE+voice_slot]=phrase_time_factor(requested_layer);
   mem[VOICE_GAIN_BASE+voice_slot]=pow(mem[DECAY_BASE+requested_layer],mem[REPEAT_BASE+requested_layer]);
   mem[MODE_BASE+requested_layer]>=1.5 ? mem[HOLD_ACTIVE_BASE+requested_layer]=1;
 );
@@ -1911,7 +1928,10 @@ local(q,si,op,arg,value,b,r,j,k,n,tmp,target,gi,kind,c)
       ) : op>=3 && op<=7 ? (
         // Single-level undo covers append/remove/clear/reorder (positions, not phrase IDs).
         j=0;loop(SW_STRIDE,
-          op==7 && mem[r+18]>0 ? (tmp=mem[b+j];mem[b+j]=mem[SW_UNDO_BASE+si*SW_STRIDE+j];mem[SW_UNDO_BASE+si*SW_STRIDE+j]=tmp;) : op!=7 ? mem[SW_UNDO_BASE+si*SW_STRIDE+j]=mem[b+j];j+=1;
+          // Phrase timing belongs to the patch, not switch-list undo.
+          (j<112 || j>115) ? (
+            op==7 && mem[r+18]>0 ? (tmp=mem[b+j];mem[b+j]=mem[SW_UNDO_BASE+si*SW_STRIDE+j];mem[SW_UNDO_BASE+si*SW_STRIDE+j]=tmp;) : op!=7 ? mem[SW_UNDO_BASE+si*SW_STRIDE+j]=mem[b+j];
+          );j+=1;
         );
         op==3 && n<SW_STEPS && arg>=0 && arg<LAYERS ? (mem[b+SW_LIST+n]=arg;mem[b+11]=n+1;);
         op==4 && arg>=0 && arg<n ? (j=arg;loop(n-arg-1,mem[b+SW_LIST+j]=mem[b+SW_LIST+j+1];j+=1;);mem[b+11]=n-1;);
@@ -2176,12 +2196,13 @@ loop(MAX_ONCE_VOICES,
     once_layer=mem[VOICE_LAYER_BASE+vi];
     once_start=mem[VOICE_POS_BASE+vi];
     once_end=once_start+samplesblock;
-    phrase_end=max(1,mem[LEN_BASE+once_layer]);
+    once_time=mem[VOICE_TIME_BASE+vi];
+    phrase_end=max(1,mem[LEN_BASE+once_layer]*once_time);
     count=layer_count(once_layer);
     i=0;
     loop(count,
       base=layer_base(once_layer,i);
-      evt_t=mem[base];
+      evt_t=mem[base]*once_time;
       evt_t>=once_start && evt_t<once_end && evt_t<phrase_end ? (
         out_offs=evt_t-once_start;
         slider8==0 ? out_status=mem[base+1]&255 : (
@@ -2290,6 +2311,7 @@ gfx_set(0,0,0,1); gfx_rect(0,0,gfx_w,ui_content_h,1);
 ui_real_cap=mouse_cap;
 ui_frame_modal=ui_modal=controller_assign_ti>=0 || transform_menu_gi>=0 || options_open || learn_candidate>=0;
 ui_modal ? mouse_cap=0;
+!(ui_real_cap&1)?ui_td_reset_latch=0;
 !(ui_real_cap&1) ? ui_capture_ti=-1;
 
 function hit(hx,hy,hw,hh)
@@ -2617,7 +2639,26 @@ loop(PHRASES_PER_PAGE,
       mouse_cap&1 && mouse_x>=dx && mouse_x<dx+dw && mouse_y>=dy && mouse_y<dy+17 ?
         mem[DECAY_BASE+gui_layer]=.2+.8*((mouse_x-dx)/dw);
       gfx_setfont(1,"Arial",11);gfx_set(.77,.77,.77,1);
-      gfx_x=556;gfx_y=rowy+6;gfx_drawstr("DECAY ");gfx_drawnumber(mem[DECAY_BASE+gui_layer]*100,0);gfx_drawstr("%");
+      gfx_setfont(1,"Arial",9);gfx_x=556;gfx_y=rowy+2;gfx_drawstr("VEL DECAY");
+      gfx_x=556;gfx_y=rowy+13;gfx_drawnumber(mem[DECAY_BASE+gui_layer]*100,0);gfx_drawstr("%");
+      // Logarithmic bipolar rail: .5x ... 1x ... 2x, centered at unity.
+      ui_td_x=369;ui_td_y=rowy+24;ui_td_w=65;ui_td_h=10;
+      // GUI-only scratch; never call the DSP ratio evaluator from @gfx.
+      ui_td_addr=SW_CFG_BASE+1+floor(gui_layer/4)*SW_STRIDE+112+gui_layer%4;
+      ui_td_ratio=mem[ui_td_addr];ui_td_ratio=ui_td_ratio<=0?1:max(.5,min(2,ui_td_ratio));
+      ui_td_norm=.5+.5*log(ui_td_ratio)/log(2);
+      gfx_set(.23,.23,.23,1);gfx_rect(ui_td_x,ui_td_y,ui_td_w,ui_td_h,1);
+      gfx_set(.69,.69,.69,1);gfx_rect(ui_td_x+min(.5,ui_td_norm)*(ui_td_w-1),ui_td_y,abs(ui_td_norm-.5)*(ui_td_w-1),ui_td_h,1);
+      gfx_set(.85,.85,.85,1);gfx_line(ui_td_x+(ui_td_w-1)/2,ui_td_y,ui_td_x+(ui_td_w-1)/2,ui_td_y+ui_td_h);
+      hit(ui_td_x,ui_td_y,ui_td_w,ui_td_h) ? (
+        ui_td_now=time_precise();
+        ui_td_last_phrase==gui_layer && ui_td_last_click>0 && ui_td_now-ui_td_last_click<.3 ? (
+          mem[ui_td_addr]=ui_td_ratio=1;ui_td_reset_latch=1;ui_td_last_click=0;
+        ) : (ui_td_last_phrase=gui_layer;ui_td_last_click=ui_td_now;);
+      );
+      !ui_td_reset_latch && mouse_cap&1 && mouse_x>=ui_td_x && mouse_x<ui_td_x+ui_td_w && mouse_y>=ui_td_y && mouse_y<ui_td_y+ui_td_h ?
+        mem[ui_td_addr]=ui_td_ratio=pow(2,2*(mouse_x-ui_td_x)/(ui_td_w-1)-1);
+      gfx_setfont(1,"Arial",10);gfx_x=438;gfx_y=rowy+23;gfx_drawstr("TIME DECAY ×");gfx_drawnumber(ui_td_ratio,2);
     );
     rowy+=38;
   );
@@ -3064,6 +3105,7 @@ ui_ci=0;loop(CONTROLLERS,
 );
 exp_y+=216;
 ui_modal ? mouse_cap=0;
+!(ui_real_cap&1)?ui_td_reset_latch=0;
 
 exp_editor_ti>=0 && exp_editor_ti<PARAM_TOTAL ? (
   smallbtn(914,exp_y+8,92,22,"CLOSE CURVE",0);

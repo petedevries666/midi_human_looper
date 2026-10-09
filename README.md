@@ -122,3 +122,12 @@ own factors. LOOP timing remains unchanged. The existing DECAY label is now VEL
 DECAY. Settings persist with the current schema-3 patch system.
 
 See [timing examples, reset rules and tests](docs/time-decay.md).
+
+## v1.24.0 — modular UI stage 1
+
+ADD TRANSFORMER can be dismissed without selecting an effect. Multiple CC MOD
+blocks now have independent settings and expression curves; duplicate destinations
+show a warning and use deterministic last-writer behavior. Save uses schema 4;
+update the companion Lua daemon together with the JSFX. Old patches still load.
+
+See [CC generator behavior and the following modular stages](docs/modular-cc-generators.md).

@@ -129,12 +129,26 @@ static void cc_instance_tests(Host &h) {
   check(h.hash() != before, "extra CC rail preview updates after bend edit");
   h.eq("mem[exp_bend_addr(cc_ti(1,0))]", 0,
        "bend edit does not affect another CC curve");
+  h.run("mem[exp_assign_addr(cc_ti(0,1))]=2;controller_set_value(1,.5);");
+  cc_block(h);
+  h.eq("mem[cc_cfg(0)+1]", 64,
+       "CC-number expression mapping belongs to selected instance");
+  h.eq("mem[cc_cfg(1)+1]", 1,
+       "CC-number mapping leaves other destination untouched");
+  h.run("controller_set_value(1,.6);");
+  auto remap = cc_block(h);
+  check(remap.size() == 2 && remap[0] == std::vector<int>({177, 64, 0}) &&
+            remap[1][1] == 76,
+        "expression remap releases stateful previous CC target");
+  h.run("controller_set_value(1,71/127);cc_expression_tick();");
   // Save real external payload and both internal banks, including instance IDs.
   h.run("save_patch(1);external_patch_save_request(1);cc_defaults();"
         "external_patch_apply();");
   h.eq("io_status", 3, "schema4 external CC import succeeds");
   h.eq("mem[cc_cfg(1)]", 6, "external patch preserves instance IDs");
   h.eq("mem[cc_cfg(0)+1]", 71, "external patch preserves CC number");
+  h.eq("mem[exp_assign_addr(cc_ti(0,1))]", 2,
+       "external patch preserves CC-number expression mapping");
   h.eq("mem[exp_bend_addr(cc_ti(0,0))]", .5,
        "external patch preserves per-instance bend");
   h.run("mem[cc_cfg(0)+1]=20;save_patch(2);cc_bank_load(1);");

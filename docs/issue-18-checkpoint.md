@@ -1,13 +1,15 @@
 # Issue #18 implementation checkpoint
 
-Resume from branch **`feat/controller-host-integration`**. Do not rebuild the project
+Resume feature work from branch **`feat/humanizer-engine`**; use **`fix/jack-midi-ordering`**
+for the first Zynthian demo. Do not rebuild the project
 from main or duplicate #19–#22. Nothing has been merged automatically.
 
 ## Published dependency chain and implemented work
 
 `main` → #19 `feat/zynthian-runnable-mvp` → #20 `feat/module-descriptors-editor`
 → #21 `feat/controller-policy-core` → #22 `fix/zynthian-first-demo`
-→ Controller integration `feat/controller-host-integration`.
+→ #23 Controller integration `feat/controller-host-integration` → #24 timestamp
+delivery correction `fix/jack-midi-ordering` → HUMANIZER foundation `feat/humanizer-engine`.
 
 The current integration includes 16 logical note/CC sources, one exclusive Learn
 lease, explicit conflict confirmation, FORGET, 32 mappings, real parameter application,
@@ -22,11 +24,13 @@ cover the headless extension, capacities and remaining compatibility work.
 
 ## Last complete regression
 
-Native: 2,328 checks and three stable concurrent GUI render hashes. HTTP/native:
+Native: 2,764 checks and three stable concurrent GUI render hashes. HTTP/native:
 14 baseline plus nine Controller integration tests. Registry: three tests. Lua: five.
 Controller core: 160,381 synthetic checks, plus 523 adapter checks, both normal and
 ASan/UBSan. Three Chromium browser suites pass. Actual named dummy JACK graph passes
-normal routing and deliberate FIFO saturation with channel release/PANIC recovery.
+normal routing, deliberate FIFO saturation with channel release/PANIC recovery,
+and exact same-block timestamp/tie delivery. HUMANIZER foundation: 3,153,134 algorithm
+checks, normal/sanitizers, plus 436 EEL2 reference checks included in the native total.
 Desktop callback timing remains diagnostic, not a realtime Pi guarantee.
 
 ```sh
@@ -48,9 +52,10 @@ only a named desktop dummy server: never run that option on a working Zynthian.
    atomically with DIRECT defaults, then shared JSFX/project persistence and REAPER
    policy processing. Current safeguards preserve original headless files through
    explicit base export; full bidirectional new-policy support is not implemented.
-3. HUMANIZER at both Phrase and Instrument scopes, following #11's design. **No
-   HUMANIZER implementation has been delivered.** Next feature branch:
-   `feat/humanizer-engine`, created from `feat/controller-host-integration`.
+3. HUMANIZER at both Phrase and Instrument scopes, following #11's design. The deterministic C++/EEL2 foundation is implemented and tested, but **the module
+   is not connected to the scheduler or routing**. Continue on `feat/humanizer-engine`;
+   [exact next edits](humanizer-implementation-checkpoint.md) identify pairing,
+   timing queues, ownership, schema and editor tasks.
 4. VELOCITY CURVES, following #12, on `feat/velocity-curves-engine` after Humanizer.
    **No VELOCITY CURVES implementation has been delivered.**
 

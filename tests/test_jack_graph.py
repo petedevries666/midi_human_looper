@@ -47,6 +47,22 @@ with tempfile.TemporaryDirectory(prefix='midi-jack-') as temp:
         assert before['outputOverflow']>0,before
         assert state['activeNotes']==0,state
         print('PASS actual JACK FIFO overflow: emergency channel releases, bounded recovery and final PANIC')
+        engine.terminate();engine.communicate(timeout=10);engine=None
+        source=(ROOT/'midi_human_looper.jsfx').read_text()
+        injection="\nd1==99 && d2==127 && msg1==146 && !remote_order_fixture ? (remote_order_fixture=1;midisend(400,144,90|(100*256));midisend(16,144,91|(100*256));midisend(220,144,92|(100*256));midisend(120,144,94|(100*256));midisend(120,128,94););\n"
+        # Actual model/engine, with a deliberate host-contract fixture in @block.
+        fixture=Path(temp)/'ordering.jsfx';fixture.write_text(source.replace('\n@gfx ',injection+'\n@gfx ',1))
+        engine=subprocess.Popen([binary,str(fixture),path,'--jack','--demo'],env=env,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+        deadline=time.monotonic()+15
+        while not Path(path).exists() and time.monotonic()<deadline:
+            if engine.poll() is not None:raise RuntimeError(engine.stderr.read().decode())
+            time.sleep(.02)
+        observer=subprocess.Popen([probe,'--ordering'],env=env)
+        assert observer.wait(timeout=10)==0,'same-block timestamp/tie ordering failed'
+        state=command(2,0,0,0,1)
+        assert state['activeNotes']==0 and state['outputOverflow']==0,state
+        print('PASS actual JACK timestamp ordering: nonmonotonic generation sorted in one block; equal-time Note On/Off stable')
+
 
     finally:
         if engine is not None:engine.terminate();engine.communicate(timeout=10)

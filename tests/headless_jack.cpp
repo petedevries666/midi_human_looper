@@ -1,13 +1,20 @@
 // Actual JACK MIDI graph smoke: two channel inputs, phrase switch and PANIC
 // drain.
+#include <array>
 #include <atomic>
 #include <chrono>
 #include <iostream>
 #include <jack/jack.h>
 #include <jack/midiport.h>
+#include <string>
 #include <thread>
 std::atomic<unsigned> frame{0}, on{0}, off{0}, emergency{0};
-bool flood = false;
+bool flood = false, ordering = false;
+struct OrderEvent {
+  unsigned frame, offset, note, status;
+};
+std::array<OrderEvent, 5> ordered{};
+std::atomic<unsigned> orderCount{0};
 jack_port_t *input, *output;
 int process(jack_nframes_t n, void *) {
   void *out = jack_port_get_buffer(output, n);
@@ -21,12 +28,17 @@ int process(jack_nframes_t n, void *) {
         break;
     }
   }
-  if (f == 10 || f == 30) {
+  if (ordering && (f == 10 || f == 30)) {
+    unsigned char m[] = {146, 99,
+                         static_cast<unsigned char>(f == 10 ? 127 : 0)};
+    jack_midi_event_write(out, 0, m, 3);
+  }
+  if (!ordering && (f == 10 || f == 30)) {
     unsigned char m[3] = {144, 72,
                           static_cast<unsigned char>(f == 10 ? 100 : 0)};
     jack_midi_event_write(out, 0, m, 3);
   }
-  if (f == 80 || f == 100) {
+  if (!ordering && (f == 80 || f == 100)) {
     unsigned char m[3] = {145, 81,
                           static_cast<unsigned char>(f == 80 ? 90 : 0)};
     jack_midi_event_write(out, 0, m, 3);
@@ -36,6 +48,14 @@ int process(jack_nframes_t n, void *) {
     jack_midi_event_t e;
     jack_midi_event_get(&e, in, i);
     if (e.size >= 3) {
+      if (ordering &&
+          (e.buffer[1] == 90 || e.buffer[1] == 91 || e.buffer[1] == 92 ||
+           e.buffer[1] == 94) &&
+          orderCount.load() < 5) {
+        auto at = orderCount.load();
+        ordered[at] = {f, e.time, e.buffer[1], unsigned(e.buffer[0] & 240)};
+        orderCount.store(at + 1);
+      }
       if ((e.buffer[0] & 240) == 176 && e.buffer[1] == 120 && e.buffer[2] == 0)
         ++emergency;
       if ((e.buffer[0] & 240) == 144 && e.buffer[2])
@@ -47,8 +67,9 @@ int process(jack_nframes_t n, void *) {
   }
   return 0;
 }
-int main(int argc, char **) {
-  flood = argc > 1;
+int main(int argc, char **argv) {
+  flood = argc > 1 && std::string(argv[1]) == "--flood";
+  ordering = argc > 1 && std::string(argv[1]) == "--ordering";
   jack_status_t status;
   auto c = jack_client_open("midi_smoke", JackNoStartServer, &status);
   if (!c)
@@ -68,5 +89,19 @@ int main(int argc, char **) {
   jack_client_close(c);
   std::cout << "JACK notes on=" << on << " off=" << off
             << " emergency=" << emergency << '\n';
+  if (ordering) {
+    const unsigned notes[] = {91, 94, 94, 92, 90},
+                   offsets[] = {16, 120, 120, 220, 400},
+                   statuses[] = {144, 144, 128, 144, 144};
+    bool ok = orderCount == 5;
+    for (unsigned i = 0; i < orderCount; ++i) {
+      auto &e = ordered[i];
+      std::cout << "ORDER frame=" << e.frame << " offset=" << e.offset
+                << " note=" << e.note << " status=" << e.status << '\n';
+      ok &= e.frame == ordered[0].frame && e.offset == offsets[i] &&
+            e.note == notes[i] && e.status == statuses[i];
+    }
+    return ok ? 0 : 1;
+  }
   return on >= 2 && off >= 2048 && (!flood || emergency >= 16) ? 0 : 1;
 }

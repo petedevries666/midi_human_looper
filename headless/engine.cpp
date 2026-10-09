@@ -2,6 +2,7 @@
 // Disk, sockets and JSON are confined to the control worker.
 #include "controller_wire.hpp"
 #include "ysfx.hpp"
+#include <algorithm>
 #include <array>
 #include <atomic>
 #include <chrono>
@@ -1049,6 +1050,13 @@ int main(int argc, char **argv) {
     };
     std::unique_ptr<std::array<MidiPacket, 8192>> outputQueue(
         new std::array<MidiPacket, 8192>());
+    // A processing-block batch and index order are allocated once at startup.
+    // Sort indices, not 256-byte packets; timestamp ties preserve generation
+    // order.
+    std::unique_ptr<std::array<MidiPacket, 8192>> outputBatch(
+        new std::array<MidiPacket, 8192>());
+    std::unique_ptr<std::array<unsigned, 8192>> outputOrder(
+        new std::array<unsigned, 8192>());
     unsigned outputRead = 0, outputWrite = 0;
     std::atomic<unsigned> outputPending{0};
     std::atomic<bool> finalAcknowledged{false};
@@ -1417,17 +1425,24 @@ int main(int argc, char **argv) {
         ++state.revision;
       ysfx_process_float(fx, nullptr, nullptr, 0, 0, frames);
       ysfx_midi_event_t event{};
+      unsigned outputCount = 0;
+      bool outputSorted = true;
       while (ysfx_receive_midi(fx, &event)) {
         ++state.midi;
         if (outBuffer) {
-          if (outputWrite - outputRead >= 8192 || event.size > 256) {
+          if (outputCount >= 8192 || event.size > 256) {
             ++state.outputOverflow;
             overflowRecovery = true;
           } else {
-            auto &m = (*outputQueue)[outputWrite++ % 8192];
+            auto &m = (*outputBatch)[outputCount];
             m.size = event.size;
-            m.offset = event.offset;
+            m.offset = std::min(event.offset, frames - 1);
             std::memcpy(m.data.data(), event.data, event.size);
+            if (outputCount &&
+                (*outputBatch)[outputCount - 1].offset > m.offset)
+              outputSorted = false;
+            (*outputOrder)[outputCount] = outputCount;
+            ++outputCount;
           }
         }
         if (event.size >= 3) {
@@ -1451,6 +1466,25 @@ int main(int argc, char **argv) {
         }
       }
       if (outBuffer) {
+        if (!outputSorted)
+          std::sort(outputOrder->begin(), outputOrder->begin() + outputCount,
+                    [&](unsigned a, unsigned b) {
+                      auto first = (*outputBatch)[a].offset,
+                           second = (*outputBatch)[b].offset;
+                      return first == second ? a < b : first < second;
+                    });
+        for (unsigned j = 0; j < outputCount; ++j) {
+          if (outputWrite - outputRead >= 8192) {
+            ++state.outputOverflow;
+            overflowRecovery = true;
+            continue;
+          }
+          auto &destination = (*outputQueue)[outputWrite++ % 8192];
+          const auto &source = (*outputBatch)[(*outputOrder)[j]];
+          destination.size = source.size;
+          destination.offset = source.offset;
+          std::memcpy(destination.data.data(), source.data.data(), source.size);
+        }
         flushOutput(outBuffer, frames);
         for (unsigned q = outputRead; q != outputWrite; ++q)
           (*outputQueue)[q % 8192].offset = 0;

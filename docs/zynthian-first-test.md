@@ -1,6 +1,7 @@
 # First Zynthian test: issue #18, runnable P0
 
-This branch starts from merged main after #17. It hosts the existing schema-7
+The first-test branch is `fix/jack-midi-ordering`, stacking PRs #19–#24 without
+merging them. It hosts the existing schema-7
 JSFX with ysfx, without `@gfx`, and uses **native JACK MIDI ports**. Stock ysfx does
 not provide LV2. Standalone JACK is the shortest test route; chain/service integration
 and an LV2 adapter remain later work. No SSH, actual Pi access or automatic deployment
@@ -14,8 +15,8 @@ getconf LONG_BIT
 cat /etc/os-release
 git clone https://github.com/petedevries666/midi_human_looper.git
 cd midi_human_looper
-git fetch origin feat/zynthian-runnable-mvp
-git switch --track origin/feat/zynthian-runnable-mvp
+git fetch origin fix/jack-midi-ordering
+git switch --track origin/fix/jack-midi-ordering
 scripts/headless-setup.sh
 scripts/headless-test.sh
 ```
@@ -92,8 +93,10 @@ SAVE PATCH 1/2 writes atomically to
 `${XDG_DATA_HOME:-$HOME/.local/share}/midi-human-looper/patch1.json` / `patch2.json`;
 set `PATCH_DIR` to override. Back up existing files before copying REAPER patches.
 Files use `MIDI_HUMAN_LOOPER_PATCH`, full-precision numeric JSON and schema 7;
-legacy schemas 1–6 use the existing appended-tail migrations. Files remain readable
-by the companion REAPER Lua script. The two files are independent; saving one does
+legacy schemas 1–6 use the existing appended-tail migrations. Controller-free files remain readable
+by the companion REAPER Lua script. Patches with the headless Controller extension
+require EXPORT REAPER BASE before transfer; the Lua loader deliberately rejects
+unsupported policy data instead of silently erasing it. The two files are independent; saving one does
 not overwrite the other. SAVE captures current committed configuration and phrase
 events, not Learn, drafts or playing runtime. SAVE briefly pauses engine access for
 a bounded memory copy, then serializes/writes outside processing. LOAD parses and
@@ -111,8 +114,8 @@ chord and exclusive MIDI Learn regressions cover this minimal REAPER fix.
 
 The current basic UI includes phrase PLAY, REC/OVERDUB and FINISH REC, Instrument
 routing/enabled/volume, existing Transformer cards, switch TAP/DOUBLE/HOLD TEST,
-simulated footswitches, PANIC and SAVE/LOAD. Full switch/curve/Learn configuration,
-generic module transactions and global controller policies follow in separate PRs.
+simulated footswitches, PANIC and SAVE/LOAD. The stacked branch also includes transactional generic editing, multipoint mapping
+curves, exclusive Controller Learn and live takeover/return policies.
 STOP all playback via PANIC; phrase-specific stop controls are not implemented yet.
 
 ## Tomorrow's checklist
@@ -233,3 +236,19 @@ stopping the launcher. Use EXPORT REAPER BASE only when transferring to REAPER.
 See [Controller integration](controller-engine-integration.md) for exact limits and
 the explicit REAPER extension boundary. No claim of completed Pi/Firefox acceptance
 is made from desktop Chromium tests.
+
+## Timestamp-order hardening for the first hardware test
+
+Use `fix/jack-midi-ordering` for the latest tested engine (it includes the Controller
+branch and sorts produced MIDI by timestamp before JACK delivery):
+
+```sh
+git fetch origin fix/jack-midi-ordering
+git switch --track origin/fix/jack-midi-ordering
+scripts/headless-setup.sh
+scripts/headless-check.sh
+EDITOR_BIND=0.0.0.0 EDITOR_TOKEN_FILE=/tmp/midi-editor-token DEMO_PATCH=1 scripts/headless-run.sh
+```
+
+Keep the MIDI port variables and token setup from the earlier sections.
+[Ordering regression evidence](jack-midi-ordering.md) explains the tested correction.

@@ -46,6 +46,19 @@ static void project_state_tests(const char *path) {
   reopened.run("current_patch=1;restore_current_patch_raw();");
   reopened.eq("mem[engine_addr(INST_LEVEL_BASE,4)]", 87,
               "project includes first bank");
+  reopened.run("mem[VOICE_ACTIVE_BASE]=1;mem[NOTE_REF_BASE+60]=1;edit_name_"
+               "type=3;last_trigger_layer=0;");
+  ysfx_load_state(reopened.f, state);
+  reopened.block();
+  reopened.events();
+  reopened.eq("last_trigger_layer", -1,
+              "project restore resets previous phrase retrigger context");
+  reopened.eq("edit_name_type", 0,
+              "project restore closes previous editing focus");
+  reopened.eq("mem[VOICE_ACTIVE_BASE]", 0,
+              "project restore on running host cancels previous voice");
+  reopened.eq("mem[NOTE_REF_BASE+60]", 0,
+              "project restore clears previous note ownership");
   // REAPER may call @init after @serialize. The staged snapshot survives that
   // order.
   ysfx_load_state(reopened.f, state);

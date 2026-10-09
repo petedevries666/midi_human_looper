@@ -619,7 +619,7 @@ local(j,idx)
 
 function reset_note_runtime()
 local(pv_i)
-(pv_i=0;loop(MAX_ONCE_VOICES,mem[VOICE_ACTIVE_BASE+pv_i]=0;pv_i+=1;);once_route_voice=-1;
+(pv_i=0;loop(MAX_ONCE_VOICES,mem[VOICE_ACTIVE_BASE+pv_i]=0;pv_i+=1;);once_route_voice=-1;last_trigger_layer=-1;trigger_request=-1;hold_stop_request=-1;
  pv_i=0;loop(NOTE_REF_SIZE,mem[NOTE_REF_BASE+pv_i]=0;pv_i+=1;);pv_i=0;loop(16,mem[SUSTAIN_REF_BASE+pv_i]=0;pv_i+=1;);
  pv_i=0;loop(INST_CAP,i_clear_runtime(pv_i);pv_i+=1;);
 );
@@ -2532,6 +2532,7 @@ local(pr_slot,pr_j,pr_pos,pr_a,pr_b,pr_c,pr_e,pr_value,pr_addr,pr_header)
    );pr_j+=1;pr_pos+=4;
   );pr_slot+=1;
  );
+ reset_note_runtime();cancel_patch_editors();
  current_patch=max(1,min(2,floor(ps_current)));patch_valid1=ps_valid1>0;patch_valid2=ps_valid2>0;
  param_runtime_reset();sw_runtime_reset();tf_runtime_reset();i_read=0;ui_i_write=0;
  ui_sw_editor_open=0;ui_sw_delete_slot=-1;ui_i_delete_slot=-1;transform_menu_gi=-1;options_open=0;controller_assign_ti=-1;exp_editor_ti=-1;ui_capture_ti=-1;
@@ -3041,7 +3042,7 @@ edit_name_type>0 && keychar>0 ? (
 gfx_set(.055,.055,.055,1);gfx_rect(12,10,1010,48,1);
 gfx_set(.42,.42,.42,1);gfx_rect(12,10,1010,48,0);
 gfx_setfont(1,"Courier New",22,'b');gfx_set(.95,.95,.08,1);
-gfx_x=24;gfx_y=20;gfx_drawstr("MIDI BAD MOTHERFUCKER V.1.27.0");
+gfx_x=24;gfx_y=20;gfx_drawstr("MIDI BAD MOTHERFUCKER V.1.27.1");
 gfx_setfont(1,"Courier New",14,'b');gfx_set(.68,.68,.68,1);
 gfx_x=760;gfx_y=25;gfx_drawstr("ANONYMALZ LIVE ENGINE");
 

@@ -33,3 +33,5 @@ reject a truncated snapshot, cancel Learn/drafts and leave voices stopped. Three
 concurrent MIDI/GFX cases include legacy, repeated CC and appended Instrument curves.
 These tests use actual ysfx/WDL EEL2, MIDI and LICE rendering; they do not replace
 manual REAPER/Helix testing or a real REAPER restart on the user's machine.
+
+Restoring into an already running host also cancels its prior voices/ownership, pending phrase requests, retrigger context and editing focus before applying the loaded configuration.

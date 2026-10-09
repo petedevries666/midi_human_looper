@@ -139,6 +139,7 @@ static void instrument_voice_tests(Host &h) {
        "PANIC clears passthrough sustain ownership");
   h.run("mem[NOTE_REF_BASE+60]=1;mem[ARP_HELD_COUNT_BASE+60]=1;edit_name_type="
         "2;");
+  h.run("last_trigger_layer=0;trigger_request=0;");
   h.run("external_patch_save_request(1);mem[VOICE_ACTIVE_BASE]=1;mem[VOICE_"
         "LAYER_BASE]=0;mem[VOICE_POS_BASE]=0;mem[VOICE_GAIN_BASE]=1;mem[VOICE_"
         "TIME_BASE]=1;gmem[0]=3;");

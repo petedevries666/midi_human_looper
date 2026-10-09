@@ -659,6 +659,7 @@ static void stress(Host &h, bool historical, bool cc_instances = false) {
 #include "phrase_play_cases.hpp"
 #include "smart_switch_cases.hpp"
 #include "time_decay_cases.hpp"
+#include "transform_stack_cases.hpp"
 int main(int argc, char **argv) {
   if (argc < 2)
     return 2;
@@ -684,6 +685,8 @@ int main(int argc, char **argv) {
   time_decay_tests(timing);
   Host cc(argv[1]);
   cc_instance_tests(cc);
+  Host stacks(argv[1]);
+  transform_stack_tests(stacks);
   Host stable(argv[1]);
   stress(stable, false);
   Host cc_stable(argv[1]);

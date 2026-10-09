@@ -1,5 +1,11 @@
 # MIDI Human Looper: release history
 
+v1.25.0 (modular UI stage 2):
+- Independent transpose, range and velocity instances with persistent type/ID metadata.
+- Visible serial note order, multiplicative velocity and safe deferred structural edits.
+- Independent third range curve; schema-5 append with schema-1/2/3/4 migration.
+- Deliberate single-instance ARP/polyphony restriction; queued ARP lifecycle cleanup.
+
 v1.24.0 (modular UI stage 1):
 - ADD TRANSFORMER closes with ×, Escape or either outside mouse button.
 - Independent CC MOD instances, expression curves, stable IDs and channel overrides.

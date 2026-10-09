@@ -1,4 +1,4 @@
-desc:MIDI Human Looper v1.24.0
+desc:MIDI Human Looper v1.25.0
 options:gmem=MIDI_HUMAN_LOOPER
 
 // Release history: CHANGELOG.md. Free-time MIDI phrase instrument.
@@ -22,7 +22,8 @@ STATE_STOPPED = 4;
 // External patch I/O bridge (companion Lua ReaScript).
 // gmem[0] command: 0 idle, 1 SAVE request, 2 LOAD request, 3 LOAD ready, 4 SAVE done, 5 error.
 // gmem[1] selected slot, [2] schema, [3] PATCH_PAYLOAD_SIZE, [4..] globals, payload starts at 32.
-IO_SCHEMA = 4;
+IO_SCHEMA = 5;
+CC_SCHEMA=4;
 SW_SCHEMA=3;
 PARAM_SCHEMA=2;
 IO_PAYLOAD_BASE = 32;
@@ -201,8 +202,16 @@ CC_BANK1_BASE=CC_CFG_BASE+CC_CFG_SIZE;CC_BANK2_BASE=CC_BANK1_BASE+CC_CFG_SIZE;
 CC_RT_BASE=CC_BANK2_BASE+CC_CFG_SIZE;CC_RT_STRIDE=8;
 CC_PARAM_LAST_BASE=CC_RT_BASE+(CC_EXTRA+INSTRUMENTS)*CC_RT_STRIDE;
 CC_PARAM_PENDING_BASE=CC_PARAM_LAST_BASE+CC_EXTRA*2;
-UI_PARAM_TOTAL=PARAM_TOTAL+CC_EXTRA*2;
-PATCH_PAYLOAD_SIZE=CC_LEGACY_PAYLOAD+CC_CFG_SIZE;
+TF_TERTIARY_TI=PARAM_TOTAL+CC_EXTRA*2;
+TF_LEGACY_PAYLOAD=CC_LEGACY_PAYLOAD+CC_CFG_SIZE;
+TF_CFG_BASE=CC_PARAM_PENDING_BASE+CC_EXTRA*2;TF_PRIMARY_IDS=TF_CFG_BASE+1;
+TF_RECORD_BASE=TF_PRIMARY_IDS+INSTRUMENTS*TRANSFORM_TYPES;TF_STRIDE=1+2+3*EXP_POINTS;
+TF_CFG_SIZE=1+INSTRUMENTS*TRANSFORM_TYPES+CC_EXTRA*TF_STRIDE;
+TF_BANK1_BASE=TF_CFG_BASE+TF_CFG_SIZE;TF_BANK2_BASE=TF_BANK1_BASE+TF_CFG_SIZE;
+TF_LAST_BASE=TF_BANK2_BASE+TF_CFG_SIZE;TF_PENDING_BASE=TF_LAST_BASE+CC_EXTRA;
+TF_QUEUE_BASE=TF_PENDING_BASE+CC_EXTRA;TF_QUEUE_SIZE=32;TF_QUEUE_STRIDE=4;
+UI_PARAM_TOTAL=TF_TERTIARY_TI+CC_EXTRA;
+PATCH_PAYLOAD_SIZE=TF_LEGACY_PAYLOAD+TF_CFG_SIZE;
 // Actions: NONE/NEXT/STOP/RESET/RESET ALL/STOP+RESET/PANIC/TOGGLE/ENABLE/DISABLE.
 SW_NONE=0;SW_NEXT=1;SW_STOP=2;SW_RESET=3;SW_RESET_ALL=4;SW_STOP_RESET=5;
 SW_PANIC=6;SW_TOGGLE=7;SW_ENABLE=8;SW_DISABLE=9;
@@ -436,14 +445,19 @@ local(i)
 function cc_cfg(index) (CC_CFG_BASE+2+INSTRUMENTS+index*CC_STRIDE;);
 function cc_index(gi,code) (gi*(TRANSFORM_SLOTS-1)+code-7;);
 function cc_id(gi,code) (code==6?mem[CC_CFG_BASE+2+gi]:mem[cc_cfg(cc_index(gi,code))];);
-function cc_ti(index,row) (PARAM_TOTAL+index*2+row;);
-function cc_curve(ti) (cc_cfg(floor((ti-PARAM_TOTAL)/2))+4+(ti-PARAM_TOTAL)%2*(2+3*EXP_POINTS););
-function param_last_addr(ti) (ti<PARAM_TOTAL?PARAM_LAST_BASE+ti:CC_PARAM_LAST_BASE+ti-PARAM_TOTAL;);
-function param_pending_addr(ti) (ti<PARAM_TOTAL?PARAM_PENDING_BASE+ti:CC_PARAM_PENDING_BASE+ti-PARAM_TOTAL;);
+function cc_ti(index,row) (row==2?TF_TERTIARY_TI+index:PARAM_TOTAL+index*2+row;);
+function extra_index(ti) (ti>=TF_TERTIARY_TI?ti-TF_TERTIARY_TI:floor((ti-PARAM_TOTAL)/2););
+function extra_row(ti) (ti>=TF_TERTIARY_TI?2:(ti-PARAM_TOTAL)%2;);
+function tf_record(index) (TF_RECORD_BASE+index*TF_STRIDE;);
+function transform_type(gi,code) (code<7?code:mem[tf_record(cc_index(gi,code))];);
+function tf_id(gi,code) (code<6?mem[TF_PRIMARY_IDS+gi*TRANSFORM_TYPES+code-1]:cc_id(gi,code););
+function cc_curve(ti) (ti>=TF_TERTIARY_TI?tf_record(extra_index(ti))+1:cc_cfg(extra_index(ti))+4+extra_row(ti)*(2+3*EXP_POINTS););
+function param_last_addr(ti) (ti>=TF_TERTIARY_TI?TF_LAST_BASE+extra_index(ti):ti<PARAM_TOTAL?PARAM_LAST_BASE+ti:CC_PARAM_LAST_BASE+ti-PARAM_TOTAL;);
+function param_pending_addr(ti) (ti>=TF_TERTIARY_TI?TF_PENDING_BASE+extra_index(ti):ti<PARAM_TOTAL?PARAM_PENDING_BASE+ti:CC_PARAM_PENDING_BASE+ti-PARAM_TOTAL;);
 function cc_defaults()
 local(j,b,k,row,a)
 (
-  mem[CC_CFG_BASE]=IO_SCHEMA;mem[CC_CFG_BASE+1]=INSTRUMENTS+1;j=0;
+  mem[CC_CFG_BASE]=CC_SCHEMA;mem[CC_CFG_BASE+1]=INSTRUMENTS+1;j=0;
   loop(INSTRUMENTS,mem[CC_CFG_BASE+2+j]=j+1;j+=1;);j=0;
   loop(CC_EXTRA,b=cc_cfg(j);k=0;loop(CC_STRIDE,mem[b+k]=0;k+=1;);
     mem[b+1]=1;row=0;loop(2,a=b+4+row*(2+3*EXP_POINTS);mem[a+1]=2;
@@ -457,12 +471,29 @@ local(j)
 function cc_bank_save(slot)
 local(b,j,pb)
 (b=slot==2?CC_BANK2_BASE:CC_BANK1_BASE;pb=slot==2?PATCH2_BASE:PATCH1_BASE;
- mem[pb+11]=IO_SCHEMA;j=0;loop(CC_CFG_SIZE,mem[b+j]=mem[CC_CFG_BASE+j];j+=1;););
+ mem[pb+11]=CC_SCHEMA;j=0;loop(CC_CFG_SIZE,mem[b+j]=mem[CC_CFG_BASE+j];j+=1;););
 function cc_bank_load(slot)
 local(b,j,pb)
-(pb=slot==2?PATCH2_BASE:PATCH1_BASE;cc_defaults();mem[pb+11]==IO_SCHEMA?(
+(pb=slot==2?PATCH2_BASE:PATCH1_BASE;cc_defaults();mem[pb+11]==CC_SCHEMA?(
  b=slot==2?CC_BANK2_BASE:CC_BANK1_BASE;j=0;loop(CC_CFG_SIZE,mem[CC_CFG_BASE+j]=mem[b+j];j+=1;););cc_runtime_reset(););
 cc_defaults();cc_runtime_reset();
+
+function tf_defaults()
+local(j,b,k)
+(mem[TF_CFG_BASE]=IO_SCHEMA;j=0;loop(INSTRUMENTS*TRANSFORM_TYPES,mem[TF_PRIMARY_IDS+j]=-j-1;j+=1;);
+ j=0;loop(CC_EXTRA,b=tf_record(j);k=0;loop(TF_STRIDE,mem[b+k]=0;k+=1;);mem[b]=6;
+ mem[b+2]=2;mem[b+4]=1;mem[b+4+EXP_POINTS]=1;j+=1;););
+function tf_runtime_reset()
+local(j)
+(j=0;loop(CC_EXTRA,mem[TF_LAST_BASE+j]=-999;mem[TF_PENDING_BASE+j]=-999;j+=1;);tf_queue_read=0;ui_tf_queue_write=0;);
+function tf_bank_save(slot)
+local(j,b)
+(b=slot==2?TF_BANK2_BASE:TF_BANK1_BASE;j=0;loop(TF_CFG_SIZE,mem[b+j]=mem[TF_CFG_BASE+j];j+=1;););
+function tf_bank_load(slot)
+local(j,b)
+(b=slot==2?TF_BANK2_BASE:TF_BANK1_BASE;tf_defaults();mem[b]==IO_SCHEMA?(
+ j=0;loop(TF_CFG_SIZE,mem[TF_CFG_BASE+j]=mem[b+j];j+=1;););tf_runtime_reset(););
+tf_defaults();tf_runtime_reset();
 
 function param_ti(gi,kind)
 (
@@ -471,18 +502,18 @@ function param_ti(gi,kind)
 );
 function param_gi(ti)
 (
-  ti>=PARAM_TOTAL ? floor((ti-PARAM_TOTAL)/2/(TRANSFORM_SLOTS-1)) : ti<EXP_TOTAL ? floor(ti/EXP_TARGETS) : floor((ti-EXP_TOTAL)/(PARAM_TARGETS-EXP_TARGETS));
+  ti>=PARAM_TOTAL ? floor(extra_index(ti)/(TRANSFORM_SLOTS-1)) : ti<EXP_TOTAL ? floor(ti/EXP_TARGETS) : floor((ti-EXP_TOTAL)/(PARAM_TARGETS-EXP_TARGETS));
 );
 function param_kind(ti)
 (
-  ti>=PARAM_TOTAL ? ((ti-PARAM_TOTAL)%2==0?EXP_T_MOD:PARAM_MOD_CC) : ti<EXP_TOTAL ? ti%EXP_TARGETS : EXP_TARGETS+(ti-EXP_TOTAL)%(PARAM_TARGETS-EXP_TARGETS);
+  ti>=PARAM_TOTAL ? (mem[tf_record(extra_index(ti))]==1?PARAM_TRANSPOSE:mem[tf_record(extra_index(ti))]==2?PARAM_RANGE_MODE+extra_row(ti):mem[tf_record(extra_index(ti))]==4?EXP_T_VEL:extra_row(ti)==0?EXP_T_MOD:PARAM_MOD_CC) : ti<EXP_TOTAL ? ti%EXP_TARGETS : EXP_TARGETS+(ti-EXP_TOTAL)%(PARAM_TARGETS-EXP_TARGETS);
 );
 function exp_assign_addr(ti) (ti>=PARAM_TOTAL ? cc_curve(ti)+0 : ti<EXP_TOTAL ? INST_EXP_ASSIGN_BASE+ti : PARAM_ASSIGN_BASE+ti-EXP_TOTAL;);
 function exp_count_addr(ti) (ti>=PARAM_TOTAL ? cc_curve(ti)+1 : ti<EXP_TOTAL ? INST_EXP_COUNT_BASE+ti : PARAM_COUNT_BASE+ti-EXP_TOTAL;);
 function exp_x_addr(ti) (ti>=PARAM_TOTAL ? cc_curve(ti)+2 : ti<EXP_TOTAL ? INST_EXP_X_BASE+ti*EXP_POINTS : PARAM_X_BASE+(ti-EXP_TOTAL)*EXP_POINTS;);
 function exp_y_addr(ti) (ti>=PARAM_TOTAL ? cc_curve(ti)+2+EXP_POINTS : ti<EXP_TOTAL ? INST_EXP_Y_BASE+ti*EXP_POINTS : PARAM_Y_BASE+(ti-EXP_TOTAL)*EXP_POINTS;);
 function exp_bend_addr(ti) (ti>=PARAM_TOTAL ? cc_curve(ti)+2+2*EXP_POINTS : ti<EXP_TOTAL ? INST_EXP_BEND_BASE+ti*EXP_POINTS : PARAM_BEND_BASE+(ti-EXP_TOTAL)*EXP_POINTS;);
-function payload_addr(j) (j>=CC_LEGACY_PAYLOAD ? CC_CFG_BASE+j-CC_LEGACY_PAYLOAD : j<WORK_MEM_SIZE ? j : j<SW_LEGACY_PAYLOAD ? PARAM_EXT_BASE+j-WORK_MEM_SIZE : SW_CFG_BASE+j-SW_LEGACY_PAYLOAD;);
+function payload_addr(j) (j>=TF_LEGACY_PAYLOAD?TF_CFG_BASE+j-TF_LEGACY_PAYLOAD:j>=CC_LEGACY_PAYLOAD ? CC_CFG_BASE+j-CC_LEGACY_PAYLOAD : j<WORK_MEM_SIZE ? j : j<SW_LEGACY_PAYLOAD ? PARAM_EXT_BASE+j-WORK_MEM_SIZE : SW_CFG_BASE+j-SW_LEGACY_PAYLOAD;);
 function param_addr(gi,kind)
 (
   kind==EXP_T_VEL ? INST_VEL_BASE+gi : kind==EXP_T_LEVEL ? INST_LEVEL_BASE+gi :
@@ -626,7 +657,7 @@ local(j,b,pb)
     b=slot==2 ? PARAM_BANK2_BASE : PARAM_BANK1_BASE;j=0;
     loop(PARAM_EXT_SIZE,mem[PARAM_EXT_BASE+j]=mem[b+j];j+=1;);
   ) : param_extension_reset();
-  param_runtime_reset();sw_bank_load(slot);cc_bank_load(slot);
+  param_runtime_reset();sw_bank_load(slot);cc_bank_load(slot);tf_bank_load(slot);
 );
 param_extension_reset();param_runtime_reset();
 
@@ -646,7 +677,7 @@ local(pb,j)
   mem[pb+9]=PARAM_SCHEMA;
   param_bank_save(slot);
   sw_bank_save(slot);
-  cc_bank_save(slot);
+  cc_bank_save(slot);tf_bank_save(slot);
   j=0;
   loop(WORK_MEM_SIZE,
     mem[pb+PATCH_HEADER_SIZE+j]=mem[j];
@@ -685,7 +716,7 @@ local(pb,j,valid,oldslot)
       record_layer=mem[pb+8];
     ) : (
       reset_all_phrases();
-      param_extension_reset();param_runtime_reset();sw_defaults();sw_runtime_reset();cc_defaults();cc_runtime_reset();
+      param_extension_reset();param_runtime_reset();sw_defaults();sw_runtime_reset();cc_defaults();cc_runtime_reset();tf_defaults();tf_runtime_reset();
       slider4=0;
       slider5=0;
       slider6=120;
@@ -913,6 +944,39 @@ local(rm,lo,hi,ok)
   ok;
 );
 
+// Legacy single-instance patches keep the established fixed stages. Adding a
+// stateless duplicate opts the note processors into the visible serial order.
+function tf_serial(gi)
+local(k,c,code,typ,found)
+(k=0;found=0;c=max(0,min(TRANSFORM_SLOTS,floor(mem[INST_TRANSFORM_COUNT_BASE+gi])));loop(c,code=mem[INST_TRANSFORM_TYPE_BASE+gi*TRANSFORM_SLOTS+k];code>=7?(typ=transform_type(gi,code);typ==1 || typ==2 || typ==4?found=1;);k+=1;);found;);
+function tf_pitch(gi,note)
+local(k,c,code,typ,b,mode,lo,hi)
+(
+  !tf_serial(gi) ? (note+=transformer_on(gi,1)?floor(mem[INST_TRANSPOSE_BASE+gi]+.5):0;
+    transformer_on(gi,2) && !note_in_range(gi,note)?note=-1;
+  ) : (
+    k=0;c=max(0,min(TRANSFORM_SLOTS,floor(mem[INST_TRANSFORM_COUNT_BASE+gi])));loop(c,code=mem[INST_TRANSFORM_TYPE_BASE+gi*TRANSFORM_SLOTS+k];
+      code>0 && note>=0 && note<=127?(
+        typ=transform_type(gi,code);b=code>=7?cc_cfg(cc_index(gi,code)):-1;
+        typ==1?note+=floor((b>=0?mem[b+2]:mem[INST_TRANSPOSE_BASE+gi])+.5);
+        typ==2?(
+          mode=b>=0?mem[b+2]:mem[INST_RANGE_MODE_BASE+gi];lo=b>=0?mem[b+1]:mem[INST_RANGE_LOW_BASE+gi];hi=b>=0?mem[b+3]:mem[INST_RANGE_HIGH_BASE+gi];
+          ((mode==1 && note<lo) || (mode==2 && note>hi) || (mode==3 && (note<lo || note>hi)))?note=-1;
+        );
+      );k+=1;
+    );
+  );note>=0 && note<=127?note:-1;
+);
+function tf_velocity(gi,vel,gain)
+local(k,c,code)
+(
+  !tf_serial(gi)?gain*=transformer_on(gi,4)?mem[INST_VEL_BASE+gi]:1:(
+    k=0;c=max(0,min(TRANSFORM_SLOTS,floor(mem[INST_TRANSFORM_COUNT_BASE+gi])));loop(c,code=mem[INST_TRANSFORM_TYPE_BASE+gi*TRANSFORM_SLOTS+k];
+      code>0 && transform_type(gi,code)==4?gain*=code>=7?mem[cc_cfg(cc_index(gi,code))+2]:mem[INST_VEL_BASE+gi];k+=1;
+    );
+  );max(1,min(127,floor(vel*gain+.5)));
+);
+
 function route_emit_note(gi, offs, outst, note, vel, is_on, owned, origin_override)
 local(ch,key,origin,idx)
 (
@@ -1059,10 +1123,9 @@ local(srcch,typ,ii,in_ch,out_ch,outst,outd2,matched,velmul,nmode,tn)
         (typ==144 && d2>0) ? (
           sw_playback_origin ? mem[SW_LOOP_INPUT_BASE+(ii*16+srcch-1)*128+d1]+=1;
           param_track_input(ii,srcch-1,d1,1,0);
-          tn=d1+(transformer_on(ii,1) ? floor(mem[INST_TRANSPOSE_BASE+ii]+0.5) : 0);
-          tn>=0 && tn<=127 && (!transformer_on(ii,2) || note_in_range(ii,tn)) ? (
-            velmul=(transformer_on(ii,4) ? mem[INST_VEL_BASE+ii] : 1)*extra_gain;
-            outd2=max(1,min(127,floor(d2*velmul+0.5)));
+          tn=tf_pitch(ii,d1);
+          tn>=0 && tn<=127 ? (
+            outd2=tf_velocity(ii,d2,extra_gain);
             nmode>0 ? route_mono_note(ii,offs,outst,tn,outd2,1,0) :
                       route_emit_note(ii,offs,outst,tn,outd2,1,0,0);
           );
@@ -1070,8 +1133,8 @@ local(srcch,typ,ii,in_ch,out_ch,outst,outd2,matched,velmul,nmode,tn)
         ((typ==128) || (typ==144 && d2==0)) ? (
           sw_playback_origin ? mem[SW_LOOP_INPUT_BASE+(ii*16+srcch-1)*128+d1]=max(0,mem[SW_LOOP_INPUT_BASE+(ii*16+srcch-1)*128+d1]-1);
           param_track_input(ii,srcch-1,d1,0,0);
-          tn=d1+(transformer_on(ii,1) ? floor(mem[INST_TRANSPOSE_BASE+ii]+0.5) : 0);
-          tn>=0 && tn<=127 && (!transformer_on(ii,2) || note_in_range(ii,tn)) ? (
+          tn=tf_pitch(ii,d1);
+          tn>=0 && tn<=127 ? (
             nmode>0 ? route_mono_note(ii,offs,outst,tn,0,0,0) :
                       route_emit_note(ii,offs,outst,tn,0,0,0,0);
           );
@@ -1131,18 +1194,17 @@ local(srcch,typ,ii,in_ch,out_ch,outst,outd2,matched,velmul,msg_chan,note_key,nmo
 
         (typ==144 && d2>0) ? (
           param_track_input(ii,srcch-1,d1,1,1);
-          tn=d1+(transformer_on(ii,1) ? floor(mem[INST_TRANSPOSE_BASE+ii]+0.5) : 0);
-          tn>=0 && tn<=127 && (!transformer_on(ii,2) || note_in_range(ii,tn)) ? (
-            velmul=(transformer_on(ii,4) ? mem[INST_VEL_BASE+ii] : 1)*phrase_gain;
-            outd2=max(1,min(127,floor(d2*velmul+0.5)));
+          tn=tf_pitch(ii,d1);
+          tn>=0 && tn<=127 ? (
+            outd2=tf_velocity(ii,d2,phrase_gain);
             nmode>0 ? route_mono_note(ii,offs,outst,tn,outd2,1,1) :
                       route_emit_note(ii,offs,outst,tn,outd2,1,1,0);
           );
         ) :
         ((typ==128) || (typ==144 && d2==0)) ? (
           param_track_input(ii,srcch-1,d1,0,1);
-          tn=d1+(transformer_on(ii,1) ? floor(mem[INST_TRANSPOSE_BASE+ii]+0.5) : 0);
-          tn>=0 && tn<=127 && (!transformer_on(ii,2) || note_in_range(ii,tn)) ? (
+          tn=tf_pitch(ii,d1);
+          tn>=0 && tn<=127 ? (
             nmode>0 ? route_mono_note(ii,offs,outst,tn,0,0,1) :
                       route_emit_note(ii,offs,outst,tn,0,0,1,0);
           );
@@ -1294,20 +1356,21 @@ local(ti,gi,kind,asg,value,pending)
   );
 );
 function cc_expression_tick()
-local(j,row,ti,b,asg,value,pending,kind)
+local(j,row,ti,b,asg,value,pending,kind,typ,addr,unsafe)
 (
   j=0;loop(CC_EXTRA,b=cc_cfg(j);mem[b]>0?(
-    row=0;loop(2,ti=cc_ti(j,row);kind=row==0?EXP_T_MOD:PARAM_MOD_CC;
-      asg=floor(mem[exp_assign_addr(ti)]+.5);pending=mem[param_pending_addr(ti)];
+    typ=mem[tf_record(j)];row=0;loop(typ==2?3:typ==6?2:1,
+      ti=cc_ti(j,row);kind=param_kind(ti);asg=floor(mem[exp_assign_addr(ti)]+.5);pending=mem[param_pending_addr(ti)];
       asg>=1 && asg<=CONTROLLERS ? value=param_scale(kind,exp_curve_value(ti,controller_value(asg-1))) : value=pending;
-      value!=-999 ? (mem[b+(row==0?2:1)]=max(0,min(127,value));mem[param_pending_addr(ti)]=-999;);
-      row+=1;
+      value!=-999 ? (
+        unsafe=(typ==1 || typ==2) && mem[PARAM_ACTIVE_BASE+floor(j/(TRANSFORM_SLOTS-1))]>0;
+        unsafe ? mem[param_pending_addr(ti)]=value : (
+          addr=b+(row==0?2:row==1?1:3);mem[addr]=max(param_min(kind),min(param_max(kind),value));mem[param_pending_addr(ti)]=-999;
+        );
+      );row+=1;
     );
   );j+=1;);
 );
-// CC generators are independent of the serial note processors. Active targets are
-// emitted in visible slot order. A duplicate group re-emits on any member change,
-// so the last visible writer always wins, even if only an earlier value changed.
 function cc_route_channel(gi,override)
 local(ch)
 (ch=override>0?override:mem[INST_OUT_BASE+gi]>0?mem[INST_OUT_BASE+gi]:mem[INST_IN_BASE+gi]>0?mem[INST_IN_BASE+gi]:1;
@@ -1322,7 +1385,7 @@ local(gi,k,c,code,index,b,r,ch,cc,value,on,dirty,j,other)
       code=k==TRANSFORM_SLOTS-1?6:k+7;r=cc_record(gi,code);on=0;
       j=0;loop(c,mem[INST_TRANSFORM_TYPE_BASE+gi*TRANSFORM_SLOTS+j]==code?on=1;j+=1;);
       code==6 ? (ch=cc_route_channel(gi,0);cc=mem[PARAM_MOD_CC_BASE+gi];value=mem[INST_MOD_BASE+gi];) : (
-        b=cc_cfg(cc_index(gi,code));on=on && mem[b]>0;ch=cc_route_channel(gi,mem[b+3]);cc=mem[b+1];value=mem[b+2];
+        b=cc_cfg(cc_index(gi,code));on=on && mem[b]>0 && mem[tf_record(cc_index(gi,code))]==6;ch=cc_route_channel(gi,mem[b+3]);cc=mem[b+1];value=mem[b+2];
       );
       mem[r+4]=on && mem[INST_ENABLED_BASE+gi]>.5;mem[r+5]=ch;
       mem[r+6]=max(0,min(127,floor(cc+.5)));mem[r+7]=max(0,min(127,floor(value+.5)));k+=1;
@@ -1334,7 +1397,7 @@ local(gi,k,c,code,index,b,r,ch,cc,value,on,dirty,j,other)
     index+=1;
   );
   gi=0;loop(INSTRUMENTS,k=0;c=max(0,min(TRANSFORM_SLOTS,floor(mem[INST_TRANSFORM_COUNT_BASE+gi])));
-    loop(c,code=mem[INST_TRANSFORM_TYPE_BASE+gi*TRANSFORM_SLOTS+k];code>=6 && code<=11?(
+    loop(c,code=mem[INST_TRANSFORM_TYPE_BASE+gi*TRANSFORM_SLOTS+k];code>=6 && code<=11 && transform_type(gi,code)==6?(
       r=cc_record(gi,code);on=mem[r+4];ch=mem[r+5];cc=mem[r+6];value=mem[r+7];dirty=0;
       j=0;loop(CC_EXTRA+INSTRUMENTS,other=CC_RT_BASE+j*CC_RT_STRIDE;
         // Both old and new targets participate: removing the last writer restores
@@ -1408,9 +1471,10 @@ local(j,n)
   ((gmem[2]==1 && n>0 && n<=WORK_MEM_SIZE) ||
    (gmem[2]==2 && n==SW_LEGACY_PAYLOAD && gmem[IO_PAYLOAD_BASE+WORK_MEM_SIZE]==PARAM_SCHEMA) ||
    (gmem[2]==3 && n==CC_LEGACY_PAYLOAD && gmem[IO_PAYLOAD_BASE+WORK_MEM_SIZE]==PARAM_SCHEMA && gmem[IO_PAYLOAD_BASE+SW_LEGACY_PAYLOAD]==SW_SCHEMA) ||
-   (gmem[2]==IO_SCHEMA && n==PATCH_PAYLOAD_SIZE && gmem[IO_PAYLOAD_BASE+WORK_MEM_SIZE]==PARAM_SCHEMA && gmem[IO_PAYLOAD_BASE+SW_LEGACY_PAYLOAD]==SW_SCHEMA && gmem[IO_PAYLOAD_BASE+CC_LEGACY_PAYLOAD]==IO_SCHEMA)) ? (
+   (gmem[2]==4 && n==TF_LEGACY_PAYLOAD && gmem[IO_PAYLOAD_BASE+WORK_MEM_SIZE]==PARAM_SCHEMA && gmem[IO_PAYLOAD_BASE+SW_LEGACY_PAYLOAD]==SW_SCHEMA && gmem[IO_PAYLOAD_BASE+CC_LEGACY_PAYLOAD]==CC_SCHEMA) ||
+   (gmem[2]==IO_SCHEMA && n==PATCH_PAYLOAD_SIZE && gmem[IO_PAYLOAD_BASE+WORK_MEM_SIZE]==PARAM_SCHEMA && gmem[IO_PAYLOAD_BASE+SW_LEGACY_PAYLOAD]==SW_SCHEMA && gmem[IO_PAYLOAD_BASE+CC_LEGACY_PAYLOAD]==CC_SCHEMA && gmem[IO_PAYLOAD_BASE+TF_LEGACY_PAYLOAD]==IO_SCHEMA)) ? (
     // Patch memory only grows by appending fields, so older JSON patches remain valid prefixes.
-    param_extension_reset();param_runtime_reset();sw_defaults();sw_runtime_reset();cc_defaults();cc_runtime_reset();
+    param_extension_reset();param_runtime_reset();sw_defaults();sw_runtime_reset();cc_defaults();cc_runtime_reset();tf_defaults();tf_runtime_reset();
     j=n;
     n<WORK_MEM_SIZE ? loop(WORK_MEM_SIZE-n, mem[j]=0; j+=1;);
     loop_len_samples=gmem[4];
@@ -2055,6 +2119,64 @@ local(q,si,op,arg,value,b,r,j,k,n,tmp,target,gi,kind,c)
   );
 );
 
+function tf_linear(ti)
+local(j)
+(mem[exp_assign_addr(ti)]=0;mem[exp_count_addr(ti)]=2;j=0;loop(EXP_POINTS,
+ mem[exp_x_addr(ti)+j]=(j==1);mem[exp_y_addr(ti)+j]=(j==1);mem[exp_bend_addr(ti)+j]=0;j+=1;);
+ mem[param_last_addr(ti)]=-999;mem[param_pending_addr(ti)]=-999;);
+function tf_has_code(gi,code)
+local(j,found)
+(j=0;found=0;loop(max(0,min(TRANSFORM_SLOTS,floor(mem[INST_TRANSFORM_COUNT_BASE+gi]))),abs(mem[INST_TRANSFORM_TYPE_BASE+gi*TRANSFORM_SLOTS+j])==code?found=1;j+=1;);found;);
+function tf_submit(gi,op,arg)
+local(ui_q,ui_ok,ui_code)
+(ui_ok=gi>=0 && gi<INSTRUMENTS && ui_tf_queue_write-tf_queue_read<TF_QUEUE_SIZE;ui_ok?(
+ ui_q=TF_QUEUE_BASE+(ui_tf_queue_write%TF_QUEUE_SIZE)*TF_QUEUE_STRIDE;
+ ui_code=op==1?arg:abs(mem[INST_TRANSFORM_TYPE_BASE+gi*TRANSFORM_SLOTS+arg]);
+ mem[ui_q]=gi;mem[ui_q+1]=op;mem[ui_q+2]=ui_code;mem[ui_q+3]=op==1?0:tf_id(gi,ui_code);ui_tf_queue_write+=1;
+ );ui_ok;);
+function tf_queue_process()
+local(q,gi,op,arg,c,code,typ,b,j,idx,ready,limit,targetcode)
+(
+  limit=TF_QUEUE_SIZE;while(tf_queue_read<ui_tf_queue_write && limit>0)(
+    q=TF_QUEUE_BASE+(tf_queue_read%TF_QUEUE_SIZE)*TF_QUEUE_STRIDE;gi=mem[q];op=mem[q+1];arg=mem[q+2];c=max(0,min(TRANSFORM_SLOTS,floor(mem[INST_TRANSFORM_COUNT_BASE+gi])));
+    op!=1 ? (targetcode=arg;arg=-1;j=0;loop(c,abs(mem[INST_TRANSFORM_TYPE_BASE+gi*TRANSFORM_SLOTS+j])==targetcode && tf_id(gi,targetcode)==mem[q+3]?arg=j;j+=1;););
+    code=op==1?arg:arg>=0 && arg<c?abs(mem[INST_TRANSFORM_TYPE_BASE+gi*TRANSFORM_SLOTS+arg]):0;
+    typ=op==1?arg:transform_type(gi,code);ready=(typ==6 || mem[PARAM_ACTIVE_BASE+gi]<=0);
+    ready ? (
+      op==1 && c<TRANSFORM_SLOTS && (arg==1 || arg==2 || arg==4 || arg==6 || !tf_has_code(gi,arg)) ? (
+        code=arg;tf_has_code(gi,arg)?(code=7;while(code<=11 && tf_has_code(gi,code))(code+=1;););
+        code<=11 ? (
+          code>=7 ? (
+            idx=cc_index(gi,code);b=cc_cfg(idx);mem[tf_record(idx)]=arg;
+            mem[b]=mem[CC_CFG_BASE+1];mem[CC_CFG_BASE+1]+=1;
+            mem[b+1]=arg==6?1:0;mem[b+2]=arg==4?1:0;mem[b+3]=arg==2?127:0;
+            j=0;loop(3,tf_linear(cc_ti(idx,j));j+=1;);
+          ) : (
+            code==6?(mem[CC_CFG_BASE+2+gi]=mem[CC_CFG_BASE+1];mem[CC_CFG_BASE+1]+=1;mem[PARAM_MOD_CC_BASE+gi]=1;mem[INST_MOD_BASE+gi]=0;tf_linear(param_ti(gi,EXP_T_MOD));tf_linear(param_ti(gi,PARAM_MOD_CC));):(
+              mem[TF_PRIMARY_IDS+gi*TRANSFORM_TYPES+code-1]=mem[CC_CFG_BASE+1];mem[CC_CFG_BASE+1]+=1;
+              code==1?(mem[INST_TRANSPOSE_BASE+gi]=0;tf_linear(param_ti(gi,PARAM_TRANSPOSE)););
+              code==2?(mem[INST_RANGE_MODE_BASE+gi]=0;mem[INST_RANGE_LOW_BASE+gi]=0;mem[INST_RANGE_HIGH_BASE+gi]=127;j=0;loop(3,tf_linear(param_ti(gi,PARAM_RANGE_MODE+j));j+=1;););
+              code==4?(mem[INST_VEL_BASE+gi]=1;tf_linear(param_ti(gi,EXP_T_VEL)););
+            );
+          );
+          mem[INST_TRANSFORM_TYPE_BASE+gi*TRANSFORM_SLOTS+c]=code;mem[INST_TRANSFORM_COUNT_BASE+gi]=c+1;
+        );
+      );
+      op==2 && arg>=0 && arg<c ? (
+        j=arg;loop(c-arg-1,mem[INST_TRANSFORM_TYPE_BASE+gi*TRANSFORM_SLOTS+j]=mem[INST_TRANSFORM_TYPE_BASE+gi*TRANSFORM_SLOTS+j+1];j+=1;);
+        mem[INST_TRANSFORM_TYPE_BASE+gi*TRANSFORM_SLOTS+c-1]=0;mem[INST_TRANSFORM_COUNT_BASE+gi]=c-1;
+      );
+      op==3 && arg>=0 && arg<c?mem[INST_TRANSFORM_TYPE_BASE+gi*TRANSFORM_SLOTS+arg]*=-1;
+      (op==2 || op==3) && typ==5 ? (
+        arp_release_instrument(gi);j=0;loop(128,mem[ARP_SOURCE_COUNT_BASE+gi*128+j]=0;mem[ARP_HELD_COUNT_BASE+gi*128+j]=0;
+          mem[SW_ARP_PHRASE_BASE+gi*128+j]=0;mem[SW_ARP_PHRASE_SOURCE_BASE+gi*128+j]=0;j+=1;);
+      );
+      tf_queue_read+=1;
+    ) : limit=0;
+    limit-=1;
+  );
+);
+
 restore_after_init ? (
   restore_after_init=0;
   restore_current_patch_raw();
@@ -2075,7 +2197,7 @@ gmem[0]==3 ? external_patch_apply();
 gmem[0]==4 ? (io_status=4; gmem[0]=0;);
 gmem[0]==5 ? (io_status=5; gmem[0]=0;);
 
-sw_queue_process();
+sw_queue_process();tf_queue_process();
 param_expression_tick();cc_expression_tick();
 // SAVE includes safe pending parameter edits as well as queued switch edits.
 patch_save_request>0 && gmem[0]==0 ? (save_patch_file_snapshot(patch_save_request);patch_save_request=0;);
@@ -2529,7 +2651,7 @@ edit_name_type>0 && keychar>0 ? (
 gfx_set(.055,.055,.055,1);gfx_rect(12,10,1010,48,1);
 gfx_set(.42,.42,.42,1);gfx_rect(12,10,1010,48,0);
 gfx_setfont(1,"Courier New",22,'b');gfx_set(.95,.95,.08,1);
-gfx_x=24;gfx_y=20;gfx_drawstr("MIDI BAD MOTHERFUCKER V.1.24.0");
+gfx_x=24;gfx_y=20;gfx_drawstr("MIDI BAD MOTHERFUCKER V.1.25.0");
 gfx_setfont(1,"Courier New",14,'b');gfx_set(.68,.68,.68,1);
 gfx_x=760;gfx_y=25;gfx_drawstr("ANONYMALZ LIVE ENGINE");
 
@@ -2984,7 +3106,7 @@ local(ui_g,ui_k,ui_c,ui_other,ui_ch,ui_cc,ui_b,ui_ob,ui_targetch,ui_targetcc,ui_
   ui_ch=cc_ui_route_channel(gi,ui_b<0?0:mem[ui_b+3]);ui_cc=ui_b<0?mem[PARAM_MOD_CC_BASE+gi]:mem[ui_b+1];
   ui_found=0;ui_g=0;loop(INSTRUMENTS,ui_k=0;ui_c=max(0,min(TRANSFORM_SLOTS,mem[INST_TRANSFORM_COUNT_BASE+ui_g]));
     loop(ui_c,ui_other=mem[INST_TRANSFORM_TYPE_BASE+ui_g*TRANSFORM_SLOTS+ui_k];
-      ui_other>=6 && ui_other<=11 && (ui_g!=gi || ui_other!=ui_code) && mem[INST_ENABLED_BASE+ui_g]>.5?(
+      ui_other>=6 && ui_other<=11 && transform_type(ui_g,ui_other)==6 && (ui_g!=gi || ui_other!=ui_code) && mem[INST_ENABLED_BASE+ui_g]>.5?(
         ui_ob=ui_other==6?-1:cc_cfg(cc_index(ui_g,ui_other));
         ui_targetch=cc_ui_route_channel(ui_g,ui_ob<0?0:mem[ui_ob+3]);ui_targetcc=ui_ob<0?mem[PARAM_MOD_CC_BASE+ui_g]:mem[ui_ob+1];
         ui_targetch==ui_ch && ui_targetcc==ui_cc?ui_found=1;
@@ -2993,51 +3115,9 @@ local(ui_g,ui_k,ui_c,ui_other,ui_ch,ui_cc,ui_b,ui_ob,ui_targetch,ui_targetcc,ui_
   );ui_found;
 );
 
-function transform_add(gi, ui_typ)
-local(c,ui_code,ui_j,ui_used,ui_index,ui_b)
-(
-  c=max(0,min(TRANSFORM_SLOTS,floor(mem[INST_TRANSFORM_COUNT_BASE+gi]+0.5)));
-  (ui_typ==6 || !transform_has(gi,ui_typ)) && c<TRANSFORM_SLOTS ? (
-    ui_code=ui_typ;
-    ui_typ==6 && !transform_has(gi,6) ? (
-      mem[CC_CFG_BASE+2+gi]=mem[CC_CFG_BASE+1];mem[CC_CFG_BASE+1]+=1;
-      mem[PARAM_MOD_CC_BASE+gi]=1;mem[INST_MOD_BASE+gi]=0;
-      ui_j=0;loop(2,ui_index=param_ti(gi,ui_j==0?EXP_T_MOD:PARAM_MOD_CC);
-        mem[exp_assign_addr(ui_index)]=0;curve_factory(ui_index,3);ui_j+=1;);
-    );
-    ui_typ==6 && transform_has(gi,6) ? (
-      ui_code=7;ui_used=1;while(ui_code<=11 && ui_used)(ui_used=transform_has(gi,ui_code);ui_used?ui_code+=1;);
-      ui_code<=11 ? (
-        ui_index=cc_index(gi,ui_code);ui_b=cc_cfg(ui_index);
-        mem[ui_b]=mem[CC_CFG_BASE+1];mem[CC_CFG_BASE+1]+=1;mem[ui_b+1]=1;mem[ui_b+2]=0;mem[ui_b+3]=0;
-        ui_j=0;loop(2,mem[exp_assign_addr(cc_ti(ui_index,ui_j))]=0;curve_factory(cc_ti(ui_index,ui_j),3);ui_j+=1;);
-      );
-    );
-    mem[INST_TRANSFORM_TYPE_BASE+gi*TRANSFORM_SLOTS+c]=ui_code;
-    mem[INST_TRANSFORM_COUNT_BASE+gi]=c+1;
-  );
-);
-
-function transform_remove_slot(gi, slot)
-local(c,ui_j,ui_removed)
-(
-  c=max(0,min(TRANSFORM_SLOTS,floor(mem[INST_TRANSFORM_COUNT_BASE+gi]+0.5)));
-  slot>=0 && slot<c ? (
-    ui_removed=abs(mem[INST_TRANSFORM_TYPE_BASE+gi*TRANSFORM_SLOTS+slot]);
-    // An open curve cannot outlive the module whose storage it edits.
-    (ui_removed==6 && (exp_editor_ti==param_ti(gi,EXP_T_MOD) || exp_editor_ti==param_ti(gi,PARAM_MOD_CC))) ||
-    (ui_removed>=7 && exp_editor_ti>=PARAM_TOTAL && floor((exp_editor_ti-PARAM_TOTAL)/2)==cc_index(gi,ui_removed)) ? (exp_editor_ti=-1;ui_capture_ti=-1;);
-    ui_j=slot;
-    loop(c-slot-1,
-      mem[INST_TRANSFORM_TYPE_BASE+gi*TRANSFORM_SLOTS+ui_j]=mem[INST_TRANSFORM_TYPE_BASE+gi*TRANSFORM_SLOTS+ui_j+1];
-      ui_j+=1;
-    );
-    mem[INST_TRANSFORM_TYPE_BASE+gi*TRANSFORM_SLOTS+c-1]=0;
-    mem[INST_TRANSFORM_COUNT_BASE+gi]=c-1;
-    // CC-only removal has no note ownership and needs no global PANIC.
-    ui_removed<6 ? panic_pending=1;
-  );
-);
+function transform_add(gi, ui_typ) (tf_submit(gi,1,ui_typ););
+function transform_remove_slot(gi,slot)
+(tf_submit(gi,2,slot);exp_editor_ti=-1;ui_capture_ti=-1;);
 
 function draw_transform_block(x,y,w,h,title,active)
 local(bx,by,bw,bh,ttl,act)
@@ -3050,7 +3130,7 @@ local(bx,by,bw,bh,ttl,act)
 );
 
 function draw_instrument_row(gi, iy)
-local(basey,boxh,nx,nw,vx,vw,wirey,tx,bw,gap,c,ui_k,rawtyp,ui_typ,ti,addx,addy,subtitle)
+local(basey,boxh,nx,nw,vx,vw,wirey,tx,bw,gap,c,ui_k,rawtyp,ui_code,ui_typ,ti,addx,addy,subtitle)
 (
   boxh=28;basey=iy;
   gfx_set(.075,.075,.075,1);gfx_rect(12,basey-5,1010,116,1);
@@ -3086,7 +3166,7 @@ local(basey,boxh,nx,nw,vx,vw,wirey,tx,bw,gap,c,ui_k,rawtyp,ui_typ,ti,addx,addy,s
   wirey=basey+72;gfx_set(.38,.38,.38,1);gfx_line(34,wirey,994,wirey);gfx_set(.62,.62,.62,1);gfx_circle(34,wirey,3,1,1);gfx_circle(994,wirey,3,1,1);
   tx=54;bw=132;gap=18;c=max(0,min(TRANSFORM_SLOTS,floor(mem[INST_TRANSFORM_COUNT_BASE+gi]+.5)));ui_k=0;
   loop(c,
-    rawtyp=floor(mem[INST_TRANSFORM_TYPE_BASE+gi*TRANSFORM_SLOTS+ui_k]);ui_typ=abs(rawtyp);
+    rawtyp=floor(mem[INST_TRANSFORM_TYPE_BASE+gi*TRANSFORM_SLOTS+ui_k]);ui_code=abs(rawtyp);ui_typ=transform_type(gi,ui_code);
     // Selected and bypassed states are independent.
     gfx_set(selected_transform_gi==gi && selected_transform_slot==ui_k ? .32 : .16,.16,.16,1);
     gfx_rect(tx,wirey-22,bw,44,1);
@@ -3095,19 +3175,19 @@ local(basey,boxh,nx,nw,vx,vw,wirey,tx,bw,gap,c,ui_k,rawtyp,ui_typ,ti,addx,addy,s
     gfx_setfont(1,"Arial",9);gfx_set(.88,.88,.88,1);
     centered_text(tx,wirey-17,bw,12,ui_typ==1?"TRANSPOSE":ui_typ==2?"NOTE RANGE":ui_typ==3?"POLYPHONY":ui_typ==4?"VELOCITY":ui_typ==5?"ARPEGGIATOR":"CC / MOD");
     gfx_setfont(1,"Arial",10);gfx_set(.92,.92,.20,1);
-    ui_typ==1 ? (gfx_x=tx+42;gfx_y=wirey-2;gfx_drawnumber(mem[INST_TRANSPOSE_BASE+gi],0);gfx_drawstr(" ui_st"););
-    ui_typ==2 ? centered_text(tx,wirey-2,bw,12,mem[INST_RANGE_MODE_BASE+gi]<.5?"FULL":mem[INST_RANGE_MODE_BASE+gi]<1.5?"DOWN":mem[INST_RANGE_MODE_BASE+gi]<2.5?"UP":"BOTH");
+    ui_typ==1 ? (gfx_x=tx+42;gfx_y=wirey-2;gfx_drawnumber(ui_code>=7?mem[cc_cfg(cc_index(gi,ui_code))+2]:mem[INST_TRANSPOSE_BASE+gi],0);gfx_drawstr(" st"););
+    ui_typ==2 ? centered_text(tx,wirey-2,bw,12,(ui_code>=7?mem[cc_cfg(cc_index(gi,ui_code))+2]:mem[INST_RANGE_MODE_BASE+gi])<.5?"FULL":(ui_code>=7?mem[cc_cfg(cc_index(gi,ui_code))+2]:mem[INST_RANGE_MODE_BASE+gi])<1.5?"DOWN":(ui_code>=7?mem[cc_cfg(cc_index(gi,ui_code))+2]:mem[INST_RANGE_MODE_BASE+gi])<2.5?"UP":"BOTH");
     ui_typ==3 ? centered_text(tx,wirey-2,bw,12,mem[INST_NOTE_MODE_BASE+gi]<.5?"POLY":mem[INST_NOTE_MODE_BASE+gi]<1.5?"BASS":mem[INST_NOTE_MODE_BASE+gi]<2.5?"LAST":"LEGATO");
-    ui_typ==4 ? (gfx_set(.24,.24,.24,1);gfx_rect(tx+10,wirey-1,bw-20,12,1);gfx_set(.70,.70,.70,1);gfx_rect(tx+10,wirey-1,(bw-20)*max(0,min(1,(mem[INST_VEL_BASE+gi]-.2)/2.8)),12,1););
+    ui_typ==4 ? (gfx_set(.24,.24,.24,1);gfx_rect(tx+10,wirey-1,bw-20,12,1);gfx_set(.70,.70,.70,1);gfx_rect(tx+10,wirey-1,(bw-20)*max(0,min(1,((ui_code>=7?mem[cc_cfg(cc_index(gi,ui_code))+2]:mem[INST_VEL_BASE+gi])-.2)/2.8)),12,1););
     ui_typ==5 ? centered_text(tx,wirey-2,bw,12,mem[INST_ARP_MODE_BASE+gi]<.5?"RANDOM":mem[INST_ARP_MODE_BASE+gi]<1.5?"UP":"DOWN");
-    ui_typ>=6 ? (gfx_x=tx+35;gfx_y=wirey-2;gfx_drawstr("CC");gfx_drawnumber(ui_typ==6?mem[PARAM_MOD_CC_BASE+gi]:mem[cc_cfg(cc_index(gi,ui_typ))+1],0););
+    ui_typ>=6 ? (gfx_x=tx+35;gfx_y=wirey-2;gfx_drawstr("CC");gfx_drawnumber(ui_code==6?mem[PARAM_MOD_CC_BASE+gi]:mem[cc_cfg(cc_index(gi,ui_code))+1],0););
     rawtyp<0 ? (gfx_set(.05,.05,.05,.76);gfx_rect(tx+1,wirey-21,bw-2,42,1););
     gfx_setfont(1,"Arial",11);gfx_set(rawtyp>0?.92:.42,rawtyp>0?.92:.42,rawtyp>0?.92:.42,1);
     gfx_x=tx+6;gfx_y=wirey-20;gfx_drawstr(rawtyp>0?"O":"-");
     gfx_setfont(1,"Arial",9);gfx_set(.75,.75,.75,1);gfx_x=tx+bw-12;gfx_y=wirey-19;gfx_drawstr("x");
     // Click anywhere on the block except power and remove.
     (transform_menu_gi<0 && !options_open && controller_assign_ti<0 && hit(tx+24,wirey-22,bw-42,44))?(selected_transform_gi=gi;selected_transform_slot=ui_k;exp_editor_ti=-1;ui_capture_ti=-1;exp_drag_point=-1;exp_drag_segment=-1;exp_bend_segment=-1;);
-    (transform_menu_gi<0 && !options_open && controller_assign_ti<0 && hit(tx+2,wirey-22,22,19))?(mem[INST_TRANSFORM_TYPE_BASE+gi*TRANSFORM_SLOTS+ui_k]=-rawtyp;ui_typ<6?panic_pending=1;);
+    (transform_menu_gi<0 && !options_open && controller_assign_ti<0 && hit(tx+2,wirey-22,22,19))?(tf_submit(gi,3,ui_k););
     (transform_menu_gi<0 && !options_open && controller_assign_ti<0 && hit(tx+bw-18,wirey-22,18,19))?(transform_remove_slot(gi,ui_k);selected_transform_gi=-1;selected_transform_slot=-1;c-=1;ui_k-=1;);
     tx+=bw+gap;ui_k+=1;
   );
@@ -3131,7 +3211,7 @@ local(c,ui_k,tx,bw,gap,addx,choicey,cw,ui_close)
     ui_close ? transform_menu_gi=-1;
     gfx_setfont(1,"Arial",9);ui_k=1;
     loop(TRANSFORM_TYPES,
-      transform_menu_gi==gi && (ui_k==6 || !transform_has(gi,ui_k))?(
+      transform_menu_gi==gi && (ui_k==1 || ui_k==2 || ui_k==4 || ui_k==6 || !transform_has(gi,ui_k))?(
         smallbtn(addx+4,choicey+22+(ui_k-1)*24,cw-8,20,ui_k==1?"TRANSPOSE":ui_k==2?"NOTE RANGE":ui_k==3?"POLYPHONY":ui_k==4?"VELOCITY":ui_k==5?"ARPEGGIATOR":"CC / MOD",0);
         hit(addx+4,choicey+22+(ui_k-1)*24,cw-8,20)?(transform_add(gi,ui_k);transform_menu_gi=-1;);
       );
@@ -3142,7 +3222,8 @@ local(c,ui_k,tx,bw,gap,addx,choicey,cw,ui_close)
 
 inst_y=190 + PHRASES_PER_PAGE*38 + 18;
 gfx_setfont(1,"Arial",16); gfx_set(0.72,0.72,0.72,1); gfx_x=20; gfx_y=inst_y; gfx_drawstr("INSTRUMENTS / TRANSFORMER CHAINS");
-gfx_setfont(1,"Arial",9); gfx_set(0.46,0.46,0.46,1); gfx_x=330; gfx_y=inst_y+3; gfx_drawstr("CC: left > right / notes: fixed routing");
+gfx_setfont(1,"Arial",9); gfx_set(0.46,0.46,0.46,1); gfx_x=330; gfx_y=inst_y+3; gfx_drawstr("Stacked notes: serial / CC: left > right");
+tf_queue_read<ui_tf_queue_write ? (gfx_setfont(1,"Arial",9);gfx_set(1,.6,.15,1);gfx_x=735;gfx_y=inst_y+3;gfx_drawstr("WAITING FOR NOTE RELEASE"););
 inst_y+=30;
 draw_instrument_row(0,inst_y);
 draw_instrument_row(1,inst_y+124);
@@ -3163,7 +3244,7 @@ selected_transform_gi>=0 && selected_transform_gi<INSTRUMENTS ? (
   eg=selected_transform_gi;es=selected_transform_slot;
   ec=max(0,min(TRANSFORM_SLOTS,floor(mem[INST_TRANSFORM_COUNT_BASE+eg]+.5)));
   es>=0 && es<ec ? (
-    etyp=abs(floor(mem[INST_TRANSFORM_TYPE_BASE+eg*TRANSFORM_SLOTS+es]));
+    ecode=abs(floor(mem[INST_TRANSFORM_TYPE_BASE+eg*TRANSFORM_SLOTS+es]));etyp=transform_type(eg,ecode);
     gfx_setfont(1,"Arial",11);gfx_set(.95,.95,.15,1);
     gfx_x=24;gfx_y=exp_y+34;gfx_drawstr("INSTRUMENT ");gfx_drawnumber(eg+1,0);gfx_drawstr(" / ");
     gfx_drawstr(etyp==1?"TRANSPOSE":etyp==2?"NOTE RANGE":etyp==3?"POLYPHONY":etyp==4?"VELOCITY":etyp==5?"ARPEGGIATOR":"CC / MOD");
@@ -3179,21 +3260,21 @@ selected_transform_gi>=0 && selected_transform_gi<INSTRUMENTS ? (
         controller_assign_ti=arp_ui_ti;controller_assign_x=mouse_x;controller_assign_y=mouse_y;ui_modal=1;ui_capture_ti=-1;
       );
     );
-    etyp>=6 && cc_ui_duplicate(eg,etyp) ? (
+    etyp==6 && cc_ui_duplicate(eg,ecode) ? (
       gfx_setfont(1,"Arial",9);gfx_set(1,.55,.15,1);gfx_x=28;gfx_y=exp_y+181;
       gfx_drawstr("DUPLICATE CC / CHANNEL: last active block left-to-right wins.");
     );
-    etyp>=6 ? (gfx_setfont(1,"Arial",9);gfx_set(.7,.7,.7,1);gfx_x=490;gfx_y=exp_y+34;gfx_drawstr("ID ");gfx_drawnumber(cc_id(eg,etyp),0););
+    (ecode>=7 || etyp==6) ? (gfx_setfont(1,"Arial",9);gfx_set(.7,.7,.7,1);gfx_x=490;gfx_y=exp_y+34;gfx_drawstr("ID ");gfx_drawnumber(tf_id(eg,ecode),0););
     // Shared slider rows: label at 28, rail at 125..400, value at 420.
     // Fixed columns prevent labels and values from overlapping the controls.
-    er=0;en=etyp==2 ? 3 : etyp==5 ? 4 : etyp>=7 ? 3 : etyp==6 ? 2 : 1;
+    er=0;en=etyp==2 ? 3 : etyp==5 ? 4 : etyp==6?(ecode>=7?3:2):1;
     loop(en,
       ey=exp_y+60+er*34;
-      ekind=etyp>=7?(er==0?EXP_T_MOD:PARAM_MOD_CC):param_editor_kind(etyp,er);
-      ui_eti=etyp>=7 && er<2?cc_ti(cc_index(eg,etyp),er):param_ti(eg,ekind);
-      evbase=etyp>=7?cc_cfg(cc_index(eg,etyp))+(er==0?2:er==1?1:3):param_addr(eg,ekind);
-      emin=param_min(ekind);emax=etyp>=7 && er==2?16:param_max(ekind);
-      estep=param_step(ekind);ename=etyp>=7 && er==2?"OUT CH / 0 AUTO":param_name(ekind);
+      ekind=param_editor_kind(etyp,er);
+      ui_eti=ecode>=7?cc_ti(cc_index(eg,ecode),er):param_ti(eg,ekind);
+      evbase=ecode>=7?cc_cfg(cc_index(eg,ecode))+(er==0?2:er==1?1:3):param_addr(eg,ekind);
+      emin=param_min(ekind);emax=ecode>=7 && etyp==6 && er==2?16:param_max(ekind);
+      estep=param_step(ekind);ename=ecode>=7 && etyp==6 && er==2?"OUT CH / 0 AUTO":param_name(ekind);
       eval=max(emin,min(emax,mem[evbase]));
       gfx_setfont(1,"Arial",10);gfx_set(.80,.80,.80,1);gfx_x=28;gfx_y=ey+4;gfx_drawstr(ename);
       gfx_set(.22,.22,.22,1);gfx_rect(125,ey+2,275,18,1);
@@ -3205,26 +3286,26 @@ selected_transform_gi>=0 && selected_transform_gi<INSTRUMENTS ? (
       etyp==5 && er==3 ? gfx_drawstr(eval>.5?"ON":"OFF") :
       (gfx_drawnumber(eval,estep<1?2:0);etyp==5 && er==2?gfx_drawstr(" x100"););
       // Persistent identity is derived only from instrument/kind, never row/slot.
-      !(etyp>=7 && er==2) && !ui_modal && (mouse_cap&2) && !(last_mouse_cap&2) &&
+      !(ecode>=7 && etyp==6 && er==2) && !ui_modal && (mouse_cap&2) && !(last_mouse_cap&2) &&
       mouse_x>=125 && mouse_x<400 && mouse_y>=ey-4 && mouse_y<ey+24 ? (
         controller_assign_ti=ui_eti;controller_assign_x=mouse_x;controller_assign_y=mouse_y;
         ui_modal=1;ui_capture_ti=-1;
       );
-      !(etyp>=7 && er==2) ? draw_exp_badge(ui_eti,125,ey+2,275,18);
-      !(etyp>=7 && er==2) && mem[exp_assign_addr(ui_eti)]>0 ? (
+      !(ecode>=7 && etyp==6 && er==2) ? draw_exp_badge(ui_eti,125,ey+2,275,18);
+      !(ecode>=7 && etyp==6 && er==2) && mem[exp_assign_addr(ui_eti)]>0 ? (
         gfx_setfont(1,"Arial",9);gfx_set(.95,.85,.15,1);gfx_x=507;gfx_y=ey+4;
         gfx_drawstr(controller_name(mem[exp_assign_addr(ui_eti)]-1));
       );
-      etyp>=7 && er==2 ? ui_eti=UI_PARAM_TOTAL+cc_index(eg,etyp);
+      ecode>=7 && etyp==6 && er==2 ? ui_eti=UI_PARAM_TOTAL+cc_index(eg,ecode);
       !ui_modal && hit(125,ey-4,275,28) ? (
-        !(etyp>=7 && er==2) && mem[exp_assign_addr(ui_eti)]>0 ? (
+        !(ecode>=7 && etyp==6 && er==2) && mem[exp_assign_addr(ui_eti)]>0 ? (
           exp_editor_ti=ui_eti;exp_drag_point=-1;exp_drag_segment=-1;exp_bend_segment=-1;
         ) : ui_capture_ti=ui_eti;
       );
       !ui_modal && mouse_cap&1 && ui_capture_ti==ui_eti ? (
-        newv=etyp>=7 && er==2?floor(16*max(0,min(1,(mouse_x-125)/275))+.5):param_scale(ekind,max(0,min(1,(mouse_x-125)/275)));
+        newv=ecode>=7 && etyp==6 && er==2?floor(16*max(0,min(1,(mouse_x-125)/275))+.5):param_scale(ekind,max(0,min(1,(mouse_x-125)/275)));
         // Configuration only; MIDI side effects occur exclusively in @block.
-        etyp>=7 && er==2?mem[evbase]=newv:mem[param_pending_addr(ui_eti)]=newv;
+        ecode>=7 && etyp==6 && er==2?mem[evbase]=newv:mem[param_pending_addr(ui_eti)]=newv;
       );
       er+=1;
     );

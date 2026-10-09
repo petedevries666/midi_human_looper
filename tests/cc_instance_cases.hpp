@@ -82,7 +82,9 @@ static void cc_instance_tests(Host &h) {
   cc_expect(cc_block(h), {{177, 74, 90}, {177, 74, 40}, {177, 74, 60}},
             "duplicate targets are deterministic last visible writer wins");
   h.eq("cc_ui_duplicate(0,6)", 1, "duplicate warning recognizes active target");
-  h.run("transform_add(1,6);mem[INST_ENABLED_BASE+1]=1;mem[INST_OUT_BASE+1]=2;"
+  h.run("transform_add(1,6);");
+  cc_block(h);
+  h.run("mem[INST_ENABLED_BASE+1]=1;mem[INST_OUT_BASE+1]=2;"
         "mem[PARAM_MOD_CC_BASE+1]=74;mem[INST_MOD_BASE+1]=10;");
   cc_expect(cc_block(h),
             {{177, 74, 90}, {177, 74, 40}, {177, 74, 60}, {177, 74, 10}},
@@ -168,7 +170,7 @@ static void cc_instance_tests(Host &h) {
        "SAVE snapshot includes unapplied extra CC rail edit");
   h.run("gmem[0]=0;");
   // Stateful CC cleanup uses the actual old destination; no blanket note panic.
-  h.run("transform_add(0,6);mem[INST_TRANSFORM_COUNT_BASE]=2;"
+  h.run("mem[INST_TRANSFORM_COUNT_BASE]=2;"
         "mem[INST_TRANSFORM_TYPE_BASE]=6;mem[INST_TRANSFORM_TYPE_BASE+1]=7;"
         "mem[cc_cfg(0)]=99;mem[cc_cfg(0)+1]=64;mem[cc_cfg(0)+2]=127;"
         "mem[cc_cfg(0)+3]=5;panic_pending=0;cc_runtime_reset();");
@@ -186,6 +188,7 @@ static void cc_instance_tests(Host &h) {
   cc_expect(h.events(), {{129, 60, 0}},
             "live Note Off stays paired after CC removal");
   h.run("transform_add(0,6);");
+  cc_block(h);
   check(h.eval("mem[cc_cfg(0)]") != 99,
         "reused storage gets a new creation ID");
   h.eq("mem[exp_assign_addr(cc_ti(0,0))]", 0,
@@ -194,6 +197,7 @@ static void cc_instance_tests(Host &h) {
   // truncated.
   h.run("transform_add(0,6);transform_add(0,6);transform_add(0,6);"
         "transform_add(0,6);transform_add(0,6);");
+  cc_block(h);
   h.eq("mem[INST_TRANSFORM_COUNT_BASE]", 6,
        "six CC instance capacity enforced");
   check(h.eval("CC_PARAM_PENDING_BASE+CC_EXTRA*2") < 8388608,

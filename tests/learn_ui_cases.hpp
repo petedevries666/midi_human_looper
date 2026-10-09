@@ -216,6 +216,12 @@ static void learn_ui_tests(Host &h) {
         "mem[INST_TRANSFORM_TYPE_BASE+1]=7;mem[cc_cfg(0)]=50;"
         "mem[CC_CFG_BASE+1]=51;mem[cc_cfg(0)+1]=71;mem[cc_cfg(0)+2]=64;"
         "mem[cc_cfg(0)+3]=12;mem[exp_bend_addr(cc_ti(0,0))]=.25;");
+  h.run("i_add();transform_add(3,6);transform_add(3,6);");
+  h.block();
+  h.events();
+  h.run("mem[engine_addr(INST_LEVEL_BASE,3)]=93;mem[cc_cfg(15)+1]=76;mem[cc_"
+        "cfg(15)+2]=81;"
+        "mem[exp_bend_addr(param_ti(3,EXP_T_LEVEL))]=-.375;");
   // Exercise the real SAVE button while an assignment edit is still queued.
   h.run("ui_scroll=0;mem[sw_cfg(0)]=1;sw_submit(0,1,1,74);mem[sw_cfg(0)+SW_"
         "NAME]=86;mem[sw_cfg(1)+SW_NAME]=67;");
@@ -252,7 +258,12 @@ static void learn_ui_tests(Host &h) {
     file << "],\"switch_tail_offset\":" << int(h.val("SW_LEGACY_PAYLOAD"))
          << ",\"cc_tail_offset\":" << int(h.val("CC_LEGACY_PAYLOAD"))
          << ",\"dynamic_switch_tail_offset\":"
-         << int(h.val("DS_LEGACY_PAYLOAD")) << "}";
+         << int(h.val("DS_LEGACY_PAYLOAD"))
+         << ",\"instrument_tail_offset\":" << int(h.val("I_LEGACY_PAYLOAD"))
+         << ",\"instrument_level_offset\":"
+         << int(h.eval("I_LEGACY_PAYLOAD+param_addr(3,EXP_T_LEVEL)-I_CFG_BASE"))
+         << ",\"instrument_cc_offset\":"
+         << int(h.eval("I_LEGACY_PAYLOAD+cc_cfg(15)-I_CFG_BASE")) << "}";
   }
   h.run("sw_defaults();gmem[0]=3;");
   h.block();

@@ -1,5 +1,11 @@
 # MIDI Human Looper: release history
 
+v1.27.0 (modular UI stage 4):
+- Dynamic full Instrument panels, ADD, confirmed X deletion and fresh stable IDs.
+- Eight-panel DSP collection with independent routing, expression and Transformers.
+- Targeted note cleanup, shared destination ownership and stale command protection.
+- Schema 7 appends configuration/banks while all legacy layouts remain frozen.
+
 v1.26.0 (modular UI stage 3):
 - Sparse sixteen-switch engine collection, compact cards, ADD/EDIT and safe deletion.
 - Single draft editor: DONE commits, Cancel/dismissal discards settings and Learn.

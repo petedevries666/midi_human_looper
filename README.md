@@ -145,3 +145,5 @@ Compact cards replace the permanent four-switch panel. ADD/EDIT opens one draft
 editor; DONE commits, while Cancel or dismissal discards edits and cancels Learn.
 The engine and patch banks support sixteen independent switches with stable IDs.
 See [workflow and persistence](docs/dynamic-smart-switches.md).
+
+Dynamic Instrument panels and schema-7 compatibility: [implementation notes](docs/dynamic-instruments.md).

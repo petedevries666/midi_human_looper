@@ -1,0 +1,408 @@
+{
+  "contractVersion": 1,
+  "parameters": [
+    {
+      "id": "velocity",
+      "engineKind": 0,
+      "label": "VELOCITY",
+      "valueType": "float",
+      "min": 0.2,
+      "max": 3,
+      "default": 1,
+      "step": 0.01,
+      "unit": "\u00d7",
+      "normalizedConversion": "linear_quantized",
+      "assignmentEligible": true,
+      "curveSupport": true,
+      "serializationVersion": 1
+    },
+    {
+      "id": "level",
+      "engineKind": 1,
+      "label": "VOLUME",
+      "valueType": "int",
+      "min": 0,
+      "max": 127,
+      "default": 100,
+      "step": 1,
+      "unit": "",
+      "normalizedConversion": "linear_quantized",
+      "assignmentEligible": true,
+      "curveSupport": true,
+      "serializationVersion": 1,
+      "engineField": "level"
+    },
+    {
+      "id": "mod_level",
+      "engineKind": 2,
+      "label": "MOD LEVEL",
+      "valueType": "int",
+      "min": 0,
+      "max": 127,
+      "default": 0,
+      "step": 1,
+      "unit": "",
+      "normalizedConversion": "linear_quantized",
+      "assignmentEligible": true,
+      "curveSupport": true,
+      "serializationVersion": 1
+    },
+    {
+      "id": "arp_enabled",
+      "engineKind": 3,
+      "label": "ARP ENABLED",
+      "valueType": "toggle",
+      "min": 0,
+      "max": 1,
+      "default": 0,
+      "step": 1,
+      "unit": "",
+      "normalizedConversion": "equal_bins",
+      "assignmentEligible": true,
+      "curveSupport": true,
+      "serializationVersion": 1
+    },
+    {
+      "id": "arp_mode",
+      "engineKind": 4,
+      "label": "MODE",
+      "valueType": "enum",
+      "min": 0,
+      "max": 2,
+      "default": 0,
+      "step": 1,
+      "unit": "",
+      "normalizedConversion": "equal_bins",
+      "assignmentEligible": true,
+      "curveSupport": true,
+      "serializationVersion": 1
+    },
+    {
+      "id": "arp_rate",
+      "engineKind": 5,
+      "label": "RATE",
+      "valueType": "float",
+      "min": 0.25,
+      "max": 16,
+      "default": 1,
+      "step": 0.25,
+      "unit": "\u00d7",
+      "normalizedConversion": "linear_quantized",
+      "assignmentEligible": true,
+      "curveSupport": true,
+      "serializationVersion": 1
+    },
+    {
+      "id": "arp_gate",
+      "engineKind": 6,
+      "label": "GATE",
+      "valueType": "float",
+      "min": 0.02,
+      "max": 1,
+      "default": 0.5,
+      "step": 0.01,
+      "unit": "",
+      "normalizedConversion": "linear_quantized",
+      "assignmentEligible": true,
+      "curveSupport": true,
+      "serializationVersion": 1
+    },
+    {
+      "id": "transpose",
+      "engineKind": 7,
+      "label": "SEMITONES",
+      "valueType": "int",
+      "min": -48,
+      "max": 48,
+      "default": 0,
+      "step": 1,
+      "unit": "st",
+      "normalizedConversion": "linear_quantized",
+      "assignmentEligible": true,
+      "curveSupport": true,
+      "serializationVersion": 1
+    },
+    {
+      "id": "range_mode",
+      "engineKind": 8,
+      "label": "RANGE MODE",
+      "valueType": "enum",
+      "min": 0,
+      "max": 3,
+      "default": 0,
+      "step": 1,
+      "unit": "",
+      "normalizedConversion": "equal_bins",
+      "assignmentEligible": true,
+      "curveSupport": true,
+      "serializationVersion": 1
+    },
+    {
+      "id": "range_low",
+      "engineKind": 9,
+      "label": "LOW NOTE",
+      "valueType": "int",
+      "min": 0,
+      "max": 127,
+      "default": 0,
+      "step": 1,
+      "unit": "",
+      "normalizedConversion": "linear_quantized",
+      "assignmentEligible": true,
+      "curveSupport": true,
+      "serializationVersion": 1
+    },
+    {
+      "id": "range_high",
+      "engineKind": 10,
+      "label": "HIGH NOTE",
+      "valueType": "int",
+      "min": 0,
+      "max": 127,
+      "default": 127,
+      "step": 1,
+      "unit": "",
+      "normalizedConversion": "linear_quantized",
+      "assignmentEligible": true,
+      "curveSupport": true,
+      "serializationVersion": 1
+    },
+    {
+      "id": "note_mode",
+      "engineKind": 11,
+      "label": "NOTE MODE",
+      "valueType": "enum",
+      "min": 0,
+      "max": 3,
+      "default": 0,
+      "step": 1,
+      "unit": "",
+      "normalizedConversion": "equal_bins",
+      "assignmentEligible": true,
+      "curveSupport": true,
+      "serializationVersion": 1
+    },
+    {
+      "id": "arp_hold",
+      "engineKind": 12,
+      "label": "HOLD",
+      "valueType": "toggle",
+      "min": 0,
+      "max": 1,
+      "default": 0,
+      "step": 1,
+      "unit": "",
+      "normalizedConversion": "equal_bins",
+      "assignmentEligible": true,
+      "curveSupport": true,
+      "serializationVersion": 1
+    },
+    {
+      "id": "cc_number",
+      "engineKind": 13,
+      "label": "CC NUMBER",
+      "valueType": "int",
+      "min": 0,
+      "max": 127,
+      "default": 1,
+      "step": 1,
+      "unit": "",
+      "normalizedConversion": "linear_quantized",
+      "assignmentEligible": true,
+      "curveSupport": true,
+      "serializationVersion": 1
+    },
+    {
+      "id": "enabled",
+      "label": "ENABLED",
+      "engineField": "enabled",
+      "engineKind": -1,
+      "valueType": "toggle",
+      "min": 0,
+      "max": 1,
+      "default": 0,
+      "step": 1,
+      "unit": "",
+      "normalizedConversion": "equal_bins",
+      "assignmentEligible": false,
+      "curveSupport": false,
+      "serializationVersion": 1
+    },
+    {
+      "id": "input",
+      "label": "MIDI IN",
+      "engineField": "input",
+      "engineKind": -2,
+      "valueType": "int",
+      "min": 0,
+      "max": 16,
+      "default": 0,
+      "step": 1,
+      "unit": "",
+      "normalizedConversion": "linear_quantized",
+      "assignmentEligible": false,
+      "curveSupport": false,
+      "serializationVersion": 1
+    },
+    {
+      "id": "output",
+      "label": "MIDI OUT",
+      "engineField": "output",
+      "engineKind": -3,
+      "valueType": "int",
+      "min": 0,
+      "max": 16,
+      "default": 0,
+      "step": 1,
+      "unit": "",
+      "normalizedConversion": "linear_quantized",
+      "assignmentEligible": false,
+      "curveSupport": false,
+      "serializationVersion": 1
+    }
+  ],
+  "modules": [
+    {
+      "typeId": "transpose",
+      "engineType": 1,
+      "label": "TRANSPOSE",
+      "scope": "instrument",
+      "parameters": [
+        "transpose"
+      ],
+      "serializationVersion": 1,
+      "migration": "legacy_schema_1_to_7",
+      "processingStage": "ordered_note",
+      "orderingConstraints": {
+        "maxPerInstrument": 6,
+        "noteLifecycle": "owned"
+      },
+      "stateResetHook": "existing_jsfx_reset",
+      "panicHook": "reset_note_runtime",
+      "bypassSupported": true
+    },
+    {
+      "typeId": "range",
+      "engineType": 2,
+      "label": "RANGE",
+      "scope": "instrument",
+      "parameters": [
+        "range_mode",
+        "range_low",
+        "range_high"
+      ],
+      "serializationVersion": 1,
+      "migration": "legacy_schema_1_to_7",
+      "processingStage": "ordered_note",
+      "orderingConstraints": {
+        "maxPerInstrument": 6,
+        "noteLifecycle": "owned"
+      },
+      "stateResetHook": "existing_jsfx_reset",
+      "panicHook": "reset_note_runtime",
+      "bypassSupported": true
+    },
+    {
+      "typeId": "polyphony",
+      "engineType": 3,
+      "label": "POLYPHONY",
+      "scope": "instrument",
+      "parameters": [
+        "note_mode"
+      ],
+      "serializationVersion": 1,
+      "migration": "legacy_schema_1_to_7",
+      "processingStage": "stateful_note",
+      "orderingConstraints": {
+        "maxPerInstrument": 1,
+        "noteLifecycle": "owned"
+      },
+      "stateResetHook": "existing_jsfx_reset",
+      "panicHook": "reset_note_runtime",
+      "bypassSupported": true
+    },
+    {
+      "typeId": "velocity",
+      "engineType": 4,
+      "label": "VELOCITY",
+      "scope": "instrument",
+      "parameters": [
+        "velocity"
+      ],
+      "serializationVersion": 1,
+      "migration": "legacy_schema_1_to_7",
+      "processingStage": "ordered_note",
+      "orderingConstraints": {
+        "maxPerInstrument": 6,
+        "noteLifecycle": "owned"
+      },
+      "stateResetHook": "existing_jsfx_reset",
+      "panicHook": "reset_note_runtime",
+      "bypassSupported": true
+    },
+    {
+      "typeId": "arp",
+      "engineType": 5,
+      "label": "ARP",
+      "scope": "instrument",
+      "parameters": [
+        "arp_mode",
+        "arp_rate",
+        "arp_gate",
+        "arp_hold"
+      ],
+      "serializationVersion": 1,
+      "migration": "legacy_schema_1_to_7",
+      "processingStage": "stateful_note",
+      "orderingConstraints": {
+        "maxPerInstrument": 1,
+        "noteLifecycle": "owned"
+      },
+      "stateResetHook": "existing_jsfx_reset",
+      "panicHook": "reset_note_runtime",
+      "bypassSupported": true
+    },
+    {
+      "typeId": "cc_mod",
+      "engineType": 6,
+      "label": "CC MOD",
+      "scope": "instrument",
+      "parameters": [
+        "mod_level",
+        "cc_number"
+      ],
+      "serializationVersion": 1,
+      "migration": "legacy_schema_1_to_7",
+      "processingStage": "cc_generator",
+      "orderingConstraints": {
+        "maxPerInstrument": 6,
+        "noteLifecycle": "owned"
+      },
+      "stateResetHook": "existing_jsfx_reset",
+      "panicHook": "reset_note_runtime",
+      "bypassSupported": true
+    },
+    {
+      "typeId": "instrument",
+      "engineType": 0,
+      "label": "INSTRUMENT",
+      "scope": "instrument",
+      "parameters": [
+        "enabled",
+        "input",
+        "output",
+        "level"
+      ],
+      "serializationVersion": 1,
+      "migration": "legacy_schema_1_to_7",
+      "processingStage": "routing",
+      "orderingConstraints": {
+        "maxInstances": 8,
+        "noteLifecycle": "owned"
+      },
+      "stateResetHook": "reset_note_runtime",
+      "panicHook": "reset_note_runtime",
+      "bypassSupported": true
+    }
+  ]
+}

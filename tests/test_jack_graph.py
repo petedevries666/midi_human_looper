@@ -32,6 +32,7 @@ with tempfile.TemporaryDirectory(prefix='midi-jack-') as temp:
         observer=subprocess.Popen([probe],env=env)
         time.sleep(.8)
         state=command(2,0,0,0,rev)
+        print('PANIC diagnostic', {k:state[k] for k in ('blocks','midiCount','activeNotes','outputOverflow','lateBlocks','maxCallbackUs','lastEvent')}, flush=True)
         assert observer.wait(timeout=10)==0
         assert state['activeNotes']==0 and state['outputOverflow']==0,state
         print('PASS actual JACK graph: two Instruments, phrase switch, Note On/Off and PANIC')

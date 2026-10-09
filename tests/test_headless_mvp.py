@@ -163,6 +163,46 @@ class HeadlessTests(unittest.TestCase):
         self.assertGreater(after['sampleClock'],before['sampleClock'])
         self.assertEqual(after['midiCount'],before['midiCount'])
 
+    def test_module_instances_transactions_and_ownership(self):
+        self.patch('save',slot=2)
+        try:
+            for _ in range(2):self.command('module_structure',instrumentId=1,operation='add',engineType=1)
+            modules=self.call()['instruments'][0]['transformers']
+            a,b=modules[-2:];self.assertNotEqual(a['id'],b['id'])
+            for module,value in ((a,12),(b,5)):
+                self.command('module_commit',instrumentId=1,moduleId=module['id'],parameters=[dict(kind=7,value=value)])
+            state=self.command('midi',channel=1,note=60,value=90)
+            self.assertEqual(state['lastEvent'][2],77)
+            self.command('module_commit',instrumentId=1,moduleId=a['id'],parameters=[dict(kind=7,value=1)])
+            self.assertEqual(self.command('midi',channel=1,note=60,value=0)['lastEvent'][2],77)
+            time.sleep(.02)
+            self.assertEqual(self.command('midi',channel=1,note=60,value=90)['lastEvent'][2],66)
+            self.command('midi',channel=1,note=60,value=0)
+            self.patch('save')
+            self.command('module_commit',instrumentId=1,moduleId=a['id'],parameters=[dict(kind=7,value=2)])
+            self.patch('load')
+            restored=self.call()['instruments'][0]['transformers']
+            self.assertEqual([m['parameters'][0]['value'] for m in restored[-2:]],[1,5])
+            self.command('module_structure',instrumentId=1,moduleId=b['id'],operation='bypass')
+            self.assertEqual(self.command('midi',channel=1,note=60,value=90)['lastEvent'][2],61)
+            self.command('midi',channel=1,note=60,value=0)
+            self.command('module_structure',instrumentId=1,moduleId=b['id'],operation='up')
+            self.assertEqual(self.call()['instruments'][0]['transformers'][0]['id'],b['id'])
+            self.command('module_structure',instrumentId=1,moduleId=a['id'],operation='delete')
+            self.command('module_commit',instrumentId=1,moduleId=a['id'],parameters=[dict(kind=7,value=0)],expected=422)
+            self.command('module_structure',instrumentId=1,operation='add',engineType=5)
+            self.command('module_structure',instrumentId=1,operation='add',engineType=5,expected=400)
+        finally:self.patch('load',slot=2)
+
+    def test_atomic_instrument_draft_commit(self):
+        self.patch('save',slot=2)
+        try:
+            state=self.command('instrument_commit',instrumentId=2,enabled=1,input=16,output=16,level=90)
+            i=state['instruments'][1];self.assertEqual([i[k] for k in ('enabled','input','output','level')],[1,16,16,90])
+            self.command('instrument_commit',instrumentId=2,enabled=1,input=17,output=1,level=40,expected=400)
+            self.assertEqual(self.call()['instruments'][1],i)
+        finally:self.patch('load',slot=2)
+
     def test_websocket_subscription_and_reconnect(self):
         def connect():
             client=socket.create_connection(('127.0.0.1',self.port),timeout=5)

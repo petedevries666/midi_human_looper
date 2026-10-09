@@ -1,5 +1,11 @@
 # MIDI Human Looper: release history
 
+v1.24.0 (modular UI stage 1):
+- ADD TRANSFORMER closes with ×, Escape or either outside mouse button.
+- Independent CC MOD instances, expression curves, stable IDs and channel overrides.
+- Deterministic visible CC ordering, duplicate warnings and targeted sustain cleanup.
+- Appended schema-4 persistence, old patch migration and companion Lua support.
+
 v1.23.0:
 - Independent per-phrase TIME DECAY, centered ×1.00 with double-click reset.
 - Playback-only original-timestamp scaling and per-voice timing snapshots;

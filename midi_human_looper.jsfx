@@ -1,4 +1,4 @@
-desc:MIDI Human Looper v1.23.0
+desc:MIDI Human Looper v1.24.0
 options:gmem=MIDI_HUMAN_LOOPER
 
 // Release history: CHANGELOG.md. Free-time MIDI phrase instrument.
@@ -22,7 +22,8 @@ STATE_STOPPED = 4;
 // External patch I/O bridge (companion Lua ReaScript).
 // gmem[0] command: 0 idle, 1 SAVE request, 2 LOAD request, 3 LOAD ready, 4 SAVE done, 5 error.
 // gmem[1] selected slot, [2] schema, [3] PATCH_PAYLOAD_SIZE, [4..] globals, payload starts at 32.
-IO_SCHEMA = 3;
+IO_SCHEMA = 4;
+SW_SCHEMA=3;
 PARAM_SCHEMA=2;
 IO_PAYLOAD_BASE = 32;
 
@@ -190,7 +191,18 @@ SW_MEMORY_END=SW_MONO_OWNER_BASE+INSTRUMENTS;
 // Voice factors are separate from output ownership tables cleared by note release.
 VOICE_TIME_BASE=SW_MEMORY_END;
 SW_LEGACY_PAYLOAD=WORK_MEM_SIZE+PARAM_EXT_SIZE;
-PATCH_PAYLOAD_SIZE=SW_LEGACY_PAYLOAD+SW_CFG_SIZE;
+CC_LEGACY_PAYLOAD=SW_LEGACY_PAYLOAD+SW_CFG_SIZE;
+// Additional CC generators: stable slot identity survives visual reordering.
+// The frozen legacy configuration, banks and runtime retain every address.
+CC_EXTRA=INSTRUMENTS*(TRANSFORM_SLOTS-1);CC_STRIDE=4+2*(2+3*EXP_POINTS);
+CC_CFG_BASE=VOICE_TIME_BASE+MAX_ONCE_VOICES;
+CC_CFG_SIZE=2+INSTRUMENTS+CC_EXTRA*CC_STRIDE;
+CC_BANK1_BASE=CC_CFG_BASE+CC_CFG_SIZE;CC_BANK2_BASE=CC_BANK1_BASE+CC_CFG_SIZE;
+CC_RT_BASE=CC_BANK2_BASE+CC_CFG_SIZE;CC_RT_STRIDE=8;
+CC_PARAM_LAST_BASE=CC_RT_BASE+(CC_EXTRA+INSTRUMENTS)*CC_RT_STRIDE;
+CC_PARAM_PENDING_BASE=CC_PARAM_LAST_BASE+CC_EXTRA*2;
+UI_PARAM_TOTAL=PARAM_TOTAL+CC_EXTRA*2;
+PATCH_PAYLOAD_SIZE=CC_LEGACY_PAYLOAD+CC_CFG_SIZE;
 // Actions: NONE/NEXT/STOP/RESET/RESET ALL/STOP+RESET/PANIC/TOGGLE/ENABLE/DISABLE.
 SW_NONE=0;SW_NEXT=1;SW_STOP=2;SW_RESET=3;SW_RESET_ALL=4;SW_STOP_RESET=5;
 SW_PANIC=6;SW_TOGGLE=7;SW_ENABLE=8;SW_DISABLE=9;
@@ -421,6 +433,37 @@ local(i)
   slider7=4;
 );
 
+function cc_cfg(index) (CC_CFG_BASE+2+INSTRUMENTS+index*CC_STRIDE;);
+function cc_index(gi,code) (gi*(TRANSFORM_SLOTS-1)+code-7;);
+function cc_id(gi,code) (code==6?mem[CC_CFG_BASE+2+gi]:mem[cc_cfg(cc_index(gi,code))];);
+function cc_ti(index,row) (PARAM_TOTAL+index*2+row;);
+function cc_curve(ti) (cc_cfg(floor((ti-PARAM_TOTAL)/2))+4+(ti-PARAM_TOTAL)%2*(2+3*EXP_POINTS););
+function param_last_addr(ti) (ti<PARAM_TOTAL?PARAM_LAST_BASE+ti:CC_PARAM_LAST_BASE+ti-PARAM_TOTAL;);
+function param_pending_addr(ti) (ti<PARAM_TOTAL?PARAM_PENDING_BASE+ti:CC_PARAM_PENDING_BASE+ti-PARAM_TOTAL;);
+function cc_defaults()
+local(j,b,k,row,a)
+(
+  mem[CC_CFG_BASE]=IO_SCHEMA;mem[CC_CFG_BASE+1]=INSTRUMENTS+1;j=0;
+  loop(INSTRUMENTS,mem[CC_CFG_BASE+2+j]=j+1;j+=1;);j=0;
+  loop(CC_EXTRA,b=cc_cfg(j);k=0;loop(CC_STRIDE,mem[b+k]=0;k+=1;);
+    mem[b+1]=1;row=0;loop(2,a=b+4+row*(2+3*EXP_POINTS);mem[a+1]=2;
+      mem[a+2+1]=1;mem[a+2+EXP_POINTS+1]=1;row+=1;);j+=1;
+  );
+);
+function cc_runtime_reset()
+local(j)
+(j=0;loop((CC_EXTRA+INSTRUMENTS)*CC_RT_STRIDE,mem[CC_RT_BASE+j]=-999;j+=1;);
+ j=0;loop(CC_EXTRA*2,mem[CC_PARAM_LAST_BASE+j]=-999;mem[CC_PARAM_PENDING_BASE+j]=-999;j+=1;););
+function cc_bank_save(slot)
+local(b,j,pb)
+(b=slot==2?CC_BANK2_BASE:CC_BANK1_BASE;pb=slot==2?PATCH2_BASE:PATCH1_BASE;
+ mem[pb+11]=IO_SCHEMA;j=0;loop(CC_CFG_SIZE,mem[b+j]=mem[CC_CFG_BASE+j];j+=1;););
+function cc_bank_load(slot)
+local(b,j,pb)
+(pb=slot==2?PATCH2_BASE:PATCH1_BASE;cc_defaults();mem[pb+11]==IO_SCHEMA?(
+ b=slot==2?CC_BANK2_BASE:CC_BANK1_BASE;j=0;loop(CC_CFG_SIZE,mem[CC_CFG_BASE+j]=mem[b+j];j+=1;););cc_runtime_reset(););
+cc_defaults();cc_runtime_reset();
+
 function param_ti(gi,kind)
 (
   gi>=0 && gi<INSTRUMENTS && gi==floor(gi) && kind>=0 && kind<PARAM_TARGETS && kind==floor(kind) ?
@@ -428,18 +471,18 @@ function param_ti(gi,kind)
 );
 function param_gi(ti)
 (
-  ti<EXP_TOTAL ? floor(ti/EXP_TARGETS) : floor((ti-EXP_TOTAL)/(PARAM_TARGETS-EXP_TARGETS));
+  ti>=PARAM_TOTAL ? floor((ti-PARAM_TOTAL)/2/(TRANSFORM_SLOTS-1)) : ti<EXP_TOTAL ? floor(ti/EXP_TARGETS) : floor((ti-EXP_TOTAL)/(PARAM_TARGETS-EXP_TARGETS));
 );
 function param_kind(ti)
 (
-  ti<EXP_TOTAL ? ti%EXP_TARGETS : EXP_TARGETS+(ti-EXP_TOTAL)%(PARAM_TARGETS-EXP_TARGETS);
+  ti>=PARAM_TOTAL ? ((ti-PARAM_TOTAL)%2==0?EXP_T_MOD:PARAM_MOD_CC) : ti<EXP_TOTAL ? ti%EXP_TARGETS : EXP_TARGETS+(ti-EXP_TOTAL)%(PARAM_TARGETS-EXP_TARGETS);
 );
-function exp_assign_addr(ti) (ti<EXP_TOTAL ? INST_EXP_ASSIGN_BASE+ti : PARAM_ASSIGN_BASE+ti-EXP_TOTAL;);
-function exp_count_addr(ti) (ti<EXP_TOTAL ? INST_EXP_COUNT_BASE+ti : PARAM_COUNT_BASE+ti-EXP_TOTAL;);
-function exp_x_addr(ti) (ti<EXP_TOTAL ? INST_EXP_X_BASE+ti*EXP_POINTS : PARAM_X_BASE+(ti-EXP_TOTAL)*EXP_POINTS;);
-function exp_y_addr(ti) (ti<EXP_TOTAL ? INST_EXP_Y_BASE+ti*EXP_POINTS : PARAM_Y_BASE+(ti-EXP_TOTAL)*EXP_POINTS;);
-function exp_bend_addr(ti) (ti<EXP_TOTAL ? INST_EXP_BEND_BASE+ti*EXP_POINTS : PARAM_BEND_BASE+(ti-EXP_TOTAL)*EXP_POINTS;);
-function payload_addr(j) (j<WORK_MEM_SIZE ? j : j<SW_LEGACY_PAYLOAD ? PARAM_EXT_BASE+j-WORK_MEM_SIZE : SW_CFG_BASE+j-SW_LEGACY_PAYLOAD;);
+function exp_assign_addr(ti) (ti>=PARAM_TOTAL ? cc_curve(ti)+0 : ti<EXP_TOTAL ? INST_EXP_ASSIGN_BASE+ti : PARAM_ASSIGN_BASE+ti-EXP_TOTAL;);
+function exp_count_addr(ti) (ti>=PARAM_TOTAL ? cc_curve(ti)+1 : ti<EXP_TOTAL ? INST_EXP_COUNT_BASE+ti : PARAM_COUNT_BASE+ti-EXP_TOTAL;);
+function exp_x_addr(ti) (ti>=PARAM_TOTAL ? cc_curve(ti)+2 : ti<EXP_TOTAL ? INST_EXP_X_BASE+ti*EXP_POINTS : PARAM_X_BASE+(ti-EXP_TOTAL)*EXP_POINTS;);
+function exp_y_addr(ti) (ti>=PARAM_TOTAL ? cc_curve(ti)+2+EXP_POINTS : ti<EXP_TOTAL ? INST_EXP_Y_BASE+ti*EXP_POINTS : PARAM_Y_BASE+(ti-EXP_TOTAL)*EXP_POINTS;);
+function exp_bend_addr(ti) (ti>=PARAM_TOTAL ? cc_curve(ti)+2+2*EXP_POINTS : ti<EXP_TOTAL ? INST_EXP_BEND_BASE+ti*EXP_POINTS : PARAM_BEND_BASE+(ti-EXP_TOTAL)*EXP_POINTS;);
+function payload_addr(j) (j>=CC_LEGACY_PAYLOAD ? CC_CFG_BASE+j-CC_LEGACY_PAYLOAD : j<WORK_MEM_SIZE ? j : j<SW_LEGACY_PAYLOAD ? PARAM_EXT_BASE+j-WORK_MEM_SIZE : SW_CFG_BASE+j-SW_LEGACY_PAYLOAD;);
 function param_addr(gi,kind)
 (
   kind==EXP_T_VEL ? INST_VEL_BASE+gi : kind==EXP_T_LEVEL ? INST_LEVEL_BASE+gi :
@@ -501,14 +544,14 @@ function param_runtime_reset()
 local(j)
 (
   j=0;loop(PARAM_TOTAL,mem[PARAM_LAST_BASE+j]=-999;mem[PARAM_PENDING_BASE+j]=-999;j+=1;);
-  param_input_reset();
+  param_input_reset();cc_runtime_reset();
 );
 function sw_cfg(si) (SW_CFG_BASE+1+si*SW_STRIDE;);
 function sw_rt(si) (SW_RT_BASE+si*SW_RT_STRIDE;);
 function sw_defaults()
 local(si,b,j)
 (
-  mem[SW_CFG_BASE]=IO_SCHEMA;si=0;loop(SW_COUNT,
+  mem[SW_CFG_BASE]=SW_SCHEMA;si=0;loop(SW_COUNT,
     b=sw_cfg(si);j=0;loop(SW_STRIDE,mem[b+j]=0;j+=1;);
     mem[b+2]=0;mem[b+4]=60+si;mem[b+7]=300;mem[b+8]=800;
     mem[b+12]=127;mem[b+13]=0;mem[b+14]=SW_NEXT;mem[b+17]=si;mem[b+18]=si;mem[b+19]=si;j=0;loop(4,mem[b+112+j]=1;j+=1;);si+=1;
@@ -560,13 +603,13 @@ function sw_bank_save(slot)
 local(b,j,pb)
 (
   b=slot==2?SW_BANK2_BASE:SW_BANK1_BASE;pb=slot==2?PATCH2_BASE:PATCH1_BASE;
-  mem[pb+10]=IO_SCHEMA;j=0;loop(SW_CFG_SIZE,mem[b+j]=mem[SW_CFG_BASE+j];j+=1;);
+  mem[pb+10]=SW_SCHEMA;j=0;loop(SW_CFG_SIZE,mem[b+j]=mem[SW_CFG_BASE+j];j+=1;);
 );
 function sw_bank_load(slot)
 local(b,j,pb)
 (
   pb=slot==2?PATCH2_BASE:PATCH1_BASE;sw_defaults();
-  mem[pb+10]==IO_SCHEMA ? (
+  mem[pb+10]==SW_SCHEMA ? (
     b=slot==2?SW_BANK2_BASE:SW_BANK1_BASE;j=0;loop(SW_CFG_SIZE,mem[SW_CFG_BASE+j]=mem[b+j];j+=1;);
   );sw_validate();sw_runtime_reset();
 );
@@ -583,7 +626,7 @@ local(j,b,pb)
     b=slot==2 ? PARAM_BANK2_BASE : PARAM_BANK1_BASE;j=0;
     loop(PARAM_EXT_SIZE,mem[PARAM_EXT_BASE+j]=mem[b+j];j+=1;);
   ) : param_extension_reset();
-  param_runtime_reset();sw_bank_load(slot);
+  param_runtime_reset();sw_bank_load(slot);cc_bank_load(slot);
 );
 param_extension_reset();param_runtime_reset();
 
@@ -603,7 +646,7 @@ local(pb,j)
   mem[pb+9]=PARAM_SCHEMA;
   param_bank_save(slot);
   sw_bank_save(slot);
-  mem[pb+11]=0;
+  cc_bank_save(slot);
   j=0;
   loop(WORK_MEM_SIZE,
     mem[pb+PATCH_HEADER_SIZE+j]=mem[j];
@@ -642,7 +685,7 @@ local(pb,j,valid,oldslot)
       record_layer=mem[pb+8];
     ) : (
       reset_all_phrases();
-      param_extension_reset();param_runtime_reset();sw_defaults();sw_runtime_reset();
+      param_extension_reset();param_runtime_reset();sw_defaults();sw_runtime_reset();cc_defaults();cc_runtime_reset();
       slider4=0;
       slider5=0;
       slider6=120;
@@ -1223,8 +1266,8 @@ local(addr,old,ti,unsafe)
     value=max(param_min(kind),min(param_max(kind),value));
     unsafe=(kind==PARAM_TRANSPOSE || kind==PARAM_RANGE_MODE || kind==PARAM_RANGE_LOW ||
             kind==PARAM_RANGE_HIGH || kind==PARAM_NOTE_MODE || kind==EXP_T_ARP_ON);
-    unsafe && mem[PARAM_ACTIVE_BASE+gi]>0 ? mem[PARAM_PENDING_BASE+ti]=value : (
-      mem[PARAM_PENDING_BASE+ti]=-999;
+    unsafe && mem[PARAM_ACTIVE_BASE+gi]>0 ? mem[param_pending_addr(ti)]=value : (
+      mem[param_pending_addr(ti)]=-999;
       old!=value ? (
         mem[addr]=value;
         kind==EXP_T_LEVEL ? mem[CC_DIRTY_BASE+gi]=1;
@@ -1240,16 +1283,72 @@ local(ti,gi,kind,asg,value,pending)
 (
   ti=0;loop(PARAM_TOTAL,
     gi=param_gi(ti);kind=param_kind(ti);asg=floor(mem[exp_assign_addr(ti)]+.5);
-    pending=mem[PARAM_PENDING_BASE+ti];
+    pending=mem[param_pending_addr(ti)];
     asg>=1 && asg<=CONTROLLERS ? (
       value=param_scale(kind,exp_curve_value(ti,controller_value(asg-1)));
-      value!=mem[PARAM_LAST_BASE+ti] || pending!=-999 ? (
-        param_apply(gi,kind,value);mem[PARAM_LAST_BASE+ti]=value;
+      value!=mem[param_last_addr(ti)] || pending!=-999 ? (
+        param_apply(gi,kind,value);mem[param_last_addr(ti)]=value;
       );
     ) : pending!=-999 ? param_apply(gi,kind,pending);
     ti+=1;
   );
 );
+function cc_expression_tick()
+local(j,row,ti,b,asg,value,pending,kind)
+(
+  j=0;loop(CC_EXTRA,b=cc_cfg(j);mem[b]>0?(
+    row=0;loop(2,ti=cc_ti(j,row);kind=row==0?EXP_T_MOD:PARAM_MOD_CC;
+      asg=floor(mem[exp_assign_addr(ti)]+.5);pending=mem[param_pending_addr(ti)];
+      asg>=1 && asg<=CONTROLLERS ? value=param_scale(kind,exp_curve_value(ti,controller_value(asg-1))) : value=pending;
+      value!=-999 ? (mem[b+(row==0?2:1)]=max(0,min(127,value));mem[param_pending_addr(ti)]=-999;);
+      row+=1;
+    );
+  );j+=1;);
+);
+// CC generators are independent of the serial note processors. Active targets are
+// emitted in visible slot order. A duplicate group re-emits on any member change,
+// so the last visible writer always wins, even if only an earlier value changed.
+function cc_route_channel(gi,override)
+local(ch)
+(ch=override>0?override:mem[INST_OUT_BASE+gi]>0?mem[INST_OUT_BASE+gi]:mem[INST_IN_BASE+gi]>0?mem[INST_IN_BASE+gi]:1;
+ max(0,min(15,floor(ch)-1)););
+function cc_record(gi,code) (CC_RT_BASE+(code==6?CC_EXTRA+gi:cc_index(gi,code))*CC_RT_STRIDE;);
+function cc_generators_tick()
+local(gi,k,c,code,index,b,r,ch,cc,value,on,dirty,j,other)
+(
+  gi=0;loop(INSTRUMENTS,
+    k=0;c=max(0,min(TRANSFORM_SLOTS,floor(mem[INST_TRANSFORM_COUNT_BASE+gi])));
+    loop(TRANSFORM_SLOTS,
+      code=k==TRANSFORM_SLOTS-1?6:k+7;r=cc_record(gi,code);on=0;
+      j=0;loop(c,mem[INST_TRANSFORM_TYPE_BASE+gi*TRANSFORM_SLOTS+j]==code?on=1;j+=1;);
+      code==6 ? (ch=cc_route_channel(gi,0);cc=mem[PARAM_MOD_CC_BASE+gi];value=mem[INST_MOD_BASE+gi];) : (
+        b=cc_cfg(cc_index(gi,code));on=on && mem[b]>0;ch=cc_route_channel(gi,mem[b+3]);cc=mem[b+1];value=mem[b+2];
+      );
+      mem[r+4]=on && mem[INST_ENABLED_BASE+gi]>.5;mem[r+5]=ch;
+      mem[r+6]=max(0,min(127,floor(cc+.5)));mem[r+7]=max(0,min(127,floor(value+.5)));k+=1;
+    );gi+=1;
+  );
+  // A CC64 destination is released using its saved channel before it disappears.
+  index=0;loop(CC_EXTRA+INSTRUMENTS,r=CC_RT_BASE+index*CC_RT_STRIDE;
+    mem[r]>0 && mem[r+2]==64 && (!mem[r+4] || mem[r+1]!=mem[r+5] || mem[r+2]!=mem[r+6]) ? midisend(0,176|mem[r+1],64,0);
+    index+=1;
+  );
+  gi=0;loop(INSTRUMENTS,k=0;c=max(0,min(TRANSFORM_SLOTS,floor(mem[INST_TRANSFORM_COUNT_BASE+gi])));
+    loop(c,code=mem[INST_TRANSFORM_TYPE_BASE+gi*TRANSFORM_SLOTS+k];code>=6 && code<=11?(
+      r=cc_record(gi,code);on=mem[r+4];ch=mem[r+5];cc=mem[r+6];value=mem[r+7];dirty=0;
+      j=0;loop(CC_EXTRA+INSTRUMENTS,other=CC_RT_BASE+j*CC_RT_STRIDE;
+        // Both old and new targets participate: removing the last writer restores
+        // the preceding writer immediately, even if its own value did not change.
+        ((mem[other+4]>0 && mem[other+5]==ch && mem[other+6]==cc) || (mem[other]>0 && mem[other+1]==ch && mem[other+2]==cc)) &&
+          (mem[other]!=mem[other+4] || mem[other+1]!=mem[other+5] || mem[other+2]!=mem[other+6] || mem[other+3]!=mem[other+7]) ? dirty=1;
+        j+=1;
+      );
+      on && (dirty || mem[CC_DIRTY_MOD_BASE+gi]>0) ? midisend(0,176|ch,cc,value);
+    );k+=1;);gi+=1;
+  );
+  index=0;loop(CC_EXTRA+INSTRUMENTS,r=CC_RT_BASE+index*CC_RT_STRIDE;j=0;loop(4,mem[r+j]=mem[r+4+j];j+=1;);index+=1;);
+);
+
 function send_instrument_cc(gi, cc, value)
 local(in_ch,out_ch,ch)
 (
@@ -1308,9 +1407,10 @@ local(j,n)
   n=gmem[3];
   ((gmem[2]==1 && n>0 && n<=WORK_MEM_SIZE) ||
    (gmem[2]==2 && n==SW_LEGACY_PAYLOAD && gmem[IO_PAYLOAD_BASE+WORK_MEM_SIZE]==PARAM_SCHEMA) ||
-   (gmem[2]==IO_SCHEMA && n==PATCH_PAYLOAD_SIZE && gmem[IO_PAYLOAD_BASE+WORK_MEM_SIZE]==PARAM_SCHEMA && gmem[IO_PAYLOAD_BASE+SW_LEGACY_PAYLOAD]==IO_SCHEMA)) ? (
+   (gmem[2]==3 && n==CC_LEGACY_PAYLOAD && gmem[IO_PAYLOAD_BASE+WORK_MEM_SIZE]==PARAM_SCHEMA && gmem[IO_PAYLOAD_BASE+SW_LEGACY_PAYLOAD]==SW_SCHEMA) ||
+   (gmem[2]==IO_SCHEMA && n==PATCH_PAYLOAD_SIZE && gmem[IO_PAYLOAD_BASE+WORK_MEM_SIZE]==PARAM_SCHEMA && gmem[IO_PAYLOAD_BASE+SW_LEGACY_PAYLOAD]==SW_SCHEMA && gmem[IO_PAYLOAD_BASE+CC_LEGACY_PAYLOAD]==IO_SCHEMA)) ? (
     // Patch memory only grows by appending fields, so older JSON patches remain valid prefixes.
-    param_extension_reset();param_runtime_reset();sw_defaults();sw_runtime_reset();
+    param_extension_reset();param_runtime_reset();sw_defaults();sw_runtime_reset();cc_defaults();cc_runtime_reset();
     j=n;
     n<WORK_MEM_SIZE ? loop(WORK_MEM_SIZE-n, mem[j]=0; j+=1;);
     loop_len_samples=gmem[4];
@@ -1976,31 +2076,19 @@ gmem[0]==4 ? (io_status=4; gmem[0]=0;);
 gmem[0]==5 ? (io_status=5; gmem[0]=0;);
 
 sw_queue_process();
-// SAVE snapshots after pending GUI edits, on the DSP owner thread.
+param_expression_tick();cc_expression_tick();
+// SAVE includes safe pending parameter edits as well as queued switch edits.
 patch_save_request>0 && gmem[0]==0 ? (save_patch_file_snapshot(patch_save_request);patch_save_request=0;);
-param_expression_tick();
 ii=0;
 loop(INSTRUMENTS,
-  mod_on=mem[INST_ENABLED_BASE+ii]>.5 && transformer_on(ii,6);
-  mod_cc=mem[PARAM_MOD_CC_BASE+ii];
-  mod_on && !mem[PARAM_MOD_ON_LAST_BASE+ii] ? mem[CC_DIRTY_MOD_BASE+ii]=1;
-  mod_cc!=mem[PARAM_MOD_CC_LAST_BASE+ii] ? (
-    // CC64 is stateful: leaving sustain must release its previous destination.
-    mem[PARAM_MOD_CC_LAST_BASE+ii]==64 && mem[PARAM_MOD_ON_LAST_BASE+ii] ? send_instrument_cc(ii,64,0);
-    mem[CC_DIRTY_MOD_BASE+ii]=1;
-  );
-  !mod_on && mem[PARAM_MOD_ON_LAST_BASE+ii] && mem[PARAM_MOD_CC_LAST_BASE+ii]==64 ? send_instrument_cc(ii,64,0);
-  mem[PARAM_MOD_CC_LAST_BASE+ii]=mod_cc;mem[PARAM_MOD_ON_LAST_BASE+ii]=mod_on;
   mem[CC_DIRTY_BASE+ii]>0.5 ? (
     send_instrument_cc(ii,mem[INST_LEVEL_CC_BASE+ii],mem[INST_LEVEL_BASE+ii]);
     mem[CC_DIRTY_BASE+ii]=0;
   );
-  mem[CC_DIRTY_MOD_BASE+ii]>0.5 ? (
-    transformer_on(ii,6) ? send_instrument_cc(ii,mem[PARAM_MOD_CC_BASE+ii],mem[INST_MOD_BASE+ii]);
-    mem[CC_DIRTY_MOD_BASE+ii]=0;
-  );
   ii+=1;
 );
+cc_generators_tick();
+ii=0;loop(INSTRUMENTS,mem[CC_DIRTY_MOD_BASE+ii]=0;ii+=1;);
 
 save_flash>0 ? save_flash-=samplesblock;
 save_flash<0 ? save_flash=0;
@@ -2269,7 +2357,7 @@ loop(INSTRUMENTS,
 
 // Expression curve editor state is GUI-only, not patch data.
 // EEL variables can survive hot recompiles: reject any stale / invalid popup state before drawing.
-(exp_gui_initialized!=1 || options_open<0 || options_open>1 || controller_assign_ti>=PARAM_TOTAL || controller_assign_ti<-1 || controller_assign_ti!=floor(controller_assign_ti)) ? (
+(exp_gui_initialized!=1 || options_open<0 || options_open>1 || controller_assign_ti>=UI_PARAM_TOTAL || controller_assign_ti<-1 || controller_assign_ti!=floor(controller_assign_ti)) ? (
   exp_gui_initialized=0;
   options_open=0;
   controller_assign_ti=-1;
@@ -2289,7 +2377,7 @@ exp_gui_initialized!=1 ? (
   exp_gui_initialized=1;
 );
 
-exp_editor_ti<0 || exp_editor_ti>=PARAM_TOTAL || exp_editor_ti!=floor(exp_editor_ti) ? (
+exp_editor_ti<0 || exp_editor_ti>=UI_PARAM_TOTAL || exp_editor_ti!=floor(exp_editor_ti) ? (
   exp_editor_ti=-1;exp_drag_point=-1;exp_drag_segment=-1;exp_bend_segment=-1;
 );
 // Small-window vertical scrolling.
@@ -2441,7 +2529,7 @@ edit_name_type>0 && keychar>0 ? (
 gfx_set(.055,.055,.055,1);gfx_rect(12,10,1010,48,1);
 gfx_set(.42,.42,.42,1);gfx_rect(12,10,1010,48,0);
 gfx_setfont(1,"Courier New",22,'b');gfx_set(.95,.95,.08,1);
-gfx_x=24;gfx_y=20;gfx_drawstr("MIDI BAD MOTHERFUCKER V.1.20.1");
+gfx_x=24;gfx_y=20;gfx_drawstr("MIDI BAD MOTHERFUCKER V.1.24.0");
 gfx_setfont(1,"Courier New",14,'b');gfx_set(.68,.68,.68,1);
 gfx_x=760;gfx_y=25;gfx_drawstr("ANONYMALZ LIVE ENGINE");
 
@@ -2756,7 +2844,7 @@ local(ui_k)
     mem[exp_x_addr(ti)]=0; mem[exp_y_addr(ti)]=1;
     mem[exp_x_addr(ti)+1]=1; mem[exp_y_addr(ti)+1]=0;
   );
-  mem[PARAM_LAST_BASE+ti]=-999;
+  mem[param_last_addr(ti)]=-999;
 );
 
 function curve_custom_save(ti, slot)
@@ -2788,7 +2876,7 @@ local(ui_base,cnt,ui_k)
     );
     mem[exp_x_addr(ti)]=0;
     mem[exp_x_addr(ti)+min(EXP_POINTS,cnt)-1]=1;
-    mem[PARAM_LAST_BASE+ti]=-999;
+    mem[param_last_addr(ti)]=-999;
   );
 );
 
@@ -2833,7 +2921,7 @@ local(ui_k,cnt,xx0,yy0,xx1,yy1,ui_base)
 function draw_exp_badge(ti, x, y, w, h)
 local(asg,sample,samples,pos,px,py,prevx,prevy)
 (
-  ti>=0 && ti<PARAM_TOTAL ? (
+  ti>=0 && ti<UI_PARAM_TOTAL ? (
     asg=floor(mem[exp_assign_addr(ti)]+.5);
     asg>=1 && asg<=CONTROLLERS ? (
       h==18 ? ( // Slider rails; keep the ARP enable button's badge compact.
@@ -2884,21 +2972,61 @@ local(ui_k,c,found)
   loop(c, abs(mem[INST_TRANSFORM_TYPE_BASE+gi*TRANSFORM_SLOTS+ui_k])==ui_typ ? found=1; ui_k+=1;);
   found;
 );
+// Separate evaluator: EEL2 function-local storage must not be shared by GFX/DSP.
+function cc_ui_route_channel(gi,override)
+local(ui_ch)
+(ui_ch=override>0?override:mem[INST_OUT_BASE+gi]>0?mem[INST_OUT_BASE+gi]:mem[INST_IN_BASE+gi]>0?mem[INST_IN_BASE+gi]:1;
+ max(0,min(15,floor(ui_ch)-1)););
+function cc_ui_duplicate(gi,ui_code)
+local(ui_g,ui_k,ui_c,ui_other,ui_ch,ui_cc,ui_b,ui_ob,ui_targetch,ui_targetcc,ui_found)
+(
+  ui_b=ui_code==6?-1:cc_cfg(cc_index(gi,ui_code));
+  ui_ch=cc_ui_route_channel(gi,ui_b<0?0:mem[ui_b+3]);ui_cc=ui_b<0?mem[PARAM_MOD_CC_BASE+gi]:mem[ui_b+1];
+  ui_found=0;ui_g=0;loop(INSTRUMENTS,ui_k=0;ui_c=max(0,min(TRANSFORM_SLOTS,mem[INST_TRANSFORM_COUNT_BASE+ui_g]));
+    loop(ui_c,ui_other=mem[INST_TRANSFORM_TYPE_BASE+ui_g*TRANSFORM_SLOTS+ui_k];
+      ui_other>=6 && ui_other<=11 && (ui_g!=gi || ui_other!=ui_code) && mem[INST_ENABLED_BASE+ui_g]>.5?(
+        ui_ob=ui_other==6?-1:cc_cfg(cc_index(ui_g,ui_other));
+        ui_targetch=cc_ui_route_channel(ui_g,ui_ob<0?0:mem[ui_ob+3]);ui_targetcc=ui_ob<0?mem[PARAM_MOD_CC_BASE+ui_g]:mem[ui_ob+1];
+        ui_targetch==ui_ch && ui_targetcc==ui_cc?ui_found=1;
+      );ui_k+=1;
+    );ui_g+=1;
+  );ui_found;
+);
+
 function transform_add(gi, ui_typ)
-local(c)
+local(c,ui_code,ui_j,ui_used,ui_index,ui_b)
 (
   c=max(0,min(TRANSFORM_SLOTS,floor(mem[INST_TRANSFORM_COUNT_BASE+gi]+0.5)));
-  !transform_has(gi,ui_typ) && c<TRANSFORM_SLOTS ? (
-    mem[INST_TRANSFORM_TYPE_BASE+gi*TRANSFORM_SLOTS+c]=ui_typ;
+  (ui_typ==6 || !transform_has(gi,ui_typ)) && c<TRANSFORM_SLOTS ? (
+    ui_code=ui_typ;
+    ui_typ==6 && !transform_has(gi,6) ? (
+      mem[CC_CFG_BASE+2+gi]=mem[CC_CFG_BASE+1];mem[CC_CFG_BASE+1]+=1;
+      mem[PARAM_MOD_CC_BASE+gi]=1;mem[INST_MOD_BASE+gi]=0;
+      ui_j=0;loop(2,ui_index=param_ti(gi,ui_j==0?EXP_T_MOD:PARAM_MOD_CC);
+        mem[exp_assign_addr(ui_index)]=0;curve_factory(ui_index,3);ui_j+=1;);
+    );
+    ui_typ==6 && transform_has(gi,6) ? (
+      ui_code=7;ui_used=1;while(ui_code<=11 && ui_used)(ui_used=transform_has(gi,ui_code);ui_used?ui_code+=1;);
+      ui_code<=11 ? (
+        ui_index=cc_index(gi,ui_code);ui_b=cc_cfg(ui_index);
+        mem[ui_b]=mem[CC_CFG_BASE+1];mem[CC_CFG_BASE+1]+=1;mem[ui_b+1]=1;mem[ui_b+2]=0;mem[ui_b+3]=0;
+        ui_j=0;loop(2,mem[exp_assign_addr(cc_ti(ui_index,ui_j))]=0;curve_factory(cc_ti(ui_index,ui_j),3);ui_j+=1;);
+      );
+    );
+    mem[INST_TRANSFORM_TYPE_BASE+gi*TRANSFORM_SLOTS+c]=ui_code;
     mem[INST_TRANSFORM_COUNT_BASE+gi]=c+1;
   );
 );
 
 function transform_remove_slot(gi, slot)
-local(c,ui_j)
+local(c,ui_j,ui_removed)
 (
   c=max(0,min(TRANSFORM_SLOTS,floor(mem[INST_TRANSFORM_COUNT_BASE+gi]+0.5)));
   slot>=0 && slot<c ? (
+    ui_removed=abs(mem[INST_TRANSFORM_TYPE_BASE+gi*TRANSFORM_SLOTS+slot]);
+    // An open curve cannot outlive the module whose storage it edits.
+    (ui_removed==6 && (exp_editor_ti==param_ti(gi,EXP_T_MOD) || exp_editor_ti==param_ti(gi,PARAM_MOD_CC))) ||
+    (ui_removed>=7 && exp_editor_ti>=PARAM_TOTAL && floor((exp_editor_ti-PARAM_TOTAL)/2)==cc_index(gi,ui_removed)) ? (exp_editor_ti=-1;ui_capture_ti=-1;);
     ui_j=slot;
     loop(c-slot-1,
       mem[INST_TRANSFORM_TYPE_BASE+gi*TRANSFORM_SLOTS+ui_j]=mem[INST_TRANSFORM_TYPE_BASE+gi*TRANSFORM_SLOTS+ui_j+1];
@@ -2906,7 +3034,8 @@ local(c,ui_j)
     );
     mem[INST_TRANSFORM_TYPE_BASE+gi*TRANSFORM_SLOTS+c-1]=0;
     mem[INST_TRANSFORM_COUNT_BASE+gi]=c-1;
-    panic_pending=1;
+    // CC-only removal has no note ownership and needs no global PANIC.
+    ui_removed<6 ? panic_pending=1;
   );
 );
 
@@ -2949,7 +3078,7 @@ local(basey,boxh,nx,nw,vx,vw,wirey,tx,bw,gap,c,ui_k,rawtyp,ui_typ,ti,addx,addy,s
     ) : ui_capture_ti=ti;
   );
   !ui_modal && mouse_cap&1 && ui_capture_ti==ti ?
-    mem[PARAM_PENDING_BASE+ti]=floor(127*max(0,min(1,(mouse_x-vx)/vw))+.5);
+    mem[param_pending_addr(ti)]=floor(127*max(0,min(1,(mouse_x-vx)/vw))+.5);
   transform_menu_gi<0 && !options_open && controller_assign_ti<0 && (mouse_cap&2)&&!(last_mouse_cap&2)&&mouse_x>=vx&&mouse_x<vx+vw&&mouse_y>=basey+14&&mouse_y<basey+42?(controller_assign_ti=ti;controller_assign_x=mouse_x;controller_assign_y=mouse_y;ui_modal=1;ui_capture_ti=-1;);
   draw_exp_badge(ti,vx,basey+19,vw,18);
   gfx_setfont(1,"Arial",10);gfx_set(.88,.88,.88,1);gfx_x=574;gfx_y=basey+21;gfx_drawnumber(mem[INST_LEVEL_BASE+gi],0);
@@ -2971,14 +3100,14 @@ local(basey,boxh,nx,nw,vx,vw,wirey,tx,bw,gap,c,ui_k,rawtyp,ui_typ,ti,addx,addy,s
     ui_typ==3 ? centered_text(tx,wirey-2,bw,12,mem[INST_NOTE_MODE_BASE+gi]<.5?"POLY":mem[INST_NOTE_MODE_BASE+gi]<1.5?"BASS":mem[INST_NOTE_MODE_BASE+gi]<2.5?"LAST":"LEGATO");
     ui_typ==4 ? (gfx_set(.24,.24,.24,1);gfx_rect(tx+10,wirey-1,bw-20,12,1);gfx_set(.70,.70,.70,1);gfx_rect(tx+10,wirey-1,(bw-20)*max(0,min(1,(mem[INST_VEL_BASE+gi]-.2)/2.8)),12,1););
     ui_typ==5 ? centered_text(tx,wirey-2,bw,12,mem[INST_ARP_MODE_BASE+gi]<.5?"RANDOM":mem[INST_ARP_MODE_BASE+gi]<1.5?"UP":"DOWN");
-    ui_typ==6 ? (gfx_x=tx+35;gfx_y=wirey-2;gfx_drawstr("CC");gfx_drawnumber(mem[PARAM_MOD_CC_BASE+gi],0););
+    ui_typ>=6 ? (gfx_x=tx+35;gfx_y=wirey-2;gfx_drawstr("CC");gfx_drawnumber(ui_typ==6?mem[PARAM_MOD_CC_BASE+gi]:mem[cc_cfg(cc_index(gi,ui_typ))+1],0););
     rawtyp<0 ? (gfx_set(.05,.05,.05,.76);gfx_rect(tx+1,wirey-21,bw-2,42,1););
     gfx_setfont(1,"Arial",11);gfx_set(rawtyp>0?.92:.42,rawtyp>0?.92:.42,rawtyp>0?.92:.42,1);
     gfx_x=tx+6;gfx_y=wirey-20;gfx_drawstr(rawtyp>0?"O":"-");
     gfx_setfont(1,"Arial",9);gfx_set(.75,.75,.75,1);gfx_x=tx+bw-12;gfx_y=wirey-19;gfx_drawstr("x");
     // Click anywhere on the block except power and remove.
     (transform_menu_gi<0 && !options_open && controller_assign_ti<0 && hit(tx+24,wirey-22,bw-42,44))?(selected_transform_gi=gi;selected_transform_slot=ui_k;exp_editor_ti=-1;ui_capture_ti=-1;exp_drag_point=-1;exp_drag_segment=-1;exp_bend_segment=-1;);
-    (transform_menu_gi<0 && !options_open && controller_assign_ti<0 && hit(tx+2,wirey-22,22,19))?(mem[INST_TRANSFORM_TYPE_BASE+gi*TRANSFORM_SLOTS+ui_k]=-rawtyp;panic_pending=1;);
+    (transform_menu_gi<0 && !options_open && controller_assign_ti<0 && hit(tx+2,wirey-22,22,19))?(mem[INST_TRANSFORM_TYPE_BASE+gi*TRANSFORM_SLOTS+ui_k]=-rawtyp;ui_typ<6?panic_pending=1;);
     (transform_menu_gi<0 && !options_open && controller_assign_ti<0 && hit(tx+bw-18,wirey-22,18,19))?(transform_remove_slot(gi,ui_k);selected_transform_gi=-1;selected_transform_slot=-1;c-=1;ui_k-=1;);
     tx+=bw+gap;ui_k+=1;
   );
@@ -2987,19 +3116,24 @@ local(basey,boxh,nx,nw,vx,vw,wirey,tx,bw,gap,c,ui_k,rawtyp,ui_typ,ti,addx,addy,s
 );
 
 function draw_transform_menu_overlay(gi, iy)
-local(c,ui_k,tx,bw,gap,addx,choicey,cw)
+local(c,ui_k,tx,bw,gap,addx,choicey,cw,ui_close)
 (
   transform_menu_gi==gi ? (
     c=max(0,min(TRANSFORM_SLOTS,floor(mem[INST_TRANSFORM_COUNT_BASE+gi]+.5)));
-    tx=54+c*(132+18); addx=min(tx,842); choicey=iy+94; cw=142;
+    tx=54+c*(132+18); addx=min(tx,842); choicey=max(ui_scroll+8,min(ui_scroll+gfx_h-186,iy+94)); cw=142;
     // Opaque floating panel: this is intentionally drawn after all instrument cards.
-    gfx_set(.035,.035,.035,1);gfx_rect(addx-3,choicey-3,cw+6,TRANSFORM_TYPES*24+14,1);
-    gfx_set(.75,.75,.75,1);gfx_rect(addx-3,choicey-3,cw+6,TRANSFORM_TYPES*24+14,0);
+    gfx_set(.035,.035,.035,1);gfx_rect(addx-3,choicey-3,cw+6,TRANSFORM_TYPES*24+32,1);
+    gfx_set(.75,.75,.75,1);gfx_rect(addx-3,choicey-3,cw+6,TRANSFORM_TYPES*24+32,0);
+    // Modal frame shielding remains active for underlying controls on dismissal.
+    smallbtn(addx+cw-24,choicey-3,24,20,"×",0);
+    ui_close=hit(addx+cw-24,choicey-3,24,20) || keychar==27 ||
+      (ui_frame_modal && (mouse_cap&3) && !(last_mouse_cap&3) && (mouse_x<addx-3 || mouse_x>=addx+cw+3 || mouse_y<choicey-3 || mouse_y>=choicey+TRANSFORM_TYPES*24+29));
+    ui_close ? transform_menu_gi=-1;
     gfx_setfont(1,"Arial",9);ui_k=1;
     loop(TRANSFORM_TYPES,
-      !transform_has(gi,ui_k)?(
-        smallbtn(addx+4,choicey+4+(ui_k-1)*24,cw-8,20,ui_k==1?"TRANSPOSE":ui_k==2?"NOTE RANGE":ui_k==3?"POLYPHONY":ui_k==4?"VELOCITY":ui_k==5?"ARPEGGIATOR":"CC / MOD",0);
-        hit(addx+4,choicey+4+(ui_k-1)*24,cw-8,20)?(transform_add(gi,ui_k);transform_menu_gi=-1;);
+      transform_menu_gi==gi && (ui_k==6 || !transform_has(gi,ui_k))?(
+        smallbtn(addx+4,choicey+22+(ui_k-1)*24,cw-8,20,ui_k==1?"TRANSPOSE":ui_k==2?"NOTE RANGE":ui_k==3?"POLYPHONY":ui_k==4?"VELOCITY":ui_k==5?"ARPEGGIATOR":"CC / MOD",0);
+        hit(addx+4,choicey+22+(ui_k-1)*24,cw-8,20)?(transform_add(gi,ui_k);transform_menu_gi=-1;);
       );
       ui_k+=1;
     );
@@ -3008,7 +3142,7 @@ local(c,ui_k,tx,bw,gap,addx,choicey,cw)
 
 inst_y=190 + PHRASES_PER_PAGE*38 + 18;
 gfx_setfont(1,"Arial",16); gfx_set(0.72,0.72,0.72,1); gfx_x=20; gfx_y=inst_y; gfx_drawstr("INSTRUMENTS / TRANSFORMER CHAINS");
-gfx_setfont(1,"Arial",9); gfx_set(0.46,0.46,0.46,1); gfx_x=330; gfx_y=inst_y+3; gfx_drawstr("MIDI flows left > right");
+gfx_setfont(1,"Arial",9); gfx_set(0.46,0.46,0.46,1); gfx_x=330; gfx_y=inst_y+3; gfx_drawstr("CC: left > right / notes: fixed routing");
 inst_y+=30;
 draw_instrument_row(0,inst_y);
 draw_instrument_row(1,inst_y+124);
@@ -3039,20 +3173,27 @@ selected_transform_gi>=0 && selected_transform_gi<INSTRUMENTS ? (
       draw_exp_badge(arp_ui_ti,507,exp_y+30,126,20);
       !ui_modal && hit(507,exp_y+30,126,20) ? (
         mem[exp_assign_addr(arp_ui_ti)]>0 ? exp_editor_ti=arp_ui_ti :
-          mem[PARAM_PENDING_BASE+arp_ui_ti]=!(mem[INST_ARP_ENABLED_BASE+eg]>.5);
+          mem[param_pending_addr(arp_ui_ti)]=!(mem[INST_ARP_ENABLED_BASE+eg]>.5);
       );
       !ui_modal && mouse_cap&2 && !(last_mouse_cap&2) && mouse_x>=507 && mouse_x<633 && mouse_y>=exp_y+30 && mouse_y<exp_y+50 ? (
         controller_assign_ti=arp_ui_ti;controller_assign_x=mouse_x;controller_assign_y=mouse_y;ui_modal=1;ui_capture_ti=-1;
       );
     );
+    etyp>=6 && cc_ui_duplicate(eg,etyp) ? (
+      gfx_setfont(1,"Arial",9);gfx_set(1,.55,.15,1);gfx_x=28;gfx_y=exp_y+181;
+      gfx_drawstr("DUPLICATE CC / CHANNEL: last active block left-to-right wins.");
+    );
+    etyp>=6 ? (gfx_setfont(1,"Arial",9);gfx_set(.7,.7,.7,1);gfx_x=490;gfx_y=exp_y+34;gfx_drawstr("ID ");gfx_drawnumber(cc_id(eg,etyp),0););
     // Shared slider rows: label at 28, rail at 125..400, value at 420.
     // Fixed columns prevent labels and values from overlapping the controls.
-    er=0;en=etyp==2 ? 3 : etyp==5 ? 4 : etyp==6 ? 2 : 1;
+    er=0;en=etyp==2 ? 3 : etyp==5 ? 4 : etyp>=7 ? 3 : etyp==6 ? 2 : 1;
     loop(en,
       ey=exp_y+60+er*34;
-      ekind=param_editor_kind(etyp,er);ui_eti=param_ti(eg,ekind);
-      evbase=param_addr(eg,ekind);emin=param_min(ekind);emax=param_max(ekind);
-      estep=param_step(ekind);ename=param_name(ekind);
+      ekind=etyp>=7?(er==0?EXP_T_MOD:PARAM_MOD_CC):param_editor_kind(etyp,er);
+      ui_eti=etyp>=7 && er<2?cc_ti(cc_index(eg,etyp),er):param_ti(eg,ekind);
+      evbase=etyp>=7?cc_cfg(cc_index(eg,etyp))+(er==0?2:er==1?1:3):param_addr(eg,ekind);
+      emin=param_min(ekind);emax=etyp>=7 && er==2?16:param_max(ekind);
+      estep=param_step(ekind);ename=etyp>=7 && er==2?"OUT CH / 0 AUTO":param_name(ekind);
       eval=max(emin,min(emax,mem[evbase]));
       gfx_setfont(1,"Arial",10);gfx_set(.80,.80,.80,1);gfx_x=28;gfx_y=ey+4;gfx_drawstr(ename);
       gfx_set(.22,.22,.22,1);gfx_rect(125,ey+2,275,18,1);
@@ -3064,25 +3205,26 @@ selected_transform_gi>=0 && selected_transform_gi<INSTRUMENTS ? (
       etyp==5 && er==3 ? gfx_drawstr(eval>.5?"ON":"OFF") :
       (gfx_drawnumber(eval,estep<1?2:0);etyp==5 && er==2?gfx_drawstr(" x100"););
       // Persistent identity is derived only from instrument/kind, never row/slot.
-      !ui_modal && (mouse_cap&2) && !(last_mouse_cap&2) &&
+      !(etyp>=7 && er==2) && !ui_modal && (mouse_cap&2) && !(last_mouse_cap&2) &&
       mouse_x>=125 && mouse_x<400 && mouse_y>=ey-4 && mouse_y<ey+24 ? (
         controller_assign_ti=ui_eti;controller_assign_x=mouse_x;controller_assign_y=mouse_y;
         ui_modal=1;ui_capture_ti=-1;
       );
-      draw_exp_badge(ui_eti,125,ey+2,275,18);
-      mem[exp_assign_addr(ui_eti)]>0 ? (
+      !(etyp>=7 && er==2) ? draw_exp_badge(ui_eti,125,ey+2,275,18);
+      !(etyp>=7 && er==2) && mem[exp_assign_addr(ui_eti)]>0 ? (
         gfx_setfont(1,"Arial",9);gfx_set(.95,.85,.15,1);gfx_x=507;gfx_y=ey+4;
         gfx_drawstr(controller_name(mem[exp_assign_addr(ui_eti)]-1));
       );
+      etyp>=7 && er==2 ? ui_eti=UI_PARAM_TOTAL+cc_index(eg,etyp);
       !ui_modal && hit(125,ey-4,275,28) ? (
-        mem[exp_assign_addr(ui_eti)]>0 ? (
+        !(etyp>=7 && er==2) && mem[exp_assign_addr(ui_eti)]>0 ? (
           exp_editor_ti=ui_eti;exp_drag_point=-1;exp_drag_segment=-1;exp_bend_segment=-1;
         ) : ui_capture_ti=ui_eti;
       );
       !ui_modal && mouse_cap&1 && ui_capture_ti==ui_eti ? (
-        newv=param_scale(ekind,max(0,min(1,(mouse_x-125)/275)));
-        // GUI queues writes; MIDI side effects occur only in @block.
-        mem[PARAM_PENDING_BASE+ui_eti]=newv;
+        newv=etyp>=7 && er==2?floor(16*max(0,min(1,(mouse_x-125)/275))+.5):param_scale(ekind,max(0,min(1,(mouse_x-125)/275)));
+        // Configuration only; MIDI side effects occur exclusively in @block.
+        etyp>=7 && er==2?mem[evbase]=newv:mem[param_pending_addr(ui_eti)]=newv;
       );
       er+=1;
     );
@@ -3107,7 +3249,7 @@ exp_y+=216;
 ui_modal ? mouse_cap=0;
 !(ui_real_cap&1)?ui_td_reset_latch=0;
 
-exp_editor_ti>=0 && exp_editor_ti<PARAM_TOTAL ? (
+exp_editor_ti>=0 && exp_editor_ti<UI_PARAM_TOTAL ? (
   smallbtn(914,exp_y+8,92,22,"CLOSE CURVE",0);
   hit(914,exp_y+8,92,22) ? (
     exp_editor_ti=-1;exp_drag_point=-1;exp_drag_segment=-1;exp_bend_segment=-1;
@@ -3115,7 +3257,7 @@ exp_editor_ti>=0 && exp_editor_ti<PARAM_TOTAL ? (
 );
 
 // Multipoint editor appears for any assigned instrument ui_target.
-exp_editor_ti>=0 && exp_editor_ti<PARAM_TOTAL ? (
+exp_editor_ti>=0 && exp_editor_ti<UI_PARAM_TOTAL ? (
   curve_ti=floor(exp_editor_ti+0.5);
   curve_gi=param_gi(curve_ti);
   curve_kind=param_kind(curve_ti);
@@ -3277,7 +3419,7 @@ exp_editor_ti>=0 && exp_editor_ti<PARAM_TOTAL ? (
       rightx=mem[exp_x_addr(curve_ti)+exp_drag_point+1]-0.001;
       mem[exp_x_addr(curve_ti)+exp_drag_point]=max(leftx,min(rightx,(mouse_x-cx)/cw));
     );
-    mem[PARAM_LAST_BASE+curve_ti]=-999;
+    mem[param_last_addr(curve_ti)]=-999;
   );
 
   // SHIFT segment drag. Edge segments are vertical-only; fully interior segments also move horizontally.
@@ -3297,7 +3439,7 @@ exp_editor_ti>=0 && exp_editor_ti<PARAM_TOTAL ? (
       mem[exp_x_addr(curve_ti)+ds]=exp_seg_x0+dx_;
       mem[exp_x_addr(curve_ti)+ds+1]=exp_seg_x1+dx_;
     );
-    mem[PARAM_LAST_BASE+curve_ti]=-999;
+    mem[param_last_addr(curve_ti)]=-999;
   );
 
   // ALT segment drag controls signed curvature.
@@ -3305,7 +3447,7 @@ exp_editor_ti>=0 && exp_editor_ti<PARAM_TOTAL ? (
     ds=exp_bend_segment;
     bend_=exp_bend_start+(mouse_y-exp_bend_start_y)/80;
     mem[exp_bend_addr(curve_ti)+ds]=max(-0.98,min(0.98,bend_));
-    mem[PARAM_LAST_BASE+curve_ti]=-999;
+    mem[param_last_addr(curve_ti)]=-999;
   );
 
   !(mouse_cap&1) ? (
@@ -3411,16 +3553,16 @@ controller_assign_ti>=0 ? (
   ax=max(8,min(760,controller_assign_x));ay=max(ui_scroll+8,min(ui_scroll+gfx_h-142,controller_assign_y));aw=190;
   gfx_set(.03,.03,.03,1);gfx_rect(ax,ay,aw,132,1);gfx_set(.8,.8,.8,1);gfx_rect(ax,ay,aw,132,0);
   smallbtn(ax+4,ay+4,aw-8,20,"NONE",mem[exp_assign_addr(controller_assign_ti)]==0);
-  hit(ax+4,ay+4,aw-8,20)?(mem[exp_assign_addr(controller_assign_ti)]=0;mem[PARAM_LAST_BASE+controller_assign_ti]=-999;mem[PARAM_PENDING_BASE+controller_assign_ti]=-999;exp_editor_ti==controller_assign_ti?(exp_editor_ti=-1;exp_drag_point=-1;exp_drag_segment=-1;exp_bend_segment=-1;);controller_assign_ti=-1;);
+  hit(ax+4,ay+4,aw-8,20)?(mem[exp_assign_addr(controller_assign_ti)]=0;mem[param_last_addr(controller_assign_ti)]=-999;mem[param_pending_addr(controller_assign_ti)]=-999;exp_editor_ti==controller_assign_ti?(exp_editor_ti=-1;exp_drag_point=-1;exp_drag_segment=-1;exp_bend_segment=-1;);controller_assign_ti=-1;);
   ui_ci=0;loop(CONTROLLERS,
     controller_assign_ti>=0?(
       smallbtn(ax+4,ay+28+ui_ci*24,aw-8,20,controller_name(ui_ci),mem[exp_assign_addr(controller_assign_ti)]==ui_ci+1);
-      hit(ax+4,ay+28+ui_ci*24,aw-8,20)?(mem[exp_assign_addr(controller_assign_ti)]=ui_ci+1;mem[PARAM_LAST_BASE+controller_assign_ti]=-999;exp_editor_ti=controller_assign_ti;exp_drag_point=-1;exp_drag_segment=-1;exp_bend_segment=-1;ui_capture_ti=-1;controller_assign_ti=-1;);
+      hit(ax+4,ay+28+ui_ci*24,aw-8,20)?(mem[exp_assign_addr(controller_assign_ti)]=ui_ci+1;mem[param_last_addr(controller_assign_ti)]=-999;exp_editor_ti=controller_assign_ti;exp_drag_point=-1;exp_drag_segment=-1;exp_bend_segment=-1;ui_capture_ti=-1;controller_assign_ti=-1;);
     );ui_ci+=1;
   );
 );
 
-controller_assign_ti>=0 && ((mouse_cap&1 && !(last_mouse_cap&1) &&
+controller_assign_ti>=0 && ((mouse_cap&3 && !(last_mouse_cap&3) &&
   (mouse_x<ax || mouse_x>=ax+aw || mouse_y<ay || mouse_y>=ay+132)) || keychar==27) ? controller_assign_ti=-1;
 
 
@@ -3429,7 +3571,7 @@ options_open && learn_candidate<0 ? (
   gfx_setfont(1,"Arial",15);gfx_x=ox+12;gfx_y=oy+10;gfx_drawstr("CONTROLLERS");
   smallbtn(ox+ow-30,oy+6,24,24,"×",0);
   ui_close_options=hit(ox+ow-30,oy+6,24,24) || keychar==27 ||
-    (ui_frame_modal && (mouse_cap&1) && !(last_mouse_cap&1) && (mouse_x<ox || mouse_x>=ox+ow || mouse_y<oy || mouse_y>=oy+oh));
+    (ui_frame_modal && (mouse_cap&3) && !(last_mouse_cap&3) && (mouse_x<ox || mouse_x>=ox+ow || mouse_y<oy || mouse_y>=oy+oh));
   ui_ci=0;loop(CONTROLLERS,
     cy=oy+38+ui_ci*34;gfx_setfont(1,"Arial",11);gfx_set(.82,.82,.82,1);gfx_x=ox+12;gfx_y=cy+6;gfx_drawstr(controller_name(ui_ci));
     gfx_setfont(1,"Arial",10);gfx_x=ox+150;gfx_y=cy+7;

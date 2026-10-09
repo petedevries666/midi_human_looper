@@ -615,13 +615,21 @@ static void editor_ux(Host &h) {
   h.frame();
   check(h.payload() == before, "preview redraws do not modify patch data");
 }
-static void stress(Host &h, bool historical) {
+static void stress(Host &h, bool historical, bool cc_instances = false) {
   configure(h);
   h.run("selected_transform_gi=0;selected_transform_slot=3;exp_editor_ti=0;ui_"
         "scroll=0;i=0;loop(EXP_TOTAL,mem[INST_EXP_ASSIGN_BASE+i]=1;mem[INST_"
         "EXP_Y_BASE+i*EXP_POINTS]=i/"
         "EXP_TOTAL;mem[INST_EXP_Y_BASE+i*EXP_POINTS+1]=1-i/"
         "EXP_TOTAL;i+=1;);ctrl_val0=.5;state=STATE_IDLE;panic_pending=0;");
+  if (cc_instances)
+    h.run("mem[INST_TRANSFORM_COUNT_BASE]=3;mem[INST_TRANSFORM_TYPE_BASE]=6;"
+          "mem[INST_TRANSFORM_TYPE_BASE+1]=7;mem[INST_TRANSFORM_TYPE_BASE+2]=8;"
+          "mem[cc_cfg(0)]=5;mem[cc_cfg(1)]=6;mem[cc_cfg(0)+1]=74;"
+          "mem[cc_cfg(1)+1]=74;mem[PARAM_MOD_CC_BASE]=74;"
+          "selected_transform_slot=1;exp_editor_ti=cc_ti(0,0);"
+          "mem[exp_assign_addr(cc_ti(0,0))]=1;"
+          "mem[exp_assign_addr(cc_ti(1,0))]=1;");
   h.block();
   h.frame();
   std::atomic<bool> stop{false};
@@ -646,6 +654,7 @@ static void stress(Host &h, bool historical) {
   if (!historical)
     check(hashes.size() == 1, "concurrent audio/GFX render is stable");
 }
+#include "cc_instance_cases.hpp"
 #include "learn_ui_cases.hpp"
 #include "phrase_play_cases.hpp"
 #include "smart_switch_cases.hpp"
@@ -673,7 +682,11 @@ int main(int argc, char **argv) {
   phrase_play_tests(phrase);
   Host timing(argv[1]);
   time_decay_tests(timing);
+  Host cc(argv[1]);
+  cc_instance_tests(cc);
   Host stable(argv[1]);
   stress(stable, false);
+  Host cc_stable(argv[1]);
+  stress(cc_stable, false, true);
   printf("PASS: %d EEL2/GUI/MIDI checks\n", checks);
 }

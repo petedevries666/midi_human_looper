@@ -37,7 +37,7 @@ class PatchIO(unittest.TestCase):
         return self.mem[0]
 
     def test_schema_and_slots_roundtrip(self):
-        for schema in (1, 2, 3):
+        for schema in (1, 2, 3, 4):
             for slot in (1, 2):
                 with self.subTest(schema=schema, slot=slot):
                     # Include a prefix and an extension-sized tail; Lua preserves all entries.
@@ -71,12 +71,17 @@ class PatchIO(unittest.TestCase):
                 memory[b:b+5] = [1, 0, 1, 2, number]
                 memory[b+11], memory[b+14] = 2, 1
                 memory[b+48:b+50] = [0, 6] if switch == 0 else [6, 0]
-        self.mem[2], self.mem[3] = 3, len(memory)
+        self.mem[2], self.mem[3] = data['schema'] if fixture else 3, len(memory)
         for i, value in enumerate(globals_, 4): self.mem[i] = value
         for i, value in enumerate(memory, 32): self.mem[i] = value
         self.assertEqual(self.tick(1, 1), 4)
         saved = json.loads((self.root / 'patch1.json').read_text())
         self.assertEqual(saved['memory'], memory)
+        if fixture:
+            self.assertEqual(saved['schema'], 4)
+            cc = data['cc_tail_offset'] + 2 + 3
+            self.assertEqual(saved['memory'][cc:cc+4], [50, 71, 64, 12])
+            self.assertEqual(saved['memory'][cc+4+2+12], .25)
         for switch, number in ((0, 74), (1, 73)):
             b = offset + 1 + switch * 128
             self.assertEqual(saved['memory'][b+4], number)
@@ -89,7 +94,7 @@ class PatchIO(unittest.TestCase):
     def test_rejects_invalid_without_payload_writes(self):
         valid = dict(format='MIDI_HUMAN_LOOPER_PATCH', schema=1, work_mem_size=2,
                      globals=list(range(9)), memory=[144, 60])
-        cases = [dict(valid, schema=4), dict(valid, work_mem_size=3),
+        cases = [dict(valid, schema=5), dict(valid, work_mem_size=3),
                  dict(valid, globals=[0]), dict(valid, format='other'),
                  dict(valid, work_mem_size=1000001), dict(valid, memory=['invalid', 60]),
                  dict(valid, memory=[1e309, 60])]
@@ -105,10 +110,10 @@ class PatchIO(unittest.TestCase):
 
     def test_invalid_save_and_heartbeat(self):
         self.assertEqual(self.mem[15], 1)
-        self.assertEqual(self.mem[16], 3)
+        self.assertEqual(self.mem[16], 4)
         self.mem[2], self.mem[3] = 2, 0
         self.assertEqual(self.tick(1, 1), 5)
-        self.mem[2], self.mem[3] = 4, 2
+        self.mem[2], self.mem[3] = 5, 2
         self.assertEqual(self.tick(1, 1), 5)
         self.lua.globals().shutdown()
         self.assertEqual(self.mem[15], 0)

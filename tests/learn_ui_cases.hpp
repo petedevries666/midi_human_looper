@@ -165,6 +165,11 @@ static void learn_ui_tests(Host &h) {
   h.eq("mem[sw_rt(0)+7]", -1, "TEST DOUBLE dispatches configured reset");
   click(h, 700, 1365);
   h.eq("mem[sw_rt(0)+11]", 2, "TEST HOLD dispatches configured stop");
+  // Include an actual extra CC instance in the native GUI SAVE fixture.
+  h.run("mem[INST_TRANSFORM_COUNT_BASE]=2;mem[INST_TRANSFORM_TYPE_BASE]=6;"
+        "mem[INST_TRANSFORM_TYPE_BASE+1]=7;mem[cc_cfg(0)]=50;"
+        "mem[CC_CFG_BASE+1]=51;mem[cc_cfg(0)+1]=71;mem[cc_cfg(0)+2]=64;"
+        "mem[cc_cfg(0)+3]=12;mem[exp_bend_addr(cc_ti(0,0))]=.25;");
   // Exercise the real SAVE button while an assignment edit is still queued.
   h.run("ui_scroll=0;mem[sw_cfg(0)]=1;sw_submit(0,1,1,74);mem[sw_cfg(0)+SW_"
         "NAME]=86;mem[sw_cfg(1)+SW_NAME]=67;");
@@ -183,9 +188,10 @@ static void learn_ui_tests(Host &h) {
     std::ofstream file(fixture);
     file.precision(17);
     check(bool(file), "open native SAVE snapshot fixture");
-    file << "{\"format\":\"MIDI_HUMAN_LOOPER_PATCH\",\"schema\":3,\"work_mem_"
-            "size\":"
-         << int(h.val("PATCH_PAYLOAD_SIZE")) << ",\"globals\":[";
+    file << "{\"format\":\"MIDI_HUMAN_LOOPER_PATCH\",\"schema\":"
+         << int(h.val("IO_SCHEMA"))
+         << ",\"work_mem_size\":" << int(h.val("PATCH_PAYLOAD_SIZE"))
+         << ",\"globals\":[";
     for (int i = 4; i <= 12; i++) {
       if (i > 4)
         file << ",";
@@ -198,7 +204,7 @@ static void learn_ui_tests(Host &h) {
       file << h.eval("gmem[IO_PAYLOAD_BASE+" + std::to_string(i) + "]");
     }
     file << "],\"switch_tail_offset\":" << int(h.val("SW_LEGACY_PAYLOAD"))
-         << "}";
+         << ",\"cc_tail_offset\":" << int(h.val("CC_LEGACY_PAYLOAD")) << "}";
   }
   h.run("sw_defaults();gmem[0]=3;");
   h.block();

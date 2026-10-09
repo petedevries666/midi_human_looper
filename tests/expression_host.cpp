@@ -26,12 +26,13 @@ struct Host {
   ysfx_config_t *c;
   ysfx_t *f;
   std::vector<uint8_t> pixels;
-  Host(const char *path) : pixels(1040 * 1510 * 4) {
+  Host(const char *path, bool initialize=true) : pixels(1040 * 1510 * 4) {
     c = ysfx_config_new();
     ysfx_set_log_reporter(c, log);
     f = ysfx_new(c);
     check(ysfx_load_file(f, path, 0) && ysfx_compile(f, 0),
           "compile full JSFX");
+    if (!initialize) return;
     ysfx_init(f);
     ysfx_gfx_config_t g{};
     g.pixel_width = 1040;
@@ -615,7 +616,7 @@ static void editor_ux(Host &h) {
   h.frame();
   check(h.payload() == before, "preview redraws do not modify patch data");
 }
-static void stress(Host &h, bool historical, bool cc_instances = false) {
+static void stress(Host &h, bool historical, bool cc_instances = false, bool dynamic_instruments = false) {
   configure(h);
   h.run("selected_transform_gi=0;selected_transform_slot=3;exp_editor_ti=0;ui_"
         "scroll=0;i=0;loop(EXP_TOTAL,mem[INST_EXP_ASSIGN_BASE+i]=1;mem[INST_"
@@ -630,6 +631,12 @@ static void stress(Host &h, bool historical, bool cc_instances = false) {
           "selected_transform_slot=1;exp_editor_ti=cc_ti(0,0);"
           "mem[exp_assign_addr(cc_ti(0,0))]=1;"
           "mem[exp_assign_addr(cc_ti(1,0))]=1;");
+  if(dynamic_instruments) {
+    h.run("i_add();transform_add(3,6);transform_add(3,6);");h.block();h.events();
+    h.run("mem[engine_addr(INST_ENABLED_BASE,3)]=1;selected_transform_gi=3;selected_transform_slot=1;"
+          "mem[exp_assign_addr(cc_ti(15,0))]=1;mem[exp_assign_addr(param_ti(3,EXP_T_LEVEL))]=1;"
+          "exp_editor_ti=cc_ti(15,0);ui_scroll=500;");
+  }
   h.block();
   h.frame();
   std::atomic<bool> stop{false};
@@ -659,6 +666,8 @@ static void stress(Host &h, bool historical, bool cc_instances = false) {
 #include "dynamic_switch_cases.hpp"
 #include "dynamic_instrument_cases.hpp"
 #include "instrument_voice_cases.hpp"
+#include "project_state_cases.hpp"
+#include "popup_integration_cases.hpp"
 #include "phrase_play_cases.hpp"
 #include "smart_switch_cases.hpp"
 #include "time_decay_cases.hpp"
@@ -668,6 +677,7 @@ int main(int argc, char **argv) {
     return 2;
   if (argc>2 && std::string(argv[2])=="--instruments") {Host instruments(argv[1]);dynamic_instrument_tests(instruments);printf("PASS: %d instrument checks\n",checks);return 0;}
   if (argc>2 && std::string(argv[2])=="--instrument-voices") {Host instrument_voices(argv[1]);instrument_voice_tests(instrument_voices);printf("PASS: %d voice checks\n",checks);return 0;}
+  if (argc>2 && std::string(argv[2])=="--project") {project_state_tests(argv[1]);printf("PASS: %d project checks\n",checks);return 0;}
   Host h(argv[1]);
   if (argc > 2 && (std::string(argv[2]) == "--historical" ||
                    std::string(argv[2]) == "--isolated")) {
@@ -697,9 +707,12 @@ int main(int argc, char **argv) {
   Host instruments(argv[1]);
   dynamic_instrument_tests(instruments);
   Host instrument_voices(argv[1]);instrument_voice_tests(instrument_voices);
+  project_state_tests(argv[1]);
+  Host popups(argv[1]);popup_integration_tests(popups);
   Host stable(argv[1]);
   stress(stable, false);
   Host cc_stable(argv[1]);
   stress(cc_stable, false, true);
+  Host instrument_stable(argv[1]);stress(instrument_stable,false,false,true);
   printf("PASS: %d EEL2/GUI/MIDI checks\n", checks);
 }

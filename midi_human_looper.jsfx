@@ -1,4 +1,4 @@
-desc:MIDI Human Looper v1.27.0
+desc:MIDI Human Looper v1.27.1
 options:gmem=MIDI_HUMAN_LOOPER
 
 // Release history: CHANGELOG.md. Free-time MIDI phrase instrument.
@@ -2509,14 +2509,69 @@ local(q,op,gi,id,j)
 while(i_read<ui_i_write)(q=I_QUEUE_BASE+(i_read%I_QUEUE_SIZE)*I_QUEUE_STRIDE;op=mem[q];gi=mem[q+1];id=mem[q+2];
  op==1?i_add():op==2?i_remove(gi,id);i_read+=1;););
 
+// Configuration-only address lookup for inactive project banks. No runtime/draft data.
+function project_bank_addr(slot,j)
+(j>=I_LEGACY_PAYLOAD?(slot==2?I_BANK2_BASE:I_BANK1_BASE)+j-I_LEGACY_PAYLOAD:
+ j>=DS_LEGACY_PAYLOAD?(slot==2?DS_BANK2_BASE:DS_BANK1_BASE)+j-DS_LEGACY_PAYLOAD:
+ j>=TF_LEGACY_PAYLOAD?(slot==2?TF_BANK2_BASE:TF_BANK1_BASE)+j-TF_LEGACY_PAYLOAD:
+ j>=CC_LEGACY_PAYLOAD?(slot==2?CC_BANK2_BASE:CC_BANK1_BASE)+j-CC_LEGACY_PAYLOAD:
+ j>=SW_LEGACY_PAYLOAD?(slot==2?SW_BANK2_BASE:SW_BANK1_BASE)+j-SW_LEGACY_PAYLOAD:
+ j>=WORK_MEM_SIZE?(slot==2?PARAM_BANK2_BASE:PARAM_BANK1_BASE)+j-WORK_MEM_SIZE:
+ (slot==2?PATCH2_BASE:PATCH1_BASE)+PATCH_HEADER_SIZE+j;);
+function project_work_header(j)
+(j==0?loop_len_samples:j==1?analysis_done:j==2?slider4:j==3?slider5:j==4?slider6:j==5?slider7:j==6?slider8:j==7?slider9:j==8?record_layer:0;);
+function project_restore()
+local(pr_slot,pr_j,pr_pos,pr_a,pr_b,pr_c,pr_e,pr_value,pr_addr,pr_header)
+(project_restore_pending && ps_size==PATCH_PAYLOAD_SIZE && ps_schema==IO_SCHEMA?(
+ pr_pos=4000000;pr_slot=0;loop(3,
+  pr_j=0;loop(PATCH_PAYLOAD_SIZE+12,
+   pr_a=mem[pr_pos];pr_b=mem[pr_pos+1];pr_c=mem[pr_pos+2];pr_e=mem[pr_pos+3];
+   pr_value=pr_a==0 && pr_b==0 && pr_c==0?0:(pr_a+(pr_b+pr_c/512)/4194304)/4194304*pow(2,(pr_e%2048)-1024)*(pr_e>=2048?-1:1);
+   pr_j<12?(pr_slot==0?(pr_j==0?loop_len_samples=pr_value:pr_j==1?analysis_done=pr_value:pr_j==2?slider4=pr_value:pr_j==3?slider5=pr_value:pr_j==4?slider6=pr_value:pr_j==5?slider7=pr_value:pr_j==6?slider8=pr_value:pr_j==7?slider9=pr_value:pr_j==8?record_layer=pr_value;):mem[(pr_slot==2?PATCH2_BASE:PATCH1_BASE)+pr_j]=pr_value;):(
+    pr_addr=pr_slot==0?payload_addr(pr_j-12):project_bank_addr(pr_slot,pr_j-12);mem[pr_addr]=pr_value;
+   );pr_j+=1;pr_pos+=4;
+  );pr_slot+=1;
+ );
+ current_patch=max(1,min(2,floor(ps_current)));patch_valid1=ps_valid1>0;patch_valid2=ps_valid2>0;
+ param_runtime_reset();sw_runtime_reset();tf_runtime_reset();i_read=0;ui_i_write=0;
+ ui_sw_editor_open=0;ui_sw_delete_slot=-1;ui_i_delete_slot=-1;transform_menu_gi=-1;options_open=0;controller_assign_ti=-1;exp_editor_ti=-1;ui_capture_ti=-1;
+ record_sample_pos=0;play_sample_pos=0;overdub_armed=0;overdub_active=0;overdub_wait_note=0;trigger_request=-1;hold_stop_request=-1;
+ state=loop_len_samples>0?STATE_STOPPED:STATE_IDLE;panic_pending=1;
+ );project_restore_pending=0;);
+
 restore_after_init ? (
   restore_after_init=0;
   restore_current_patch_raw();
 );
 
+project_restore_pending?project_restore();
+
 @serialize
-// Deliberately trivial. Patch persistence is external JSON from v1.5.0 onward.
-serialize_guard=serialize_guard;
+// All serializer scratch is private. Restore is published only after a complete read
+// and consumed in @init/@block, never through GUI/audio shared engine scratch.
+ps_writing=file_avail(0)<0;!ps_writing?project_restore_pending=0;
+ps_writing?(ps_magic=727121;ps_version=1;ps_size=PATCH_PAYLOAD_SIZE;ps_schema=IO_SCHEMA;ps_current=current_patch;ps_valid1=patch_valid1;ps_valid2=patch_valid2;);
+file_var(0,ps_magic);file_var(0,ps_version);file_var(0,ps_size);file_var(0,ps_schema);file_var(0,ps_current);file_var(0,ps_valid1);file_var(0,ps_valid2);
+ps_magic==727121 && ps_version==1 && ps_schema==7 && ps_size>0 && ps_size<=200000 && ps_size==floor(ps_size)?(
+ ps_words=3*(ps_size+12)*4;
+ ps_writing?(
+  ps_pos=4000000;ps_slot=0;loop(3,
+   ps_j=0;loop(ps_size+12,
+    ps_v=ps_j<12?(ps_slot==0?project_work_header(ps_j):mem[(ps_slot==2?PATCH2_BASE:PATCH1_BASE)+ps_j]):mem[ps_slot==0?payload_addr(ps_j-12):project_bank_addr(ps_slot,ps_j-12)];
+    // file_var/file_mem use float32 in ysfx. Four exact integer limbs retain
+    // the complete JSFX double, including long event offsets and stable IDs.
+    ps_v==0?(mem[ps_pos]=0;mem[ps_pos+1]=0;mem[ps_pos+2]=0;mem[ps_pos+3]=0;):(
+     ps_e=max(-1022,min(1023,floor(log(abs(ps_v))/log(2))));ps_n=abs(ps_v)/pow(2,ps_e);
+     ps_n>=2 && ps_e<1023?(ps_e+=1;ps_n/=2;);ps_n<1 && ps_e>-1022?(ps_e-=1;ps_n*=2;);
+     ps_scaled=ps_n*4194304;ps_a=floor(ps_scaled);ps_scaled=(ps_scaled-ps_a)*4194304;ps_b=floor(ps_scaled);ps_c=floor((ps_scaled-ps_b)*512+.5);
+     mem[ps_pos]=ps_a;mem[ps_pos+1]=ps_b;mem[ps_pos+2]=ps_c;mem[ps_pos+3]=ps_e+1024+(ps_v<0?2048:0);
+    );ps_j+=1;ps_pos+=4;
+   );ps_slot+=1;
+  );
+ );
+ ps_read_words=file_mem(0,4000000,ps_words);
+ !ps_writing && ps_read_words==ps_words?project_restore_pending=1;
+);
 
 @slider
 // Transport/CLEAR are handled by the custom @gfx UI and @block engine.
@@ -2525,6 +2580,7 @@ serialize_guard=serialize_guard;
 
 @block
 
+project_restore_pending?project_restore();
 gmem[0]==3 ? external_patch_apply();
 gmem[0]==4 ? (io_status=4; gmem[0]=0;);
 gmem[0]==5 ? (io_status=5; gmem[0]=0;);
@@ -2840,7 +2896,7 @@ exp_editor_ti<0 || exp_editor_ti>=UI_PARAM_TOTAL || exp_editor_ti!=floor(exp_edi
 ui_visible_instruments=0;ui_inst_g=0;loop(INST_CAP,ui_visible_instruments+=mem[I_EXISTS_BASE+ui_inst_g]>0;ui_inst_g+=1;);
 ui_content_h=2020+(ui_visible_instruments-3)*124;
 ui_view_h=gfx_h;
-ui_max_scroll=max(0,ui_content_h-ui_view_h);
+ui_max_scroll=max(0,ui_content_h-ui_view_h);ui_scroll=max(0,min(ui_max_scroll,ui_scroll));
 mouse_wheel!=0 ? (
   ui_scroll=max(0,min(ui_max_scroll,ui_scroll-mouse_wheel/120*42));
   mouse_wheel=0;
@@ -2853,7 +2909,7 @@ gfx_set(0,0,0,1); gfx_rect(0,0,gfx_w,ui_content_h,1);
 
 // Save input once. A modal popup owns this whole frame, including dismissal.
 ui_real_cap=mouse_cap;
-ui_frame_modal=ui_modal=controller_assign_ti>=0 || transform_menu_gi>=0 || options_open || ui_sw_editor_open || ui_sw_delete_slot>=0 || ui_i_delete_slot>=0 || learn_candidate>=0;
+ui_frame_modal=ui_modal=controller_assign_ti>=0 || transform_menu_gi>=0 || options_open || ui_sw_editor_open || ui_sw_delete_slot>=0 || ui_i_delete_slot>=0 || phrase_context>=0 || learn_candidate>=0;
 ui_modal ? mouse_cap=0;
 !(ui_real_cap&1)?ui_td_reset_latch=0;
 !(ui_real_cap&1) ? ui_capture_ti=-1;
@@ -3209,17 +3265,6 @@ loop(PHRASES_PER_PAGE,
   gui_row+=1;
 );
 
-// Contextual phrase CLEAR is intentionally separate from the record/overdub control.
-phrase_context>=0 ? (
-  gfx_set(.08,.08,.08,1);gfx_rect(26,phrase_context_y,112,30,1);
-  gfx_set(.55,.55,.55,1);gfx_rect(9,phrase_context_y,112,30,0);
-  gfx_setfont(1,"Arial",12);gfx_x=37;gfx_y=phrase_context_y+8;gfx_drawstr("CLEAR PHRASE");
-  hit(26,phrase_context_y,112,30) ? (
-    panic_pending=1;clear_layer(phrase_context);phrase_context=-1;
-  );
-  (mouse_cap&1) && !(last_mouse_cap&1) && !(mouse_x>=26 && mouse_x<138 && mouse_y>=phrase_context_y && mouse_y<phrase_context_y+30) ? phrase_context=-1;
-);
-
 function gui_exp_segment_t(t, bend)
 local(p)
 (
@@ -3467,9 +3512,9 @@ function draw_instrument_row(gi, iy)
 local(basey,boxh,nx,nw,vx,vw,wirey,tx,bw,gap,c,ui_k,rawtyp,ui_code,ui_typ,ti,addx,addy,subtitle)
 (
   boxh=28;basey=iy;
- smallbtn(994,basey-4,24,18,"×",0);!ui_modal && hit(994,basey-4,24,18)?(ui_i_delete_slot=gi;ui_i_delete_id=mem[I_IDS_BASE+gi];);
   gfx_set(.075,.075,.075,1);gfx_rect(12,basey-5,1010,116,1);
   gfx_set(.20,.20,.20,1);gfx_rect(12,basey-5,1010,116,0);
+ smallbtn(994,basey-4,24,18,"×",0);!ui_modal && hit(994,basey-4,24,18)?(ui_i_delete_slot=gi;ui_i_delete_id=mem[I_IDS_BASE+gi];);
   smallbtn(22,basey+14,46,boxh,mem[engine_addr(INST_ENABLED_BASE,gi)]>.5?"ON":"OFF",mem[engine_addr(INST_ENABLED_BASE,gi)]>.5);
   (transform_menu_gi<0 && !options_open && controller_assign_ti<0 && hit(22,basey+14,46,boxh))?(mem[engine_addr(INST_ENABLED_BASE,gi)]=1-mem[engine_addr(INST_ENABLED_BASE,gi)];panic_pending=1;);
   nx=78;nw=170;gfx_set(.12,.12,.12,1);gfx_rect(nx,basey+14,nw,boxh,1);
@@ -3974,6 +4019,15 @@ draw_smart_switch_cards(exp_y+430);
 
 // Overlay input is restored after all underlying controls have finished.
 mouse_cap=ui_real_cap;ui_modal=learn_candidate>=0;
+// Phrase context popup owns the dismissal frame, just like the other overlays.
+phrase_context>=0 ? (
+ phrase_context_y=max(ui_scroll+8,min(ui_scroll+gfx_h-40,phrase_context_y));
+ gfx_set(.04,.04,.04,1);gfx_rect(26,phrase_context_y,146,30,1);gfx_set(.7,.7,.7,1);gfx_rect(26,phrase_context_y,146,30,0);
+ smallbtn(28,phrase_context_y+2,114,26,"CLEAR PHRASE",0);smallbtn(146,phrase_context_y+2,24,26,"×",0);
+ hit(28,phrase_context_y+2,114,26)?(panic_pending=1;clear_layer(phrase_context);phrase_context=-1;);
+ hit(146,phrase_context_y+2,24,26) || keychar==27 || (ui_frame_modal && (mouse_cap&3) && !(last_mouse_cap&3) && (mouse_x<26 || mouse_x>=172 || mouse_y<phrase_context_y || mouse_y>=phrase_context_y+30))?phrase_context=-1;
+);
+
 ui_menu_row=0;ui_inst_g=0;loop(INST_CAP,mem[I_EXISTS_BASE+ui_inst_g]?(draw_transform_menu_overlay(ui_inst_g,transform_rows_y+ui_menu_row*124);ui_menu_row+=1;);ui_inst_g+=1;);
 
 ui_sw_editor_open && learn_candidate<0 ? (
@@ -3999,8 +4053,9 @@ ui_sw_delete_slot>=0 && learn_candidate<0 ? (
 controller_assign_ti>=0 ? (
   ax=max(8,min(760,controller_assign_x));ay=max(ui_scroll+8,min(ui_scroll+gfx_h-142,controller_assign_y));aw=190;
   gfx_set(.03,.03,.03,1);gfx_rect(ax,ay,aw,132,1);gfx_set(.8,.8,.8,1);gfx_rect(ax,ay,aw,132,0);
-  smallbtn(ax+4,ay+4,aw-8,20,"NONE",mem[exp_assign_addr(controller_assign_ti)]==0);
-  hit(ax+4,ay+4,aw-8,20)?(mem[exp_assign_addr(controller_assign_ti)]=0;mem[param_last_addr(controller_assign_ti)]=-999;mem[param_pending_addr(controller_assign_ti)]=-999;exp_editor_ti==controller_assign_ti?(exp_editor_ti=-1;exp_drag_point=-1;exp_drag_segment=-1;exp_bend_segment=-1;);controller_assign_ti=-1;);
+  smallbtn(ax+4,ay+4,aw-36,20,"NONE",mem[exp_assign_addr(controller_assign_ti)]==0);
+  hit(ax+4,ay+4,aw-36,20)?(mem[exp_assign_addr(controller_assign_ti)]=0;mem[param_last_addr(controller_assign_ti)]=-999;mem[param_pending_addr(controller_assign_ti)]=-999;exp_editor_ti==controller_assign_ti?(exp_editor_ti=-1;exp_drag_point=-1;exp_drag_segment=-1;exp_bend_segment=-1;);controller_assign_ti=-1;);
+  smallbtn(ax+aw-28,ay+4,24,20,"×",0);hit(ax+aw-28,ay+4,24,20)?controller_assign_ti=-1;
   ui_ci=0;loop(CONTROLLERS,
     controller_assign_ti>=0?(
       smallbtn(ax+4,ay+28+ui_ci*24,aw-8,20,controller_name(ui_ci),mem[exp_assign_addr(controller_assign_ti)]==ui_ci+1);
@@ -4014,7 +4069,7 @@ controller_assign_ti>=0 && ((mouse_cap&3 && !(last_mouse_cap&3) &&
 
 
 options_open && learn_candidate<0 ? (
-  ox=500;oy=104;ow=500;oh=188;gfx_set(.025,.025,.025,1);gfx_rect(ox,oy,ow,oh,1);gfx_set(.82,.82,.82,1);gfx_rect(ox,oy,ow,oh,0);
+  ox=500;oy=ui_scroll+max(8,min(104,gfx_h-196));ow=500;oh=188;gfx_set(.025,.025,.025,1);gfx_rect(ox,oy,ow,oh,1);gfx_set(.82,.82,.82,1);gfx_rect(ox,oy,ow,oh,0);
   gfx_setfont(1,"Arial",15);gfx_x=ox+12;gfx_y=oy+10;gfx_drawstr("CONTROLLERS");
   smallbtn(ox+ow-30,oy+6,24,24,"×",0);
   ui_close_options=hit(ox+ow-30,oy+6,24,24) || keychar==27 ||

@@ -1,4 +1,4 @@
-desc:MIDI Human Looper v1.22.1
+desc:MIDI Human Looper v1.22.2
 options:gmem=MIDI_HUMAN_LOOPER
 
 // Release history: CHANGELOG.md. Free-time MIDI phrase instrument.
@@ -1553,13 +1553,13 @@ local(grid,q,target)
   );
 );
 
-function process_phrase_trigger(start_offset)
+function process_phrase_trigger(start_offset,play_only)
 local(requested_layer,voice_slot,vi)
 (
 trigger_request>=0 ? (
   requested_layer=trigger_request;
   trigger_request=-1;
-  overdub_wait_note && overdub_armed && overdub_layer==requested_layer ? (
+  !play_only && overdub_wait_note && overdub_armed && overdub_layer==requested_layer ? (
     // ONCE/HOLD: record from this trigger, not from the looping transport.
     overdub_wait_note=0;overdub_armed=0;overdub_active=1;
     overdub_pos=0;
@@ -1716,7 +1716,7 @@ local(b,r,step,phrase,gi,kind,k,c,found)
       phrase=mem[b+SW_LIST+step];
       phrase>=0 && phrase<LAYERS && layer_count(phrase)>0 ? (
         mem[MODE_BASE+phrase]<.5 ? (loop_len_samples>0 ? (mem[TRIG_BASE+phrase]=1;state=STATE_PLAYING;) : mem[r+17]=2;) : (
-          trigger_request=phrase;process_phrase_trigger(offs);
+          trigger_request=phrase;process_phrase_trigger(offs,0);
         );
       ) : mem[r+17]=2;
     ) : mem[r+17]=2;
@@ -1837,7 +1837,7 @@ function learn_capture(kind,ch,num,value,is_press)
 local(target,j,release,b)
 (
   target=sw_learn>=0?sw_learn:controller_learn>=0?SW_COUNT+controller_learn:phrase_note_learn>=0?SW_COUNT+CONTROLLERS+phrase_note_learn:-1;
-  target>=0 && (is_press || kind==2 && target<SW_COUNT+CONTROLLERS) ? (
+  target>=0 && (is_press || (kind==2 && target<SW_COUNT+CONTROLLERS)) ? (
     // Snapshot target and event before clearing all listeners. No performance path sees it.
     learn_candidate=target;sw_learn=-1;controller_learn=-1;phrase_note_learn=-1;
     learn_kind=kind;learn_channel=ch;learn_number=num;learn_press=kind==2?value:127;
@@ -2012,7 +2012,7 @@ hold_stop_request>=0 ? (
 );
 
 // Existing GUI/phrase requests execute at the block boundary.
-process_phrase_trigger(0);
+process_phrase_trigger(0,0);
 
 while (
   midirecv(offset,msg1,msg23) ?
@@ -2031,15 +2031,19 @@ while (
     status==144 || status==128 ? (
       ci=0;loop(CONTROLLERS,learn_matches(SW_COUNT+ci,1,msg1&15,d1)?controller_set_value(ci,is_note_on?1:0);ci+=1;);
     );
-    // Learn capture is centralized; existing trigger behavior follows unchanged.
+    // Learned PHRASES inputs are playback commands, independent of record/overdub.
     (
       is_trigger_command=0;
-      is_note_on ? (
+      status==144 || status==128 ? (
         ti=0;
         loop(LAYERS,
           learn_matches(SW_COUNT+CONTROLLERS+ti,1,msg1&15,d1) ? (
-            select_phrase_record(ti);
             is_trigger_command=1;
+            is_note_on && layer_count(ti)>0 ? (
+              mem[MODE_BASE+ti]<.5 ? (
+                loop_len_samples>0 ? (mem[TRIG_BASE+ti]=1;state=STATE_PLAYING;);
+              ) : (trigger_request=ti;process_phrase_trigger(offset,1););
+            );
           );
           ti+=1;
         );
@@ -2053,7 +2057,8 @@ while (
       trigger_request=overdub_layer;
     );
 
-    !is_trigger_command && state==STATE_READY && is_note_on && layer_count(record_layer)==0 ? (
+    !is_trigger_command ? (
+    state==STATE_READY && is_note_on && layer_count(record_layer)==0 ? (
       // Only a truly empty phrase can enter destructive first-take recording.
       clear_layer(record_layer);
       state=STATE_RECORDING;
@@ -2071,6 +2076,7 @@ while (
       store_event(overdub_layer,overdub_pos+offset,msg1,d1,d2,offset);
     );
 
+    );
     // Trigger keys do not leak into the instrument signal path.
     !is_trigger_command ? send_to_instruments(offset,msg1,d1,d2,1);
     );

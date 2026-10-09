@@ -17,9 +17,11 @@ class Registry:
     def normalize(self,id,value):
         p=self.parameters[id]
         if not math.isfinite(value):raise ValueError('nonfinite parameter')
+        if p['normalizedConversion']=='log_ratio':return max(0,min(1,(math.log2(max(p['min'],min(p['max'],value)))+1)/2))
         return max(0,min(1,(value-p['min'])/(p['max']-p['min'])))
     def scale(self,id,x):
         p=self.parameters[id];x=max(0,min(1,x))
+        if p['normalizedConversion']=='log_ratio':return 2**(2*x-1)
         if p['normalizedConversion']=='equal_bins':return min(p['max'],math.floor(x*(p['max']+1)))
         raw=p['min']+(p['max']-p['min'])*x
         return max(p['min'],min(p['max'],math.floor(raw/p['step']+.5)*p['step']))

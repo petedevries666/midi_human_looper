@@ -24,11 +24,35 @@ local function num(v)
   return string.format("%.17g", v)
 end
 
+local function headless_extension(txt)
+  if not txt or not txt:match('"controllerEngine"%s*:') then return false end
+  local body = txt:match('"configuration"%s*:%s*%[(.-)%]')
+  if not body then return true end -- Unknown extensions must not be erased.
+  local values = {}
+  for token in body:gmatch("[^,%s]+") do values[#values+1] = tonumber(token) or -1 end
+  if #values ~= 2177 or values[1] ~= 1 then return true end
+  for i=0,15 do if values[2+4*i] ~= 0 then return true end end
+  for i=0,31 do if values[66+66*i] ~= 0 then return true end end
+  return false
+end
+
+local function refuse_headless()
+  if reaper.ShowMessageBox then
+    reaper.ShowMessageBox("This file contains headless Controller Engine configuration. Use EXPORT REAPER BASE in the web editor, then copy the separate patchN-reaper.json file to the REAPER patch slot. The original headless patch has been preserved.", "MIDI Human Looper", 0)
+  end
+  return false
+end
+
 local function save_patch(slot)
   ensure_dir()
   local n = math.floor(reaper.gmem_read(3) + 0.5)
   local schema = reaper.gmem_read(2)
   if (schema ~= 1 and schema ~= 2 and schema ~= 3 and schema ~= 4 and schema ~= 5 and schema ~= 6 and schema ~= SCHEMA) or n <= 0 or n > 1000000 then return false end
+  local existing = io.open(path_for(slot), "rb")
+  if existing then
+    local txt = existing:read("*a"); existing:close()
+    if headless_extension(txt) then return refuse_headless() end
+  end
   local fh = io.open(path_for(slot), "wb")
   if not fh then return false end
   fh:write('{"format":"MIDI_HUMAN_LOOPER_PATCH","schema":', tostring(schema))
@@ -65,6 +89,7 @@ local function load_patch(slot)
   if not fh then return false end
   local txt = fh:read("*a")
   fh:close()
+  if headless_extension(txt) then return refuse_headless() end
   local schema = tonumber(txt:match('"schema"%s*:%s*(%d+)'))
   local n = tonumber(txt:match('"work_mem_size"%s*:%s*(%d+)'))
   local globals = parse_array(txt, "globals")

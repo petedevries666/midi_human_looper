@@ -1,16 +1,16 @@
 # Global Controller Engine: policy core, issue #18 PR C1
 
-**Status:** executable, bounded C++ policy implementation with deterministic tests.
-Not yet enabled in the headless host or REAPER, and not the completed PR C feature.
-This keeps tomorrow's independently usable P0 intact while policy semantics are
-reviewed before MIDI Learn/legacy migration/persistence integration. No existing
-expression assignment or sound is changed by adding this library.
+**Status:** the policy core was delivered separately in #21. This dependent branch
+connects it to the real headless MIDI host and browser. REAPER policy processing and
+automatic legacy-assignment migration remain incomplete. See
+[controller-engine-integration.md](controller-engine-integration.md) for current
+controls, persistence boundaries and tested limitations.
 
 ## Domain and timeline
 
 `headless/controller_engine.hpp` owns normalized effective targets and ownership.
-It is global controller policy, never an Instrument note Transformer. The future
-host adapter must implement the complete timeline:
+It is global controller policy, never an Instrument note Transformer. The headless
+host adapter implements this timeline:
 
 physical channel/type/number → exclusive Learn/switch/phrase routing → logical
 source → per-mapping multipoint response → takeover → priority/ownership → normalized
@@ -69,29 +69,21 @@ return behavior. Target deletion removes its mappings; PANIC cancels all runtime
 ownership/ramps without changing current parameter configuration. Recall supplies
 new committed values and resets pickup/return state.
 
-## Required integration before exposing controls
+## Remaining compatibility work
 
-1. Add typed physical-source records and one global Learn target/lease, preserving
-   exact channel/type/number, explicit duplicate reassignment and release quarantine.
-   Reuse the existing switch/phrase Learn isolation; do not create another listener
-   independently inspecting the same event.
-2. Resolve target keys `(scope, stable Instrument/phrase/module ID, parameter ID)`
-   against descriptors, retaining base values separately from effective values.
-   Apply through existing held-note deferral/reset hooks, not raw note-routing edits.
-3. Migrate legacy expression assignments and multipoint curves atomically, with
-   DIRECT defaults matching existing `exp_curve_value`/`param_scale` behavior. Prevent
-   legacy and generic writers from owning the same target. Cross-check real EEL
-   fixtures and preserve REAPER-export semantics rather than clearing assignments.
-4. Version configuration persistence, validate entire imports before commit, reset
-   runtime on LOAD/PANIC, and reject stale commands after target deletion/patch recall.
-   Do not silently add a lossy sidecar that REAPER's Lua SAVE would discard.
-5. Add descriptor-rendered mapping editor, source Learn and live takeover/return
-   indications, then real-engine/HTTP/browser integration tests. These controls are
-   intentionally not advertised as available by this policy-only PR.
+The native adapter now implements sources, exclusive Learn, target resolution,
+held-note deferral, committed bases, versioned in-file configuration, generic editing
+and live takeover/return indications. Existing expression-owned targets are rejected
+to prevent competing writers. Automatic legacy migration still requires real EEL
+curve/scale fixtures and atomic conversion with DIRECT compatibility defaults.
 
-HUMANIZER and VELOCITY CURVES remain subsequent separate implementation stages;
-#11/#12 designs were inspected. Their scheduler/curve/ownership work is not replaced
-by the controller library or metadata.
+New-policy configuration is headless-only until a shared JSFX/project schema and
+REAPER policy adapter are implemented. The separate REAPER base export and Lua guard
+prevent silent destructive round-trips; they are not a claim of full bidirectional
+policy compatibility. Physical Pi/Firefox acceptance remains outstanding.
+
+HUMANIZER and VELOCITY CURVES are subsequent implementation stages. Their scheduler,
+response-curve, AMOUNT and ownership work is not replaced by controller metadata.
 
 ## Run the tests
 
@@ -102,5 +94,5 @@ SANITIZE=1 scripts/controller-test.sh
 
 Tests cover synthetic time, rapid retarget, pickup after recall, independent eligible
 targets, priority contention, stale return/token rejection, target deletion/PANIC,
-curve bends and capacity/invalid configuration. They prove the policy core only,
-not MIDI Learn, native parameter adapter, persistence migration or Pi performance.
+curve bends and capacity/invalid configuration. These synthetic cases prove policy semantics. Native MIDI/HTTP/browser tests are
+listed in the integration guide; Pi performance is not inferred from either suite.

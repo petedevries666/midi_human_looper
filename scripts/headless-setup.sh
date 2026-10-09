@@ -5,7 +5,7 @@ printf 'Target: %s, %s bits\n' "$(uname -m)" "$(getconf LONG_BIT)"
 case "$(uname -m)" in aarch64|armv7l|x86_64) ;; *) echo 'Unaudited architecture: verify ysfx support before continuing.' >&2;exit 1;; esac
 # Run from a local terminal; SSH is not required. Uses sudo only for OS dependencies.
 sudo apt-get update
-sudo apt-get install -y git build-essential cmake pkg-config libjack-jackd2-dev python3
+sudo apt-get install -y git build-essential cmake pkg-config libjack-jackd2-dev jack-tools python3
 : "${YSFX_SOURCE:=$PWD/.build/ysfx}"
 if [[ ! -d "$YSFX_SOURCE/.git" ]]; then git clone https://github.com/jpcima/ysfx.git "$YSFX_SOURCE";fi
 [[ -z "$(git -C "$YSFX_SOURCE" status --porcelain)" ]] || { echo 'ysfx checkout has changes; refusing checkout' >&2;exit 1; }

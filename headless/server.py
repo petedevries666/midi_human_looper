@@ -12,6 +12,7 @@ import os
 import math
 import time
 from registry import REGISTRY
+from controller_config import binding_wire, decode
 import socket
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -26,7 +27,7 @@ class Control:
         self.lock = threading.Lock()
         self.ids = itertools.count(1)
 
-    def request(self, op=0, target=0, arg=0, revision=1, ch=0, note=0, value=0, session=0, patch=None, parameters=None, module=0):
+    def request(self, op=0, target=0, arg=0, revision=1, ch=0, note=0, value=0, session=0, patch=None, parameters=None, module=0, binding=None):
         # One worker producer owns the engine's command queue; HTTP threads never
         # inspect live engine state. A timeout does not cancel an already executed TEST.
         with self.lock:
@@ -36,8 +37,12 @@ class Control:
             if op==13:line=line.rstrip('\n')+f' {module}\n'
             if parameters is not None:
                 line=line.rstrip('\n')+f' {module} {len(parameters)} '+ ' '.join(f"{p['kind']} {p['value']:.17g}" for p in parameters)+'\n'
+            if binding is not None:line=line.rstrip('\n')+' '+' '.join(format(v,'.17g') for v in binding)+'\n'
             if patch is not None:
                 line = line.rstrip('\n') + ' ' + ' '.join(format(v, '.17g') for v in patch['globals']+patch['memory'])+'\n'
+                if 'controllerEngine' in patch:
+                    decode(patch['controllerEngine'])
+                    line=line.rstrip('\n')+' controllers '+' '.join(format(v,'.17g') for v in patch['controllerEngine']['configuration'])+'\n'
             with socket.socket(socket.AF_UNIX) as client:
                 client.settimeout(15)
                 client.connect(self.path)
@@ -86,7 +91,7 @@ class Handler(BaseHTTPRequestHandler):
             while True:
                 state=self.server.control.request()
                 payload=json.dumps(state,separators=(',',':')).encode()
-                prefix=bytes([0x81,len(payload)]) if len(payload)<126 else bytes([0x81,126])+struct.pack('!H',len(payload))
+                prefix=bytes([0x81,len(payload)]) if len(payload)<126 else bytes([0x81,126])+struct.pack('!H',len(payload)) if len(payload)<=65535 else bytes([0x81,127])+struct.pack('!Q',len(payload))
                 self.wfile.write(prefix+payload);self.wfile.flush()
                 time.sleep(.25)
         except (OSError, ValueError, EOFError):
@@ -162,7 +167,7 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         if not self.allowed(api=True):
             return
-        if self.path in ('/api/v1/patch/save','/api/v1/patch/load'):
+        if self.path in ('/api/v1/patch/save','/api/v1/patch/load','/api/v1/patch/export'):
             self.patch_command();return
         if self.path != '/api/v1/command':
             self.respond(404, {'error': 'not found'})
@@ -189,6 +194,22 @@ class Handler(BaseHTTPRequestHandler):
                 if type(target) is not int or not 1 <= target <= 16777215 or gesture not in ('tap', 'double', 'hold'):
                     raise ValueError('invalid switch or gesture')
                 args = dict(op=1, target=target, arg=('tap', 'double', 'hold').index(gesture))
+            elif action in ('controller_source','controller_learn','controller_forget','controller_cancel','controller_confirm','mapping_delete','controller_return','controller_capture'):
+                target=data.get('sourceId') if action.startswith('controller_') and action not in ('controller_return','controller_capture') else data.get('mappingId') if action=='mapping_delete' else data.get('targetId')
+                if type(target) is not int or not 1<=target<=16777215:raise ValueError()
+                if action=='controller_source':
+                    kind,channel,number=data.get('kind',0),data.get('channel',1),data.get('number',0)
+                    if any(type(v) is not int for v in (kind,channel,number)) or not 0<=kind<=2 or not 1<=channel<=16 or not 0<=number<=127:raise ValueError()
+                    args=dict(op=14,target=target,arg=kind,ch=channel-1,note=number)
+                elif action=='mapping_delete':args=dict(op=17,target=target)
+                elif action in ('controller_return','controller_capture'):args=dict(op=18,target=target,arg=int(action=='controller_capture'))
+                else:args=dict(op=15,target=target,arg={'controller_learn':0,'controller_cancel':1,'controller_confirm':2,'controller_forget':3}[action])
+            elif action=='mapping_commit':
+                binding=binding_wire(data.get('mapping'));args=dict(op=16,target=binding[0],binding=binding)
+            elif action=='midi_cc':
+                channel,number,value=data.get('channel'),data.get('number'),data.get('value')
+                if any(type(v) is not int for v in (channel,number,value)) or not 1<=channel<=16 or not 0<=number<=127 or not 0<=value<=127:raise ValueError()
+                args=dict(op=19,ch=channel-1,note=number,value=value)
             elif action == 'panic':
                 args = dict(op=2)
             elif action=='module_structure':
@@ -242,10 +263,13 @@ class Handler(BaseHTTPRequestHandler):
             if type(session) is not int or not 1<=session<=9007199254740991:raise ValueError()
             if type(slot) is not int or slot not in (1,2) or type(rev) is not int or not 1<=rev<2147483647:raise ValueError()
             path=self.server.patch_dir/f'patch{slot}.json'
-            if self.path.endswith('/save'):
+            if self.path.endswith('/save') or self.path.endswith('/export'):
                 patch=self.server.control.request(op=4,revision=rev,session=session)
                 if patch.get('status')=='conflict':self.respond(409,patch);return
                 if patch.get('format')!='MIDI_HUMAN_LOOPER_PATCH':raise ValueError()
+                if self.path.endswith('/export'):
+                    patch.pop('controllerEngine',None)
+                    path=self.server.patch_dir/f'patch{slot}-reaper.json'
                 self.server.patch_dir.mkdir(parents=True,exist_ok=True)
                 temp=path.with_suffix('.tmp')
                 # Serialize patch writes independently from command execution.
@@ -253,7 +277,7 @@ class Handler(BaseHTTPRequestHandler):
                     with temp.open('w') as f:
                         json.dump(patch,f,allow_nan=False,separators=(',',':'));f.flush();os.fsync(f.fileno())
                     temp.replace(path)
-                self.respond(200,{'status':'saved','slot':slot})
+                self.respond(200,{'status':'saved','slot':slot,'file':path.name})
             else:
                 if path.stat().st_size>16000000:raise ValueError()
                 patch=json.loads(path.read_text())

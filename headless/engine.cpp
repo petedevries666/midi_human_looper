@@ -1,5 +1,6 @@
 // Native JACK MIDI host. All EEL and ownership run on one processing thread.
 // Disk, sockets and JSON are confined to the control worker.
+#include "controller_wire.hpp"
 #include "ysfx.hpp"
 #include <array>
 #include <atomic>
@@ -59,6 +60,8 @@ struct Request {
   int op = 0, target = 0, arg = 0, revision = 1, ch = 0, note = 0, value = 0;
   int module = 0, count = 0;
   std::array<ParameterChange, 4> parameters{};
+  controller::Binding binding;
+  controller::Configuration controllerConfig;
 };
 struct Switch {
   int id = 0, on = 0, type = 0, kind = 0, ch = 0, num = 0, length = 0, step = 0;
@@ -76,7 +79,7 @@ struct Instrument {
 };
 struct Phrase {
   int events = 0, mode = 0;
-  double time = 1;
+  double time = 1, velocityDecay = .8;
 };
 struct Snapshot {
   uint64_t samples = 0, blocks = 0, midi = 0, late = 0, last_sample = 0;
@@ -89,6 +92,13 @@ struct Snapshot {
   std::array<Switch, 16> switches{};
   std::array<Instrument, 8> instruments{};
   std::array<Phrase, 16> phrases{};
+  controller::Configuration controllerConfig;
+  uint32_t learnTarget = 0;
+  controller::Source learnCandidate;
+  int learnConflict = 0;
+  std::array<double, 32> effective{};
+  std::array<uint32_t, 32> owners{};
+  std::array<bool, 32> returning{}, pickup{};
 };
 struct Reply {
   uint64_t id = 0;
@@ -124,11 +134,12 @@ static void execute(ysfx_t *fx, const char *text) {
 struct Model {
   std::array<std::array<double *, 26>, 16> sw;
   std::array<std::array<double *, 22>, 8> inst;
-  std::array<std::array<double *, 3>, 16> phrase;
-  std::array<double *, 8> tfCount;
+  std::array<std::array<double *, 4>, 16> phrase;
+  std::array<double *, 8> tfCount, levelAssignment, levelPending;
   std::array<std::array<double *, 6>, 8> tfCodes;
   std::array<std::array<double *, 12>, 8> tfIds, tfTypes;
-  std::array<std::array<std::array<double *, 4>, 12>, 8> values, assignments;
+  std::array<std::array<std::array<double *, 4>, 12>, 8> values, assignments,
+      pendingValues;
   std::array<std::array<std::array<int, 4>, 12>, 8> kinds;
   void initParameters(ysfx_t *fx) {
     auto i = NSEEL_VM_regvar(fx->vm.get(), "remote_pi"),
@@ -136,7 +147,8 @@ struct Model {
          r = NSEEL_VM_regvar(fx->vm.get(), "remote_pr"),
          k = NSEEL_VM_regvar(fx->vm.get(), "remote_pk"),
          a = NSEEL_VM_regvar(fx->vm.get(), "remote_pa"),
-         b = NSEEL_VM_regvar(fx->vm.get(), "remote_pb");
+         b = NSEEL_VM_regvar(fx->vm.get(), "remote_pb"),
+         pending = NSEEL_VM_regvar(fx->vm.get(), "remote_pending");
     auto lookup = NSEEL_code_compile(
         fx->vm.get(),
         "remote_pk=param_editor_kind(transform_type(remote_pi,remote_pc),"
@@ -144,7 +156,9 @@ struct Model {
         "cc_index(remote_pi,remote_pc),remote_pr);remote_pa=remote_pc<7?param_"
         "addr(remote_pi,remote_pk):cc_cfg(cc_index(remote_pi,remote_pc))+("
         "remote_pr==0?2:remote_pr==1?1:3);remote_pb=exp_assign_addr(remote_pti)"
-        ";",
+        ";"
+        "remote_pending=(remote_pk>=0 || "
+        "remote_pc>=7)?param_pending_addr(remote_pti):0;",
         0);
     if (!lookup)
       throw std::runtime_error("parameter descriptors");
@@ -158,8 +172,24 @@ struct Model {
           kinds[gi][code][row] = int(*k);
           values[gi][code][row] = cell(fx, unsigned(*a));
           assignments[gi][code][row] = cell(fx, unsigned(*b));
+          pendingValues[gi][code][row] =
+              *pending ? cell(fx, unsigned(*pending)) : nullptr;
         }
     NSEEL_code_free(lookup);
+    auto level = NSEEL_code_compile(
+        fx->vm.get(),
+        "remote_pb=exp_assign_addr(param_ti(remote_pi,1));remote_pending=param_"
+        "pending_addr(param_ti(remote_pi,1));",
+        0);
+    if (!level)
+      throw std::runtime_error("level assignment bridge");
+    for (unsigned gi = 0; gi < 8; ++gi) {
+      *i = gi;
+      NSEEL_code_execute(level);
+      levelAssignment[gi] = cell(fx, unsigned(*b));
+      levelPending[gi] = cell(fx, unsigned(*pending));
+    }
+    NSEEL_code_free(level);
   }
   explicit Model(ysfx_t *fx) {
     auto gi = NSEEL_VM_regvar(fx->vm.get(), "remote_model_i"),
@@ -213,6 +243,7 @@ struct Model {
                           : unsigned(variable(fx, "DS_RT_BASE")) + (i - 4) * 32;
       sw[i][24] = cell(fx, rt + 7);
       sw[i][25] = cell(fx, rt + 12);
+      phrase[i][3] = cell(fx, unsigned(variable(fx, "DECAY_BASE")) + i);
       phrase[i][0] = cell(fx, unsigned(variable(fx, "COUNT_BASE")) + i);
       phrase[i][1] = cell(fx, unsigned(variable(fx, "MODE_BASE")) + i);
       phrase[i][2] = cell(fx, unsigned(variable(fx, "SW_CFG_BASE")) + 1 +
@@ -235,6 +266,65 @@ struct Model {
                          (i < 3 ? i : i - 3) * 16 + j);
     }
   }
+  bool resolve(const controller::Binding &b, unsigned &i, int &code,
+               int &row) const {
+    if (b.kind >= 14) {
+      i = b.instrument - 1;
+      code = -1;
+      row = b.kind == 14 ? 2 : 3;
+      return i < 16 && !b.module;
+    }
+    for (i = 0; i < 8; ++i)
+      if (*inst[i][0] && *inst[i][1] == double(b.instrument))
+        break;
+    if (i == 8)
+      return false;
+    if (!b.module) {
+      code = 0;
+      row = 0;
+      return b.kind == 1 && !*levelAssignment[i];
+    }
+    if (!std::isfinite(*tfCount[i]) || *tfCount[i] < 0 || *tfCount[i] > 6)
+      return false;
+    for (int j = 0; j < int(*tfCount[i]); ++j) {
+      double raw = std::abs(*tfCodes[i][j]);
+      if (!std::isfinite(raw) || raw < 1 || raw >= 12)
+        continue;
+      int c = int(raw);
+      if (c > 0 && c < 12 && *tfIds[i][c] == double(b.module)) {
+        code = c;
+        int type = c < 7 ? c : int(*tfTypes[i][c]);
+        int rows = type == 2 ? 3 : type == 5 ? 4 : type == 6 ? 2 : 1;
+        for (row = 0; row < rows; ++row)
+          if ((type == 1   ? 7
+               : type == 2 ? 8 + row
+               : type == 3 ? 11
+               : type == 4 ? 0
+               : type == 5 ? (row < 3 ? 4 + row : 12)
+               : row == 0  ? 2
+                           : 13) == b.kind)
+            return !*assignments[i][c][row];
+      }
+    }
+    return false;
+  }
+  double *bindingValue(const controller::Binding &b) const {
+    unsigned i;
+    int c, r;
+    if (!resolve(b, i, c, r))
+      return nullptr;
+    return c == -1 ? phrase[i][r] : c ? values[i][c][r] : inst[i][5];
+  }
+  double bindingBase(const controller::Binding &b) const {
+    unsigned i;
+    int c, r;
+    if (!resolve(b, i, c, r))
+      return 0;
+    auto pending = c == -1 ? nullptr
+                   : c     ? pendingValues[i][c][r]
+                           : levelPending[i];
+    return pending && *pending != -999 ? *pending : *bindingValue(b);
+  }
   void snapshot(Snapshot &s) const {
     for (unsigned i = 0; i < 16; ++i) {
       auto &v = s.switches[i];
@@ -251,6 +341,7 @@ struct Model {
       s.phrases[i].events = int(*phrase[i][0]);
       s.phrases[i].mode = int(*phrase[i][1]);
       s.phrases[i].time = *phrase[i][2];
+      s.phrases[i].velocityDecay = *phrase[i][3];
     }
     for (unsigned i = 0; i < 8; ++i) {
       auto &v = s.instruments[i];
@@ -371,7 +462,22 @@ static std::string json(const Reply &r) {
       o << ',';
     o << "{\"id\":" << i + 1 << ",\"events\":" << s.phrases[i].events
       << ",\"mode\":" << s.phrases[i].mode
-      << ",\"timeDecay\":" << s.phrases[i].time << '}';
+      << ",\"timeDecay\":" << s.phrases[i].time
+      << ",\"velocityDecay\":" << s.phrases[i].velocityDecay << '}';
+  }
+  o << "],\"controllerEngine\":"
+    << controller::configurationJson(s.controllerConfig)
+    << ",\"controllerLearn\":{\"target\":" << s.learnTarget
+    << ",\"conflict\":" << s.learnConflict
+    << ",\"kind\":" << s.learnCandidate.kind
+    << ",\"channel\":" << s.learnCandidate.channel + 1
+    << ",\"number\":" << s.learnCandidate.number << "},\"controllerRuntime\":[";
+  for (unsigned j = 0; j < 32; ++j) {
+    if (j)
+      o << ',';
+    o << "{\"effective\":" << s.effective[j] << ",\"owner\":" << s.owners[j]
+      << ",\"returning\":" << s.returning[j] << ",\"pickup\":" << s.pickup[j]
+      << '}';
   }
   o << "]}\n";
   return o.str();
@@ -448,11 +554,47 @@ struct PatchModel {
         return false;
     return v[0] >= 0 && v[0] <= 48000.0 * 3600 && v[8] >= 0 && v[8] < 16;
   }
-  std::string save(std::atomic<bool> &paused) {
+  std::string save(std::atomic<bool> &paused,
+                   const controller::Configuration &config,
+                   const Model &model) {
     for (unsigned i = 0; i < 9; ++i)
       snapshot[i] = *globals[i];
     for (unsigned i = 0; i < memory.size(); ++i)
       snapshot[9 + i] = *memory[i];
+    // Save committed bases, never a transient pedal/return value, in the legacy
+    // payload.
+    for (auto &b : config.bindings)
+      if (b.policy.id) {
+        auto address = model.bindingValue(b);
+        if (!address)
+          continue;
+        double v = b.base;
+        int k = b.kind;
+        double low = k == 7   ? -48
+                     : k == 0 ? .2
+                     : k == 5 ? .25
+                     : k == 6 ? .02
+                              : 0;
+        double high = k == 7              ? 48
+                      : k == 0            ? 3
+                      : k == 5            ? 16
+                      : k == 6 || k == 12 ? 1
+                      : k == 4            ? 2
+                      : k == 8 || k == 11 ? 3
+                                          : 127;
+        bool bins = k == 3 || k == 4 || k == 8 || k == 11 || k == 12;
+        double step = k == 0 || k == 6 ? .01 : k == 5 ? .25 : 1;
+        double physical =
+            bins ? std::min(high, std::floor(v * (high + 1)))
+                 : std::floor((low + (high - low) * v) / step + .5) * step;
+        if (k >= 14)
+          physical = k == 14 ? std::pow(2, 2 * v - 1) : .2 + .8 * v;
+        for (unsigned j = 0; j < memory.size(); ++j)
+          if (memory[j] == address) {
+            snapshot[9 + j] = physical;
+            break;
+          }
+      }
     paused.store(false, std::memory_order_release);
     std::ostringstream o;
     o << std::setprecision(17)
@@ -470,7 +612,8 @@ struct PatchModel {
         o << ',';
       o << snapshot[9 + i];
     }
-    o << "]}\n";
+    o << "],\"controllerEngine\":" << controller::configurationJson(config)
+      << "}\n";
     return o.str();
   }
   void load(unsigned schema, const std::vector<double> &v) {
@@ -495,7 +638,9 @@ struct PatchModel {
 static void control(int listener, Queue<Request, 64> &commands,
                     Queue<Reply, 64> &replies, std::atomic<bool> &shutdown,
                     std::atomic<bool> &paused, std::atomic<bool> &loading,
-                    PatchModel &patch) {
+                    PatchModel &patch, Model &model,
+                    controller::Host &controllers,
+                    const std::function<bool(int, int, int)> &conflicts) {
   while (!shutdown) {
     pollfd p{listener, POLLIN, 0};
     if (poll(&p, 1, 20) <= 0)
@@ -531,8 +676,11 @@ static void control(int listener, Queue<Request, 64> &commands,
                       request.arg >> request.revision >> request.ch >>
                       request.note >> request.value) &&
                  request.id > 0 && request.id <= 9007199254740991ULL &&
-                 request.op >= 0 && request.op <= 13 && request.arg >= 0 &&
-                 request.arg <= (request.op == 13 ? 5 : 2) && request.ch >= 0 &&
+                 request.op >= 0 && request.op <= 19 && request.arg >= 0 &&
+                 request.arg <= (request.op == 13   ? 5
+                                 : request.op == 15 ? 3
+                                                    : 2) &&
+                 request.ch >= 0 &&
                  (request.op == 11 ? request.ch <= 16 : request.ch < 16) &&
                  request.note >= 0 && request.note < 128 &&
                  request.value >= 0 && request.value < 128;
@@ -546,8 +694,21 @@ static void control(int listener, Queue<Request, 64> &commands,
       double x;
       while (input >> x)
         patchValues.push_back(x);
-      valid =
-          input.eof() && patch.validate(unsigned(request.target), patchValues);
+      valid = patch.validate(unsigned(request.target), patchValues);
+      if (!input.eof()) {
+        input.clear();
+        std::string marker;
+        valid = valid && bool(input >> marker) && marker == "controllers" &&
+                controller::readConfiguration(input, request.controllerConfig);
+        if (input >> extra)
+          valid = false;
+      }
+    } else if (valid && request.op == 16) {
+      valid = controller::readBinding(input, request.binding) &&
+              request.binding.policy.id == unsigned(request.target) &&
+              request.binding.valid();
+      if (input >> extra)
+        valid = false;
     } else if (valid && request.op == 13) {
       valid = bool(input >> request.module) && request.module >= 0 &&
               request.module <= 16777215;
@@ -574,7 +735,7 @@ static void control(int listener, Queue<Request, 64> &commands,
               (request.arg == 2 || request.value <= 16);
     if (valid && request.op == 11)
       valid = request.arg <= 1 && request.note <= 16;
-    if (valid && request.op >= 11)
+    if (valid && request.op >= 11 && request.op <= 18)
       valid = request.target > 0 && request.target <= 16777215;
     if (!valid)
       send_line(fd, "{\"status\":\"invalid\"}\n", shutdown);
@@ -595,12 +756,32 @@ static void control(int listener, Queue<Request, 64> &commands,
       }
       if (received) {
         if (reply.status == 0 && request.op == 4) {
-          auto document = patch.save(paused);
+          auto document =
+              patch.save(paused, reply.state.controllerConfig, model);
           paused.store(false, std::memory_order_release);
           send_line(fd, document, shutdown);
         } else {
-          if (reply.status == 0 && request.op == 5)
+          if (reply.status == 0 && request.op == 5) {
+            std::vector<double> previous(9 + patch.memory.size());
+            for (unsigned j = 0; j < 9; ++j)
+              previous[j] = *patch.globals[j];
+            for (unsigned j = 0; j < patch.memory.size(); ++j)
+              previous[9 + j] = *patch.memory[j];
             patch.load(unsigned(request.target), patchValues);
+            bool collision = false;
+            for (auto &source : request.controllerConfig.sources)
+              if (source.id && source.kind &&
+                  conflicts(source.kind, source.channel, source.number))
+                collision = true;
+            if (collision ||
+                !controllers.replace(request.controllerConfig,
+                                     [&](const controller::Binding &b) {
+                                       return model.bindingValue(b) != nullptr;
+                                     })) {
+              patch.load(7, previous);
+              reply.status = 3;
+            }
+          }
           send_line(fd, json(reply), shutdown);
         }
       }
@@ -765,8 +946,78 @@ int main(int argc, char **argv) {
         0);
     if (!edit)
       throw std::runtime_error("typed parameter bridge");
+    auto normalized =
+        NSEEL_VM_regvar(fx->vm.get(), "remote_controller_normalized");
+    auto controllerApply = NSEEL_code_compile(
+        fx->vm.get(),
+        "remote_edit_value=param_scale(remote_edit_kind,remote_controller_"
+        "normalized);"
+        "remote_edit_code==0?param_apply(remote_edit_i,1,remote_edit_value):"
+        "remote_edit_code<7?param_apply(remote_edit_i,remote_edit_kind,remote_"
+        "edit_value):"
+        "mem[param_pending_addr(cc_ti(cc_index(remote_edit_i,remote_edit_code),"
+        "remote_edit_row))]=remote_edit_value;",
+        0);
+    auto learnKind = NSEEL_VM_regvar(fx->vm.get(), "remote_learn_kind"),
+         learnCh = NSEEL_VM_regvar(fx->vm.get(), "remote_learn_ch"),
+         learnNum = NSEEL_VM_regvar(fx->vm.get(), "remote_learn_num"),
+         learnConflict = NSEEL_VM_regvar(fx->vm.get(), "remote_learn_conflict");
+    auto legacyConflict = NSEEL_code_compile(
+        fx->vm.get(),
+        "remote_learn_conflict=0;remote_learn_j=0;loop(SW_COUNT+CONTROLLERS+"
+        "LAYERS,learn_matches(remote_learn_j,remote_learn_kind,remote_learn_ch,"
+        "remote_learn_num)?remote_learn_conflict=1;remote_learn_j+=1;);",
+        0);
+    auto cancelLearn = NSEEL_code_compile(fx->vm.get(), "learn_cancel();", 0);
+    if (!controllerApply || !legacyConflict || !cancelLearn)
+      throw std::runtime_error("controller bridge");
     Model model(fx);
     PatchModel patch(fx);
+    controller::Host controllers;
+    std::function<bool(int, int, int)> conflicts = [&](int kind, int ch,
+                                                       int num) {
+      *learnKind = kind;
+      *learnCh = ch;
+      *learnNum = num;
+      NSEEL_code_execute(legacyConflict);
+      return *learnConflict != 0;
+    };
+    auto resolveBinding = [&](const controller::Binding &b) {
+      return model.bindingValue(b) != nullptr;
+    };
+    auto normalizedBase = [](int k, double v) {
+      if (k >= 14)
+        return controller::clamp(k == 14 ? (std::log2(v <= 0 ? 1 : v) + 1) / 2
+                                         : (v - .2) / .8);
+      double low = k == 7 ? -48 : k == 0 ? .2 : k == 5 ? .25 : k == 6 ? .02 : 0;
+      double high = k == 7              ? 48
+                    : k == 0            ? 3
+                    : k == 5            ? 16
+                    : k == 6 || k == 12 ? 1
+                    : k == 4            ? 2
+                    : k == 8 || k == 11 ? 3
+                                        : 127;
+      bool bins = k == 3 || k == 4 || k == 8 || k == 11 || k == 12;
+      return controller::clamp(bins ? (v + .5) / (high + 1)
+                                    : (v - low) / (high - low));
+    };
+    auto applyBinding = [&](const controller::Binding &b, double value) {
+      unsigned i;
+      int code, row;
+      if (!model.resolve(b, i, code, row))
+        return;
+      if (code == -1) {
+        *model.phrase[i][row] =
+            b.kind == 14 ? std::pow(2, 2 * value - 1) : .2 + .8 * value;
+        return;
+      }
+      *editI = i;
+      *editCode = code;
+      *editKind = b.kind;
+      *editRow = row;
+      *normalized = value;
+      NSEEL_code_execute(controllerApply);
+    };
     sockaddr_un address{};
     address.sun_family = AF_UNIX;
     if (std::strlen(argv[2]) >= sizeof address.sun_path)
@@ -828,6 +1079,7 @@ int main(int argc, char **argv) {
       if (outBuffer) {
         jack_midi_clear_buffer(outBuffer);
         if (recovering) {
+          controllers.panic();
           outputRead = outputWrite;
           inputRead = inputWrite;
           ysfx_midi_clear(fx->midi.in.get());
@@ -872,6 +1124,14 @@ int main(int argc, char **argv) {
         e.offset = std::min(m.offset, frames - 1);
         e.size = m.size;
         e.data = m.data.data();
+        auto before = controllers.learnTarget();
+        if (controllers.midi(e.data, e.size,
+                             (state.samples + e.offset) / double(sampleRate),
+                             conflicts)) {
+          if (before && !controllers.learnTarget())
+            ++state.revision;
+          continue;
+        }
         if (!ysfx_send_midi(fx, &e)) {
           ++state.outputOverflow;
           overflowRecovery = true;
@@ -895,10 +1155,90 @@ int main(int argc, char **argv) {
           if (request.op == 5)
             NSEEL_code_execute(panic_bridge);
           if (request.op == 5) {
+            controllers.panic();
             ++state.revision;
             loading.store(true, std::memory_order_release);
           }
           maintenance = true;
+        } else if (request.op >= 14) {
+          if (request.op == 14) {
+            controller::Source source;
+            source.id = request.target;
+            source.kind = request.arg;
+            source.channel = request.ch;
+            source.number = request.note;
+            if (source.kind &&
+                (source.kind == 2 &&
+                     (source.number == 64 || source.number >= 120) ||
+                 conflicts(source.kind, source.channel, source.number)))
+              reply.status = 3;
+            else if (!controllers.source(source))
+              reply.status = 3;
+            else
+              ++state.revision;
+          } else if (request.op == 15) {
+            bool valid = true;
+            if (request.arg == 0) {
+              NSEEL_code_execute(cancelLearn);
+              valid = controllers.learn(request.target);
+            } else if (request.arg == 1)
+              controllers.cancel();
+            else if (request.arg == 2)
+              valid = controllers.learnTarget() == unsigned(request.target) &&
+                      controllers.confirm();
+            else
+              valid = controllers.forget(request.target);
+            if (!valid)
+              reply.status = 3;
+            else
+              ++state.revision;
+          } else if (request.op == 16) {
+            auto b = request.binding;
+            auto address = model.bindingValue(b);
+            if (!address)
+              reply.status = 2;
+            else {
+              // A new target captures its committed value; clients cannot
+              // invent a base.
+              bool found = false;
+              for (auto &existing : controllers.configuration().bindings)
+                if (existing.policy.id &&
+                    existing.policy.target == b.policy.target) {
+                  b.base = existing.base;
+                  found = true;
+                }
+              if (!found)
+                b.base = normalizedBase(b.kind, model.bindingBase(b));
+              if (!controllers.bind(b))
+                reply.status = 3;
+              else
+                ++state.revision;
+            }
+          } else if (request.op == 17) {
+            if (!controllers.remove(request.target))
+              reply.status = 2;
+            else
+              ++state.revision;
+          } else if (request.op == 18) {
+            if (!(request.arg ? controllers.capture(request.target)
+                              : controllers.returnCommand(request.target)))
+              reply.status = 3;
+          } else {
+            uint8_t data[] = {uint8_t(176 | request.ch), uint8_t(request.note),
+                              uint8_t(request.value)};
+            auto before = controllers.learnTarget();
+            if (!controllers.midi(data, 3,
+                                  (state.samples + frames) / double(sampleRate),
+                                  conflicts)) {
+              ysfx_midi_event_t event{};
+              event.size = 3;
+              event.data = data;
+              if (!ysfx_send_midi(fx, &event))
+                reply.status = 3;
+            }
+            if (before && !controllers.learnTarget())
+              ++state.revision;
+          }
         } else if (request.op == 13) {
           model.snapshot(state);
           unsigned i = 0;
@@ -960,6 +1300,7 @@ int main(int argc, char **argv) {
             *model.inst[i][3] = request.ch;
             *model.inst[i][4] = request.note;
             *model.inst[i][5] = request.value;
+            controllers.recall(request.target, 0, 1, request.value / 127.);
             ++state.revision;
           } else {
             model.snapshot(state);
@@ -1012,6 +1353,12 @@ int main(int argc, char **argv) {
                   *editRow = rows[j];
                   NSEEL_code_execute(edit);
                 }
+                for (int j = 0; j < request.count; ++j)
+                  controllers.recall(
+                      request.target, request.module,
+                      request.parameters[j].kind,
+                      normalizedBase(request.parameters[j].kind,
+                                     request.parameters[j].value));
                 ++state.revision;
               }
             }
@@ -1027,6 +1374,8 @@ int main(int argc, char **argv) {
             NSEEL_code_execute(panic_bridge);
             *model.inst[i][request.op == 10 ? 2 : 3 + request.arg] =
                 request.value;
+            if (request.op == 9 && request.arg == 2)
+              controllers.recall(request.target, 0, 1, request.value / 127.);
             ++state.revision;
           }
         } else if (request.op >= 6) {
@@ -1041,6 +1390,7 @@ int main(int argc, char **argv) {
           if (*ok != 1)
             reply.status = 2;
         } else if (request.op == 2) {
+          controllers.panic();
           ysfx_midi_clear(fx->midi.in.get());
           inputRead = inputWrite;
           NSEEL_code_execute(panic_bridge);
@@ -1052,10 +1402,19 @@ int main(int argc, char **argv) {
           ysfx_midi_event_t event{};
           event.size = 3;
           event.data = data;
-          if (!ysfx_send_midi(fx, &event))
+          auto before = controllers.learnTarget();
+          if (controllers.midi(data, 3,
+                               (state.samples + frames) / double(sampleRate),
+                               conflicts)) {
+            if (before && !controllers.learnTarget())
+              ++state.revision;
+          } else if (!ysfx_send_midi(fx, &event))
             reply.status = 3;
         }
       }
+      if (controllers.tick((state.samples + frames) / double(sampleRate),
+                           resolveBinding, applyBinding))
+        ++state.revision;
       ysfx_process_float(fx, nullptr, nullptr, 0, 0, frames);
       ysfx_midi_event_t event{};
       while (ysfx_receive_midi(fx, &event)) {
@@ -1108,6 +1467,18 @@ int main(int argc, char **argv) {
         if (maintenance)
           paused.store(true, std::memory_order_release);
         model.snapshot(state);
+        state.controllerConfig = controllers.configuration();
+        state.learnTarget = controllers.learnTarget();
+        state.learnCandidate = controllers.learnCandidate();
+        state.learnConflict = controllers.learnConflict();
+        for (unsigned j = 0; j < 32; ++j) {
+          auto t = controllers.target(
+              state.controllerConfig.bindings[j].policy.target);
+          state.effective[j] = t ? t->effective : 0;
+          state.owners[j] = t ? t->owner : 0;
+          state.returning[j] = t && t->returning;
+          state.pickup[j] = t && t->takeoverPending;
+        }
         for (unsigned i = 0; i < count; ++i) {
           pending[i].state = state;
           replies.push(pending[i]);
@@ -1145,7 +1516,8 @@ int main(int argc, char **argv) {
     }
     io = std::thread(control, listener, std::ref(commands), std::ref(replies),
                      std::ref(shutdown), std::ref(paused), std::ref(loading),
-                     std::ref(patch));
+                     std::ref(patch), std::ref(model), std::ref(controllers),
+                     std::cref(conflicts));
     while (running) {
       if (!useJack)
         process(blockSize);

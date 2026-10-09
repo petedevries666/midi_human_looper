@@ -25,12 +25,13 @@ class Control:
         self.lock = threading.Lock()
         self.ids = itertools.count(1)
 
-    def request(self, op=0, target=0, arg=0, revision=1, ch=0, note=0, value=0, patch=None):
+    def request(self, op=0, target=0, arg=0, revision=1, ch=0, note=0, value=0, session=0, patch=None):
         # One worker producer owns the engine's command queue; HTTP threads never
         # inspect live engine state. A timeout does not cancel an already executed TEST.
         with self.lock:
             request_id = next(self.ids)
             line = f'{request_id} {op} {target} {arg} {revision} {ch} {note} {value}\n'
+            if session:line=line.rstrip('\n')+f' session {session}\n'
             if patch is not None:
                 line = line.rstrip('\n') + ' ' + ' '.join(format(v, '.17g') for v in patch['globals']+patch['memory'])+'\n'
             with socket.socket(socket.AF_UNIX) as client:
@@ -48,11 +49,13 @@ class Control:
             return json.loads(data)
 
 class Handler(BaseHTTPRequestHandler):
+    protocol_version = 'HTTP/1.1'
     def setup(self):
         super().setup()
         self.connection.settimeout(15)
 
     def websocket(self):
+        self.close_connection = True
         if self.server.token:
             # Browser WebSocket API cannot set custom headers: first client frame
             # authenticates, rather than putting the secret in a logged URL.
@@ -172,6 +175,8 @@ class Handler(BaseHTTPRequestHandler):
             revision = data.get('expectedRevision')
             if type(revision) is not int or not 0 <= revision < 2147483647:
                 raise ValueError('expectedRevision required')
+            session=data.get('expectedEngineSessionId')
+            if type(session) is not int or not 1<=session<=9007199254740991:raise ValueError('engine session required')
             action = data.get('action')
             if action == 'test':
                 target, gesture = data.get('switchId'), data.get('gesture', 'tap')
@@ -198,17 +203,18 @@ class Handler(BaseHTTPRequestHandler):
         except (ValueError, TypeError, json.JSONDecodeError):
             self.respond(400, {'error': 'invalid command'})
             return
-        self.engine(revision=revision, **args)
+        self.engine(revision=revision, session=session, **args)
 
     def patch_command(self):
         try:
             n=int(self.headers.get('Content-Length','0'))
             if not 0<n<=2048:raise ValueError()
-            data=json.loads(self.rfile.read(n));slot=data.get('slot');rev=data.get('expectedRevision')
+            data=json.loads(self.rfile.read(n));slot=data.get('slot');rev=data.get('expectedRevision');session=data.get('expectedEngineSessionId')
+            if type(session) is not int or not 1<=session<=9007199254740991:raise ValueError()
             if type(slot) is not int or slot not in (1,2) or type(rev) is not int or not 1<=rev<2147483647:raise ValueError()
             path=self.server.patch_dir/f'patch{slot}.json'
             if self.path.endswith('/save'):
-                patch=self.server.control.request(op=4,revision=rev)
+                patch=self.server.control.request(op=4,revision=rev,session=session)
                 if patch.get('status')=='conflict':self.respond(409,patch);return
                 if patch.get('format')!='MIDI_HUMAN_LOOPER_PATCH':raise ValueError()
                 self.server.patch_dir.mkdir(parents=True,exist_ok=True)
@@ -225,7 +231,7 @@ class Handler(BaseHTTPRequestHandler):
                 schema=patch.get('schema');memory=patch.get('memory');globals_=patch.get('globals')
                 if patch.get('format')!='MIDI_HUMAN_LOOPER_PATCH' or type(schema) is not int or not 1<=schema<=7 or not isinstance(memory,list) or patch.get('work_mem_size')!=len(memory) or not 0<len(memory)<=200000 or not isinstance(globals_,list) or len(globals_)!=9:raise ValueError()
                 if any(type(x) not in (int,float) or not math.isfinite(x) for x in globals_+memory):raise ValueError()
-                result=self.server.control.request(op=5,target=schema,revision=rev,patch=patch)
+                result=self.server.control.request(op=5,target=schema,revision=rev,session=session,patch=patch)
                 if result.get('status')!='ok':self.respond(409 if result.get('status')=='conflict' else 400,result);return
                 self.engine()
         except FileNotFoundError:

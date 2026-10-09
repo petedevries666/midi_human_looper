@@ -77,7 +77,8 @@ Open `http://ZYNTHIAN_LAN_IP:8765` in Firefox on the PC/tablet. Enter the token 
 that file and click CONNECT. The token travels in an HTTP header or first WebSocket
 frame, never a query string. This is trusted-LAN HTTP, not encrypted Internet hosting;
 keep the service off public networks. Authentication, Host/Origin checks and bounded
-commands are enforced. Browser state is authoritative engine telemetry, pushed over
+commands are enforced. Commands include the authoritative random engine-session ID
+and expected revision; both are checked to reject edits from a prior engine restart. Browser state is authoritative engine telemetry, pushed over
 WebSocket with reconnect; HTTP remains the command and fallback snapshot transport.
 Closing the browser leaves playback running. The independent web worker can restart
 without restarting the engine; the launcher intentionally owns both processes, so

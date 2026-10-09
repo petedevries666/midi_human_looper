@@ -59,6 +59,7 @@ class HeadlessTests(unittest.TestCase):
         cls.temp.cleanup()
 
     def call(self, body=None, headers=None, expected=200):
+        if body is not None:body.setdefault('expectedEngineSessionId',self.call()['engineSessionId'])
         request = urllib.request.Request(self.base+'/api/v1/'+('command' if body is not None else 'state'),data=json.dumps(body).encode() if body is not None else None,headers={'Content-Type':'application/json',**(headers or {})})
         try:
             response=urllib.request.urlopen(request,timeout=4)
@@ -123,12 +124,23 @@ class HeadlessTests(unittest.TestCase):
     def test_validation_and_revision(self):
         before=self.call()
         self.call(dict(protocolVersion=1,expectedRevision=99,action='test',switchId=1),expected=409)
+        self.call(dict(protocolVersion=1,expectedRevision=before['revision'],expectedEngineSessionId=before['engineSessionId']+1,action='test',switchId=1),expected=409)
         self.command('test',switchId=999,expected=422)
         self.command('test',switchId=True,expected=400)
         self.call(dict(protocolVersion=2,expectedRevision=self.call()['revision'],action='panic'),expected=400)
         self.command('rewriteEEL',expected=400)
         self.call(headers={'Origin':'http://unrelated.invalid'},expected=403)
         self.assertEqual(self.call()['midiCount'],before['midiCount'])
+
+    def test_session_restart_rejects_prior_engine_commands(self):
+        before=self.call()
+        self.engine.terminate();self.engine.communicate(timeout=10)
+        self.__class__.engine=subprocess.Popen([BINARY,str(ROOT/'midi_human_looper.jsfx'),self.sock,'--demo'],stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True)
+        self.wait_for(lambda: Path(self.sock).exists(),'restarted engine')
+        after=self.call()
+        self.assertNotEqual(before['engineSessionId'],after['engineSessionId'])
+        self.call(dict(protocolVersion=1,expectedRevision=after['revision'],expectedEngineSessionId=before['engineSessionId'],action='test',switchId=1),expected=409)
+        self.assertEqual(self.call()['midiCount'],after['midiCount'])
 
     def test_slow_client_does_not_block_scheduler(self):
         before=self.command('test',switchId=1,gesture='tap')
@@ -170,7 +182,7 @@ class HeadlessTests(unittest.TestCase):
         self.assertGreater(after['sampleClock'],before['sampleClock'])
 
     def patch(self,action,slot=1,expected=200):
-        request=urllib.request.Request(self.base+'/api/v1/patch/'+action,data=json.dumps({'slot':slot,'expectedRevision':self.call()['revision']}).encode(),headers={'Content-Type':'application/json'})
+        request=urllib.request.Request(self.base+'/api/v1/patch/'+action,data=json.dumps({'slot':slot,'expectedRevision':self.call()['revision'],'expectedEngineSessionId':self.call()['engineSessionId']}).encode(),headers={'Content-Type':'application/json'})
         try: response=urllib.request.urlopen(request,timeout=20)
         except urllib.error.HTTPError as error:response=error
         self.assertEqual(response.status,expected);return json.load(response)

@@ -16,6 +16,7 @@
 #include <poll.h>
 #include <sstream>
 #include <string>
+#include <sys/random.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/un.h>
@@ -50,7 +51,7 @@ public:
   }
 };
 struct Request {
-  uint64_t id = 0;
+  uint64_t id = 0, session = 0;
   int op = 0, target = 0, arg = 0, revision = 1, ch = 0, note = 0, value = 0;
 };
 struct Switch {
@@ -84,6 +85,7 @@ struct Reply {
   int status = 0;
   Snapshot state;
 };
+static uint64_t engineSession = 0;
 static std::atomic<bool> running{true};
 static_assert(
     ATOMIC_LLONG_LOCK_FREE == 2,
@@ -247,7 +249,7 @@ static std::string json(const Reply &r) {
   o << "{\"protocolVersion\":1,\"schemaVersion\":7,\"revision\":" << s.revision
     << ","
        "\"requestId\":"
-    << r.id << ",\"engineSessionId\":" << getpid()
+    << r.id << ",\"engineSessionId\":" << engineSession
     << ",\"status\":" << quote(status[r.status])
     << ",\"backend\":" << quote(s.backend ? "jack" : "mock")
     << ",\"sampleRate\":" << s.sampleRate << ",\"blockSize\":" << s.blockSize
@@ -460,6 +462,12 @@ static void control(int listener, Queue<Request, 64> &commands,
                  request.arg <= 2 && request.ch >= 0 && request.ch < 16 &&
                  request.note >= 0 && request.note < 128 &&
                  request.value >= 0 && request.value < 128;
+    input >> std::ws;
+    if (valid && input.peek() == 's') {
+      std::string marker;
+      valid = bool(input >> marker >> request.session) && marker == "session" &&
+              request.session > 0 && request.session <= 9007199254740991ULL;
+    }
     if (valid && request.op == 5) {
       double x;
       while (input >> x)
@@ -556,6 +564,12 @@ int main(int argc, char **argv) {
   ysfx_config_t *config = nullptr;
   bool bound = false;
   try {
+    if (getrandom(&engineSession, sizeof(engineSession), 0) !=
+        static_cast<ssize_t>(sizeof(engineSession)))
+      throw std::runtime_error("session identity entropy unavailable");
+    engineSession &= 9007199254740991ULL;
+    if (!engineSession)
+      engineSession = 1;
     config = ysfx_config_new();
     fx = ysfx_new(config);
     if (!ysfx_load_file(fx, argv[1], 0) ||
@@ -735,8 +749,9 @@ int main(int argc, char **argv) {
       while (count < 8 && replies.free() > count && commands.pop(request)) {
         auto &reply = pending[count++];
         reply.id = request.id;
-        if (request.op != 0 && request.revision != state.revision &&
-            request.revision != -1)
+        if (request.op != 0 &&
+            ((request.session && request.session != engineSession) ||
+             (request.revision != state.revision && request.revision != -1)))
           reply.status = 1;
         else if (request.op == 4 || request.op == 5) {
           if (request.op == 5)

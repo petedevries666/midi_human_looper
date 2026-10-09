@@ -673,6 +673,7 @@ static void stress(Host &h, bool historical, bool cc_instances = false, bool dyn
 #include "smart_switch_cases.hpp"
 #include "time_decay_cases.hpp"
 #include "transform_stack_cases.hpp"
+#include "scheduled_event_cases.hpp"
 int main(int argc, char **argv) {
   if (argc < 2)
     return 2;
@@ -684,6 +685,10 @@ int main(int argc, char **argv) {
                    std::string(argv[2]) == "--isolated")) {
     stress(h, std::string(argv[2]) == "--historical");
     return 0;
+  }
+  if (argc > 3) {
+    Host schedule(argv[3]);
+    scheduled_event_tests(schedule);
   }
   Host bursts(argv[1]);midi_burst_tests(bursts);
   assignment(h);

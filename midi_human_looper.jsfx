@@ -308,6 +308,12 @@ I_RUNTIME_END=I_QUARANTINE_DEADLINE_BASE+INST_CAP;
 once_route_voice=-1;i_release_mask=0;i_init_q=0;loop(INST_CAP*2048+INST_CAP,mem[I_QUARANTINE_BASE+i_init_q]=0;i_init_q+=1;);
 I_NEW_PRIMARY_TI=87;I_NEW_EXTRA_TI=157;UI_PARAM_TOTAL=232;
 PATCH_PAYLOAD_SIZE=I_LEGACY_PAYLOAD+I_CFG_SIZE;
+// Shared delayed-note runtime, outside all frozen payload/bank addresses.
+SCHEDULE_VOICES=256;SCHEDULE_EVENTS=512;SCHEDULE_HEAP_BASE=3500000;
+SCHEDULE_VOICE_BASE=SCHEDULE_HEAP_BASE+SCHEDULE_EVENTS*5;
+scheduled_heap_count=0;scheduled_voice_count=0;scheduled_clock=0;scheduled_rejected=0;
+scheduled_sequence=max(0,scheduled_sequence)+1;
+schedule_init_i=0;loop(SCHEDULE_EVENTS*5+SCHEDULE_VOICES*12,mem[SCHEDULE_HEAP_BASE+schedule_init_i]=0;schedule_init_i+=1;);
 // Read-only address lookup tables. Never use GUI/audio scratch to resolve storage.
 mem[1000000+INST_IN_BASE]=3;mem[1700000+INST_IN_BASE]=I_INST_IN_BASE-3;
 mem[1000000+INST_OUT_BASE]=3;mem[1700000+INST_OUT_BASE]=I_INST_OUT_BASE-3;
@@ -619,7 +625,7 @@ local(j,idx)
 
 function reset_note_runtime()
 local(pv_i)
-(pv_i=0;loop(MAX_ONCE_VOICES,mem[VOICE_ACTIVE_BASE+pv_i]=0;pv_i+=1;);once_route_voice=-1;last_trigger_layer=-1;trigger_request=-1;hold_stop_request=-1;
+(scheduled_heap_count=0;scheduled_voice_count=0;pv_i=0;loop(SCHEDULE_VOICES,mem[SCHEDULE_VOICE_BASE+pv_i*12]=0;pv_i+=1;);pv_i=0;loop(MAX_ONCE_VOICES,mem[VOICE_ACTIVE_BASE+pv_i]=0;pv_i+=1;);once_route_voice=-1;last_trigger_layer=-1;trigger_request=-1;hold_stop_request=-1;
  pv_i=0;loop(NOTE_REF_SIZE,mem[NOTE_REF_BASE+pv_i]=0;pv_i+=1;);pv_i=0;loop(16,mem[SUSTAIN_REF_BASE+pv_i]=0;pv_i+=1;);
  pv_i=0;loop(INST_CAP,i_clear_runtime(pv_i);pv_i+=1;);
 );
@@ -1229,6 +1235,126 @@ local(ch,key,origin,idx)
   ) : (
     is_on ? midisend(offs,outst,note|(vel*256)) : instrument_output_owners(ch,note,-1)<=0?midisend(offs,128|ch,note);
   );
+);
+
+// Shared, bounded paired-note scheduler. Runtime only; schema-7 addresses stay frozen.
+// Final POLY output is the only accepted continuation in this first infrastructure slice.
+function scheduled_heap_less(a,b)
+local(aa,bb)
+(aa=SCHEDULE_HEAP_BASE+a*5;bb=SCHEDULE_HEAP_BASE+b*5;
+ mem[aa]<mem[bb] || (mem[aa]==mem[bb] && mem[aa+1]<mem[bb+1]););
+function scheduled_heap_swap(a,b)
+local(aa,bb,j,v)
+(aa=SCHEDULE_HEAP_BASE+a*5;bb=SCHEDULE_HEAP_BASE+b*5;j=0;loop(5,v=mem[aa+j];mem[aa+j]=mem[bb+j];mem[bb+j]=v;j+=1;););
+function scheduled_heap_push(at,order,voice,generation,on)
+local(a,b,p)
+(a=scheduled_heap_count;p=SCHEDULE_HEAP_BASE+a*5;mem[p]=at;mem[p+1]=order;mem[p+2]=voice;mem[p+3]=generation;mem[p+4]=on;scheduled_heap_count+=1;
+ while(a>0)(b=floor((a-1)/2);scheduled_heap_less(a,b)?(scheduled_heap_swap(a,b);a=b;):a=0;););
+function scheduled_heap_pop()
+local(a,b,c,j,p)
+(scheduled_heap_count-=1;scheduled_heap_count>0?(j=0;p=SCHEDULE_HEAP_BASE+scheduled_heap_count*5;loop(5,mem[SCHEDULE_HEAP_BASE+j]=mem[p+j];j+=1;);
+ a=0;while(a*2+1<scheduled_heap_count)(b=a*2+1;c=b+1;c<scheduled_heap_count && scheduled_heap_less(c,b)?b=c;
+ scheduled_heap_less(b,a)?(scheduled_heap_swap(a,b);a=b;):a=scheduled_heap_count;);););
+function scheduled_owner_live(gi,id,module)
+local(j,c,code,found)
+(found=gi>=0 && gi<INST_CAP && mem[I_EXISTS_BASE+gi] && mem[I_IDS_BASE+gi]==id && mem[engine_addr(INST_ENABLED_BASE,gi)]>.5;
+ found && module>0?(found=0;j=0;c=max(0,min(TRANSFORM_SLOTS,floor(mem[engine_addr(INST_TRANSFORM_COUNT_BASE,gi)])));loop(c,
+ code=mem[engine_addr(INST_TRANSFORM_TYPE_BASE,gi*TRANSFORM_SLOTS+j)];code>0 && tf_id(gi,code)==module?found=1;j+=1;););found;);
+function scheduled_finish_voice(v,offs,release)
+local(p,gi,ch,note)
+(p=SCHEDULE_VOICE_BASE+v*12;mem[p]>0?(
+ gi=mem[p+2];ch=mem[p+5];note=mem[p+6];
+ mem[I_IDS_BASE+gi]==mem[p+3]?(
+   release && mem[p+1]>0?route_emit_note(gi,offs,128|ch,note,0,0,0,1);
+   mem[engine_addr(PARAM_ACTIVE_BASE,gi)]=max(0,mem[engine_addr(PARAM_ACTIVE_BASE,gi)]-1);
+ );
+ mem[p]=0;scheduled_voice_count=max(0,scheduled_voice_count-1);
+ ););
+function scheduled_rebuild_heap()
+local(n,j,p,v,gen,on,at,order)
+(n=scheduled_heap_count;scheduled_heap_count=0;j=0;loop(n,
+ p=SCHEDULE_HEAP_BASE+j*5;at=mem[p];order=mem[p+1];v=mem[p+2];gen=mem[p+3];on=mem[p+4];
+ mem[SCHEDULE_VOICE_BASE+v*12]==gen?scheduled_heap_push(at,order,v,gen,on);j+=1;););
+function scheduled_cancel(gi,module,offs)
+local(v,p)
+(v=0;loop(SCHEDULE_VOICES,p=SCHEDULE_VOICE_BASE+v*12;
+ mem[p]>0 && (gi<0 || mem[p+2]==gi) && (module<=0 || mem[p+4]==module)?scheduled_finish_voice(v,offs,1);v+=1;);
+ scheduled_rebuild_heap(););
+function scheduled_pair(gi,module,on_at,off_at,ch,note,velocity,next_stage)
+local(ok,v,p,code,mono,arp)
+(
+ // Atomic admission reserves both attack and release. Rejected pairs emit nothing.
+ ok=module==floor(module) && module>=0 && module<=16777215 && gi==floor(gi) && ch==floor(ch) && note==floor(note) && velocity==floor(velocity) &&
+ gi>=0 && gi<INST_CAP && ch>=0 && ch<16 && note>=0 && note<128 && velocity>0 && velocity<128 &&
+ on_at==floor(on_at) && off_at==floor(off_at) && on_at>=scheduled_clock && off_at>=on_at && off_at<=scheduled_clock+srate*60 &&
+ next_stage==TRANSFORM_SLOTS && scheduled_heap_count<=SCHEDULE_EVENTS-2 && scheduled_voice_count<SCHEDULE_VOICES &&
+ scheduled_sequence<4503599627370000;
+ ok?(ok=scheduled_owner_live(gi,mem[I_IDS_BASE+gi],module);
+ mono=transformer_on(gi,3) && mem[engine_addr(INST_NOTE_MODE_BASE,gi)]>.5;
+ arp=transformer_on(gi,5) && mem[engine_addr(INST_ARP_ENABLED_BASE,gi)]>.5;ok=ok && !mono && !arp;);
+ ok?(
+ v=0;while(v<SCHEDULE_VOICES && mem[SCHEDULE_VOICE_BASE+v*12]>0)(v+=1;);
+ v<SCHEDULE_VOICES?(
+ scheduled_sequence+=1;p=SCHEDULE_VOICE_BASE+v*12;mem[p]=scheduled_sequence;mem[p+1]=0;mem[p+2]=gi;mem[p+3]=mem[I_IDS_BASE+gi];mem[p+4]=module;
+ mem[p+5]=ch;mem[p+6]=note;mem[p+7]=velocity;mem[p+8]=next_stage;mem[p+9]=on_at;mem[p+10]=off_at;mem[p+11]=0;
+ scheduled_voice_count+=1;mem[engine_addr(PARAM_ACTIVE_BASE,gi)]+=1;
+ scheduled_heap_push(on_at,scheduled_sequence*2,v,scheduled_sequence,1);
+ scheduled_heap_push(off_at,scheduled_sequence*2+1,v,scheduled_sequence,0);
+ ):ok=0;
+ );!ok?scheduled_rejected+=1;ok;
+);
+// Reserve a release before the source duration is known. The fixed watchdog
+// guarantees a missing source Note Off cannot retain a scheduler voice forever.
+function scheduled_start(gi,module,on_at,ch,note,velocity,next_stage)
+local(ok,v,p,token)
+(
+ token=0;
+ ok=scheduled_pair(gi,module,on_at,scheduled_clock+srate*60,ch,note,velocity,next_stage);
+ ok?(
+   token=scheduled_sequence;v=0;
+   loop(SCHEDULE_VOICES,
+     p=SCHEDULE_VOICE_BASE+v*12;mem[p]==token?mem[p+11]=1;v+=1;
+   );
+ );token;
+);
+function scheduled_seal(gi,module,token,off_at)
+local(v,p,j,hp,found,at)
+(
+ found=0;
+ token>0 && token==floor(token) && off_at>=0 && off_at==floor(off_at)?(
+   v=0;loop(SCHEDULE_VOICES,
+     p=SCHEDULE_VOICE_BASE+v*12;
+     mem[p]==token && mem[p+11]==1 && mem[p+2]==gi && mem[p+4]==module &&
+       mem[I_IDS_BASE+gi]==mem[p+3]?(
+       // Gate extension never exceeds the original watchdog. Late releases
+       // run at offset zero of the next processing block, never in the past.
+       at=max(scheduled_clock,max(mem[p+9],min(mem[p+10],off_at)));
+       mem[p+10]=at;mem[p+11]=0;found=1;
+       j=0;loop(scheduled_heap_count,
+         hp=SCHEDULE_HEAP_BASE+j*5;
+         mem[hp+2]==v && mem[hp+3]==token && mem[hp+4]==0?mem[hp]=at;
+         j+=1;
+       );
+     );v+=1;
+   );
+   found?scheduled_rebuild_heap();
+ );found;
+);
+function scheduled_tick()
+local(v,p,gi,n,at,gen,on,ch,note,velocity,offs,changed)
+(
+ changed=0;
+ // Owners are checked every block, even when their next event lies far in the future.
+ scheduled_voice_count>0?(v=0;loop(SCHEDULE_VOICES,p=SCHEDULE_VOICE_BASE+v*12;
+ mem[p]>0 && !scheduled_owner_live(mem[p+2],mem[p+3],mem[p+4])?(scheduled_finish_voice(v,0,1);changed=1;);v+=1;););
+ changed?scheduled_rebuild_heap();
+ n=0;while(scheduled_heap_count>0 && mem[SCHEDULE_HEAP_BASE]<scheduled_clock+samplesblock && n<SCHEDULE_EVENTS)(
+ at=mem[SCHEDULE_HEAP_BASE];v=mem[SCHEDULE_HEAP_BASE+2];gen=mem[SCHEDULE_HEAP_BASE+3];on=mem[SCHEDULE_HEAP_BASE+4];scheduled_heap_pop();p=SCHEDULE_VOICE_BASE+v*12;
+ mem[p]==gen?(
+ gi=mem[p+2];ch=mem[p+5];note=mem[p+6];velocity=mem[p+7];offs=max(0,min(samplesblock-1,at-scheduled_clock));
+ on?(mem[p+1]=1;route_emit_note(gi,offs,144|ch,note,velocity,1,0,1);):scheduled_finish_voice(v,offs,1);
+ );n+=1;);
+ scheduled_heap_count>0 && scheduled_voice_count==0?scheduled_heap_count=0;
 );
 
 function mono_desired_note(gi, mode)
@@ -1859,6 +1985,7 @@ function select_phrase_record(layer)
 function send_all_notes_off()
 local(ch,note)
 (
+  scheduled_cancel(-1,0,0);
 
   param_input_reset();ch=0;loop(INST_CAP*2048+INST_CAP,mem[I_QUARANTINE_BASE+ch]=0;ch+=1;);
  ch=0;loop(INST_CAP, note=0;loop(2048,mem[engine_addr(SW_LIVE_OUT_BASE,ch*2048+note)]=0;mem[engine_addr(SW_PHRASE_OUT_BASE,ch*2048+note)]=0;mem[engine_addr(SW_LOOP_INPUT_BASE,ch*2048+note)]=0;mem[I_ONCE_OUT_BASE+ch*2048+note]=0;note+=1;);ch+=1;);
@@ -1879,6 +2006,7 @@ local(ch,note)
 function release_phrase_notes()
 local(ch,note,key,mi,mn)
 (
+ scheduled_cancel(-1,0,0);
 
   param_release_owned();
   // Targeted choke for ONE SHOT voices only.
@@ -2473,6 +2601,7 @@ local(ui_q,ui_ok)
 function i_remove(gi,id)
 local(j,ch,n,idx,si,b,k,held)
 (gi>=0 && gi<INST_CAP && mem[I_EXISTS_BASE+gi] && mem[I_IDS_BASE+gi]==id?(
+ scheduled_cancel(gi,0,0);
  j=0;loop(2048,mem[I_QUARANTINE_BASE+gi*2048+j]+=max(0,mem[input_addr(gi*2048+j)]-mem[engine_addr(SW_LOOP_INPUT_BASE,gi*2048+j)]);j+=1;);
  mem[I_QUARANTINE_DEADLINE_BASE+gi]=sw_clock+10*srate;
  mem[engine_addr(INST_ENABLED_BASE,gi)]=0;arp_release_instrument(gi);
@@ -2856,6 +2985,8 @@ overdub_active ? (
     overdub_pos>=loop_len_samples ? overdub_pos=loop_len_samples-1;
   );
 );
+
+scheduled_tick();scheduled_clock+=samplesblock;
 
 // POST instrument arpeggiators
 ii=0;

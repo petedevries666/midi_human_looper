@@ -82,6 +82,7 @@ end
 
 local function loop()
   reaper.gmem_write(15, 1) -- heartbeat/ready flag
+  reaper.gmem_write(16, SCHEMA) -- advertised maximum patch schema
   local cmd = math.floor(reaper.gmem_read(0) + 0.5)
   local slot = math.floor(reaper.gmem_read(1) + 0.5)
   if slot < 1 or slot > 2 then slot = 1 end
@@ -94,5 +95,5 @@ local function loop()
   reaper.defer(loop)
 end
 
-reaper.atexit(function() reaper.gmem_write(15, 0) end)
+reaper.atexit(function() reaper.gmem_write(15, 0); reaper.gmem_write(16, 0) end)
 loop()

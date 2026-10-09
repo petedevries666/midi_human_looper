@@ -85,6 +85,9 @@ struct Reply {
   Snapshot state;
 };
 static std::atomic<bool> running{true};
+static_assert(
+    ATOMIC_LLONG_LOCK_FREE == 2,
+    "64-bit atomics must be lock-free; verify ARMHF toolchain or use ARM64");
 static_assert(ATOMIC_BOOL_LOCK_FREE == 2, "signal flag must be lock free");
 static void stop(int) { running = 0; }
 static double variable(ysfx_t *fx, const char *name) {

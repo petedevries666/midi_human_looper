@@ -233,3 +233,19 @@ stopping the launcher. Use EXPORT REAPER BASE only when transferring to REAPER.
 See [Controller integration](controller-engine-integration.md) for exact limits and
 the explicit REAPER extension boundary. No claim of completed Pi/Firefox acceptance
 is made from desktop Chromium tests.
+
+## Timestamp-order hardening for the first hardware test
+
+Use `fix/jack-midi-ordering` for the latest tested engine (it includes the Controller
+branch and sorts produced MIDI by timestamp before JACK delivery):
+
+```sh
+git fetch origin fix/jack-midi-ordering
+git switch --track origin/fix/jack-midi-ordering
+scripts/headless-setup.sh
+scripts/headless-check.sh
+EDITOR_BIND=0.0.0.0 EDITOR_TOKEN_FILE=/tmp/midi-editor-token DEMO_PATCH=1 scripts/headless-run.sh
+```
+
+Keep the MIDI port variables and token setup from the earlier sections.
+[Ordering regression evidence](jack-midi-ordering.md) explains the tested correction.

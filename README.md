@@ -147,3 +147,5 @@ The engine and patch banks support sixteen independent switches with stable IDs.
 See [workflow and persistence](docs/dynamic-smart-switches.md).
 
 Dynamic Instrument panels and schema-7 compatibility: [implementation notes](docs/dynamic-instruments.md).
+
+Project reopen and popup integration: [validation notes](docs/project-persistence.md).

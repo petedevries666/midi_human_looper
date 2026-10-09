@@ -1,5 +1,11 @@
 # MIDI Human Looper: release history
 
+v1.27.1 (modular UI integration):
+- Versioned full-precision REAPER project snapshots retain working state and both banks.
+- Reopen excludes runtime notes, Learn listeners and uncommitted switch drafts.
+- Complete popup dismissal shielding, viewport-aware OPTIONS and visible Instrument X.
+- Project init-order/truncation regressions and concurrent appended-curve rendering.
+
 v1.27.0 (modular UI stage 4):
 - Dynamic full Instrument panels, ADD, confirmed X deletion and fresh stable IDs.
 - Eight-panel DSP collection with independent routing, expression and Transformers.

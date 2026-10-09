@@ -149,3 +149,10 @@ See [workflow and persistence](docs/dynamic-smart-switches.md).
 Dynamic Instrument panels and schema-7 compatibility: [implementation notes](docs/dynamic-instruments.md).
 
 Project reopen and popup integration: [validation notes](docs/project-persistence.md).
+
+## Zynthian / Linux headless first test
+
+The runnable JACK MIDI host and reconnecting browser interface live in `headless/`.
+Start with [the first-test guide](docs/zynthian-first-test.md); build/run/test scripts
+are in `scripts/`. This preserves the REAPER JSFX. Physical Pi/Helix validation is
+required; the desktop dummy JACK graph is a functional test, not a latency claim.

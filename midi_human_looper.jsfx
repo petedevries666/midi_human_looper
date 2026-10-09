@@ -2700,8 +2700,7 @@ while (
     !is_trigger_command ? send_to_instruments(offset,msg1,d1,d2,1);
     );
     1;
-  );
-  0;
+  ) : 0;
 );
 
 i_release_mask=0;

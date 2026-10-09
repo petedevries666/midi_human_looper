@@ -70,6 +70,7 @@ struct Phrase {
 struct Snapshot {
   uint64_t samples = 0, blocks = 0, midi = 0, late = 0, last_sample = 0;
   int revision = 1;
+  unsigned pendingOutput = 0;
   int backend = 0, sampleRate = 48000, blockSize = 128;
   uint64_t outputOverflow = 0;
   int active = 0, last_status = 0, last_note = 0, last_value = 0;
@@ -249,6 +250,7 @@ static std::string json(const Reply &r) {
     << ",\"sampleRate\":" << s.sampleRate << ",\"blockSize\":" << s.blockSize
     << ",\"sampleClock\":" << s.samples << ",\"blocks\":" << s.blocks
     << ",\"midiCount\":" << s.midi << ",\"activeNotes\":" << s.active
+    << ",\"pendingOutput\":" << s.pendingOutput
     << ",\"outputOverflow\":" << s.outputOverflow
     << ",\"lateBlocks\":" << s.late << ",\"maxCallbackUs\":" << s.max_us
     << ",\"lastEvent\":[" << s.last_sample << "," << s.last_status << ","
@@ -662,12 +664,16 @@ int main(int argc, char **argv) {
     std::unique_ptr<std::array<MidiPacket, 8192>> outputQueue(
         new std::array<MidiPacket, 8192>());
     unsigned outputRead = 0, outputWrite = 0;
+    std::atomic<unsigned> outputPending{0};
+    std::atomic<bool> finalAcknowledged{false};
+    bool muted = false;
     std::unique_ptr<std::array<MidiPacket, 8192>> inputQueue(
         new std::array<MidiPacket, 8192>());
     unsigned inputRead = 0, inputWrite = 0;
     std::atomic<uint64_t> xruns{0};
     auto flushOutput = [&](void *buffer, jack_nframes_t frames) {
-      while (outputRead != outputWrite) {
+      unsigned budget = 64;
+      while (outputRead != outputWrite && budget--) {
         auto &m = (*outputQueue)[outputRead % 8192];
         if (jack_midi_event_write(buffer, std::min(m.offset, frames - 1),
                                   m.data.data(), m.size))
@@ -686,7 +692,7 @@ int main(int argc, char **argv) {
         jack_midi_clear_buffer(outBuffer);
         flushOutput(outBuffer, frames);
       }
-      if (useJack) {
+      if (useJack && !muted) {
         void *in = jack_port_get_buffer(midiIn, frames);
         unsigned n = jack_midi_get_event_count(in);
         for (unsigned i = 0; i < n; ++i) {
@@ -761,9 +767,13 @@ int main(int argc, char **argv) {
           NSEEL_code_execute(bridge);
           if (*ok != 1)
             reply.status = 2;
-        } else if (request.op == 2)
+        } else if (request.op == 2) {
+          ysfx_midi_clear(fx->midi.in.get());
+          inputRead = inputWrite;
           NSEEL_code_execute(panic_bridge);
-        else if (request.op == 3) {
+          if (request.id == 9007199254740991ULL)
+            muted = true;
+        } else if (request.op == 3) {
           uint8_t data[] = {uint8_t(144 | request.ch), uint8_t(request.note),
                             uint8_t(request.value)};
           ysfx_midi_event_t event{};
@@ -814,6 +824,10 @@ int main(int argc, char **argv) {
       }
       if (useJack)
         state.late = xruns.load(std::memory_order_relaxed);
+      state.pendingOutput = outputWrite - outputRead;
+      outputPending.store(state.pendingOutput, std::memory_order_release);
+      if (muted)
+        finalAcknowledged.store(true, std::memory_order_release);
       state.samples += frames;
       ++state.blocks;
       if (count) {
@@ -882,7 +896,15 @@ int main(int argc, char **argv) {
     finalPanic.revision = -1;
     if (useJack) {
       commands.push(finalPanic);
-      std::this_thread::sleep_for(std::chrono::milliseconds(500));
+      auto drainDeadline =
+          std::chrono::steady_clock::now() +
+          std::chrono::milliseconds(
+              unsigned(1000.0 * (8192.0 / 64 + 8) * blockSize / sampleRate) +
+              200);
+      while (std::chrono::steady_clock::now() < drainDeadline &&
+             (!finalAcknowledged.load(std::memory_order_acquire) ||
+              outputPending.load(std::memory_order_acquire)))
+        std::this_thread::sleep_for(std::chrono::milliseconds(2));
       jack_deactivate(jack);
     } else {
       paused = false;

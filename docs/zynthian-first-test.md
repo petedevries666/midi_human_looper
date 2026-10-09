@@ -146,7 +146,10 @@ Desktop evidence is recorded in the PR: actual ysfx, real JACK dummy graph and b
 checks. **Pi/Zynthian/Helix timing and sound require physical validation.** A desktop
 non-realtime dummy server is not a latency benchmark. Watch sample clock, callback
 maximum, late blocks and output overflow; turn off demo/testing loops before routing
-physical outputs. Start with a comfortable existing JACK block size (e.g. 256).
+physical outputs. The desktop graph test uses 512 frames. PANIC executes the existing bounded JSFX
+release loop, which can exceed a 128-frame callback deadline even on desktop.
+Measure it on the Pi; if it overruns, temporarily choose 512/1024 frames through
+Zynthian's existing audio settings, then retest. The host does not change the server.
 
 `JACK unavailable`: verify the same user/server environment as Zynthian; don't start
 an unrelated server. `socket bind`: another engine may own the path; check processes

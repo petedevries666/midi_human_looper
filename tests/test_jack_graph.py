@@ -8,7 +8,7 @@ jackd=os.environ.get('JACKD','jackd')
 probe=os.environ.get('JACK_TEST_BINARY','/tmp/midi-jack-smoke')
 with tempfile.TemporaryDirectory(prefix='midi-jack-') as temp:
     env=dict(os.environ,JACK_DEFAULT_SERVER='midi-first-test')
-    server=subprocess.Popen([jackd,'--name','midi-first-test','--no-realtime','-d','dummy','-r','48000','-p','128'],env=env,stdout=subprocess.DEVNULL,stderr=subprocess.PIPE)
+    server=subprocess.Popen([jackd,'--name','midi-first-test','--no-realtime','-d','dummy','-r','48000','-p','512'],env=env,stdout=subprocess.DEVNULL,stderr=subprocess.PIPE)
     engine=None
     try:
         time.sleep(1)
@@ -25,6 +25,10 @@ with tempfile.TemporaryDirectory(prefix='midi-jack-') as temp:
                 c.settimeout(5);c.connect(path);c.sendall(f'1 {op} {target} {arg} {rev} 0 0 {value}\n'.encode());f=c.makefile('rb');s=json.loads(f.readline());f.close();assert s['status']=='ok',s;return s
         rev=1
         for op,arg,value in [(9,0,2),(9,1,2),(10,0,1)]:rev=command(op,2,arg,value,rev)['revision']
+        deadline=time.monotonic()+5
+        state=command(0,0,0,0,rev)
+        while state['pendingOutput'] and time.monotonic()<deadline:time.sleep(.02);state=command(0,0,0,0,rev)
+        assert state['pendingOutput']==0,state
         observer=subprocess.Popen([probe],env=env)
         time.sleep(.8)
         state=command(2,0,0,0,rev)

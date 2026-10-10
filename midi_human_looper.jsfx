@@ -581,6 +581,20 @@ local(exponent)
   exponent=max(-log(64),min(log(64),log(phrase_time_ratio(layer))*mem[REPEAT_BASE+layer]));
   exp(exponent);
 );
+// Pitch-bias response contract, shared by both ysfx and REAPER. Not yet wired to
+// playback: schema-8 controls must migrate and persist before enabling it.
+// Bias is normalized -1..1. Source pitch is measured before Transformers.
+function phrase_velocity_decay_gain(rate,repeats,pitch,pivot,bias)
+local(distance,response,exponent)
+(
+  // Preserve the exact legacy calculation at zero bias and at the pivot.
+  bias==0 || pitch==pivot ? pow(rate,repeats) : (
+    distance=pitch-pivot;
+    response=distance/(24+abs(distance));
+    exponent=pow(2,-2*max(-1,min(1,bias))*response);
+    pow(rate,max(0,repeats)*exponent);
+  );
+);
 function clear_layer(layer)
 (
   set_layer_count(layer,0);

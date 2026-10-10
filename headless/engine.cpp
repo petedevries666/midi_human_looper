@@ -1886,6 +1886,15 @@ int main(int argc, char **argv) {
           else { maintenance=true; if(request.arg==1) ++state.revision; }
         }
         else if (request.op == 4 || request.op == 5) {
+          // Portable activation/capture must never stop a running performance.
+          // The test and maintenance handoff occur in this same callback.
+          if (request.arg == 1 && (chain.run || chain.recording || chain.armed ||
+              *importOverdub > .5 || *importState == importRecording ||
+              *importState == importPlaying || performanceMorphSeconds > 0 ||
+              std::any_of(importVoices.begin(), importVoices.end(),
+                          [](double* p) { return *p > .5; }))) {
+            reply.status = 3;
+          } else {
           if (chainMode) {
             chain.cancel();
             NSEEL_code_execute(panic_bridge);
@@ -1905,6 +1914,7 @@ int main(int argc, char **argv) {
             loading.store(true, std::memory_order_release);
           }
           maintenance = true;
+          }
         } else if (request.op == 40) {
           if (!chainMode)
             reply.status = 3;

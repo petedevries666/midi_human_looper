@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 cd "$(dirname "$0")/.."
+python3 scripts/generate-parameters.py --check
 : "${YSFX_SOURCE:=$PWD/.build/ysfx}"
 : "${YSFX_BUILD:=$YSFX_SOURCE/build}"
 : "${HEADLESS_BINARY:=$PWD/.build/midi-headless-engine}"

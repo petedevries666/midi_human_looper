@@ -3,6 +3,9 @@ from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'headless'))
 from registry import Registry,REGISTRY
 class RegistryTests(unittest.TestCase):
+ def test_generated_contract_is_current(self):
+  root=Path(__file__).resolve().parents[1]
+  subprocess.run([sys.executable,str(root/"scripts/generate-parameters.py"),"--check"],check=True)
  def test_normalized_ranges_and_roundtrip(self):
   for id,p in REGISTRY.parameters.items():
    for v in (p['min'],p['default'],p['max']):self.assertAlmostEqual(REGISTRY.scale(id,REGISTRY.normalize(id,v)),v)
@@ -28,9 +31,12 @@ class RegistryTests(unittest.TestCase):
   for p in REGISTRY.parameters.values():
    k=p['engineKind']
    if not 0<=k<=24:continue
-   for x in (0,.25,.5,.75,1):
+   for x in (-.1,0,.001,.003,.127,.249999,.25,.499999,.5,.500001,.75,.999,1,1.1):
     expected=REGISTRY.scale(p['id'],x)
     statements.append(f'if(std::abs(performance::physical({k},{x})-({expected:.17g}))>1e-8) return {k+1};')
+   for v in (p['min'],p['default'],(p['min']+p['max'])/2,p['max']):
+    expected=REGISTRY.normalize(p['id'],v)
+    statements.append(f'if(std::abs(performance::normalized({k},{v})-({expected:.17g}))>1e-8) return {k+26};')
   with tempfile.TemporaryDirectory() as directory:
    source=Path(directory)/'scale.cpp';source.write_text('#include "headless/parameter_registry.hpp"\nint main(){'+'\n'.join(statements)+'}\n')
    binary=Path(directory)/'scale'

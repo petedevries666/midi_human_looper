@@ -210,7 +210,8 @@
       "normalizedConversion": "linear_quantized",
       "assignmentEligible": true,
       "curveSupport": true,
-      "serializationVersion": 1
+      "serializationVersion": 1,
+      "snapshotSwitch": "discrete"
     },
     {
       "id": "enabled",
@@ -444,7 +445,7 @@
       "default": 0,
       "step": 0.001,
       "unit": "",
-      "normalizedConversion": "linear_quantized",
+      "normalizedConversion": "linear_continuous",
       "assignmentEligible": true,
       "curveSupport": true,
       "serializationVersion": 1

@@ -90,7 +90,10 @@ struct Target {
   Switch morphSwitch = Switch::Continuous;
 };
 class Engine {
-  static const unsigned TargetCapacity = 256, MappingCapacity = 64;
+public:
+  static const unsigned TargetCapacity = 512, MappingCapacity = 64;
+
+private:
   struct Runtime {
     Mapping config;
     bool used = false, previousKnown = false, active = false, returning = false;

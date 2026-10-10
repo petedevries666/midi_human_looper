@@ -1480,7 +1480,18 @@ function controller_value(ci)
   ci==0?ctrl_val0:ci==1?ctrl_val1:ci==2?ctrl_val2:ctrl_val3;
 );
 function controller_set_value(ci,v)
+local(ownership_ti)
 (
+  // Optional native Controller ownership bridge. REAPER leaves it disabled.
+  // Physical movement releases only matching curves; keep assignments intact.
+  snap_host_enabled && controller_value(ci)!=v ? (
+    ownership_ti=0;loop(UI_PARAM_TOTAL,
+      mem[exp_assign_addr(ownership_ti)]==ci+1 && mem[I_RUNTIME_END+288+ownership_ti]>0 ? (
+        mem[I_RUNTIME_END+288+ownership_ti]=0;
+        mem[param_last_addr(ownership_ti)]=-999;
+      );ownership_ti+=1;
+    );
+  );
   ci==0?ctrl_val0=v:ci==1?ctrl_val1=v:ci==2?ctrl_val2=v:ctrl_val3=v;
 );
 function controller_name(ci)
@@ -1579,7 +1590,7 @@ local(ti,gi,kind,asg,value,pending,pindex)
   pindex=0;loop(INST_CAP*PARAM_TARGETS,
     gi=floor(pindex/PARAM_TARGETS);kind=pindex%PARAM_TARGETS;ti=param_ti(gi,kind);asg=floor(mem[exp_assign_addr(ti)]+.5);
     pending=mem[param_pending_addr(ti)];
-    asg>=1 && asg<=CONTROLLERS ? (
+    asg>=1 && asg<=CONTROLLERS && !(snap_host_enabled && mem[I_RUNTIME_END+288+ti]>0) ? (
       value=param_scale(kind,exp_curve_value(ti,controller_value(asg-1)));
       value!=mem[param_last_addr(ti)] || pending!=-999 ? (
         param_apply(gi,kind,value);mem[param_last_addr(ti)]=value;
@@ -1594,7 +1605,7 @@ local(j,row,ti,b,asg,value,pending,kind,typ,addr,unsafe)
   j=0;loop(INSTANCE_EXTRA,b=cc_cfg(j);mem[b]>0?(
     typ=mem[tf_record(j)];row=0;loop(typ==2?3:typ==6?2:1,
       ti=cc_ti(j,row);kind=param_kind(ti);asg=floor(mem[exp_assign_addr(ti)]+.5);pending=mem[param_pending_addr(ti)];
-      asg>=1 && asg<=CONTROLLERS ? value=param_scale(kind,exp_curve_value(ti,controller_value(asg-1))) : value=pending;
+      asg>=1 && asg<=CONTROLLERS && !(snap_host_enabled && mem[I_RUNTIME_END+288+ti]>0) ? value=param_scale(kind,exp_curve_value(ti,controller_value(asg-1))) : value=pending;
       value!=-999 ? (
         unsafe=(typ==1 || typ==2) && mem[engine_addr(PARAM_ACTIVE_BASE,floor(j/(TRANSFORM_SLOTS-1)))]>0;
         unsafe ? mem[param_pending_addr(ti)]=value : (
@@ -2141,10 +2152,17 @@ local(a)
 (a=snap_host_enabled?mem[I_RUNTIME_END+si*6+gesture*2]:0;a>0?100+a:mem[sw_cfg(si)+14+gesture];);
 function sw_gesture_target(si,gesture)
 (snap_host_enabled && mem[I_RUNTIME_END+si*6+gesture*2]>0?mem[I_RUNTIME_END+si*6+gesture*2+1]:mem[sw_cfg(si)+17+gesture];);
+function snap_parameter_cancel_target(gi,row,kind)
+local(slot)
+(slot=kind>=18 && kind<=20?24+gi*3+kind-18:kind==24?72+gi*6+row:gi*3+kind-21;
+ slot>=0 && slot<120?mem[I_RUNTIME_END+520+slot*4+1]=0;);
+function snap_parameter_cancel()
+local(slot)
+(slot=0;loop(120,mem[I_RUNTIME_END+520+slot*4+1]=0;slot+=1;););
 function sw_action(si,action,target,offs)
 local(b,r,step,phrase,gi,kind,k,c,found)
 (
-  snap_host_enabled && (action==SW_STOP || action==SW_STOP_RESET || action==SW_PANIC) ? snap_host_cancel=1;
+  snap_host_enabled && (action==SW_STOP || action==SW_STOP_RESET || action==SW_PANIC) ? (snap_host_cancel=1;snap_parameter_cancel(););
   b=sw_cfg(si);r=sw_rt(si);mem[r+11]=action;mem[r+12]+=1;mem[r+17]=0;
   action>=101 && action<=107 ? (
     snap_host_enabled && snap_host_write-snap_host_read<64 ? (
@@ -2522,6 +2540,55 @@ local(q,op,gi,id,j)
 while(i_read<ui_i_write)(q=I_QUEUE_BASE+(i_read%I_QUEUE_SIZE)*I_QUEUE_STRIDE;op=mem[q];gi=mem[q+1];id=mem[q+2];
  op==1?i_add():op==2?i_remove(gi,id);i_read+=1;););
 
+// Native-only snapshot descriptor application. Runtime pending edits are bounded,
+// outside patch payload, and validated against stable IDs before applying.
+function snap_parameter_ready(gi,kind)
+local(j,ready)
+(
+  kind>=18 && kind<=20 ? (
+    ready=state!=STATE_PLAYING && state!=STATE_RECORDING && !overdub_active;
+    j=0;loop(MAX_ONCE_VOICES,mem[VOICE_ACTIVE_BASE+j]>0?ready=0;j+=1;);
+  ) : (
+    ready=mem[engine_addr(PARAM_ACTIVE_BASE,gi)]<=0 && mem[engine_addr(ARP_ACTIVE_NOTE_BASE,gi)]<0;
+    j=0;loop(16,mem[I_SUSTAIN_BASE+gi*16+j]>=64?ready=0;j+=1;);
+  );ready;
+);
+function snap_parameter_apply(gi,code,row,kind,value)
+local(slot,b)
+(
+  kind==17 ? mem[VEL_BASE+gi]=value : (
+    slot=kind>=18 && kind<=20?24+gi*3+kind-18:kind==24?72+gi*6+row:gi*3+kind-21;
+    slot>=0 && slot<120 ? (
+      b=I_RUNTIME_END+520+slot*4;
+      mem[b]=value;mem[b+1]=kind;
+      mem[b+2]=kind>=18 && kind<=20?0:mem[I_IDS_BASE+gi];
+      mem[b+3]=kind==24?tf_id(gi,abs(mem[engine_addr(INST_TRANSFORM_TYPE_BASE,gi*6+row)])):0;
+    );
+  );
+);
+function snap_parameter_tick()
+local(slot,b,kind,gi,row,addr,code,valid)
+(
+  snap_host_enabled ? (
+    slot=0;loop(120,b=I_RUNTIME_END+520+slot*4;kind=mem[b+1];kind>0?(
+      gi=slot<24?floor(slot/3):slot<72?floor((slot-24)/3):floor((slot-72)/6);
+      row=slot<72?slot%3:(slot-72)%6;
+      valid=kind>=18 && kind<=20?1:mem[I_EXISTS_BASE+gi] && mem[I_IDS_BASE+gi]==mem[b+2];
+      kind==24 ? (
+        addr=engine_addr(INST_TRANSFORM_TYPE_BASE,gi*6+row);code=abs(mem[addr]);
+        valid=valid && row<mem[engine_addr(INST_TRANSFORM_COUNT_BASE,gi)] && tf_id(gi,code)==mem[b+3];
+      );
+      !valid ? mem[b+1]=0 : snap_parameter_ready(gi,kind) ? (
+        kind==18?mem[MUTE_BASE+gi]=mem[b]:kind==19?mem[SOLO_BASE+gi]=mem[b]:kind==20?(
+          mem[MODE_BASE+gi]=mem[b];mem[TRIG_BASE+gi]=mem[b]==0;
+          mem[HOLD_ACTIVE_BASE+gi]=0;mem[ONCEPOS_BASE+gi]=0;
+        ):kind==21?mem[engine_addr(INST_ENABLED_BASE,gi)]=mem[b]:kind==22?mem[engine_addr(INST_IN_BASE,gi)]=mem[b]:kind==23?mem[engine_addr(INST_OUT_BASE,gi)]=mem[b]:kind==24?mem[addr]=mem[b]>.5?code:-code;
+        mem[b+1]=0;
+      );
+    );slot+=1;);
+  );
+);
+
 // Configuration-only address lookup for inactive project banks. No runtime/draft data.
 function project_bank_addr(slot,j)
 (j>=I_LEGACY_PAYLOAD?(slot==2?I_BANK2_BASE:I_BANK1_BASE)+j-I_LEGACY_PAYLOAD:
@@ -2600,7 +2667,7 @@ gmem[0]==4 ? (io_status=4; gmem[0]=0;);
 gmem[0]==5 ? (io_status=5; gmem[0]=0;);
 
 i_queue_process();sw_queue_process();tf_queue_process();
-param_expression_tick();cc_expression_tick();
+snap_parameter_tick();param_expression_tick();cc_expression_tick();
 // SAVE includes safe pending parameter edits as well as queued switch edits.
 patch_save_request>0 && gmem[0]==0 ? (save_patch_file_snapshot(patch_save_request);patch_save_request=0;);
 ii=0;

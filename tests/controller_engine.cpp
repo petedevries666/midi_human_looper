@@ -1,4 +1,5 @@
 #include "../headless/controller_engine.hpp"
+#include "../headless/snapshot_wire.hpp"
 #include <iostream>
 #include <stdexcept>
 using namespace controller;
@@ -210,10 +211,24 @@ int main() {
       check(!c.valid(), "duplicate x rejected");
     }
     {
+      performance::State state;
+      state.count=512;
+      for(unsigned j=0;j<state.count;++j) {state.values[j].key.instrument=j+1;state.values[j].key.kind=1;state.values[j].effective=j%128;}
+      performance::Snapshots snapshots;
+      auto id=snapshots.capture(state);
+      check(id!=0,"expanded stable target capture is bounded at 512");
+      check(!snapshots.dirty(id,state),"dense effective lookup terminates and matches");
+      state.values[511].effective+=1;
+      check(snapshots.dirty(id,state),"last dense target detects modification");
+      check(snapshots.update(id,state),"dense state recapture");
+      auto wire=performance::configurationJson(snapshots.configuration());
+      check(wire.find("\"version\":4")!=std::string::npos,"new eligible kinds use versioned extension");
+      state.count=513;
+      check(!state.valid(),"extended capture refuses overflow");
       Engine e;
-      for (unsigned i = 1; i <= 256; ++i)
+      for (unsigned i = 1; i <= Engine::TargetCapacity; ++i)
         check(e.addTarget(i, 0), "bounded target capacity");
-      check(!e.addTarget(257, 0), "target overflow");
+      check(!e.addTarget(Engine::TargetCapacity+1, 0), "target overflow");
       for (unsigned i = 1; i <= 64; ++i)
         check(e.configure(map(i, i, i)), "bounded mapping capacity");
       check(!e.configure(map(65, 1, 1)), "mapping overflow");

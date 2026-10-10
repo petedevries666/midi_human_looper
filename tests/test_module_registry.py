@@ -23,6 +23,19 @@ class RegistryTests(unittest.TestCase):
   with tempfile.TemporaryDirectory() as directory:
    source=Path(directory)/'registry.cpp';source.write_text('#include "headless/parameter_registry.hpp"\n'+'\n'.join(statements)+'\nint main(){}\n')
    subprocess.run([os.environ.get('CXX','c++'),'-std=c++11','-I',str(root),str(source),'-o',str(Path(directory)/'registry')],check=True,capture_output=True)
+ def test_native_scaling_matches_every_controllable_descriptor(self):
+  root=Path(__file__).resolve().parents[1];statements=[]
+  for p in REGISTRY.parameters.values():
+   k=p['engineKind']
+   if not 0<=k<=24:continue
+   for x in (0,.25,.5,.75,1):
+    expected=REGISTRY.scale(p['id'],x)
+    statements.append(f'if(std::abs(performance::physical({k},{x})-({expected:.17g}))>1e-8) return {k+1};')
+  with tempfile.TemporaryDirectory() as directory:
+   source=Path(directory)/'scale.cpp';source.write_text('#include "headless/parameter_registry.hpp"\nint main(){'+'\n'.join(statements)+'}\n')
+   binary=Path(directory)/'scale'
+   subprocess.run([os.environ.get('CXX','c++'),'-std=c++11','-I',str(root),str(source),'-o',str(binary)],check=True,capture_output=True)
+   subprocess.run([str(binary)],check=True)
  def test_extension_registration_without_page(self):
   registry=Registry(REGISTRY.document());module=dict(registry.modules['velocity'],typeId='example_velocity',engineType=99,label='EXAMPLE VELOCITY')
   registry.register(module);self.assertEqual(registry.engine_types[99],'example_velocity');self.assertEqual(registry.modules['example_velocity']['parameters'],['velocity'])

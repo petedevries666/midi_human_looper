@@ -49,7 +49,7 @@ class Control:
                     line=line.rstrip('\n')+' controllers '+' '.join(format(v,'.17g') for v in patch['controllerEngine']['configuration'])+'\n'
                 if 'globalSnapshots' in patch:
                     snapshot_wire=patch['globalSnapshots'].get('configuration')
-                    if type(patch['globalSnapshots'].get('version')) is not int or patch['globalSnapshots'].get('version') not in (1,2,3) or not isinstance(snapshot_wire,list) or len(snapshot_wire)>26000 or any(type(v) not in (int,float) or not math.isfinite(v) for v in snapshot_wire):raise ValueError('invalid snapshots')
+                    if type(patch['globalSnapshots'].get('version')) is not int or patch['globalSnapshots'].get('version') not in (1,2,3,4) or not isinstance(snapshot_wire,list) or len(snapshot_wire)>52000 or any(type(v) not in (int,float) or not math.isfinite(v) for v in snapshot_wire):raise ValueError('invalid snapshots')
                     # The native worker validates the complete versioned structure.
                     if 'controllerEngine' not in patch:
                         line=line.rstrip('\n')+' controllers '+' '.join(format(v,'.17g') for v in [1]+[0]*64+([0,0,0,0,0,1,0,0,0,0,0,.02,.2,1,1,.5,1,2]+[0,0,0,1,1,0]+[0]*42)*32)+'\n'
@@ -224,13 +224,13 @@ class Handler(BaseHTTPRequestHandler):
                     args['name']=name
                 if action=='snapshot_commit':
                     seconds,ease,switching=data.get('seconds'),data.get('ease'),data.get('switching')
-                    if type(seconds) not in (int,float) or not math.isfinite(seconds) or not 0<=seconds<=30 or type(ease) is not int or ease not in (0,1) or type(switching) is not int or switching not in (1,2,3):raise ValueError()
+                    if type(seconds) not in (int,float) or not math.isfinite(seconds) or not 0<=seconds<=30 or type(ease) is not int or ease not in (0,1) or type(switching) is not int or switching not in (1,2,3,4):raise ValueError()
                     args['settings']=[seconds,ease,switching]
                     if 'inclusions' in data:
                         masks=data['inclusions']
-                        if not isinstance(masks,list) or len(masks)>256:raise ValueError()
+                        if not isinstance(masks,list) or len(masks)>512:raise ValueError()
                         for a in masks:
-                            if not isinstance(a,dict) or any(type(a.get(k)) is not int for k in ('instrumentId','moduleId','kind')) or not 1<=a['instrumentId']<=16777215 or not 0<=a['moduleId']<=16777215 or not 0<=a['kind']<=15 or type(a.get('included')) is not bool:raise ValueError()
+                            if not isinstance(a,dict) or any(type(a.get(k)) is not int for k in ('instrumentId','moduleId','kind')) or not 1<=a['instrumentId']<=16777215 or not 0<=a['moduleId']<=16777215 or (not 0<=a['kind']<=24 or a['kind']==16) or type(a.get('included')) is not bool:raise ValueError()
                         args['inclusions']=masks
             elif action=='snapshot_ab_configure':
                 a,b,ease,position=data.get('a'),data.get('b'),data.get('ease',0),data.get('position',0)
@@ -269,6 +269,12 @@ class Handler(BaseHTTPRequestHandler):
                 args=dict(op=19,ch=channel-1,note=number,value=value)
             elif action == 'panic':
                 args = dict(op=2)
+            elif action=='parameter_set':
+                target,module,kind,value=data.get('targetId'),data.get('moduleId',0),data.get('kind'),data.get('value')
+                if any(type(v) is not int for v in (target,module,kind)) or not 1<=target<=16777215 or not 0<=module<=16777215 or kind==16 or type(value) not in (int,float) or not math.isfinite(value):raise ValueError()
+                p=next((p for p in REGISTRY.parameters.values() if p['engineKind']==kind),None)
+                if not p or not p['min']<=value<=p['max'] or (kind!=14 and abs(value/p['step']-round(value/p['step']))>1e-6):raise ValueError()
+                args=dict(op=32,target=target,arg=kind,macro=[module,value])
             elif action=='module_structure':
                 target=data.get('instrumentId');module=data.get('moduleId',0);op=data.get('operation');type_=data.get('engineType',0)
                 if any(type(v) is not int or not 0<=v<=16777215 for v in (target,module,type_)) or not target or op not in ('add','delete','bypass','up','down'):raise ValueError()
@@ -318,13 +324,13 @@ class Handler(BaseHTTPRequestHandler):
             if not 0<n<=2048:raise ValueError()
             data=json.loads(self.rfile.read(n));slot=data.get('slot');rev=data.get('expectedRevision');session=data.get('expectedEngineSessionId')
             if type(session) is not int or not 1<=session<=9007199254740991:raise ValueError()
-            if type(slot) is not int or slot not in (1,2,3) or type(rev) is not int or not 1<=rev<2147483647:raise ValueError()
+            if type(slot) is not int or slot not in (1,2,3,4) or type(rev) is not int or not 1<=rev<2147483647:raise ValueError()
             path=self.server.patch_dir/f'patch{slot}.json'
             if self.path.endswith('/save') or self.path.endswith('/export'):
                 if path.exists():
                     previous=json.loads(path.read_text())
                     for extension in ('globalSnapshots','controllerEngine'):
-                        if extension in previous and (not isinstance(previous[extension],dict) or type(previous[extension].get('version')) is not int or previous[extension]['version'] not in ((1,2,3) if extension=='globalSnapshots' else (1,))):
+                        if extension in previous and (not isinstance(previous[extension],dict) or type(previous[extension].get('version')) is not int or previous[extension]['version'] not in ((1,2,3,4) if extension=='globalSnapshots' else (1,))):
                             self.respond(422,{'error':'Unsupported saved configuration preserved; refusing overwrite.'});return
                 patch=self.server.control.request(op=4,revision=rev,session=session)
                 if patch.get('status')=='conflict':self.respond(409,patch);return

@@ -64,7 +64,7 @@ async function editSnapshot(record){
   content.append(node('small',`${record.parameterCount} captured targets. UPDATE recaptures current effective values.`));
   const inclusion=node('details');inclusion.append(node('summary','INCLUDED PARAMETERS'));
   for(const p of record.parameters||[]){
-    const label=node('label',`${p.kind>=14?'PHRASE':'INSTRUMENT'} ${p.instrumentId}${p.moduleId?` · MODULE ${p.moduleId}`:''} · ${parameter(p.kind)?.label||p.kind} = ${p.value}${p.expression?' · LEGACY EXPRESSION':''}`,'snapshot-inclusion');
+    const label=node('label',`${[14,15,17,18,19,20].includes(p.kind)?'PHRASE':'INSTRUMENT'} ${p.instrumentId}${p.moduleId?` · MODULE ${p.moduleId}`:''} · ${parameter(p.kind)?.label||p.kind} = ${p.value}${p.expression?' · LEGACY EXPRESSION':''}`,'snapshot-inclusion');
     const checkbox=node('input');checkbox.type='checkbox';checkbox.checked=p.included;checkbox.setAttribute('aria-label',`Include ${p.instrumentId}:${p.moduleId}:${p.kind}`);checkbox.onchange=()=>p.included=checkbox.checked;label.prepend(checkbox);inclusion.append(label);
   }
   content.append(inclusion);
@@ -179,7 +179,7 @@ function render(s){
   }
   for(const r of s.snapshots||[]) {
     const feedback=document.querySelector(`[data-snapshot-id="${r.id}"] .snapshot-feedback`);
-    if(feedback)feedback.textContent=`${r.id===s.selectedSnapshotId?'SELECTED · ':''}${r.dirty?'MODIFIED':''}${r.id===s.selectedSnapshotId&&s.snapshotSkippedTargets?` · PARTIAL (${s.snapshotSkippedTargets} missing or legacy-owned)`:''}${r.id===s.targetSnapshotId?` · MORPH ${Math.round(s.morphProgress*100)}%`:''}`;
+    if(feedback)feedback.textContent=`${r.id===s.selectedSnapshotId?'SELECTED · ':''}${r.dirty?'MODIFIED':''}${r.id===s.selectedSnapshotId&&s.snapshotSkippedTargets?` · PARTIAL (${s.snapshotSkippedTargets} missing)`:''}${r.id===s.targetSnapshotId?` · MORPH ${Math.round(s.morphProgress*100)}%`:''}`;
   }
   renderAB(s);
   renderControllers(s);
@@ -244,7 +244,7 @@ function renderControllers(s){
   }));
   $('mappings').replaceChildren(...mappings.map(m=>{
     const runtime=s.controllerRuntime[m.slot],card=node('article',undefined,'module');card.dataset.mappingId=m.id;
-    card.append(node('h3',`SOURCE ${m.sourceId} → ${m.kind===16?'GLOBAL':m.kind>=14?'PHRASE':'I'}${m.instrumentId} / ${m.kind>=14?'DECAY':m.moduleId||'VOLUME'} / ${parameter(m.kind)?.label||m.kind}`),node('p',`${(runtime.effective*100).toFixed(1)}% · ${runtime.returning?'RETURNING':runtime.pickup?'PICKUP WAIT':runtime.owner?'CONTROLLED':'BASE'}`),button('EDIT',()=>editMapping(m)),button(m.enabled?'BYPASS':'ENABLE',()=>command({action:'mapping_commit',mapping:{...m,enabled:m.enabled?0:1}})),button('CAPTURE STATE',()=>command({action:'controller_capture',targetId:m.targetId})),button('RETURN',()=>command({action:'controller_return',targetId:m.targetId})),button('DELETE',()=>command({action:'mapping_delete',mappingId:m.id})));
+    card.append(node('h3',`SOURCE ${m.sourceId} → ${m.kind===16?'GLOBAL':[14,15,17,18,19,20].includes(m.kind)?'PHRASE':'I'}${m.instrumentId} / ${m.moduleId||parameter(m.kind)?.label||'PARAMETER'} / ${parameter(m.kind)?.label||m.kind}`),node('p',`${(runtime.effective*100).toFixed(1)}% · ${runtime.returning?'RETURNING':runtime.pickup?'PICKUP WAIT':runtime.owner?'CONTROLLED':'BASE'}`),button('EDIT',()=>editMapping(m)),button(m.enabled?'BYPASS':'ENABLE',()=>command({action:'mapping_commit',mapping:{...m,enabled:m.enabled?0:1}})),button('CAPTURE STATE',()=>command({action:'controller_capture',targetId:m.targetId})),button('RETURN',()=>command({action:'controller_return',targetId:m.targetId})),button('DELETE',()=>command({action:'mapping_delete',mappingId:m.id})));
     return card;
   }));
 }
@@ -263,7 +263,7 @@ function editMapping(existing){
   const dismiss=()=>{if(!committing)dialog.close();};content.replaceChildren(node('h2','CONTROLLER MAPPING'),button('×',dismiss));
   const source=node('select');source.setAttribute('aria-label','Controller source');for(const s of sources){const o=node('option',`SOURCE ${s.id}`);o.value=s.id;source.append(o);}source.value=draft.sourceId;content.append(source);
   const target=node('select');target.setAttribute('aria-label','Controller target');
-  const targets=[{instrumentId:1,moduleId:0,kind:16,label:'GLOBAL SNAPSHOT A/B'}];for(const p of latest.phrases)for(const kind of [14,15])targets.push({instrumentId:p.id,moduleId:0,kind,label:`PHRASE ${p.id} / ${parameter(kind).label}`});for(const i of latest.instruments){targets.push({instrumentId:i.id,moduleId:0,kind:1,label:`I${i.id} VOLUME`});for(const tf of i.transformers)for(const p of tf.parameters)if(!p.assignment && parameter(p.kind)?.assignmentEligible)targets.push({instrumentId:i.id,moduleId:tf.id,kind:p.kind,label:`I${i.id} / ${tf.id} / ${parameter(p.kind).label}`});}
+  const targets=[{instrumentId:1,moduleId:0,kind:16,label:'GLOBAL SNAPSHOT A/B'}];for(const p of latest.phrases)for(const kind of [14,15,17,18,19,20])targets.push({instrumentId:p.id,moduleId:0,kind,label:`PHRASE ${p.id} / ${parameter(kind).label}`});for(const i of latest.instruments){for(const kind of [1,21,22,23])targets.push({instrumentId:i.id,moduleId:0,kind,label:`I${i.id} / ${parameter(kind).label}`});for(const tf of i.transformers){targets.push({instrumentId:i.id,moduleId:tf.id,kind:24,label:`I${i.id} / ${tf.id} ON/OFF`});for(const p of tf.parameters)if(!p.assignment && parameter(p.kind)?.assignmentEligible)targets.push({instrumentId:i.id,moduleId:tf.id,kind:p.kind,label:`I${i.id} / ${tf.id} / ${parameter(p.kind).label}`});}}
   targets.forEach((t,j)=>{const o=node('option',t.label);o.value=j;target.append(o);});let selection=targets.findIndex(t=>t.instrumentId===draft.instrumentId&&t.moduleId===draft.moduleId&&t.kind===draft.kind);target.value=selection<0?targets.findIndex(t=>t.kind===1):selection;content.append(target);
   const descriptor=descriptorForMapping();for(const id of descriptor.parameters){const p=catalog.parameters.find(p=>p.id===id),label=node('label',p.label,'parameter'),input=node('input');input.type='number';input.min=p.min;input.max=p.max;input.step=p.step;input.value=draft[p.policyField]??p.default;draft[p.policyField]=Number(input.value);input.addEventListener('input',()=>draft[p.policyField]=Number(input.value));label.append(input,node('span',p.unit));content.append(label);}
   content.append(node('p','TAKEOVER: 0 DIRECT · 1 PICKUP · 2 GLIDE · 3 SLEW. BACK TO STATE: 0 OFF · 1 IDLE · 2 RELEASE · 3 COMMAND. EASING: 0 LINEAR · 1 SMOOTH.'),curveEditor(draft.points));

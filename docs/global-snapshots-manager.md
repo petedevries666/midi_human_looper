@@ -11,7 +11,8 @@ acceptance target. No unrelated PRs are included and nothing is merged.
 * Native shared parameter-identity lookup used by capture, Controller resolution,
   and editor telemetry; compile-time tests compare it with `modules/catalog.json`.
 * Capture of each existing Instrument's VOLUME, all parameters exposed by existing
-  Instrument Transformer descriptors, and all 16 phrases' TIME/VEL DECAY.
+  Instrument Transformer descriptors and bypass states, Instrument enable/MIDI IN/OUT,
+  and all 16 phrases' TIME/VEL DECAY, base velocity, mute, solo and play mode.
   Values come from actual engine memory, including currently applied controller
   values; held notes, transport, Learn and morph runtime are excluded.
 * Instant recall and interruptible sample-clock timed morphs through PR #29's
@@ -25,7 +26,7 @@ acceptance target. No unrelated PRs are included and nothing is merged.
 * Transactional EDIT/DONE/CANCEL in the existing modal: name, duration 0–30 seconds,
   Linear/Smooth, discrete switching at start/midpoint/end. Dismissal discards
   drafts. Captured configuration revision and engine session reject stale commits.
-* Version-3 `globalSnapshots` extension alongside unchanged schema-7 memory. Versions 1/2 migrate with no A/B pair; version 1 has no switch overrides.
+* Version-4 `globalSnapshots` extension alongside unchanged schema-7 memory. Versions 1/2 migrate with no A/B pair; version 3 A/B configuration is retained; version 1 has no switch overrides.
   Existing pause barrier and atomic file replacement are reused. IDs, order,
   stored values and settings survive engine restart and patch reload. Legacy
   patches load with no snapshots. Malformed configurations are rejected before
@@ -45,16 +46,23 @@ acceptance target. No unrelated PRs are included and nothing is merged.
 * Snapshot EDIT has a collapsed INCLUDED PARAMETERS list showing stored values
   and stable target addresses. Checkbox changes commit with name/settings as one
   revision-guarded transaction. UPDATE retains exclusions by stable identity.
-  Missing or legacy-expression-owned targets are skipped safely with a visible
+  Missing targets are skipped safely with a visible
   PARTIAL count; eligible targets still recall. A recall with no eligible targets
-  is refused. Legacy expression takeover itself is not implemented.
+  is refused. Legacy expression assignments and curves are retained: snapshot/A/B
+  owns an existing Controller token until matching pedal movement releases it.
+  An unrelated pedal cannot release that token; later A/B movement cannot reclaim
+  an individually overridden target. Manual descriptor editing also releases only
+  the affected token. STOP/PANIC and load cancel ownership.
 * Manual A/B morph uses a global Controller target (kind 16), two stable snapshot
   IDs and their common included targets. The compact collapsed A/B control supports
   linear/smooth interpolation, manual position and existing MIDI Learn. A learned
   CC can drive it with GLIDE/PICKUP/SLEW and BACK TO STATE policies. Each underlying
   target holds a token: individual physical takeover remains effective until a
   new A/B session is configured. Capture excludes the macro itself. Pair, position,
-  curve and Controller mappings persist; runtime tokens do not. STOP/PANIC cancels
+  curve and Controller mappings persist; runtime tokens do not. Manual/configured
+  position is committed; transient pedal position is not persisted as a new base.
+  Restart applies the stored pair at its committed position through the same engine.
+  Explicit BACK TO STATE is tested against that committed macro base. STOP/PANIC cancels
   the session. Learn capture is consumed and does not change audible parameters.
 * REAPER Lua refuses unsupported snapshot-bearing patch round trips. REAPER
   export refuses nonempty snapshots instead of dropping them. Empty extensions
@@ -67,18 +75,27 @@ record size and callback cost still need profiling on a Raspberry Pi.
 
 ## Current limitations — do not claim complete
 
-The native registry covers the current Controller-addressable parameter kinds,
-not every desired patch control: Instrument enable/routing, Transformer bypass,
-phrase base velocity/solo/mute/mode and future module parameters are not captured.
-Stable phrase identities use the existing kinds 14/15 and phrase IDs; the project
-has no native phrase Transformer chain implementation yet.
+The registry now covers every currently exposed musical descriptor, with an
+explicitly global, uncaptured A/B macro. Phrase identities use their existing
+stable slots (1–16); the project has no phrase Transformer implementation yet.
+Capture and Controller target storage are bounded at 512, covering the expanded
+maximum configuration. Conversion is shared between capture/recall, committed
+Controller bases and native save; descriptor agreement is regression-tested.
 
-Legacy expression-owned targets are captured but cannot safely recall through
-this ownership adapter. They are explicitly skipped, preserving their existing
-owner. There is no beat/bar duration,
-grouped current-versus-stored parameter editor or actual REAPER Snapshot engine/UI.
-Snapshot inclusion editing and partial counts exist, but detailed takeover/override
-feedback and editing individual stored numeric values remain unimplemented.
+Routing/enable/bypass changes wait until that Instrument has no source notes,
+ARP note or held sustain. Phrase mute/solo/mode changes wait until phrase playback
+and recording are stopped and ONCE/HOLD voices have finished. Their deferred
+entries carry stable Instrument/Transformer identities and cannot apply to a new
+occupant of a slot. STOP/PANIC cancels queued changes. This conservative policy
+preserves Note Off ownership; live phrase-discrete switching is a future lifecycle
+improvement, not claimed by this implementation. Base velocity and decay remain
+independently editable during playback. Parameter kind 13 remains a discrete
+morph target with its original linear CC-number conversion.
+
+Beat/bar duration, grouped current-versus-stored value editing, detailed timed
+morph override feedback and actual REAPER Snapshot execution remain absent.
+Snapshot inclusion editing and partial counts exist.
+
 The mandatory compact main Phrase/Instrument controls, phrase-owned chains,
 Smart Switch popup configuration, safe browser Instrument add/delete and blank
 patch ONCE defaults still require implementation. Existing application layouts
@@ -87,19 +104,22 @@ complete row contract. Reordering the domain sections alone does not fix this.
 
 Headless “MORPH TO NEXT” can now be configured through OPTIONS and triggered
 through the existing MIDI gesture dispatcher. The complete acceptance scenario
-still requires broader parameter coverage, compact rows and hardware validation.
+still requires compact rows, phrase chains and hardware validation.
 No real Pi, Helix, Firefox or REAPER execution validation is claimed.
 
 ## Resume: exact next coding step
 
-Continue on **this branch**. Next extend the shared parameter registry and safe
-legacy-expression ownership. Keep legacy assignments intact and arbitrate their
-physical movement through existing Controller tokens before enabling recall.
+Continue on **this branch** with compact rows and native Instrument lifecycle:
+expose existing `i_add`/`i_remove` through revision-guarded commands, prune only the
+deleted stable Instrument's mappings/snapshot values, and reuse `parameter_set`
+for main row controls. Add phrase trigger Learn and labels using the existing
+Learn/phrase engine. Next implement independently owned phrase Transformer chains,
+then browser-only workspace customization/presets. No musical state belongs in
+localStorage. REAPER execution parity follows those steps.
 
 Then complete:
 
-1. Complete descriptor target coverage and safely shared legacy-expression
-   ownership, using existing controllers and typed parameter application.
+1. Finish lifecycle and compact row controls without changing recorded phrase data.
 2. Grouped parameter editor, current/stored values, editing stored values, and
    active/partial/overridden indicators beyond the current partial count.
 3. Mandatory compact Phrase/Instrument rows, full Smart Switch popup configuration,
@@ -149,9 +169,9 @@ recalls, held-note deferred changes, STOP/PANIC, restart and snapshot restoratio
 ## Executed validation (2026-10-10, desktop x86-64)
 
 The complete combined suite above passed with the final production code:
-14 baseline HTTP tests, 4 descriptor/registry tests (including C++11 catalog
-identity assertions), 9 Controller API tests, 12 Snapshot API tests, 162,447 policy
-checks + 528 adapter checks both normally and under ASan/UBSan, 2,328 actual
+14 baseline HTTP tests, 5 descriptor/registry tests (including C++11 catalog
+identity assertions), 9 Controller API tests, 14 Snapshot API tests, 162,709 policy
+checks + 528 adapter checks both normally and under ASan/UBSan, 2,327 actual
 EEL2/GUI/MIDI checks, 3 stable concurrent-render cases, 5 Lua persistence tests,
 3 actual dummy-JACK routing/overflow/timestamp scenarios, and Chromium host,
 generic editor, Controller and Snapshot workflows. The new browser scenario
@@ -192,3 +212,9 @@ to select pickup/glide/slew or return behavior. Save, restart and load the patch
 verify the pair, curve, position and assignment. A separately mapped target must
 retain its physical takeover during subsequent pedal movements. Real Helix and
 Firefox verification remains required.
+
+Milestones M1 (manual A/B/Learn) and M2 (current musical parameter coverage and
+legacy ownership) are implemented. The final combined suite passed after the
+committed-position correction. The expanded callback command/reply buffers are
+allocated once at startup, preserving JACK callback stack limits. This was caught
+by the actual JACK suite; it is covered by the final routing/ordering rerun.

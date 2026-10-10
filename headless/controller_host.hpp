@@ -1,5 +1,6 @@
 #pragma once
 #include "controller_engine.hpp"
+#include "parameter_registry.hpp"
 #include <array>
 #include <cstdint>
 // Host adapter configuration v1. Stable IDs are never array positions.
@@ -20,9 +21,12 @@ struct Binding {
   double base = 0; // normalized committed value; runtime never serialized
   bool valid() const {
     return policy.valid() && instrument && instrument <= 16777215 &&
-           module <= 16777215 && kind >= 0 && kind <= 16 &&
-           (kind < 14 || (kind < 16 && instrument <= 16 && !module) ||
-            (kind == 16 && instrument == 1 && !module)) &&
+           module <= 16777215 && kind >= 0 && kind <= 24 &&
+           (performance::phraseKind(kind) ? instrument <= 16 && !module
+            : kind == 16                  ? instrument == 1 && !module
+            : kind >= 21 && kind <= 23    ? !module
+            : kind == 24                  ? module != 0
+                                          : true) &&
            std::isfinite(base) && base >= 0 && base <= 1;
   }
 };

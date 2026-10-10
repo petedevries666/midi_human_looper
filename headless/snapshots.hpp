@@ -18,15 +18,15 @@ struct Value {
 };
 struct State {
   unsigned count = 0;
-  std::array<Value, 256> values{};
+  std::array<Value, 512> values{};
   bool valid() const {
     if (count > values.size())
       return false;
     for (unsigned i = 0; i < count; ++i) {
       const auto &v = values[i];
       if (!v.key.instrument || v.key.instrument > 16777215 ||
-          v.key.module > 16777215 || v.key.kind < 0 || v.key.kind > 15 ||
-          !std::isfinite(v.effective))
+          v.key.module > 16777215 || v.key.kind < 0 || v.key.kind > 24 ||
+          v.key.kind == 16 || !std::isfinite(v.effective))
         return false;
       for (unsigned j = 0; j < i; ++j)
         if (v.key == values[j].key)
@@ -77,7 +77,7 @@ class Snapshots {
   std::array<SwitchAction, 48> actions{};
 
 public:
-  static constexpr unsigned version = 3;
+  static constexpr unsigned version = 4;
   AB ab;
   unsigned count = 0;
   uint32_t selected = 0, revision = 1;
@@ -264,7 +264,7 @@ public:
       return true;
     if (current.count > current.values.size())
       return true;
-    std::array<int, 512> lookup;
+    std::array<int, 1024> lookup;
     lookup.fill(-1);
     auto hash = [](const Key &k) {
       uint64_t v = (uint64_t(k.instrument) << 32) | (uint64_t(k.module) << 4) |
@@ -272,12 +272,12 @@ public:
       v ^= v >> 33;
       v *= UINT64_C(0xff51afd7ed558ccd);
       v ^= v >> 33;
-      return unsigned(v) & 511;
+      return unsigned(v) & 1023;
     };
     for (unsigned i = 0; i < current.count; ++i) {
       unsigned slot = hash(current.values[i].key);
       while (lookup[slot] >= 0)
-        slot = (slot + 1) & 511;
+        slot = (slot + 1) & 1023;
       lookup[slot] = int(i);
     }
     for (unsigned i = 0; i < r->state.count; ++i) {
@@ -286,7 +286,7 @@ public:
         continue;
       unsigned slot = hash(v.key);
       while (lookup[slot] >= 0 && !(current.values[lookup[slot]].key == v.key))
-        slot = (slot + 1) & 511;
+        slot = (slot + 1) & 1023;
       if (lookup[slot] < 0 ||
           !std::isfinite(current.values[lookup[slot]].effective) ||
           std::abs(v.effective - current.values[lookup[slot]].effective) > 1e-7)

@@ -11,6 +11,10 @@ class SnapshotTests(HeadlessTests):
             self.command('snapshot_switch',switchId=a['switchId'],gesture=a['gesture'],snapshotAction=0)
         for r in self.call()['snapshots']:
             self.command('snapshot_delete',snapshotId=r['id'])
+    def patch(self,action):
+        state=self.call();body=dict(slot=1,expectedRevision=state['revision'],expectedEngineSessionId=state['engineSessionId'])
+        req=urllib.request.Request(self.base+'/api/v1/patch/'+action,data=json.dumps(body).encode(),headers={'Content-Type':'application/json'})
+        return json.load(urllib.request.urlopen(req,timeout=5))
     def capture(self):
         return self.command('snapshot_capture')['snapshots'][-1]
     def test_capture_live_dirty_update_independence(self):
@@ -46,7 +50,7 @@ class SnapshotTests(HeadlessTests):
         self.command('module_structure',instrumentId=1,moduleId=tf['id'],operation='delete')
         self.command('instrument_route',instrumentId=1,field='level',value=96)
         result=self.command('snapshot_recall',snapshotId=a['id'])
-        self.assertEqual(result['snapshotSkippedTargets'],1)
+        self.assertEqual(result['snapshotSkippedTargets'],2)
         self.assertEqual(self.call()['instruments'][0]['level'],32)
     def test_transactional_settings_and_validation(self):
         a=self.capture()
@@ -96,7 +100,7 @@ class SnapshotTests(HeadlessTests):
         self.command('snapshot_ab_position',position=1)
         self.assertEqual(self.call()['instruments'][0]['level'],112)
         self.command('controller_source',sourceId=103,kind=0)
-        macro=dict(id=3,sourceId=103,targetId=204,instrumentId=1,moduleId=0,kind=16,priority=0,takeover=0,returnMode=0,threshold=.02,glideSeconds=.2,slewPerSecond=1,idleSeconds=1,returnSeconds=.5,easing=0,enabled=1,points=[[0,0,0],[1,1,0]])
+        macro=dict(id=3,sourceId=103,targetId=204,instrumentId=1,moduleId=0,kind=16,priority=0,takeover=0,returnMode=3,threshold=.02,glideSeconds=.2,slewPerSecond=1,idleSeconds=1,returnSeconds=.5,easing=0,enabled=1,points=[[0,0,0],[1,1,0]])
         self.command('mapping_commit',mapping=macro)
         self.command('controller_learn',sourceId=103)
         self.command('midi_cc',channel=3,number=22,value=0)
@@ -106,6 +110,15 @@ class SnapshotTests(HeadlessTests):
         self.wait_for(lambda:self.call()['instruments'][0]['level']==32,'pedal A')
         self.command('midi_cc',channel=3,number=22,value=127)
         self.wait_for(lambda:self.call()['instruments'][0]['level']==112,'pedal B')
+        self.command('midi_cc',channel=3,number=22,value=0)
+        self.wait_for(lambda:self.call()['instruments'][0]['level']==32,'pedal before return')
+        self.command('controller_return',targetId=204)
+        self.wait_for(lambda:self.call()['instruments'][0]['level']==112,'macro BACK TO STATE')
+        self.command('midi_cc',channel=3,number=22,value=0)
+        self.wait_for(lambda:self.call()['instruments'][0]['level']==32,'pedal after return')
+        self.patch('save');self.patch('load')
+        self.wait_for(lambda:self.call()['instruments'][0]['level']==112,'reload committed A/B state without transient pedal ownership')
+        self.assertEqual(self.call()['snapshotAB']['position'],1)
         self.command('controller_source',sourceId=104,kind=2,channel=4,number=23)
         direct=dict(macro,id=4,sourceId=104,targetId=205,kind=1)
         self.command('mapping_commit',mapping=direct)
@@ -117,6 +130,75 @@ class SnapshotTests(HeadlessTests):
         self.command('panic')
         for id in (3,4):self.command('mapping_delete',mappingId=id)
         self.command('snapshot_ab_configure',a=0,b=0)
+    def test_legacy_expression_reclaims_only_its_snapshot_target(self):
+        # Obtain serialized addresses from the actual JSFX constant declarations.
+        # No implementation of MIDI routing or expression evaluation is mocked.
+        import re,ast,operator
+        constants={};ops={ast.Add:operator.add,ast.Sub:operator.sub,ast.Mult:operator.mul,ast.Div:operator.truediv}
+        def value(node):
+            if isinstance(node,ast.Constant) and type(node.value) in (int,float):return node.value
+            if isinstance(node,ast.Name):return constants[node.id]
+            if isinstance(node,ast.BinOp) and type(node.op) in ops:return ops[type(node.op)](value(node.left),value(node.right))
+            raise ValueError()
+        source=(ROOT/'midi_human_looper.jsfx').read_text().split('function ')[0]
+        for name,expr in re.findall(r'\b([A-Z][A-Z0-9_]*)\s*=\s*([^;]+);',source):
+            try:constants[name]=value(ast.parse(expr.strip(),mode='eval').body)
+            except (ValueError,KeyError,SyntaxError):pass
+        def patch(action):
+            state=self.call();req=urllib.request.Request(self.base+'/api/v1/patch/'+action,data=json.dumps(dict(slot=1,expectedRevision=state['revision'],expectedEngineSessionId=state['engineSessionId'])).encode(),headers={'Content-Type':'application/json'})
+            return json.load(urllib.request.urlopen(req,timeout=5))
+        patch('save');path=Path(self.temp.name)/'patches/patch1.json';original=path.read_bytes()
+        data=json.loads(original);data['memory'][int(constants['INST_EXP_ASSIGN_BASE'])+1]=1
+        data['memory'][int(constants['CONTROLLER_CC_BASE'])]=25
+        data['memory'][int(constants['INST_EXP_ASSIGN_BASE'])+int(constants['EXP_TARGETS'])+1]=2
+        data['memory'][int(constants['CONTROLLER_CC_BASE'])+1]=26
+        path.write_text(json.dumps(data));patch('load')
+        self.command('midi_cc',channel=6,number=25,value=32);a=self.capture()
+        self.command('midi_cc',channel=6,number=25,value=112);b=self.capture()
+        self.command('snapshot_recall',snapshotId=a['id']);time.sleep(.1)
+        self.assertEqual(self.call()['instruments'][0]['level'],32)
+        self.assertEqual(self.call()['snapshotSkippedTargets'],0)
+        self.command('midi_cc',channel=6,number=26,value=10);time.sleep(.05)
+        self.assertEqual(self.call()['instruments'][0]['level'],32) # Unrelated pedal cannot take ownership.
+        self.assertEqual(self.call()['instruments'][1]['level'],10)
+        self.command('snapshot_morph',snapshotId=b['id']);time.sleep(.15)
+        self.command('midi_cc',channel=6,number=25,value=64);time.sleep(.15)
+        self.assertEqual(self.call()['instruments'][0]['level'],64)
+        time.sleep(2);self.assertEqual(self.call()['instruments'][0]['level'],64)
+        self.command('snapshot_ab_configure',a=a['id'],b=b['id'])
+        self.command('snapshot_ab_position',position=1);self.assertEqual(self.call()['instruments'][0]['level'],112)
+        self.command('midi_cc',channel=6,number=25,value=80);time.sleep(.05)
+        self.command('snapshot_ab_position',position=.25)
+        self.assertEqual(self.call()['instruments'][0]['level'],80)
+        self.assertGreater(self.call()['snapshotAB']['overridden'],0)
+        patch('save');saved=json.loads(path.read_text())
+        self.assertEqual(saved['memory'][int(constants['INST_EXP_ASSIGN_BASE'])+1],1)
+        self.command('panic');self.command('midi_cc',channel=6,number=25,value=90)
+        self.assertEqual(self.call()['instruments'][0]['level'],90)
+        path.write_bytes(original);patch('load')
+    def test_extended_registry_recall_deferred_routing_and_manual_ownership(self):
+        def set(kind,value,target=1,module=0):return self.command('parameter_set',targetId=target,moduleId=module,kind=kind,value=value)
+        set(17,.5);set(18,0);set(19,0);set(20,1);set(21,1);set(22,0);set(23,1)
+        tf=self.command('module_structure',instrumentId=1,operation='add',engineType=1)['instruments'][0]['transformers'][-1]
+        set(24,1,module=tf['id']);a=self.capture()
+        details=json.load(urllib.request.urlopen(self.base+'/api/v1/snapshot/'+str(a['id'])))
+        kinds={p['kind'] for p in details['parameters']};self.assertTrue({14,15,17,18,19,20,21,22,23,24}<=kinds);self.assertNotIn(16,kinds)
+        set(17,2);set(18,1);set(19,1);set(20,2);set(21,0);set(22,2);set(23,3);set(24,0,module=tf['id'])
+        self.command('snapshot_recall',snapshotId=a['id']);state=self.call()
+        self.assertEqual((state['phrases'][0]['baseVelocity'],state['phrases'][0]['mute'],state['phrases'][0]['solo'],state['phrases'][0]['mode']),(.5,0,0,1))
+        instrument=state['instruments'][0];self.assertEqual((instrument['enabled'],instrument['input'],instrument['output']),(1,0,1));self.assertTrue(instrument['transformers'][-1]['enabled'])
+        self.command('midi',channel=1,note=60,value=100);set(23,3)
+        self.assertEqual(self.call()['instruments'][0]['output'],1)
+        self.command('midi',channel=1,note=60,value=0);time.sleep(.03)
+        self.assertEqual(self.call()['instruments'][0]['output'],3);self.assertEqual(self.call()['activeNotes'],0)
+        set(1,32);b=self.capture();set(1,112);c=self.capture()
+        self.command('snapshot_morph',snapshotId=b['id']);time.sleep(.1);set(1,80)
+        time.sleep(.1);self.assertEqual(self.call()['instruments'][0]['level'],80)
+        self.command('snapshot_ab_configure',a=b['id'],b=c['id']);set(1,64)
+        self.command('snapshot_ab_position',position=1);self.assertEqual(self.call()['instruments'][0]['level'],64)
+        self.command('snapshot_ab_configure',a=0,b=0)
+        self.command('module_structure',instrumentId=1,moduleId=tf['id'],operation='delete')
+        for kind,value in ((17,1),(18,0),(19,0),(20,1),(21,1),(22,0),(23,1)):set(kind,value)
     def test_stable_target_inclusion_is_transactional(self):
         self.command('instrument_route',instrumentId=1,field='level',value=32);a=self.capture()
         details=json.load(urllib.request.urlopen(self.base+'/api/v1/snapshot/'+str(a['id'])))
@@ -208,6 +290,10 @@ class SnapshotTests(HeadlessTests):
         self.command('snapshot_ab_position',position=.75)
         self.assertAlmostEqual(self.call()['snapshotAB']['position'],.75)
         path=Path(self.temp.name)/'patches/patch1.json';legacy=json.loads(path.read_text())
+        self.assertEqual(legacy['globalSnapshots']['version'],4)
+        legacy['globalSnapshots']['version']=3;legacy['globalSnapshots']['configuration'][0]=3
+        path.write_text(json.dumps(legacy));patch('load')
+        self.assertEqual(self.call()['snapshotAB']['a'],a['id'])
         extension=legacy['globalSnapshots'];extension['version']=1
         extension['configuration']=extension['configuration'][:-196];extension['configuration'][0]=1
         path.write_text(json.dumps(legacy));patch('load')

@@ -16,6 +16,8 @@ try:
   page.locator('[data-source-id]').get_by_role('button',name='MIDI LEARN',exact=True).click();page.get_by_text('Waiting for MIDI note or CC…',exact=True).wait_for()
   api.command('midi_cc',channel=2,number=21,value=70);page.get_by_text('CC 21 · CH 2',exact=True).wait_for()
   page.get_by_role('button',name='ADD MAPPING',exact=True).click();editor=page.locator('#editor');editor.wait_for();editor.get_by_role('button',name='ADD POINT',exact=True).click();assert editor.locator('.curve-point').count()==3
+  assert not editor.locator('details').first.evaluate('(e)=>e.open')
+  editor.get_by_label('TAKEOVER',exact=True).select_option('2');assert editor.get_by_label('TAKEOVER',exact=True).input_value()=='2'
   editor.get_by_role('button',name='CANCEL',exact=True).click();assert not decode(api.call()['controllerEngine'])['mappings']
   page.get_by_role('button',name='ADD MAPPING',exact=True).click();editor.get_by_role('button',name='ADD POINT',exact=True).click();editor.get_by_label('Y point 2',exact=True).fill('.8');editor.get_by_label('BEND point 1',exact=True).fill('.2');editor.get_by_role('button',name='DONE',exact=True).click();editor.wait_for(state='hidden')
   mappings=decode(api.call()['controllerEngine'])['mappings'];assert len(mappings)==1 and mappings[0]['points'][1][1]==.8

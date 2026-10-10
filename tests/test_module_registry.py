@@ -42,6 +42,11 @@ class RegistryTests(unittest.TestCase):
    binary=Path(directory)/'scale'
    subprocess.run([os.environ.get('CXX','c++'),'-std=c++11','-I',str(root),str(source),'-o',str(binary)],check=True,capture_output=True)
    subprocess.run([str(binary)],check=True)
+ def test_invalid_named_choices_rejected(self):
+  doc=json.loads(json.dumps(REGISTRY.document()))
+  p=next(p for p in doc["parameters"] if p["id"]=="controller_takeover")
+  p["choices"]=["DIRECT"]
+  with self.assertRaises(ValueError):Registry(doc)
  def test_extension_registration_without_page(self):
   registry=Registry(REGISTRY.document());module=dict(registry.modules['velocity'],typeId='example_velocity',engineType=99,label='EXAMPLE VELOCITY')
   registry.register(module);self.assertEqual(registry.engine_types[99],'example_velocity');self.assertEqual(registry.modules['example_velocity']['parameters'],['velocity'])

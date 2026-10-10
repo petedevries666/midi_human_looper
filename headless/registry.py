@@ -7,6 +7,7 @@ class Registry:
         self.parameters={};self.modules={};self.engine_types={}
         for p in document['parameters']:
             if p['id'] in self.parameters or p['valueType'] not in ('float','int','enum','toggle') or not p['min']<=p['default']<=p['max'] or p['min']>=p['max'] or p['step']<=0:raise ValueError('invalid parameter')
+            if "choices" in p and (p["valueType"]!="enum" or p["min"]!=0 or not isinstance(p["choices"],list) or len(p["choices"])!=p["max"]+1 or any(not isinstance(label,str) or not label for label in p["choices"])):raise ValueError("invalid parameter choices")
             self.parameters[p['id']]=dict(p)
         for m in document['modules']:self.register(m)
     def register(self,module):

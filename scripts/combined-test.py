@@ -27,6 +27,7 @@ def run(command,extra=None):
         raise
 try:
     run(['scripts/headless-test.sh'],{'RUN_JACK_TESTS':'1' if a.jack else '0','RUN_NATIVE_TESTS':'0','TEST_PYTHON':sys.executable,'RUN_CHAIN_BROWSER':'1' if a.browser=='chromium' else '0'})
+    run([sys.executable,'tests/test_observation.py'])
     run([sys.executable,'tests/test_controller_integration.py'])
     run([sys.executable,'tests/test_snapshots.py'])
     run([sys.executable,'tests/test_product_integration.py'])

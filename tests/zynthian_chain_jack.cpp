@@ -24,15 +24,17 @@ int sourceProcess(jack_nframes_t n, void *) {
     auto out = jack_port_get_buffer(outputs[i], n);
     jack_midi_clear_buffer(out);
     bool attack = transport == JackTransportRolling &&
-                  (mask.load() & (1u << i)) && phase == 0;
-    bool release = held[i] && (phase == 24576 || !(mask.load() & (1u << i)) ||
+                  (mask.load() & (1u << i)) && (loopLength-phase)%loopLength<n;
+    bool release = held[i] && ((24576+loopLength-phase)%loopLength<n || !(mask.load() & (1u << i)) ||
                                transport != JackTransportRolling);
     if (attack || release) {
       unsigned char data[] = {
           static_cast<unsigned char>((attack ? 144 : 128) | i),
           static_cast<unsigned char>(60 + i),
           static_cast<unsigned char>(attack ? 100 : 0)};
-      if (!jack_midi_event_write(out, 0, data, 3))
+      unsigned offset=attack?(loopLength-phase)%loopLength:
+        transport==JackTransportRolling && (mask.load() & (1u<<i))?(24576+loopLength-phase)%loopLength:0;
+      if (!jack_midi_event_write(out, offset, data, 3))
         held[i] = attack;
     }
   }
@@ -71,7 +73,8 @@ int main() {
         jack_port_register(sourceClient, ("out" + std::to_string(i)).c_str(),
                            JACK_DEFAULT_MIDI_TYPE, JackPortIsOutput, 0);
   }
-  loopLength=unsigned(std::llround(192000.0/jack_get_buffer_size(sourceClient)))*jack_get_buffer_size(sourceClient);
+  loopLength=std::getenv("CHAIN_TIMING_VERSION") && std::string(std::getenv("CHAIN_TIMING_VERSION"))=="1"
+    ? unsigned(std::llround(192000.0/jack_get_buffer_size(sourceClient)))*jack_get_buffer_size(sourceClient) : 192000;
   jack_set_process_callback(sourceClient, sourceProcess, nullptr);
   jack_set_process_callback(client, process, nullptr);
   if (jack_activate(sourceClient) || jack_activate(client))

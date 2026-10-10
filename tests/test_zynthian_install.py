@@ -25,6 +25,7 @@ class Installation(unittest.TestCase):
             command=[sys.executable,str(ROOT/'zynthian/install.py'),'--ui-dir',str(ui),'--data-dir',str(path/'data'),'--binary',sys.executable]
             subprocess.run(command+['--lan'],check=True,capture_output=True)
             config=path/'data/midi-human-looper/install.json';saved=config.read_text()
+            self.assertEqual(module.json.loads(saved)["chain_timing_version"],2)
             token=path/'data/midi-human-looper/editor.token'
             self.assertEqual(token.stat().st_mode&0o777,0o600)
             subprocess.run(command,check=True,capture_output=True);self.assertEqual(config.read_text(),saved)

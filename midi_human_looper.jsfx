@@ -1212,6 +1212,20 @@ local(k,c,code)
   );max(1,min(127,floor(vel*gain+.5)));
 );
 
+// Native timing-v2 capture gate. REAPER/legacy paths leave this disabled.
+// Storage is preallocated by the native adapter, runtime only; scratch is local.
+function chain_capture_accept(st,note,vel,offs)
+local(key,count,on,off)
+(
+  !chain_capture_active ? 1 : (
+    offs<chain_capture_start || offs>=chain_capture_end ? 0 : (
+      key=3002048+(st&15)*128+note;count=mem[key];
+      on=(st&240)==144 && vel>0;off=(st&240)==128 || ((st&240)==144 && vel==0);
+      on ? (mem[key]=count+1;1;) : off ? (count>0 ? (mem[key]=count-1;1;):0;) : 1;
+    );
+  );
+);
+
 function route_emit_note(gi, offs, outst, note, vel, is_on, owned, origin_override)
 local(ch,key,origin,idx)
 (
@@ -2805,7 +2819,7 @@ while (
     state==STATE_RECORDING ? (
       store_event(record_layer,record_sample_pos+offset,msg1,d1,d2,offset);
     ) :
-    overdub_active && (mem[MODE_BASE+overdub_layer]<0.5 || overdub_pos+offset<mem[LEN_BASE+overdub_layer]) ? (
+    overdub_active && (mem[MODE_BASE+overdub_layer]<0.5 || overdub_pos+offset<mem[LEN_BASE+overdub_layer]) && chain_capture_accept(msg1,d1,d2,offset) ? (
       store_event(overdub_layer,overdub_pos+offset,msg1,d1,d2,offset);
     );
 

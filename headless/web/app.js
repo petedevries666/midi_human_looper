@@ -1,6 +1,6 @@
 'use strict';
 let revision=1, engineSession=null, pending=false, renderedModel='', latest=null;
-let catalog=null, ws=null, reconnect=null;
+let catalog=null, ws=null, reconnect=null, renderedSnapshots='', renderedSnapshotSession=null;
 const $=id=>document.getElementById(id);
 const node=(tag,text,cls)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;if(cls)n.className=cls;return n;};
 function headers(){return {'Content-Type':'application/json','X-Engine-Token':$('token').value};}
@@ -47,6 +47,33 @@ function edit(module,instrument,values,instance){
   dialog.onclick=e=>{const r=dialog.getBoundingClientRect();if(e.target===dialog&&(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom))dismiss();};
   dialog.showModal();
 }
+function editSnapshot(record){
+  const dialog=$('editor'),content=$('editor-content');if(dialog.open)return;
+  const capturedRevision=revision,capturedSession=engineSession;
+  let committing=false;
+  content.replaceChildren(node('h2',`SNAPSHOT · ${record.id}`));
+  const dismiss=()=>{if(!committing)dialog.close();};content.append(button('×',dismiss));
+  const field=(label,input)=>{const row=node('label',label,'parameter');row.append(input);content.append(row);return input;};
+  const name=field('NAME',node('input'));name.value=record.name;name.maxLength=48;name.setAttribute('aria-label','Snapshot name');
+  const seconds=field('MORPH SECONDS',node('input'));seconds.type='number';seconds.min=0;seconds.max=30;seconds.step=.1;seconds.value=record.seconds;seconds.setAttribute('aria-label','Morph seconds');
+  const choices=(label,values,current)=>{const select=node('select');select.setAttribute('aria-label',label);for(const [value,text] of values){const option=node('option',text);option.value=value;select.append(option);}select.value=current;return field(label,select);};
+  const ease=choices('CURVE',[[0,'LINEAR'],[1,'SMOOTH']],record.ease);
+  const switching=choices('DISCRETE SWITCH',[[1,'AT START'],[2,'AT MIDPOINT'],[3,'AT END']],record.switching);
+  content.append(node('small',`${record.parameterCount} captured targets. UPDATE recaptures current effective values.`));
+  const error=node('p','');error.setAttribute('role','alert');content.append(error);
+  const done=button('DONE',async()=>{
+    if(committing)return;
+    if(engineSession!==capturedSession){error.textContent='Engine restarted. CANCEL and reopen this editor.';return;}
+    committing=true;done.disabled=cancel.disabled=true;
+    try{const state=await request('/api/v1/command',{protocolVersion:1,expectedRevision:capturedRevision,expectedEngineSessionId:capturedSession,action:'snapshot_commit',snapshotId:record.id,name:name.value,seconds:Number(seconds.value),ease:Number(ease.value),switching:Number(switching.value)});dialog.close();renderedSnapshots='';render(state);}
+    catch(e){error.textContent=e.message==='conflict'?'Configuration changed. CANCEL and reopen this editor.':e.message;}
+    finally{committing=false;done.disabled=cancel.disabled=false;}
+  });
+  const cancel=button('CANCEL',dismiss);content.append(done,cancel);
+  dialog.oncancel=e=>{if(committing)e.preventDefault();};
+  dialog.onclick=e=>{const r=dialog.getBoundingClientRect();if(e.target===dialog&&(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom))dismiss();};
+  dialog.showModal();
+}
 function render(s){
   if(engineSession===s.engineSessionId&&s.revision<revision)return;
   engineSession=s.engineSessionId;revision=s.revision;latest=s;
@@ -54,6 +81,28 @@ function render(s){
   $('metrics').replaceChildren(...[`Backend ${s.backend} · ${s.sampleRate} Hz / ${s.blockSize}`,`Sample clock ${s.sampleClock}`,`MIDI messages ${s.midiCount}`,`Active notes ${s.activeNotes}`,`Maximum callback ${s.maxCallbackUs.toFixed(1)} µs`,`Late blocks ${s.lateBlocks}`,`Output overflow ${s.outputOverflow}`].map(v=>node('span',v)));
   $('last-midi').textContent=`Last MIDI · sample ${s.lastEvent[0]} · status ${s.lastEvent[1]} · number ${s.lastEvent[2]} · value ${s.lastEvent[3]}`;
   for(const sw of s.switches){const el=document.querySelector(`[data-switch-id="${sw.id}"] .step`);if(el)el.textContent=`STEP ${sw.step} / ${sw.length}`;}
+  $('capture-snapshot').onclick=()=>command({action:'snapshot_capture'});
+  const snapshotKey=JSON.stringify([s.engineSessionId,(s.snapshots||[]).map(r=>[r.id,r.name,r.seconds,r.ease,r.switching])]);
+  if(renderedSnapshotSession!==s.engineSessionId || (snapshotKey!==renderedSnapshots && !document.activeElement?.hasAttribute('data-snapshot-name') && !document.querySelector('.snapshot-actions[open]'))) {
+  renderedSnapshots=snapshotKey;renderedSnapshotSession=s.engineSessionId;
+  const snapshotSession=s.engineSessionId;
+  $('snapshots').replaceChildren(...(s.snapshots||[]).map((r,index)=>{
+    const row=node('div',undefined,'snapshot-row');row.dataset.snapshotId=r.id;const name=node('input');name.value=r.name;name.maxLength=48;name.setAttribute('data-snapshot-name','');name.setAttribute('aria-label','Snapshot name');name.onchange=()=>{if(snapshotSession!==engineSession){$('error').textContent='Engine restarted; reopen the snapshot controls.';return;}if(name.value!==r.name)command({action:'snapshot_rename',snapshotId:r.id,name:name.value});};row.append(name,node('small','','snapshot-feedback'));
+    const more=node('details');more.className='snapshot-actions';more.append(node('summary','•••'));const menu=node('div',undefined,'snapshot-menu');more.append(menu);
+    for(const [label,action] of [['RECALL','snapshot_recall'],['MORPH','snapshot_morph'],['UPDATE','snapshot_update'],['DUPLICATE','snapshot_duplicate'],['↑','snapshot_move'],['↓','snapshot_move'],['DELETE','snapshot_delete']]) {
+      const control=button(label,()=>{if(snapshotSession!==engineSession){$('error').textContent='Engine restarted; reopen the snapshot controls.';return;}if(action==='snapshot_delete'&&!confirm('Delete this snapshot?'))return;more.open=false;command({action,snapshotId:r.id,direction:label==='↓'?'down':'up'});});
+      control.disabled=(label==='↑'&&index===0)||(label==='↓'&&index===(s.snapshots||[]).length-1);
+      (['RECALL','MORPH','UPDATE'].includes(label)?row:menu).append(control);
+    }
+    menu.prepend(button('EDIT',()=>{more.open=false;const current=latest?.snapshots?.find(v=>v.id===r.id);if(current&&snapshotSession===engineSession)editSnapshot(current);}));
+    row.append(more);
+    return row;
+  }));
+  }
+  for(const r of s.snapshots||[]) {
+    const feedback=document.querySelector(`[data-snapshot-id="${r.id}"] .snapshot-feedback`);
+    if(feedback)feedback.textContent=`${r.id===s.selectedSnapshotId?'SELECTED · ':''}${r.dirty?'MODIFIED':''}${r.id===s.targetSnapshotId?` · MORPH ${Math.round(s.morphProgress*100)}%`:''}`;
+  }
   renderControllers(s);
   const model=JSON.stringify([s.phrases,s.instruments,s.switches.map(v=>({...v,step:0}))]);if(model===renderedModel)return;renderedModel=model;
   $('phrases').replaceChildren(...s.phrases.map(p=>{const n=node('div',`PHRASE ${p.id}`,'phrase');n.append(node('small',`${p.events} events · ${p.mode===0?'LOOP':'ONCE / HOLD'} · TIME ×${p.timeDecay.toFixed(2)}`));for(const [label,action] of [['PLAY','phrase_play'],['REC / OVERDUB','phrase_record'],['FINISH REC','phrase_finish']])n.append(button(label,()=>command({action,phraseId:p.id})));return n;}));
@@ -81,7 +130,7 @@ function render(s){
 }
 async function refresh(){try{render(await request('/api/v1/state'));}catch(e){$('connection').textContent='DISCONNECTED · Engine continues independently';$('error').textContent=e.message;}}
 function setPending(value){pending=value;for(const b of document.querySelectorAll('main button')){if(value){b.dataset.pendingDisabled=b.disabled?'1':'0';b.disabled=true;}else if(b.dataset.pendingDisabled!==undefined){b.disabled=b.dataset.pendingDisabled==='1';delete b.dataset.pendingDisabled;}}}
-async function command(value){if(pending)return false;setPending(true);try{render(await request('/api/v1/command',{protocolVersion:1,expectedRevision:revision,expectedEngineSessionId:engineSession,...value}));$('error').textContent='';return true;}catch(e){$('error').textContent=e.message;await refresh();return false;}finally{setPending(false);}}
+async function command(value){if(pending)return false;setPending(true);try{render(await request('/api/v1/command',{protocolVersion:1,expectedRevision:revision,expectedEngineSessionId:engineSession,...value}));$('error').textContent='';return true;}catch(e){$('error').textContent=value.action?.startsWith('snapshot_')&&e.message==='unknown_target'?'Recall was not applied: a target is missing or has a legacy expression assignment.':e.message;await refresh();return false;}finally{setPending(false);}}
 function connectStream(){
   if(ws){ws.onclose=null;ws.close();}
   ws=new WebSocket(`${location.protocol==='https:'?'wss':'ws'}://${location.host}/api/v1/ws`);
@@ -150,3 +199,6 @@ $('add-controller').addEventListener('click',()=>{const {sources}=controllerConf
 $('add-mapping').addEventListener('click',()=>editMapping());
 
 $('export-patch').addEventListener('click',()=>patch('export'));
+
+document.addEventListener('click',event=>{for(const menu of document.querySelectorAll('.snapshot-actions[open]'))if(!menu.contains(event.target))menu.open=false;});
+document.addEventListener('keydown',event=>{if(event.key==='Escape')for(const menu of document.querySelectorAll('.snapshot-actions[open]'))menu.open=false;});

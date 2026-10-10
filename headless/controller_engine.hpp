@@ -158,6 +158,13 @@ public:
         return &t;
     return nullptr;
   }
+  unsigned freeTargets() const {
+    unsigned count = 0;
+    for (const auto &t : targets)
+      if (!t.id)
+        ++count;
+    return count;
+  }
   bool addTarget(uint32_t id, double effective) {
     if (!id || target(id) || !std::isfinite(effective) || effective < 0 ||
         effective > 1)

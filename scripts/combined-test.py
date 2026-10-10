@@ -28,6 +28,7 @@ def run(command,extra=None):
 try:
     run(['scripts/headless-test.sh'],{'RUN_JACK_TESTS':'1' if a.jack else '0','RUN_NATIVE_TESTS':'0'})
     run([sys.executable,'tests/test_controller_integration.py'])
+    run([sys.executable,'tests/test_snapshots.py'])
     run(['scripts/controller-test.sh'])
     run(['scripts/controller-test.sh'],{'SANITIZE':'1'})
     if a.native:
@@ -40,6 +41,7 @@ try:
         if a.browser=='chromium':
             run([sys.executable,'tests/test_headless_editor.py'])
             run([sys.executable,'tests/test_controller_browser.py'])
+            run([sys.executable,'tests/test_snapshot_browser.py'])
     print('PASS selected combined regression suite',flush=True)
 except (RuntimeError,subprocess.TimeoutExpired,KeyboardInterrupt) as error:
     print(f'FAILED: {error}',file=sys.stderr);sys.exit(1)

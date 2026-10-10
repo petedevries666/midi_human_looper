@@ -27,7 +27,7 @@ class Control:
         self.lock = threading.Lock()
         self.ids = itertools.count(1)
 
-    def request(self, op=0, target=0, arg=0, revision=1, ch=0, note=0, value=0, session=0, patch=None, parameters=None, module=0, binding=None):
+    def request(self, op=0, target=0, arg=0, revision=1, ch=0, note=0, value=0, session=0, patch=None, parameters=None, module=0, binding=None, name=None, settings=None):
         # One worker producer owns the engine's command queue; HTTP threads never
         # inspect live engine state. A timeout does not cancel an already executed TEST.
         with self.lock:
@@ -35,6 +35,8 @@ class Control:
             line = f'{request_id} {op} {target} {arg} {revision} {ch} {note} {value}\n'
             if session:line=line.rstrip('\n')+f' session {session}\n'
             if op==13:line=line.rstrip('\n')+f' {module}\n'
+            if name is not None:line=line.rstrip('\n')+' '+name.encode('ascii').hex()+'\n'
+            if settings is not None:line=line.rstrip('\n')+' '+' '.join(format(v,'.17g') for v in settings)+'\n'
             if parameters is not None:
                 line=line.rstrip('\n')+f' {module} {len(parameters)} '+ ' '.join(f"{p['kind']} {p['value']:.17g}" for p in parameters)+'\n'
             if binding is not None:line=line.rstrip('\n')+' '+' '.join(format(v,'.17g') for v in binding)+'\n'
@@ -43,6 +45,13 @@ class Control:
                 if 'controllerEngine' in patch:
                     decode(patch['controllerEngine'])
                     line=line.rstrip('\n')+' controllers '+' '.join(format(v,'.17g') for v in patch['controllerEngine']['configuration'])+'\n'
+                if 'globalSnapshots' in patch:
+                    snapshot_wire=patch['globalSnapshots'].get('configuration')
+                    if type(patch['globalSnapshots'].get('version')) is not int or patch['globalSnapshots'].get('version')!=1 or not isinstance(snapshot_wire,list) or len(snapshot_wire)>26000 or any(type(v) not in (int,float) or not math.isfinite(v) for v in snapshot_wire):raise ValueError('invalid snapshots')
+                    # The native worker validates the complete versioned structure.
+                    if 'controllerEngine' not in patch:
+                        line=line.rstrip('\n')+' controllers '+' '.join(format(v,'.17g') for v in [1]+[0]*64+([0,0,0,0,0,1,0,0,0,0,0,.02,.2,1,1,.5,1,2]+[0,0,0,1,1,0]+[0]*42)*32)+'\n'
+                    line=line.rstrip('\n')+' snapshots '+' '.join(format(v,'.17g') for v in snapshot_wire)+'\n'
             with socket.socket(socket.AF_UNIX) as client:
                 client.settimeout(15)
                 client.connect(self.path)
@@ -189,7 +198,22 @@ class Handler(BaseHTTPRequestHandler):
             session=data.get('expectedEngineSessionId')
             if type(session) is not int or not 1<=session<=9007199254740991:raise ValueError('engine session required')
             action = data.get('action')
-            if action == 'test':
+            if action in ('snapshot_capture','snapshot_update','snapshot_duplicate','snapshot_delete','snapshot_move','snapshot_rename','snapshot_recall','snapshot_morph','snapshot_commit'):
+                target=data.get('snapshotId',0)
+                if type(target) is not int or not 0<=target<=16777215 or (action!='snapshot_capture' and not target):raise ValueError()
+                direction=data.get('direction','up')
+                if direction not in ('up','down'):raise ValueError()
+                args=dict(op={'snapshot_capture':20,'snapshot_update':21,'snapshot_duplicate':22,'snapshot_delete':23,'snapshot_move':24,'snapshot_rename':25,'snapshot_recall':26,'snapshot_morph':26,'snapshot_commit':27}[action],target=target,arg=int(direction=='down'))
+                if action in ('snapshot_recall','snapshot_morph','snapshot_commit'):args['arg']=int(action=='snapshot_morph')
+                if action in ('snapshot_rename','snapshot_commit'):
+                    name=data.get('name')
+                    if not isinstance(name,str) or not 1<=len(name)<=48 or any(ord(c)<32 or ord(c)>126 for c in name):raise ValueError()
+                    args['name']=name
+                if action=='snapshot_commit':
+                    seconds,ease,switching=data.get('seconds'),data.get('ease'),data.get('switching')
+                    if type(seconds) not in (int,float) or not math.isfinite(seconds) or not 0<=seconds<=30 or type(ease) is not int or ease not in (0,1) or type(switching) is not int or switching not in (1,2,3):raise ValueError()
+                    args['settings']=[seconds,ease,switching]
+            elif action == 'test':
                 target, gesture = data.get('switchId'), data.get('gesture', 'tap')
                 if type(target) is not int or not 1 <= target <= 16777215 or gesture not in ('tap', 'double', 'hold'):
                     raise ValueError('invalid switch or gesture')
@@ -264,10 +288,19 @@ class Handler(BaseHTTPRequestHandler):
             if type(slot) is not int or slot not in (1,2) or type(rev) is not int or not 1<=rev<2147483647:raise ValueError()
             path=self.server.patch_dir/f'patch{slot}.json'
             if self.path.endswith('/save') or self.path.endswith('/export'):
+                if path.exists():
+                    previous=json.loads(path.read_text())
+                    for extension in ('globalSnapshots','controllerEngine'):
+                        if extension in previous and (not isinstance(previous[extension],dict) or type(previous[extension].get('version')) is not int or previous[extension]['version']!=1):
+                            self.respond(422,{'error':'Unsupported saved configuration preserved; refusing overwrite.'});return
                 patch=self.server.control.request(op=4,revision=rev,session=session)
                 if patch.get('status')=='conflict':self.respond(409,patch);return
                 if patch.get('format')!='MIDI_HUMAN_LOOPER_PATCH':raise ValueError()
                 if self.path.endswith('/export'):
+                    snapshots=patch.get('globalSnapshots',{}).get('configuration',[])
+                    if len(snapshots)>=4 and snapshots[3]:
+                        self.respond(422,{'error':'REAPER cannot yet execute Global Snapshots; export refused to preserve snapshot data.'});return
+                    patch.pop('globalSnapshots',None)
                     patch.pop('controllerEngine',None)
                     path=self.server.patch_dir/f'patch{slot}-reaper.json'
                 self.server.patch_dir.mkdir(parents=True,exist_ok=True)

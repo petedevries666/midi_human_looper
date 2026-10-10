@@ -286,6 +286,20 @@ public:
       }
     return changed;
   }
+  bool retirePerformanceTarget(uint32_t id) {
+    for (const auto &b : config.bindings)
+      if (b.policy.id && b.policy.target == id)
+        return false;
+    return core.removeTarget(id);
+  }
+  unsigned freeTargets() const { return core.freeTargets(); }
+  bool cancelPerformanceTarget(uint32_t id, uint64_t token) {
+    return core.releaseExternal(id, token);
+  }
+  bool stagePerformanceTarget(uint32_t id, double effective) {
+    return core.target(id) ? core.recall(id, effective)
+                           : core.addTarget(id, effective);
+  }
   uint64_t morph(uint32_t id, double goal, double seconds,
                  Ease ease = Ease::Linear,
                  Switch switching = Switch::Continuous) {

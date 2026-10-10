@@ -25,6 +25,7 @@ local function num(v)
 end
 
 local function headless_extension(txt)
+  if txt and txt:match('"globalSnapshots"%s*:') then return true end
   if not txt or not txt:match('"controllerEngine"%s*:') then return false end
   local body = txt:match('"configuration"%s*:%s*%[(.-)%]')
   if not body then return true end -- Unknown extensions must not be erased.
@@ -38,7 +39,7 @@ end
 
 local function refuse_headless()
   if reaper.ShowMessageBox then
-    reaper.ShowMessageBox("This file contains headless Controller Engine configuration. Use EXPORT REAPER BASE in the web editor, then copy the separate patchN-reaper.json file to the REAPER patch slot. The original headless patch has been preserved.", "MIDI Human Looper", 0)
+    reaper.ShowMessageBox("This file contains headless Controller Engine or Global Snapshots configuration. Use EXPORT REAPER BASE in the web editor, then copy the separate patchN-reaper.json file to the REAPER patch slot. The original headless patch has been preserved.", "MIDI Human Looper", 0)
   end
   return false
 end

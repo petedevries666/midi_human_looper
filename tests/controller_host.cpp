@@ -10,6 +10,31 @@ static void check(bool ok, const char *s) {
   }
 }
 int main() {
+  {
+    controller::Host commands;
+    controller::Source source; source.id=1; source.kind=1; source.channel=3; source.number=60;
+    check(commands.source(source), "command Learn source setup");
+    controller::Binding mapping; mapping.policy.id=11; mapping.policy.source=1;
+    mapping.policy.target=31; mapping.instrument=1; mapping.kind=1; mapping.base=.5;
+    check(commands.bind(mapping), "command Learn mapping setup");
+    auto legacy=[](int,int,int){return false;};
+    uint8_t attack[]={147,60,100},release[]={131,60,0},cc[]={176,21,100};
+    check(commands.midi(attack,3,0,legacy) && commands.target(31)->owner==11, "source owns mapped target");
+    check(commands.learnCommand(1) && commands.learnsCommand(), "typed command Learn lease");
+    check(commands.midi(cc,3,.01,legacy) && commands.learnTarget()==1, "command Learn ignores and consumes CC");
+    check(commands.midi(attack,3,.02,legacy) && commands.learnConflict()==1, "equal source/command IDs still conflict");
+    commands.cancel();
+    check(commands.configuration().sources[0].kind==1, "cancel retains source assignment");
+    check(commands.midi(release,3,.03,legacy), "cancelled capture release quarantined");
+    check(commands.learnCommand(1) && commands.midi(attack,3,.04,legacy), "relearn command conflict");
+    check(commands.confirm(), "deliberate command reassignment");
+    controller::Source captured;
+    check(commands.takeCommandCapture(captured) && captured.id==1 && captured.kind==1 && captured.channel==3 && captured.number==60, "exact command target captured");
+    check(!commands.takeCommandCapture(captured) && !commands.learnTarget(), "capture delivered once and lease exits");
+    check(commands.configuration().sources[0].kind==0 && commands.target(31)->owner==0, "reassignment releases only conflicting mapping ownership");
+    check(commands.midi(release,3,.05,legacy), "successful capture release quarantined");
+    check(commands.configuration().valid(), "command Learn creates no persistent temporary source");
+  }
   controller::Host h;
   controller::Source a;
   a.id = 101;

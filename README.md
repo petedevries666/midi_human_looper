@@ -1,6 +1,12 @@
-# MIDI Human Looper
+# MIDI BAD MOTHER FUCKER
 
-Experimental free-time MIDI phrase instrument for REAPER JSFX, designed through live playing rather than around a fixed sequencer workflow.
+MIDI phrase looper and modular processor for REAPER JSFX and native Zynthian/JACK.
+The native prototype supports independent synchronized instrument chains; see the
+[integration status and explicit module limitations](docs/product-integration-status.md).
+HUMANIZER and ECHOCITY are not yet playable effects.
+
+For the native Zynthian Piano/Bass/Synthesizer prototype, see
+[installation, chain setup, physical test and rollback](docs/zynthian-native-chains.md).
 
 ## Core vocabulary
 

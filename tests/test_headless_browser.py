@@ -22,7 +22,10 @@ try:
         page.on('pageerror',lambda error: errors.append(str(error)))
         page.goto(HeadlessTests.base)
         page.get_by_text('CONNECTED · Engine running',exact=True).wait_for()
-        assert page.locator('.phrase').count()==16
+        assert page.locator('.phrase').count()==6
+        page.locator('#phrase-pagination').get_by_role('button',name='→',exact=True).click()
+        assert page.locator('[data-phrase-id="7"]').count()==1
+        page.locator('#phrase-pagination').get_by_role('button',name='←',exact=True).click()
         assert page.locator('.instrument').count()==3
         assert page.locator('.switch').count()==4
         assert page.locator('[data-switch-id="3"] .tests button').first.is_disabled()

@@ -21,28 +21,50 @@ from urllib.parse import urlsplit
 
 ROOT = Path(__file__).parent / 'web'
 
+PATCH_KEYS={'format','schema','work_mem_size','globals','memory','controllerEngine','globalSnapshots'}
+def validate_patch_extensions(patch):
+    if not isinstance(patch,dict) or set(patch)-PATCH_KEYS:
+        raise ValueError('Unsupported patch fields preserved; refusing to discard configuration.')
+    if patch.get('format')!='MIDI_HUMAN_LOOPER_PATCH' or type(patch.get('schema')) is not int or not 1<=patch['schema']<=7:
+        raise ValueError('Unsupported patch format/schema preserved; refusing overwrite or load.')
+    for name,versions in (('controllerEngine',(1,)),('globalSnapshots',(1,2,3,4))):
+        if name in patch and (not isinstance(patch[name],dict) or type(patch[name].get('version')) is not int or patch[name]['version'] not in versions):
+            raise ValueError('Unsupported patch extension preserved; refusing to discard configuration.')
+
 class Control:
     def __init__(self, path):
         self.path = path
         self.lock = threading.Lock()
         self.ids = itertools.count(1)
 
-    def request(self, op=0, target=0, arg=0, revision=1, ch=0, note=0, value=0, session=0, patch=None, parameters=None, module=0, binding=None):
+    def request(self, op=0, target=0, arg=0, revision=1, ch=0, note=0, value=0, session=0, patch=None, parameters=None, module=0, binding=None, name=None, settings=None, inclusions=None, macro=None):
         # One worker producer owns the engine's command queue; HTTP threads never
         # inspect live engine state. A timeout does not cancel an already executed TEST.
         with self.lock:
             request_id = next(self.ids)
             line = f'{request_id} {op} {target} {arg} {revision} {ch} {note} {value}\n'
             if session:line=line.rstrip('\n')+f' session {session}\n'
-            if op==13:line=line.rstrip('\n')+f' {module}\n'
+            if op in (13,28):line=line.rstrip('\n')+f' {module}\n'
+            if name is not None:line=line.rstrip('\n')+' '+name.encode('ascii').hex()+'\n'
+            if settings is not None:line=line.rstrip('\n')+' '+' '.join(format(v,'.17g') for v in settings)+'\n'
+            if inclusions is not None:line=line.rstrip('\n')+' include '+str(len(inclusions))+' '+ ' '.join(str(v) for a in inclusions for v in (a['instrumentId'],a['moduleId'],a['kind'],int(a['included'])))+'\n'
+            if macro is not None:line=line.rstrip('\n')+' '+' '.join(format(v,'.17g') for v in macro)+'\n'
             if parameters is not None:
                 line=line.rstrip('\n')+f' {module} {len(parameters)} '+ ' '.join(f"{p['kind']} {p['value']:.17g}" for p in parameters)+'\n'
             if binding is not None:line=line.rstrip('\n')+' '+' '.join(format(v,'.17g') for v in binding)+'\n'
             if patch is not None:
+                validate_patch_extensions(patch)
                 line = line.rstrip('\n') + ' ' + ' '.join(format(v, '.17g') for v in patch['globals']+patch['memory'])+'\n'
                 if 'controllerEngine' in patch:
                     decode(patch['controllerEngine'])
                     line=line.rstrip('\n')+' controllers '+' '.join(format(v,'.17g') for v in patch['controllerEngine']['configuration'])+'\n'
+                if 'globalSnapshots' in patch:
+                    snapshot_wire=patch['globalSnapshots'].get('configuration')
+                    if type(patch['globalSnapshots'].get('version')) is not int or patch['globalSnapshots'].get('version') not in (1,2,3,4) or not isinstance(snapshot_wire,list) or len(snapshot_wire)>52000 or any(type(v) not in (int,float) or not math.isfinite(v) for v in snapshot_wire):raise ValueError('invalid snapshots')
+                    # The native worker validates the complete versioned structure.
+                    if 'controllerEngine' not in patch:
+                        line=line.rstrip('\n')+' controllers '+' '.join(format(v,'.17g') for v in [1]+[0]*64+([0,0,0,0,0,1,0,0,0,0,0,.02,.2,1,1,.5,1,2]+[0,0,0,1,1,0]+[0]*42)*32)+'\n'
+                    line=line.rstrip('\n')+' snapshots '+' '.join(format(v,'.17g') for v in snapshot_wire)+'\n'
             with socket.socket(socket.AF_UNIX) as client:
                 client.settimeout(15)
                 client.connect(self.path)
@@ -151,7 +173,18 @@ class Handler(BaseHTTPRequestHandler):
         if path=='/api/v1/ws' and self.headers.get('Upgrade','').lower()=='websocket':
             self.websocket();return
         if path == '/api/v1/descriptors':
-            self.respond(200,REGISTRY.document());return
+            document=REGISTRY.document()
+            document['runtimeCapabilities']={'transformerTypes':[1,2,3,4,5,6], 'humanizer':False, 'echocity':False, 'phraseTransformers':False, 'snapshots':True, 'reaperSnapshots':False, 'ordering':'legacy-stages-or-serial-pitch'}
+            self.respond(200,document);return
+        if path.startswith('/api/v1/snapshot/'):
+            try:
+                id=int(path.rsplit('/',1)[-1])
+                if not 1<=id<=16777215:raise ValueError()
+                data=self.server.control.request(op=29,target=id,revision=-1)
+                record=data.get('snapshotDetail')
+                self.respond(200 if record else 404,record or {'error':'snapshot not found'})
+            except (ValueError,KeyError,OSError):self.respond(503,{'error':'snapshot details unavailable'})
+            return
         if path == '/api/v1/state':
             self.engine()
             return
@@ -177,7 +210,7 @@ class Handler(BaseHTTPRequestHandler):
             return
         try:
             length = int(self.headers.get('Content-Length', '0'))
-            if length < 1 or length > 2048:
+            if length < 1 or length > 32768:
                 self.respond(413, {'error': 'command size limit'})
                 return
             data = json.loads(self.rfile.read(length))
@@ -189,7 +222,44 @@ class Handler(BaseHTTPRequestHandler):
             session=data.get('expectedEngineSessionId')
             if type(session) is not int or not 1<=session<=9007199254740991:raise ValueError('engine session required')
             action = data.get('action')
-            if action == 'test':
+            if length>2048 and action!='snapshot_commit':
+                self.respond(413,{'error':'command size limit'});return
+            if action in ('snapshot_capture','snapshot_update','snapshot_duplicate','snapshot_delete','snapshot_move','snapshot_rename','snapshot_recall','snapshot_morph','snapshot_commit'):
+                target=data.get('snapshotId',0)
+                if type(target) is not int or not 0<=target<=16777215 or (action!='snapshot_capture' and not target):raise ValueError()
+                direction=data.get('direction','up')
+                if direction not in ('up','down'):raise ValueError()
+                args=dict(op={'snapshot_capture':20,'snapshot_update':21,'snapshot_duplicate':22,'snapshot_delete':23,'snapshot_move':24,'snapshot_rename':25,'snapshot_recall':26,'snapshot_morph':26,'snapshot_commit':27}[action],target=target,arg=int(direction=='down'))
+                if action in ('snapshot_recall','snapshot_morph','snapshot_commit'):args['arg']=int(action=='snapshot_morph')
+                if action in ('snapshot_rename','snapshot_commit'):
+                    name=data.get('name')
+                    if not isinstance(name,str) or not 1<=len(name)<=48 or any(ord(c)<32 or ord(c)>126 for c in name):raise ValueError()
+                    args['name']=name
+                if action=='snapshot_commit':
+                    seconds,ease,switching=data.get('seconds'),data.get('ease'),data.get('switching')
+                    if type(seconds) not in (int,float) or not math.isfinite(seconds) or not 0<=seconds<=30 or type(ease) is not int or ease not in (0,1) or type(switching) is not int or switching not in (1,2,3,4):raise ValueError()
+                    args['settings']=[seconds,ease,switching]
+                    if 'inclusions' in data:
+                        masks=data['inclusions']
+                        if not isinstance(masks,list) or len(masks)>512:raise ValueError()
+                        for a in masks:
+                            if not isinstance(a,dict) or any(type(a.get(k)) is not int for k in ('instrumentId','moduleId','kind')) or not 1<=a['instrumentId']<=16777215 or not 0<=a['moduleId']<=16777215 or (not 0<=a['kind']<=24 or a['kind']==16) or type(a.get('included')) is not bool:raise ValueError()
+                        args['inclusions']=masks
+            elif action=='snapshot_ab_configure':
+                a,b,ease,position=data.get('a'),data.get('b'),data.get('ease',0),data.get('position',0)
+                if any(type(v) is not int for v in (a,b,ease)) or not 0<=a<=16777215 or not 0<=b<=16777215 or ease not in (0,1) or (bool(a)!=bool(b)) or (a and a==b) or type(position) not in (int,float) or not math.isfinite(position) or not 0<=position<=1:raise ValueError()
+                args=dict(op=30,target=a,arg=ease,macro=[b,position])
+            elif action=='snapshot_ab_position':
+                position=data.get('position')
+                if type(position) not in (int,float) or not math.isfinite(position) or not 0<=position<=1:raise ValueError()
+                a,b=data.get('a',0),data.get('b',0)
+                if any(type(v) is not int or not 0<=v<=16777215 for v in (a,b)):raise ValueError()
+                args=dict(op=31,target=a,macro=[b,position])
+            elif action == 'snapshot_switch':
+                target,gesture,kind,snapshot=data.get('switchId'),data.get('gesture'),data.get('snapshotAction'),data.get('snapshotId',0)
+                if any(type(v) is not int for v in (target,gesture,kind,snapshot)) or not 1<=target<=16777215 or not 0<=gesture<=2 or not 0<=kind<=7 or not 0<=snapshot<=16777215:raise ValueError()
+                args=dict(op=28,target=target,arg=gesture,ch=kind,module=snapshot)
+            elif action == 'test':
                 target, gesture = data.get('switchId'), data.get('gesture', 'tap')
                 if type(target) is not int or not 1 <= target <= 16777215 or gesture not in ('tap', 'double', 'hold'):
                     raise ValueError('invalid switch or gesture')
@@ -212,11 +282,25 @@ class Handler(BaseHTTPRequestHandler):
                 args=dict(op=19,ch=channel-1,note=number,value=value)
             elif action == 'panic':
                 args = dict(op=2)
+            elif action=='parameter_set':
+                target,module,kind,value=data.get('targetId'),data.get('moduleId',0),data.get('kind'),data.get('value')
+                if any(type(v) is not int for v in (target,module,kind)) or not 1<=target<=16777215 or not 0<=module<=16777215 or kind==16 or type(value) not in (int,float) or not math.isfinite(value):raise ValueError()
+                p=next((p for p in REGISTRY.parameters.values() if p['engineKind']==kind),None)
+                if not p or not p['min']<=value<=p['max'] or (kind!=14 and abs(value/p['step']-round(value/p['step']))>1e-6):raise ValueError()
+                args=dict(op=32,target=target,arg=kind,macro=[module,value])
             elif action=='module_structure':
                 target=data.get('instrumentId');module=data.get('moduleId',0);op=data.get('operation');type_=data.get('engineType',0)
                 if any(type(v) is not int or not 0<=v<=16777215 for v in (target,module,type_)) or not target or op not in ('add','delete','bypass','up','down'):raise ValueError()
                 if op=='add' and type_ not in REGISTRY.engine_types:raise ValueError()
                 args=dict(op=13,target=target,module=module,arg=('add','delete','bypass','up','down').index(op)+1,note=type_)
+            elif action in ('phrase_learn','phrase_learn_cancel','phrase_forget','phrase_learn_confirm'):
+                target=data.get('phraseId')
+                if type(target) is not int or not 1<=target<=16:raise ValueError()
+                args=dict(op=34,target=target,arg=('phrase_learn','phrase_learn_cancel','phrase_forget','phrase_learn_confirm').index(action))
+            elif action in ('instrument_add','instrument_delete'):
+                target=data.get('instrumentId',0)
+                if type(target) is not int or not 0<=target<=16777215 or (action=='instrument_delete' and not target):raise ValueError()
+                args=dict(op=33,target=target,arg=int(action=='instrument_delete'))
             elif action=='instrument_commit':
                 target=data.get('instrumentId');values=[data.get(k) for k in ('enabled','input','output','level')]
                 if type(target) is not int or not 1<=target<=16777215 or any(type(v) is not int or not 0<=v<=limit for v,limit in zip(values,(1,16,16,127))):raise ValueError()
@@ -261,13 +345,22 @@ class Handler(BaseHTTPRequestHandler):
             if not 0<n<=2048:raise ValueError()
             data=json.loads(self.rfile.read(n));slot=data.get('slot');rev=data.get('expectedRevision');session=data.get('expectedEngineSessionId')
             if type(session) is not int or not 1<=session<=9007199254740991:raise ValueError()
-            if type(slot) is not int or slot not in (1,2) or type(rev) is not int or not 1<=rev<2147483647:raise ValueError()
+            if type(slot) is not int or slot not in (1,2,3,4) or type(rev) is not int or not 1<=rev<2147483647:raise ValueError()
             path=self.server.patch_dir/f'patch{slot}.json'
             if self.path.endswith('/save') or self.path.endswith('/export'):
+                if path.exists():
+                    previous=json.loads(path.read_text())
+                    try:validate_patch_extensions(previous)
+                    except ValueError as error:
+                        self.respond(422,{'error':str(error)});return
                 patch=self.server.control.request(op=4,revision=rev,session=session)
                 if patch.get('status')=='conflict':self.respond(409,patch);return
                 if patch.get('format')!='MIDI_HUMAN_LOOPER_PATCH':raise ValueError()
                 if self.path.endswith('/export'):
+                    snapshots=patch.get('globalSnapshots',{}).get('configuration',[])
+                    if len(snapshots)>=4 and snapshots[3]:
+                        self.respond(422,{'error':'REAPER cannot yet execute Global Snapshots; export refused to preserve snapshot data.'});return
+                    patch.pop('globalSnapshots',None)
                     patch.pop('controllerEngine',None)
                     path=self.server.patch_dir/f'patch{slot}-reaper.json'
                 self.server.patch_dir.mkdir(parents=True,exist_ok=True)
@@ -281,6 +374,9 @@ class Handler(BaseHTTPRequestHandler):
             else:
                 if path.stat().st_size>16000000:raise ValueError()
                 patch=json.loads(path.read_text())
+                try:validate_patch_extensions(patch)
+                except ValueError as error:
+                    self.respond(422,{'error':str(error)});return
                 schema=patch.get('schema');memory=patch.get('memory');globals_=patch.get('globals')
                 if patch.get('format')!='MIDI_HUMAN_LOOPER_PATCH' or type(schema) is not int or not 1<=schema<=7 or not isinstance(memory,list) or patch.get('work_mem_size')!=len(memory) or not 0<len(memory)<=200000 or not isinstance(globals_,list) or len(globals_)!=9:raise ValueError()
                 if any(type(x) not in (int,float) or not math.isfinite(x) for x in globals_+memory):raise ValueError()

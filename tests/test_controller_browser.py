@@ -10,7 +10,7 @@ try:
  with sync_playwright() as p:
   browser=p.chromium.launch(headless=True,executable_path=os.environ.get('CHROMIUM_PATH','/usr/bin/chromium'),args=['--no-sandbox'])
   page=browser.new_page();errors=[];page.on('pageerror',lambda e:errors.append(str(e)))
-  page.goto(HeadlessTests.base);page.get_by_text('CONNECTED · Engine running',exact=True).wait_for()
+  page.goto(HeadlessTests.base);page.get_by_text('CONTROLLERS / EDITOR / TEST',exact=True).click();page.get_by_text('CONNECTED · Engine running',exact=True).wait_for()
   page.get_by_role('button',name='ADD CONTROLLER SOURCE',exact=True).click()
   page.locator('[data-source-id]').wait_for();source=decode(api.call()['controllerEngine'])['sources'][0]['id']
   page.locator('[data-source-id]').get_by_role('button',name='MIDI LEARN',exact=True).click();page.get_by_text('Waiting for MIDI note or CC…',exact=True).wait_for()

@@ -90,7 +90,10 @@ struct Target {
   Switch morphSwitch = Switch::Continuous;
 };
 class Engine {
-  static const unsigned TargetCapacity = 256, MappingCapacity = 64;
+public:
+  static const unsigned TargetCapacity = 512, MappingCapacity = 64;
+
+private:
   struct Runtime {
     Mapping config;
     bool used = false, previousKnown = false, active = false, returning = false;
@@ -157,6 +160,13 @@ public:
       if (t.id == id && id)
         return &t;
     return nullptr;
+  }
+  unsigned freeTargets() const {
+    unsigned count = 0;
+    for (const auto &t : targets)
+      if (!t.id)
+        ++count;
+    return count;
   }
   bool addTarget(uint32_t id, double effective) {
     if (!id || target(id) || !std::isfinite(effective) || effective < 0 ||
@@ -427,6 +437,19 @@ public:
       morph(e.target, e.goal, e.seconds, now, e.ease, e.switching);
     }
     return true;
+  }
+  // Streaming performance macro updates retain their original token. Physical
+  // takeover cannot be undone by a subsequent macro tick.
+  bool updateExternal(uint32_t id, uint64_t token, double value) {
+    if (!std::isfinite(value) || value < 0 || value > 1)
+      return false;
+    for (auto &t : targets)
+      if (t.id == id && t.owner == UINT32_MAX && t.token == token) {
+        t.morphing = false;
+        t.effective = value;
+        return true;
+      }
+    return false;
   }
   bool releaseExternal(uint32_t id, uint64_t token) {
     for (auto &t : targets)

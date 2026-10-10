@@ -1,3 +1,6 @@
+> Archived on 10 October 2026. Historical evidence only; resume instructions and
+> status claims are superseded by [the current capability matrix](../capabilities.md).
+
 # Global Snapshots Manager: implementation and resume checkpoint
 
 This is working headless code on `feat/global-snapshots-manager`, dependent on

@@ -112,8 +112,8 @@ interrupted take; the underlying cause is not established. This failure is retai
 as evidence and does not qualify reliability merely because another run passes.
 There was no safety-check relaxation or automatic retry in the test. A separate
 full rerun subsequently passed, including native/JACK/JSFX/Controller/Snapshot,
-interchange, authority/rollback and all Chromium workflows. The earlier missed
-callback still prevents a hardware reliability claim.
+interchange, authority/rollback and all Chromium workflows. The separate legacy v1 three-processor JACK workflow also passed. The earlier
+missed callback still prevents a hardware reliability claim.
 
 
 Required physical validation: actual REAPER APIs/RPP save and restart, full Firefox

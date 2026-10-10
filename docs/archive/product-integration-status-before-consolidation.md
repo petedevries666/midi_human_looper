@@ -1,3 +1,6 @@
+> Archived on 10 October 2026. Historical evidence only; resume instructions and
+> status claims are superseded by [the current capability matrix](../capabilities.md).
+
 # Product integration status
 
 Application: **MIDI BAD MOTHER FUCKER**. Modules are independent MIDI pedals;

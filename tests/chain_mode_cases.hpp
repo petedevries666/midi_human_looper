@@ -61,6 +61,15 @@ static void chain_mode_tests(const char *source) {
   chain.tick(100000, 128, 48000, true, 120, 1000000);
   check(chain.tick(100384, 128, 48000, true, 120, 1000384) && chain.run,
         "missed callback resumes playback with release, unlike transport seek");
+  // Interruption must retain an error after cancel() clears recording.
+  chain.previous = 0;
+  chain.command(2, 1);
+  chain.tick(192000, 128, 48000, true, 120, 2000000);
+  check(chain.tick(192384, 128, 48000, true, 120, 2000384) && !chain.run && chain.error,
+        "missed recording callback stops and reports capture failure");
+  chain.previous = 0;
+  chain.command(1, 1);
+  chain.tick(100000, 128, 48000, true, 120, 1000000);
   check(chain.tick(0, 128, 48000, true, 120, 1000512) && !chain.run,
         "transport seek is detected independently of JACK sample clock");
   // Full phrase with an unmatched attack must be rejected, never played without

@@ -91,6 +91,7 @@ struct Snapshot {
        chainError = false;
   uint64_t chainFrame = 0, chainLength = 0;
   double chainBpm = 120;
+  int64_t chainFrameGap = 0, chainClockGap = 0;
   int backend = 0, sampleRate = 48000, blockSize = 128;
   uint64_t outputOverflow = 0;
   int active = 0, last_status = 0, last_note = 0, last_value = 0;
@@ -414,6 +415,7 @@ static std::string json(const Reply &r) {
     << r.id << ",\"engineSessionId\":" << engineSession
     << ",\"status\":" << quote(status[r.status])
     << ",\"backend\":" << quote(s.backend ? "jack" : "mock")
+    << ",\"chainFrameGap\":" << s.chainFrameGap << ",\"chainClockGap\":" << s.chainClockGap
     << ",\"chainMode\":" << s.chain << ",\"chainRunning\":" << s.chainRun
     << ",\"chainArmed\":" << s.chainArmed
     << ",\"chainRecording\":" << s.chainRecord
@@ -946,6 +948,11 @@ int main(int argc, char **argv) {
         0);
     if (!panic_bridge)
       throw std::runtime_error("panic bridge compilation");
+    // A skipped chain callback must not enqueue 2,048 synthetic releases ahead
+    // of current grid events. Reset ownership and emit bounded channel cleanup.
+    auto chainRecovery = NSEEL_code_compile(fx->vm.get(),
+        "send_all_notes_off();reset_note_runtime();panic_pending=0;", 0);
+    if (!chainRecovery) throw std::runtime_error("chain recovery bridge");
     auto phraseTarget = NSEEL_VM_regvar(fx->vm.get(), "remote_phrase");
     auto phrasePlay = NSEEL_code_compile(
         fx->vm.get(),
@@ -1500,9 +1507,17 @@ int main(int argc, char **argv) {
         if (chain.tick(frame, frames, sampleRate, rolling, bpm,
                        jack ? uint64_t(jack_last_frame_time(jack)) : 0)) {
           controllers.panic();
-          if (chain.run)
-            *ysfx_find_var(fx, "panic_pending") = 1;
-          else
+          if (chain.run && outBuffer) {
+            outputRead = outputWrite;
+            NSEEL_code_execute(chainRecovery);
+            ysfx_midi_clear(fx->midi.out.get());
+            for (unsigned ch = 0; ch < 16; ++ch)
+              for (unsigned cc : {64u, 123u, 120u}) {
+                uint8_t data[] = {uint8_t(176 | ch), uint8_t(cc), 0};
+                if (jack_midi_event_write(outBuffer, 0, data, 3))
+                  overflowRecovery = true;
+              }
+          } else
             NSEEL_code_execute(panic_bridge);
         }
         state.chain = true;
@@ -1513,6 +1528,8 @@ int main(int argc, char **argv) {
         state.chainFrame = frame;
         state.chainLength = chain.length;
         state.chainBpm = chain.bpm;
+        state.chainFrameGap = chain.lastFrameGap;
+        state.chainClockGap = chain.lastClockGap;
         ysfx_time_info_t time{};
         time.tempo = chain.bpm;
         time.playback_state =
@@ -1692,6 +1709,7 @@ int main(int argc, char **argv) {
 
     NSEEL_code_free(bridge);
     NSEEL_code_free(panic_bridge);
+    NSEEL_code_free(chainRecovery);
     NSEEL_code_free(phrasePlay);
     NSEEL_code_free(phraseRecord);
     NSEEL_code_free(phraseStop);

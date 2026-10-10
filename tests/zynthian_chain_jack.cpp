@@ -17,13 +17,13 @@ std::array<bool, 3> held{};
 int process(jack_nframes_t n, void *) {
   jack_position_t p{};
   auto transport = jack_transport_query(client, &p);
-  unsigned phase = p.frame % 192000;
+  unsigned phase = p.frame % 192512;
   for (unsigned i = 0; i < 3; ++i) {
     auto out = jack_port_get_buffer(outputs[i], n);
     jack_midi_clear_buffer(out);
     bool attack = transport == JackTransportRolling &&
                   (mask.load() & (1u << i)) && phase == 0;
-    bool release = held[i] && (phase == 24064 || !(mask.load() & (1u << i)) ||
+    bool release = held[i] && (phase == 24576 || !(mask.load() & (1u << i)) ||
                                transport != JackTransportRolling);
     if (attack || release) {
       unsigned char data[] = {

@@ -216,3 +216,17 @@ registration/rollback audit passed against the source commit above. Hardware-spe
 Zynthian dependencies/UI widgets are stubbed in the three-chain adapter test, and
 its probe simulates Zynthian's managed graph. Actual autoconnect and native screen
 operation are still part of physical acceptance.
+
+## Cloud integration regression buffer
+
+The three-processor desktop regression uses 48 kHz / 2,048 frames (42.7 ms)
+so browser startup on a shared, non-realtime cloud machine does not invalidate
+recording. The two-bar period is rounded to 192,512 samples at that buffer size;
+this is a software workflow test, not a Raspberry Pi latency qualification.
+A missed recording callback cancels the take and now reports a clock error.
+A missed playback callback releases channel state with 48 bounded MIDI channel
+messages (CC64/123/120) on this processor's output, resets owned notes and resumes
+at the common transport phase. It does not queue thousands of obsolete releases
+in front of current attacks. Synths must respect those channel-mode messages.
+Transport discontinuities and capture errors expose `chainFrameGap` and
+`chainClockGap` diagnostics. Genuine seeks and tempo changes still stop playback.

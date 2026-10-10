@@ -17,7 +17,7 @@ with tempfile.TemporaryDirectory(prefix='mbh-chains-') as temp:
     directory=Path(temp);Base.my_data_dir=temp
     config=directory/'config.json';config.write_text(json.dumps(dict(version=1,repository=str(ROOT),binary=os.environ['HEADLESS_BINARY'])))
     os.environ['MBH_CONFIG']=str(config);os.environ['JACK_DEFAULT_SERVER']='mbh-chains-test'
-    server=subprocess.Popen([os.environ.get('JACKD','jackd'),'--name','mbh-chains-test','--no-realtime','-d','dummy','-r','48000','-p','512'],stdout=subprocess.DEVNULL,stderr=subprocess.PIPE)
+    server=subprocess.Popen([os.environ.get('JACKD','jackd'),'--name','mbh-chains-test','--no-realtime','-d','dummy','-r','48000','-p','2048'],stdout=subprocess.DEVNULL,stderr=subprocess.PIPE)
     processors=[Processor(i) for i in range(1,4)];engines=[];probe=None;browser=None;playwright=None
     try:
         time.sleep(1)
@@ -50,7 +50,7 @@ with tempfile.TemporaryDirectory(prefix='mbh-chains-') as temp:
             wait(i,'chainRecording',True);wait(i,'chainRecording',False)
             source(0)
             s=state(i);assert s['phrases'][0]['events']>=2,s
-            assert s['chainLength']==192000 and s['chainRunning'],s
+            assert s['chainLength']==192512 and s['chainRunning'],s
             for previous in range(1,i):assert state(previous)['chainRunning']
         if os.environ.get('RUN_CHAIN_BROWSER')=='1':
             from playwright.sync_api import sync_playwright
@@ -67,7 +67,7 @@ with tempfile.TemporaryDirectory(prefix='mbh-chains-') as temp:
             browser.close();browser=None;playwright.stop();playwright=None
             print('PASS three native-chain Chromium editors: independent sources and chain telemetry')
         # No live input now. Actual capture must show all three independent recorded loops.
-        silence_frame=state(1)['chainFrame'];time.sleep(4.3)
+        silence_frame=state(1)['chainFrame'];time.sleep(4.5)
         action(2,'stop');assert not state(2)['chainRunning'] and state(1)['chainRunning'] and state(3)['chainRunning']
         action(2,'save');action(2,'load');assert not state(2)['chainRunning'];action(2,'play')
         time.sleep(.15)
@@ -85,7 +85,7 @@ with tempfile.TemporaryDirectory(prefix='mbh-chains-') as temp:
             assert own and all(e[4]==60+i and e[3]&15==i for e in own if e[3]&240==144 and e[5]>0),own
             playback=[e for e in own if e[1]>silence_frame and e[3]&240==144 and e[5]>0]
             assert playback,('missing recorded playback',i,own)
-            assert all((e[1]+e[2])%192000==512 for e in playback),playback
+            assert all((e[1]+e[2])%192512==2048 for e in playback),playback
             assert any(e[1]>silence_frame and e[4]==60+i and (e[3]&240==128 or (e[3]&240==144 and e[5]==0)) for e in own),own
         for engine in engines:engine.stop()
         engines=[]

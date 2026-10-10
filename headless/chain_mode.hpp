@@ -9,6 +9,7 @@ struct ChainMode {
   int phrase = 0;
   uint64_t length = 0, end = 0, previous = 0, previousClock = 0;
   double bpm = 120;
+  int64_t lastFrameGap = 0, lastClockGap = 0;
   EEL_F *phase, *duration, *target, *tempoVar, *runVar, *bad, *overdub,
       *overdubPos;
   NSEEL_CODEHANDLE align, begin, finish, play;
@@ -116,8 +117,11 @@ struct ChainMode {
                     (missed && recording)) &&
                    (run || recording || armed);
     if (stopped) {
+      lastFrameGap = int64_t(frame) - int64_t(previous);
+      lastClockGap = int64_t(clock) - int64_t(previousClock);
+      const bool interruptedRecording = recording;
       cancel();
-      error = changed || (missed && recording);
+      error = changed || (missed && interruptedRecording);
     }
     if (!length) {
       length = proposed;

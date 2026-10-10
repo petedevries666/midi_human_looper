@@ -275,7 +275,13 @@
       "normalizedConversion": "linear_quantized",
       "assignmentEligible": false,
       "curveSupport": false,
-      "serializationVersion": 1
+      "serializationVersion": 1,
+      "choices": [
+        "DIRECT",
+        "PICKUP",
+        "GLIDE",
+        "SLEW"
+      ]
     },
     {
       "id": "controller_returnMode",
@@ -291,7 +297,13 @@
       "normalizedConversion": "linear_quantized",
       "assignmentEligible": false,
       "curveSupport": false,
-      "serializationVersion": 1
+      "serializationVersion": 1,
+      "choices": [
+        "OFF",
+        "IDLE",
+        "RELEASE",
+        "COMMAND"
+      ]
     },
     {
       "id": "controller_easing",
@@ -307,7 +319,11 @@
       "normalizedConversion": "linear_quantized",
       "assignmentEligible": false,
       "curveSupport": false,
-      "serializationVersion": 1
+      "serializationVersion": 1,
+      "choices": [
+        "LINEAR",
+        "SMOOTH"
+      ]
     },
     {
       "id": "controller_priority",

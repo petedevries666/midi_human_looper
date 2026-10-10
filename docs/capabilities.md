@@ -8,7 +8,8 @@ not merged or hardware-qualified release functionality.**
 
 `main` → #30 (core/lifecycle/native snapshots/UI) → #34 (SMF interchange) → #37
 (portable carrier) → #38 (ReaScript/sync) → #40 (sample-grid transport correction)
-→ shared parameter contract → project restoration authority.
+→ #41 (shared parameter contract) → #42 (project restoration authority)
+→ #43 (shared browser observation / named controller choices).
 
 No PR was merged during consolidation. #30 remains a large review dependency;
 review lifecycle/ownership, native snapshots and UI separately before integrating.
@@ -54,6 +55,7 @@ Zynthian native graph and snapshot precedence, Helix learn/takeover, device/port
 reconnection, STOP/PANIC, interrupted transfer/power loss. Desktop tests use large
 buffers for VM stability and cannot certify live latency.
 
-Setup/procedure: [studio/live bridge](studio-live-bridge.md),
+Setup/procedure: [consolidated candidate](consolidated-release-candidate.md),
+[studio/live bridge](studio-live-bridge.md),
 [timing versions](chain-timing-v2.md), [restart authority](project-authority.md),
 [shared parameter contract](shared-parameter-contract.md).

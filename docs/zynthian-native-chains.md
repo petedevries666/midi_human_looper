@@ -7,11 +7,14 @@ launcher, LV2 adapter, extra JACK server, manual jack_connect or boot service is
 needed. The optional Firefox editor is a control worker owned by each instance;
 closing Firefox never stops the engine.
 
+For the current stacked candidate, use [candidate setup](consolidated-release-candidate.md)
+rather than assuming main contains the draft features below.
+
 ## Build and install on the Pi
 
 Back up your working Zynthian snapshot first. Recommended first target: Pi 4/5,
-ARM64, at least 2 GB RAM. Three existing JSFX hosts use roughly 300–400 MB before
-synth/sample memory; actual Pi performance and ARMHF atomic support need checking.
+ARM64, at least 2 GB RAM. Total Pi CPU/RSS and synth/sample memory must be measured; no hardware memory
+or latency qualification is claimed. ARMHF atomic support also needs checking.
 Run the following in Zynthian's local/SSH terminal, under the same environment/user
 as the UI/JACK service (normally root on standard Zynthian images):
 
@@ -92,14 +95,12 @@ chains continue. Native trigger controls can use Zynthian's normal MIDI Learn.
 The existing Controller editor/assignments are available independently in each web
 editor; use unused note/CC sources to avoid conflicts with Zynthian input filtering.
 
-The first prototype deliberately uses a fixed two-bar grid. Its period is rounded
-to a whole JACK processing block, so all instances agree without splitting the
-original EEL block. At 48 kHz/512 frames/120 BPM it is exactly 192,000 samples
-(four seconds). At other tempos the rounding error is at most half a block per
-period; it does not cause drift between these instances, but this is not yet
-sample-exact BBT grid alignment to other Zynthian sequencers. Recording preserves
-performed offsets within that grid. Live MIDI and recorded timestamps retain the
-existing one-block JACK graph latency.
+The prototype uses a fixed two-bar 4/4 grid. New installations select timing v2:
+nearest-sample musical length, exact frame modulo phase and in-buffer record arm.
+Existing configurations without `chain_timing_version` retain v1's block-rounded
+grid. See [timing version compatibility](chain-timing-v2.md) before opting an old
+patch into v2; incompatible periods are refused rather than silently retimed.
+Physical JACK graph latency/BBT alignment still requires qualification.
 
 JACK BBT supplies tempo when available, otherwise 120 BPM is used. Keep 4/4 and
 fixed tempo for this first test. A tempo change or transport seek stops playback and releases notes
@@ -281,3 +282,7 @@ including channel-mode cleanup. Synth response to CC64/123/120 remains mandatory
 for this native cleanup policy and must be verified on the physical image.
 For the initial Helix expression test, use an unassigned CC such as 21 or 22;
 legacy expression CCs remain protected and cannot be silently reassigned.
+
+Autonomous restart commitment is separate from manual slot SAVE/LOAD. See
+[project authority](project-authority.md) for the active portable revision and
+explicit Zynthian snapshot precedence.

@@ -132,6 +132,51 @@ class ProjectStore:
                     else:(self.directory/'active.json').unlink(missing_ok=True)
                 raise
             return dict(status='active',revisionId=revision,engineRevision=after['revision'],engineSessionId=after['engineSessionId'],fingerprint=baseline,emptyGridAdopted=adopted)
+    def status(self):
+        """Explicit inspection, never a browser-driven performance timer."""
+        with self.lock,self.control.lock:
+            manifest=self.manifest()
+            result=dict(projectId=manifest['projectId'] if manifest else None,
+                        savedRevisionId=manifest['revisionId'] if manifest else None,
+                        restartAuthority='committed-project' if manifest else 'none',
+                        explicitZynthianSnapshotOverrides=True,
+                        legacySlots=[i for i in (1,2) if (self.directory.parent/f'patch{i}.json').exists()],
+                        liveMatchesRestart=None)
+            try:
+                state,_,fingerprint=self.current()
+                result['engineRevision']=state['revision']
+                result['engineSessionId']=state['engineSessionId']
+                result['liveMatchesRestart']=bool(manifest and manifest['fingerprint']==fingerprint)
+            except Conflict as error:
+                result['inspectionDeferred']=str(error)
+            return result
+    def checkpoint(self,data):
+        """Persist a STOP-safe point-in-time state without loading or starting it.
+
+        Slot SAVE remains a legacy/manual checkpoint. Only this explicit commit
+        (or acknowledged bridge activation) advances autonomous restart authority.
+        """
+        with self.lock,self.control.lock:
+            before=self.manifest();active=before['revisionId'] if before else None
+            if 'expectedActiveRevisionId' not in data or data['expectedActiveRevisionId']!=active:
+                raise Conflict('Restart revision changed; inspect before committing')
+            state,patch,fingerprint=self.current(data)
+            if not data.get('expectedEngineSessionId') or 'expectedRevision' not in data:
+                raise Conflict('Engine revision and session required')
+            name=portable.validate(read(self.directory/(active+'.json')))['payload']['name'] if before else 'Untitled'
+            project=portable.capture(patch,state['sampleRate'],before['projectId'] if before else None,active,name)
+            self.stage(dict(project=project,expectedActiveRevisionId=active))
+            try:
+                atomic_json(self.directory/'active.json',dict(version=1,projectId=project['projectId'],revisionId=project['revisionId'],fingerprint=fingerprint))
+            except BaseException:
+                # A failed fsync can follow a successful rename. Restore the
+                # old authority; current live state has never been changed.
+                if self.manifest()!=before:
+                    if before:atomic_json(self.directory/'active.json',before)
+                    else:(self.directory/'active.json').unlink(missing_ok=True)
+                raise
+            return dict(status='committed',revisionId=project['revisionId'],projectId=project['projectId'],
+                        engineRevision=state['revision'],engineSessionId=state['engineSessionId'])
     def restore(self):
         """Opt-in startup only; an explicit Zynthian snapshot has priority."""
         with self.lock,self.control.lock:

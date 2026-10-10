@@ -177,6 +177,8 @@ class Handler(BaseHTTPRequestHandler):
             self.websocket();return
         if path.startswith('/api/v1/phrase/') and path.endswith('/midi'):
             self.phrase_export(path);return
+        if path == '/api/v1/project/status':
+            self.project_command('status');return
         if path == '/api/v1/project/capture':
             self.project_command('capture');return
         if path == '/api/v1/descriptors':
@@ -207,8 +209,8 @@ class Handler(BaseHTTPRequestHandler):
     def project_command(self, operation):
         from project_sync import Conflict
         try:
-            if operation == 'capture':
-                result=self.server.projects.capture()
+            if operation in ('capture','status'):
+                result=getattr(self.server.projects,operation)()
             else:
                 length=int(self.headers.get('Content-Length','0'))
                 if not 0 < length <= 16000000:raise ValueError('Bounded project upload required')
@@ -261,7 +263,7 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         if not self.allowed(api=True):
             return
-        if self.path in ('/api/v1/project/stage','/api/v1/project/activate'):
+        if self.path in ('/api/v1/project/stage','/api/v1/project/activate','/api/v1/project/checkpoint'):
             self.project_command(self.path.rsplit('/',1)[-1]);return
         if self.path == '/api/v1/phrase/midi':
             self.phrase_import();return
@@ -429,12 +431,10 @@ class Handler(BaseHTTPRequestHandler):
                     patch.pop('controllerEngine',None)
                     path=self.server.patch_dir/f'patch{slot}-reaper.json'
                 self.server.patch_dir.mkdir(parents=True,exist_ok=True)
-                temp=path.with_suffix('.tmp')
                 # Serialize patch writes independently from command execution.
                 with self.server.patch_lock:
-                    with temp.open('w') as f:
-                        json.dump(patch,f,allow_nan=False,separators=(',',':'));f.flush();os.fsync(f.fileno())
-                    temp.replace(path)
+                    from project_sync import atomic_json
+                    atomic_json(path,patch)
                 self.respond(200,{'status':'saved','slot':slot,'file':path.name})
             else:
                 if path.stat().st_size>16000000:raise ValueError()

@@ -5,7 +5,7 @@
 <div class="connection"><span id="connection" role="status">Connecting…</span><label>LAN token <input id="token" type="password" autocomplete="off"></label><button id="connect">CONNECT</button></div>
 <p class="notice">The engine owns MIDI timing. Connect JACK MIDI ports for hardware input/output. Patch LOAD stops active notes; recording controls use the existing phrase engine.</p>
 <div id="error" role="alert"></div>
-<section class="patch-controls"><label>PATCH <select id="patch-slot"><option value="1">1</option><option value="2">2</option></select></label><button id="save-patch">SAVE PATCH</button><button id="load-patch">LOAD PATCH</button><button id="export-patch">EXPORT REAPER BASE</button><span id="patch-status" role="status"></span></section>
+<section class="patch-controls"><label>PATCH <select id="patch-slot"><option value="1">1</option><option value="2">2</option></select></label><button id="save-patch">SAVE PATCH</button><button id="load-patch">LOAD PATCH</button><button id="export-patch">EXPORT REAPER BASE</button><span id="patch-status" role="status"></span><button id="inspect-project">RESTART STATE</button><button id="commit-project">COMMIT RESTART STATE</button><span id="project-status" role="status"></span></section>
 <section id="snapshots-section"><h2>SNAPSHOTS</h2><button id="capture-snapshot">+ CAPTURE SNAPSHOT</button><div id="snapshots"></div><div id="snapshot-ab"></div></section>
 <section><h2>SMART SWITCHES</h2><div id="switches" class="switches"></div></section>
 <section><h2>PHRASES</h2><div id="phrase-pagination"></div><div id="phrases" class="phrases"></div></section>

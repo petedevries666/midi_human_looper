@@ -29,6 +29,10 @@
 #include <unistd.h>
 #include <vector>
 
+#ifndef MBMF_BUILD_REVISION
+#define MBMF_BUILD_REVISION "unknown"
+#endif
+
 template <class T, unsigned N> class Queue {
   std::array<T, N> slots{};
   std::atomic<uint64_t> written{0}, read{0};
@@ -531,6 +535,7 @@ static std::string json(const Reply &r) {
     << r.id << ",\"engineSessionId\":" << engineSession
     << ",\"status\":" << quote(status[r.status])
     << ",\"backend\":" << quote(s.backend ? "jack" : "mock")
+    << ",\"buildRevision\":" << quote(MBMF_BUILD_REVISION)
     << ",\"chainFrameGap\":" << s.chainFrameGap << ",\"chainClockGap\":" << s.chainClockGap
     << ",\"chainTimingVersion\":" << s.chainTimingVersion
     << ",\"chainMode\":" << s.chain << ",\"chainRunning\":" << s.chainRun

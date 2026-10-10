@@ -286,6 +286,14 @@ public:
       }
     return changed;
   }
+  uint64_t morph(uint32_t id, double goal, double seconds,
+                 Ease ease = Ease::Linear,
+                 Switch switching = Switch::Continuous) {
+    return core.morph(id, goal, seconds, time, ease, switching);
+  }
+  bool morphBatch(const Transition *entries, unsigned count) {
+    return core.morphBatch(entries, count, time);
+  }
   bool returnCommand(uint32_t id) { return core.returnCommand(id, time); }
   bool capture(uint32_t id) { return core.capture(id); }
   void panic() {

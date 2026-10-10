@@ -20,8 +20,10 @@ Mapping map(uint32_t id, uint32_t source, uint32_t target,
   m.takeover = mode;
   return m;
 }
+#include "morph_engine_cases.hpp"
 int main() {
   try {
+    morph_engine_tests();
     {
       Engine e;
       check(e.addTarget(1, .5), "target");

@@ -179,3 +179,19 @@ Final counted-ledger three-processor JACK validation also passed with file-based
 server diagnostics. Two earlier follow-ups lost control replies with live engine
 processes; their root cause remains unconfirmed, so reliability qualification is
 still pending. No PR was merged during this implementation stage.
+
+## Studio/live implementation stack
+
+PR #37 implements design #35 on top of #34/#30: immutable portable schema-7
+carrier, seconds/sample-grid conversion, explicit unsupported-capability refusal,
+and shared-EEL2 MIDI parity tests. The `feat/reaper-live-sync-bridge` stack
+implements design #36: asynchronous ReaScript SEND/GET, toolbar PUSH/PULL,
+immutable staging, guarded STOP-only compare-and-apply, revision/session/hash
+checks, atomic committed pointer and autonomous restoration. No draft is merged.
+
+Native Controller/Snapshot data is preserved; REAPER execution of populated
+native extensions is refused. Native activation across incompatible two-bar
+transport grids, multi-JSFX whole-project routing and phrase/bar-boundary
+activation remain unsupported. Individual phrase transfer is notes-only. See
+[studio/live setup and physical procedure](studio-live-bridge.md). Software
+regression is distinct from pending physical REAPER/Zynthian/Helix validation.

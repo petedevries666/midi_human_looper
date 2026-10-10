@@ -35,7 +35,7 @@ def validate_patch_extensions(patch):
 class Control:
     def __init__(self, path):
         self.path = path
-        self.lock = threading.Lock()
+        self.lock = threading.RLock()
         self.ids = itertools.count(1)
 
     def request(self, op=0, target=0, arg=0, revision=1, ch=0, note=0, value=0, session=0, patch=None, parameters=None, module=0, binding=None, name=None, settings=None, inclusions=None, macro=None, phrase=None):
@@ -177,6 +177,8 @@ class Handler(BaseHTTPRequestHandler):
             self.websocket();return
         if path.startswith('/api/v1/phrase/') and path.endswith('/midi'):
             self.phrase_export(path);return
+        if path == '/api/v1/project/capture':
+            self.project_command('capture');return
         if path == '/api/v1/descriptors':
             document=REGISTRY.document()
             document['runtimeCapabilities']={'transformerTypes':[1,2,3,4,5,6], 'humanizer':False, 'echocity':False, 'phraseTransformers':False, 'snapshots':True, 'reaperSnapshots':False, 'ordering':'legacy-stages-or-serial-pitch'}
@@ -201,6 +203,24 @@ class Handler(BaseHTTPRequestHandler):
             return
         name, mime = files[path]
         self.respond(200, (ROOT / name).read_bytes(), mime)
+
+    def project_command(self, operation):
+        from project_sync import Conflict
+        try:
+            if operation == 'capture':
+                result=self.server.projects.capture()
+            else:
+                length=int(self.headers.get('Content-Length','0'))
+                if not 0 < length <= 16000000:raise ValueError('Bounded project upload required')
+                if self.headers.get('Content-Type','').split(';')[0]!='application/json':raise ValueError('JSON required')
+                data=json.loads(self.rfile.read(length))
+                if not isinstance(data,dict):raise ValueError('Invalid project command')
+                result=getattr(self.server.projects,operation)(data)
+            self.respond(200,result)
+        except Conflict as error:self.respond(409,{'error':str(error)})
+        except (ValueError,KeyError,TypeError) as error:self.respond(422,{'error':str(error)})
+        except FileNotFoundError:self.respond(404,{'error':'Staged project not found'})
+        except (OSError,RuntimeError) as error:self.respond(503,{'error':str(error)})
 
     def phrase_export(self, path):
         try:
@@ -241,6 +261,8 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         if not self.allowed(api=True):
             return
+        if self.path in ('/api/v1/project/stage','/api/v1/project/activate'):
+            self.project_command(self.path.rsplit('/',1)[-1]);return
         if self.path == '/api/v1/phrase/midi':
             self.phrase_import();return
         if self.path in ('/api/v1/patch/save','/api/v1/patch/load','/api/v1/patch/export'):
@@ -441,6 +463,8 @@ def make_server(bind, port, path, token='',patch_dir=None):
     server.bind_address, server.token, server.control = bind, token, Control(path)
     server.patch_dir=Path(patch_dir) if patch_dir else Path.home()/'.local/share/midi-human-looper'
     server.patch_lock=threading.Lock()
+    from project_sync import ProjectStore
+    server.projects=ProjectStore(server.patch_dir,server.control)
     server.daemon_threads=True
     return server
 
@@ -451,9 +475,11 @@ if __name__ == '__main__':
     parser.add_argument('--port', type=int, default=8765)
     parser.add_argument('--token-file', type=Path)
     parser.add_argument('--patch-dir',type=Path)
+    parser.add_argument('--restore-active-project',action='store_true',help='Restore committed portable project on fresh engine startup')
     args = parser.parse_args()
     token = args.token_file.read_text().strip() if args.token_file else ''
     server = make_server(args.bind, args.port, args.socket, token,args.patch_dir)
+    if args.restore_active_project:server.projects.restore()
     print(f'EDITOR http://{args.bind}:{server.server_port}', flush=True)
     try:
         server.serve_forever()

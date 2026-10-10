@@ -19,6 +19,13 @@ Native operations 4/5 with `arg=1` perform a callback-side STOP-only guard befor
 maintenance: playback, recording/arming, active phrase voices or morphing rejects
 the operation. Existing patch SAVE/LOAD retains its original behavior (`arg=0`).
 The guard does not add networking, file I/O or allocation to the MIDI callback.
+The dependent bridge implementation adds exact raw-baseline comparison: a guarded
+load requires a preceding guarded capture and rejects intervening changes.
+Schema markers, source Note On/Off pairing and existing Transformer instance
+codes are validated outside JACK. Instance codes 7–11 resolve through existing
+records; unsupported future types and unsafe stateful duplicates are refused
+without replacing the original data; source
+timing is rounded to the destination sample grid.
 
 REAPER can materialize the shared base engine configuration. Native Controller
 Engine assignments and populated Global Snapshots are explicitly refused for

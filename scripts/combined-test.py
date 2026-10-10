@@ -34,6 +34,7 @@ try:
     run([sys.executable,'tests/test_portable_project.py'])
     run([sys.executable,'tests/test_portable_engine.py'])
     run([sys.executable,'tests/test_project_sync.py'])
+    run([sys.executable,'tests/test_project_authority.py'])
     run([sys.executable,'tests/test_reaper_bridge.py'])
     run([sys.executable,'tests/test_phrase_midi_integration.py'])
     run(['scripts/controller-test.sh'])

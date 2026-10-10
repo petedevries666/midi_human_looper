@@ -353,3 +353,23 @@ function compactInstrument(i){
 }
 
 $('add-instrument').onclick=()=>command({action:'instrument_add'});
+
+// Explicit inspection avoids extra state-copy work on every websocket update.
+let projectAuthority=null;
+async function inspectProject(){
+  projectAuthority=await request('/api/v1/project/status');
+  const state=projectAuthority;
+  $('project-status').textContent=(state.savedRevisionId?`RESTART ${state.savedRevisionId.slice(0,8)}`:'NO COMMITTED RESTART STATE')+
+    (state.liveMatchesRestart===true?' · SAVED':state.liveMatchesRestart===false?' · LIVE NOT COMMITTED':' · CHECK DEFERRED UNTIL STOP')+
+    ' · Zynthian snapshot overrides';
+  return state;
+}
+$('inspect-project').onclick=async()=>{try{await inspectProject();}catch(e){$('error').textContent=e.message;}};
+$('commit-project').onclick=async()=>{
+  if(pending)return;setPending(true);
+  try{
+    const state=await inspectProject();
+    await request('/api/v1/project/checkpoint',{expectedActiveRevisionId:state.savedRevisionId,expectedRevision:state.engineRevision??revision,expectedEngineSessionId:state.engineSessionId??engineSession});
+    await inspectProject();$('patch-status').textContent='RESTART STATE COMMITTED';
+  }catch(e){$('error').textContent=e.message;}finally{setPending(false);}
+};

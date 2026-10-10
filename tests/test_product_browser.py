@@ -36,6 +36,9 @@ try:
         assert api.call()['phrases'][1]['triggerNote']==94
         page.get_by_role('button',name='+ CAPTURE SNAPSHOT',exact=True).click()
         page.locator('[data-snapshot-id]').first.wait_for()
+        page.get_by_role('button',name='COMMIT RESTART STATE',exact=True).click()
+        page.get_by_text('RESTART STATE COMMITTED',exact=True).wait_for()
+        assert 'SAVED' in page.locator('#project-status').inner_text()
         assert not errors,errors
         assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
         browser.close();print('PASS compact editor: six phrases, inline instance isolation, confirmed deletion, stable replacement ID, shared Phrase Learn and Snapshot capture')

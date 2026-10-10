@@ -106,13 +106,8 @@ class zynthian_engine_mbh(zynthian_engine):
             if target.exists():validate_patch_extensions(json.loads(target.read_text()))
             patch=control.request(op=4,**common)
             if patch.get('format')!='MIDI_HUMAN_LOOPER_PATCH':raise RuntimeError('MBH save rejected; previous file retained')
-            fd,temporary=tempfile.mkstemp(prefix='patch1.',suffix='.tmp',dir=entry['data'])
-            try:
-                with os.fdopen(fd,'w') as stream:
-                    json.dump(patch,stream);stream.flush();os.fsync(stream.fileno())
-                os.replace(temporary,target)
-            finally:
-                if os.path.exists(temporary):os.unlink(temporary)
+            from project_sync import atomic_json
+            atomic_json(target,patch)
             return
         elif action=='load':
             patch=json.loads((entry['data']/'patch1.json').read_text());response=control.request(op=5,target=patch['schema'],patch=patch,**common)

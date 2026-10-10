@@ -31,11 +31,14 @@ try:
     run([sys.executable,'tests/test_snapshots.py'])
     run([sys.executable,'tests/test_product_integration.py'])
     run([sys.executable,'tests/test_phrase_midi.py'])
+    run([sys.executable,'tests/test_portable_project.py'])
+    run([sys.executable,'tests/test_portable_engine.py'])
     run([sys.executable,'tests/test_phrase_midi_integration.py'])
     run(['scripts/controller-test.sh'])
     run(['scripts/controller-test.sh'],{'SANITIZE':'1'})
     if a.native:
         run(['tests/run_host_tests.sh'])
+        run(['scripts/portable-test.sh'],{'TEST_PYTHON':sys.executable})
         run([sys.executable,'tests/test_patch_io.py'])
     if a.browser=='stock-firefox':run([sys.executable,'tests/test_headless_firefox.py'])
     elif a.browser!='none':

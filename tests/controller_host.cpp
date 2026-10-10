@@ -65,6 +65,23 @@ int main() {
   h.tick(.71, exists, apply);
   check(std::abs(value - .4) < 1e-8 && !h.target(201)->owner,
         "return relinquishes ownership");
+  auto persisted = controller::configurationJson(h.configuration());
+  check(h.morph(201, .2, 1) != 0,
+        "adapter owns morph through existing policy engine");
+  h.tick(.91, exists, apply);
+  check(std::abs(value - .36) < 1e-8,
+        "adapter applies sample-clock morph through normal target callback");
+  check(controller::configurationJson(h.configuration()) == persisted,
+        "transient morph never serialized");
+  h.recall(1, 0, bind.kind, .3);
+  h.tick(.92, exists, apply);
+  check(std::abs(value - .3) < 1e-8 && !h.target(201)->morphing,
+        "manual adapter recall retires morph");
+  h.morph(201, .9, 1);
+  h.panic();
+  h.tick(.93, exists, apply);
+  check(std::abs(value - .3) < 1e-8,
+        "adapter PANIC prevents further morph writes");
   for (unsigned i = 0; i < 500; ++i) {
     bind.policy.target = 300 + i;
     check(h.bind(bind), "retarget must retire orphan target");
@@ -79,7 +96,7 @@ int main() {
   check(h.configuration().bindings[0].instrument == 1,
         "invalid recall preserves configuration");
   check(h.tick(
-            .8, [](const controller::Binding &) { return false; }, apply),
+            1, [](const controller::Binding &) { return false; }, apply),
         "target deletion retires mapping");
   check(!h.configuration().bindings[0].policy.id,
         "deleted target cannot retain assignment");

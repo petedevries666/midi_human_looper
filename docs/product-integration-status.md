@@ -132,3 +132,43 @@ and actual dummy JACK three-processor recording/overdub/persistence, timestamp
 ordering and overflow recovery. The JACK probe checks chronological events and an
 empty final note ledger, including channel-mode cleanup. No physical certification
 or stock Firefox qualification is inferred from these results.
+
+## Resumed repository audit / issue #33
+
+At resumption, actual main is `ab37a75`: #27 and #29 merged; #30 remains draft at
+`50b5db4`. Open implementation PRs #25 (`69ff1c2`) and #28 (`d7e6b7e`) remain
+mathematical/scheduler prerequisites without playable effects. #11/#12 remain
+research/design PRs. #19–#24 are merged. No changed upstream implementation was
+found to reuse for issue #33; its focused branch builds on #30, without merging
+unfinished work. Issue #32 requires non-monotonic Controller-owned automation,
+not another note effect or a browser timer; it remains unimplemented.
+
+Phrase SMF interchange is now implemented on `feat/phrase-midi-interchange`,
+including transactional browser preview/replace and download, real native worker
+integration and source-data schema-7 persistence. See
+[format, timing, bounds and manual tests](phrase-midi-interchange.md). A real REAPER
+export has not been tested here; the test fixture is REAPER-style Format 1 and
+export is independently parsed with mido. Physical qualification remains pending.
+This is progress toward a release candidate, not a declaration of final completion.
+
+## Next precise implementation checkpoint
+
+Resume `feat/phrase-midi-interchange` to review/qualify MIDI interchange; it is
+stacked on #30 and must not bypass that dependency. Rebuild server and native binary
+together. Do not merge either draft as a fully finished release candidate.
+
+For the next effect implementation, reuse `feat/echocity-scheduled-events` (#28)
+and its explicit POLY continuation contract. Integrate it with the tested #30/#33
+base, then add stable per-instance echo settings, source-token Note On/Off capture,
+real scheduler admission/emission and cancellation hooks before exposing any echo
+controls. Run actual live-input and imported-phrase playback tests through JACK.
+Reuse #25's seeded HUMANIZER algorithms with the same scheduling/ownership path;
+do not introduce a parallel native-only post-output effect. Motion #32 must then
+use #29's external ownership tokens for non-monotonic point curves and physical
+CC takeover, with headless timing and explicit Smart Switch action routing.
+
+Unimplemented: playable HUMANIZER and ECHOCITY, independent Phrase Transformer
+chains, complete native Smart Switch configuration, full transactional ADD,
+unrestricted module ordering, native Motion v1 and REAPER Snapshot/Motion execution.
+Physical Zynthian/Helix/Firefox/REAPER and playable Pi latency remain blockers to
+hardware release qualification. No OS, LUMAZ or hardware service changes were made.

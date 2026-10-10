@@ -162,3 +162,5 @@ The runnable JACK MIDI host and reconnecting browser interface live in `headless
 Start with [the first-test guide](docs/zynthian-first-test.md); build/run/test scripts
 are in `scripts/`. This preserves the REAPER JSFX. Physical Pi/Helix validation is
 required; the desktop dummy JACK graph is a functional test, not a latency claim.
+
+Phrase MIDI interchange: [supported formats, browser controls and tests](docs/phrase-midi-interchange.md).

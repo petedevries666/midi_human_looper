@@ -112,20 +112,49 @@ with tempfile.TemporaryDirectory(prefix='mbh-chains-') as temp:
         except ValueError:pass
         assert future_path.read_bytes()==unsupported
         future_path.write_bytes(original)
+        # Recorded source MIDI round trip through real native worker; other
+        # chain and phrase data remain unchanged. Parsing stays outside JACK.
+        from phrase_midi import write_smf,read_smf
+        recorded=guarded(c,op=35,target=0,arg=0)['phraseData']
+        original_other=engines[1].instances[2]['control'].request(op=35,target=0,arg=0,revision=-1)['phraseData']
+        exported=write_smf(recorded); imported=read_smf(exported)
+        canonical=[]
+        for event in sorted(recorded['events'],key=lambda e:e[0]):
+            t,st,n,v=event
+            canonical.append([t,(128|(st&15)) if st&240==144 and not v else st,n,v])
+        assert [e[1:] for e in imported['events']]==[e[1:] for e in canonical]
+        assert all(abs(a[0]-b[0])<=1/48000 for a,b in zip(imported['events'],canonical))
+        guarded(c,op=35,target=1,arg=1,phrase=imported)
+        copied=guarded(c,op=35,target=1,arg=0)['phraseData']
+        assert [e[1:] for e in copied['events']]==[e[1:] for e in imported['events']],(copied,imported)
+        assert all(abs(a[0]-b[0])<=1/48000 for a,b in zip(copied['events'],imported['events']))
+        assert engines[1].instances[2]['control'].request(op=35,target=0,arg=0,revision=-1)['phraseData']==original_other
+        too_long={**imported,'lengthSeconds':recorded['lengthSeconds']*2}
+        now=c.request();assert c.request(op=35,target=1,arg=1,revision=now['revision'],session=now['engineSessionId'],phrase=too_long)['status']=='invalid'
+        assert guarded(c,op=35,target=1,arg=0)['phraseData']==copied
+        assert state(1)['phrases'][1]['mode']==0
+        guarded(c,op=32,target=1,arg=18,macro=[0,1]) # Mute the original; imported copy must be the source.
+        imported_frame=state(1)['chainFrame']
+        guarded(c,op=40,target=1,arg=1);time.sleep(4.5);action(1,'stop')
+        assert not state(2)['chainRunning'] and not state(3)['chainRunning']
+        time.sleep(.3);assert state(1)['activeNotes']==0
+        action(1,'save');snapshot=engines[0].get_extended_config()
         probe.stdin.close();lines=probe.stdout.read().splitlines();assert probe.wait(timeout=5)==0;probe=None
         events=[list(map(int,line.split())) for line in lines]
+        assert any(e[0]==0 and e[1]>imported_frame and e[3]&240==144 and e[5]>0 for e in events), 'imported phrase never played on JACK'
         for i in range(3):
             own=[e for e in events if e[0]==i]
-            held_notes=set();last_time=-1
+            from collections import Counter
+            held_notes=Counter();last_time=-1
             for event in own:
                 _,frame,offset,status,note,value=event
                 assert frame+offset>=last_time,('nonmonotonic JACK output',event,last_time)
                 last_time=frame+offset
                 key=(status&15,note)
-                if status&240==144 and value:held_notes.add(key)
-                elif status&240==128 or (status&240==144 and not value):held_notes.discard(key)
-                elif status&240==176 and note in (120,123):held_notes={k for k in held_notes if k[0]!=(status&15)}
-            assert not held_notes,('unreleased actual MIDI output',i,held_notes)
+                if status&240==144 and value:held_notes[key]+=1
+                elif status&240==128 or (status&240==144 and not value):held_notes[key]=max(0,held_notes[key]-1)
+                elif status&240==176 and note in (120,123):held_notes=Counter({k:v for k,v in held_notes.items() if k[0]!=(status&15)})
+            assert not any(held_notes.values()),('unreleased actual MIDI output',i,held_notes)
             assert own and all(e[4]==60+i and e[3]&15==i for e in own if e[3]&240==144 and e[5]>0),own
             playback=[e for e in own if e[1]>silence_frame and e[3]&240==144 and e[5]>0]
             assert playback,('missing recorded playback',i,own)
@@ -138,6 +167,7 @@ with tempfile.TemporaryDirectory(prefix='mbh-chains-') as temp:
         for engine,p in zip(engines,processors):engine.set_extended_config(snapshot);engine.add_processor(p)
         for i in range(1,4):assert state(i)['phrases'][0]['events']>=2 and not state(i)['chainRunning']
         assert all(engine.get_extended_config()['processors']==snapshot['processors'] for engine in engines)
+        assert state(1)['phrases'][1]['events']==len(recorded['events'])
         assert len(state(1)['snapshots'])==2 and not state(2)['snapshots'] and not state(3)['snapshots']
         assert decode(state(1)['controllerEngine'])['mappings'][0]['id']==201
         assert not decode(state(2)['controllerEngine'])['mappings']

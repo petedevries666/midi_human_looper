@@ -687,6 +687,8 @@ int main(int argc, char **argv) {
     return 0;
   }
   chain_mode_tests(argv[1]);
+  chain_exact_timing_tests(argv[1]);
+  chain_exact_playback_tests(argv[1]);
   Host bursts(argv[1]);midi_burst_tests(bursts);
   assignment(h);
   persistence(h, argv[2]);

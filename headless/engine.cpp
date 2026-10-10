@@ -96,6 +96,7 @@ struct Snapshot {
   uint64_t samples = 0, blocks = 0, midi = 0, late = 0, last_sample = 0;
   int revision = 1;
   unsigned pendingOutput = 0;
+  unsigned chainTimingVersion=1;
   bool chain = false, chainRun = false, chainArmed = false, chainRecord = false,
        chainError = false;
   uint64_t chainFrame = 0, chainLength = 0;
@@ -531,6 +532,7 @@ static std::string json(const Reply &r) {
     << ",\"status\":" << quote(status[r.status])
     << ",\"backend\":" << quote(s.backend ? "jack" : "mock")
     << ",\"chainFrameGap\":" << s.chainFrameGap << ",\"chainClockGap\":" << s.chainClockGap
+    << ",\"chainTimingVersion\":" << s.chainTimingVersion
     << ",\"chainMode\":" << s.chain << ",\"chainRunning\":" << s.chainRun
     << ",\"chainArmed\":" << s.chainArmed
     << ",\"chainRecording\":" << s.chainRecord
@@ -1163,12 +1165,15 @@ int main(int argc, char **argv) {
     return 2;
   }
   bool useJack = false, demo = false, chainMode = false;
+  unsigned chainTimingVersion=1;
   std::string clientName = "midi_human_looper";
   std::string inputPort, outputPort;
   for (int i = 3; i < argc; ++i) {
     std::string a = argv[i];
     if (a == "--jack")
       useJack = true;
+    else if (a == "--chain-timing" && i+1<argc)
+      chainTimingVersion=std::stoul(argv[++i]);
     else if (a == "--chain")
       chainMode = true;
     else if (a == "--client" && i + 1 < argc) {
@@ -1234,7 +1239,7 @@ int main(int argc, char **argv) {
                   "mem[engine_addr(INST_ENABLED_BASE,remote_ci)]=remote_ci==0;"
                   "remote_ci+=1;);mem[engine_addr(INST_IN_BASE,0)]=0;mem["
                   "engine_addr(INST_OUT_BASE,0)]=0;");
-    ChainMode chain(fx, chainMode);
+    ChainMode chain(fx, chainMode, chainTimingVersion);
     if (demo)
       execute(
           fx,
@@ -2468,6 +2473,7 @@ int main(int argc, char **argv) {
             NSEEL_code_execute(panic_bridge);
         }
         state.chain = true;
+        state.chainTimingVersion=chainTimingVersion;
         state.chainRun = chain.run;
         state.chainArmed = chain.armed;
         state.chainRecord = chain.recording;

@@ -79,7 +79,7 @@ def main():
         if args.lan:
             import secrets
             atomic(token,secrets.token_urlsafe(32)+'\n');os.chmod(token,0o600)
-        atomic(config,json.dumps(dict(version=1,repository=str(root),binary=str(binary),web_port_base=8765,web_bind='0.0.0.0' if args.lan else '127.0.0.1',token_file=str(token) if args.lan else ''),indent=2))
+        atomic(config,json.dumps(dict(version=1,chain_timing_version=2,repository=str(root),binary=str(binary),web_port_base=8765,web_bind='0.0.0.0' if args.lan else '127.0.0.1',token_file=str(token) if args.lan else ''),indent=2))
     atomic(manager,after)
     print('Installed native MIDI Tool registration. No JACK connections/services changed. Restart only Zynthian UI when ready.')
 if __name__=='__main__':main()

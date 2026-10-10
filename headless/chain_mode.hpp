@@ -7,17 +7,24 @@
 struct ChainMode {
   bool enabled, run = false, armed = false, recording = false, error = false;
   int phrase = 0;
+  const unsigned timingVersion;
   uint64_t length = 0, end = 0, previous = 0, previousClock = 0;
   double bpm = 120;
   int64_t lastFrameGap = 0, lastClockGap = 0;
   EEL_F *phase, *duration, *target, *tempoVar, *runVar, *bad, *overdub,
-      *overdubPos;
+      *overdubPos, *captureActive, *captureStart, *captureEnd;
   NSEEL_CODEHANDLE align, begin, finish, play;
   ysfx_t *fx;
-  ChainMode(ysfx_t *f, bool active) : enabled(active), fx(f) {
+  ChainMode(ysfx_t *f, bool active, unsigned version=1)
+      : enabled(active), timingVersion(version), fx(f) {
+    if (version!=1 && version!=2) throw std::runtime_error("unsupported chain timing version");
     if (active)
-      for (unsigned i = 0; i < 2048; ++i)
+      for (unsigned i = 0; i < 4096; ++i)
         *NSEEL_VM_getramptr(f->vm.get(), 3000000 + i, nullptr) = 0;
+    captureActive = NSEEL_VM_regvar(f->vm.get(), "chain_capture_active");
+    captureStart = NSEEL_VM_regvar(f->vm.get(), "chain_capture_start");
+    captureEnd = NSEEL_VM_regvar(f->vm.get(), "chain_capture_end");
+    *captureActive=0;
     phase = NSEEL_VM_regvar(f->vm.get(), "chain_phase");
     duration = NSEEL_VM_regvar(f->vm.get(), "chain_duration");
     target = NSEEL_VM_regvar(f->vm.get(), "chain_target");
@@ -34,9 +41,10 @@ struct ChainMode {
         "mem[MODE_BASE+chain_target]=0;mem[LEN_BASE+chain_target]=chain_"
         "duration;mem[TRIG_BASE+chain_target]=layer_count(chain_target)>0;"
         "record_layer=chain_target;overdub_layer=chain_target;overdub_active=1;"
-        "overdub_armed=0;overdub_wait_note=0;overdub_pos=chain_phase;");
+        "overdub_armed=0;overdub_wait_note=0;overdub_pos=chain_phase;"
+        "chain_j=0;loop(2048,mem[3002048+chain_j]=0;chain_j+=1;);");
     finish = compile(
-        "overdub_active=0;overdub_armed=0;chain_bad=0;chain_j=0;loop(2048,mem["
+        "chain_capture_active=0;overdub_active=0;overdub_armed=0;chain_bad=0;chain_j=0;loop(2048,mem["
         "3000000+chain_j]=0;chain_j+=1;);chain_j=0;loop(layer_count(chain_"
         "target),chain_a=layer_base(chain_target,chain_j);chain_s=mem[chain_a+"
         "1];chain_n=mem[chain_a+2];chain_v=mem[chain_a+3];chain_k=(chain_s&15)*"
@@ -66,6 +74,7 @@ struct ChainMode {
     if (recording)
       NSEEL_code_execute(finish);
     armed = recording = run = false;
+    *captureActive=0;
   }
   bool command(int action, int selected) {
     if ((recording || armed) && selected != phrase && action != 0)
@@ -106,9 +115,10 @@ struct ChainMode {
     if (!enabled)
       return false;
     bool failed = false;
-    uint64_t proposed = uint64_t(std::llround(rate * 480.0 / tempo / frames)) *
-                        frames; // two 4/4 bars
-    proposed = std::max<uint64_t>(frames, proposed);
+    uint64_t proposed = timingVersion==1
+        ? uint64_t(std::llround(rate * 480.0 / tempo / frames))*frames
+        : uint64_t(std::llround(rate * 480.0 / tempo)); // nearest sample, two 4/4 bars
+    proposed = std::max<uint64_t>(timingVersion==1?frames:1, proposed);
     bool gap = previous && frame != previous;
     bool missed = gap && clock && frame - previous == clock - previousClock;
     bool discontinuity = gap && !missed;
@@ -131,7 +141,7 @@ struct ChainMode {
     // desired tempo.
     *target = phrase;
     *duration = double(length);
-    *phase = double((frame / frames * frames) % length);
+    *phase = double((timingVersion==1?frame/frames*frames:frame) % length);
     *tempoVar = bpm;
     *runVar = rolling && run;
     NSEEL_code_execute(align);
@@ -140,15 +150,19 @@ struct ChainMode {
       recording = false;
       failed = error = *bad > .5;
     }
-    if (armed && rolling && *phase == 0) {
+    const uint64_t boundaryOffset = uint64_t(*phase)==0?0:length-uint64_t(*phase);
+    if (armed && rolling && (timingVersion==1?*phase==0:boundaryOffset<frames)) {
       armed = false;
       recording = true;
-      end = frame - uint64_t(*phase) + length;
+      end = timingVersion==1?frame-uint64_t(*phase)+length:frame+boundaryOffset+length;
       NSEEL_code_execute(begin);
     }
     if (recording) {
       *overdub = 1;
-      *overdubPos = *phase;
+      *overdubPos = timingVersion==1?*phase:double(frame)-double(end-length);
+      *captureActive=timingVersion==2;
+      *captureStart=timingVersion==2?std::max(0.,double(end-length)-double(frame)):0;
+      *captureEnd=timingVersion==2?std::min(double(frames),double(end)-double(frame)):frames;
     }
     previous = rolling ? frame + frames : 0;
     previousClock = clock ? clock + frames : 0;

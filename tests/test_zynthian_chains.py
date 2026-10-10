@@ -4,7 +4,8 @@ from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
 BLOCK=int(os.environ.get('CHAIN_JACK_BLOCK','2048'))
 if BLOCK not in (2048,4096,8192):raise ValueError('CHAIN_JACK_BLOCK must be 2048, 4096 or 8192')
-PERIOD=int(192000/BLOCK+.5)*BLOCK
+TIMING=int(os.environ.get("CHAIN_TIMING_VERSION","2"))
+PERIOD=192000 if TIMING==2 else int(192000/BLOCK+.5)*BLOCK
 # UI prerequisites are hardware-specific. Only base/UI controls are stubbed; adapter,
 # IPC, engine, persistence, transport and MIDI routing are real.
 class Base:
@@ -18,7 +19,7 @@ class Processor:
     def refresh_controllers(self):pass
 with tempfile.TemporaryDirectory(prefix='mbh-chains-') as temp:
     directory=Path(temp);Base.my_data_dir=temp
-    config=directory/'config.json';config.write_text(json.dumps(dict(version=1,repository=str(ROOT),binary=os.environ['HEADLESS_BINARY'])))
+    config=directory/'config.json';config.write_text(json.dumps(dict(version=1,chain_timing_version=TIMING,repository=str(ROOT),binary=os.environ['HEADLESS_BINARY'])))
     os.environ['MBH_CONFIG']=str(config);os.environ['JACK_DEFAULT_SERVER']='mbh-chains-test'
     server_log_path=directory/'jack.log'
     # Never leave an unread logging pipe behind a real-time server.

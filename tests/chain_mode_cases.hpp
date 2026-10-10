@@ -83,3 +83,70 @@ static void chain_mode_tests(const char *source) {
   chain.command(3, 2);
   h.eq("mem[TRIG_BASE+2]", 0, "capacity exhaustion disables unsafe loop");
 }
+
+// Timing v2: musical duration is independent of the processing buffer.
+static void chain_exact_timing_tests(const char *source) {
+  Host h(source);
+  h.run("ext_noinit=1;gmem[0]=0;panic_pending=0;slider9=1;");
+  for (unsigned rate : {44100u,48000u,96000u})
+    for (unsigned block : {128u,256u,512u,8192u})
+      for (double bpm : {73.,120.,137.}) {
+        ChainMode c(h.f,true,2);
+        c.tick(0,block,rate,true,bpm);
+        const uint64_t length=uint64_t(std::llround(rate*480./bpm));
+        check(c.length==length,"v2 exact musical length independent of buffer");
+        c.tick(length+17,block,rate,true,bpm);
+        h.eq("chain_phase",17,"v2 exact phase independent of block alignment");
+      }
+  ChainMode c(h.f,true,2);
+  c.tick(0,128,44100,true,120);
+  h.run("clear_layer(3);");c.command(2,3);
+  const uint64_t start=176384; // grid origin occurs 16 samples into this block
+  c.previous=0;c.tick(start,128,44100,true,120);
+  check(c.recording&&!c.armed,"v2 arms on an in-block musical boundary");
+  auto send=[&](int st,int note,int vel,unsigned offset) {
+    uint8_t b[]={uint8_t(st),uint8_t(note),uint8_t(vel)};
+    ysfx_midi_event_t e{};e.offset=offset;e.size=3;e.data=b;
+    check(ysfx_send_midi(h.f,&e),"enqueue boundary MIDI");
+  };
+  send(144,60,100,15); // excluded before boundary
+  send(144,61,90,16);send(128,60,0,17);send(128,61,40,40);
+  h.block();h.events();
+  h.eq("layer_count(3)",2,"capture excludes pre-window attacks and orphan releases");
+  h.eq("mem[layer_base(3,0)]",0,"in-block boundary attack stored at T=0");
+  h.eq("mem[layer_base(3,1)]",24,"in-block release retains duration");
+  c.previous=0;c.tick(352768,128,44100,true,120); // end=352800, offset32
+  send(144,62,80,31);send(144,63,80,32);h.block();h.events();
+  c.tick(352896,128,44100,true,120);
+  check(!c.recording,"take finishes after exact capture window");
+  h.eq("layer_count(3)",4,"late attacks excluded and crossing note receives release");
+  h.eq("mem[layer_base(3,2)]",176399,"last sample attack retained");
+  h.eq("mem[layer_base(3,3)]",176399,"boundary synthetic release stays in window");
+}
+
+static void chain_exact_playback_tests(const char *source) {
+  for (unsigned rate : {44100u,48000u,96000u})
+    for (unsigned block : {128u,512u,8192u}) {
+      Host h(source,false);ysfx_set_sample_rate(h.f,rate);
+      ysfx_set_block_size(h.f,block);ysfx_init(h.f);
+      h.run("slider9=1;slider5=0;mem[INST_TRANSFORM_COUNT_BASE]=0;"
+            "clear_layer(0);mem[MODE_BASE]=0;mem[VEL_BASE]=1;"
+            "store_event(0,0,144,60,100,0);store_event(0,32,128,60,0,0);");
+      ChainMode c(h.f,true,2);c.command(1,0);c.tick(0,block,rate,true,137);
+      const uint64_t length=c.length,start=(length-1)/block*block;
+      bool on=false,off=false;c.previous=0;
+      for (uint64_t frame=start;frame<start+2*block;frame+=block) {
+        c.tick(frame,block,rate,true,137);
+        ysfx_process_float(h.f,nullptr,nullptr,0,0,block);
+        ysfx_midi_event_t e{};
+        while(ysfx_receive_midi(h.f,&e)) if(e.size==3 && e.data[1]==60) {
+          if((e.data[0]&240)==144 && e.data[2]>0) {
+            check(frame+e.offset==length,"v2 playback attack on exact grid across block edge");on=true;
+          } else if((e.data[0]&240)==128 || ((e.data[0]&240)==144 && !e.data[2])) {
+            check(frame+e.offset==length+32,"v2 paired release retains sample duration");off=true;
+          }
+        }
+      }
+      check(on&&off,"actual EEL playback crosses nonaligned grid with paired notes");
+    }
+}

@@ -3,6 +3,7 @@ One isolated existing JSFX/JACK processor per Zynthian processor ID, not a new M
 """
 import json
 import os
+import tempfile
 from pathlib import Path
 import subprocess
 import sys
@@ -95,9 +96,19 @@ class zynthian_engine_mbh(zynthian_engine):
         if action in ('play','record','stop','finish'):
             response=control.request(op=40,target=entry['phrase'],arg={'stop':0,'play':1,'record':2,'finish':3}[action],**common)
         elif action=='save':
+            from server import validate_patch_extensions
+            target=entry['data']/'patch1.json'
+            if target.exists():validate_patch_extensions(json.loads(target.read_text()))
             patch=control.request(op=4,**common)
             if patch.get('format')!='MIDI_HUMAN_LOOPER_PATCH':raise RuntimeError('MBH save rejected; previous file retained')
-            temporary=entry['data']/'patch1.json.tmp';temporary.write_text(json.dumps(patch));temporary.replace(entry['data']/'patch1.json');return
+            fd,temporary=tempfile.mkstemp(prefix='patch1.',suffix='.tmp',dir=entry['data'])
+            try:
+                with os.fdopen(fd,'w') as stream:
+                    json.dump(patch,stream);stream.flush();os.fsync(stream.fileno())
+                os.replace(temporary,target)
+            finally:
+                if os.path.exists(temporary):os.unlink(temporary)
+            return
         elif action=='load':
             patch=json.loads((entry['data']/'patch1.json').read_text());response=control.request(op=5,target=patch['schema'],patch=patch,**common)
         else:raise ValueError('unknown MBH action')

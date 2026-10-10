@@ -1174,7 +1174,7 @@ local(rm,lo,hi,ok)
 // stateless duplicate opts the note processors into the visible serial order.
 function tf_serial(gi)
 local(k,c,code,typ,found)
-(k=0;found=0;c=max(0,min(TRANSFORM_SLOTS,floor(mem[engine_addr(INST_TRANSFORM_COUNT_BASE,gi)])));loop(c,code=mem[engine_addr(INST_TRANSFORM_TYPE_BASE,gi*TRANSFORM_SLOTS+k)];code>=7?(typ=transform_type(gi,code);typ==1 || typ==2 || typ==4?found=1;);k+=1;);found;);
+(k=0;found=0;c=max(0,min(TRANSFORM_SLOTS,floor(mem[engine_addr(INST_TRANSFORM_COUNT_BASE,gi)])));loop(c,code=abs(mem[engine_addr(INST_TRANSFORM_TYPE_BASE,gi*TRANSFORM_SLOTS+k)]);code>=7?(typ=transform_type(gi,code);typ==1 || typ==2 || typ==4?found=1;);k+=1;);found;);
 function tf_pitch(gi,note)
 local(k,c,code,typ,b,mode,lo,hi)
 (

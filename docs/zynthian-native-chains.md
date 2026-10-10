@@ -19,8 +19,9 @@ as the UI/JACK service (normally root on standard Zynthian images):
 cd /zynthian/zynthian-plugins
 git clone https://github.com/petedevries666/midi_human_looper.git
 cd midi_human_looper
-git fetch origin feat/zynthian-native-chains
-git switch --track origin/feat/zynthian-native-chains
+git fetch origin main
+git switch main
+git pull --ff-only
 scripts/headless-setup.sh
 scripts/headless-check.sh
 python3 zynthian/install.py --lan
@@ -230,3 +231,39 @@ at the common transport phase. It does not queue thousands of obsolete releases
 in front of current attacks. Synths must respect those channel-mode messages.
 Transport discontinuities and capture errors expose `chainFrameGap` and
 `chainClockGap` diagnostics. Genuine seeks and tempo changes still stop playback.
+
+## Optional integrated Snapshot editor test branch
+
+The core native-chain prerequisite is merged into `main`. To test the integration
+PR, after cloning use `git fetch origin feat/product-integration` and
+`git switch --track origin/feat/product-integration`, then rebuild with
+`scripts/headless-setup.sh`. Do not run an old native binary against the new server
+or adapter: the integrated native action opcode is 40 and Snapshot capture remains
+20. If already registered, STOP/remove processors and run installer rollback before
+installing the updated adapter; the installer refuses conflicting old adapter files.
+
+1. Run `scripts/headless-check.sh`, then `python3 zynthian/install.py --lan`.
+2. Save existing Zynthian work and restart only the UI when ready. Add MBH as a
+   MIDI Tool before Piano, Bass and Synth, with chain inputs 1, 2 and 3.
+3. Set fixed 4/4 at 120 BPM before creating processors. Select Phrase 1 and RECORD
+   Piano. It waits for the common boundary, records two bars and loops. Record Bass
+   and Synth while Piano continues. RECORD again overdubs; FINISH closes held notes.
+4. Open Firefox at `http://ZYNTHIAN_IP:8765+PROCESSOR_ID` (for ID 1: port 8766).
+   Enter the token from `midi-human-looper/editor.token`. Each tab controls its own
+   processor and patch. PANIC/STOP one processor must not affect the other two.
+5. Set Instrument volume, CAPTURE Snapshot A, change volume/Transpose, CAPTURE B.
+   EDIT B sets a two-second morph. Recall A, then MORPH B during looping. Learn a
+   distinct Helix Controller source, map volume with GLIDE, and move it during morph.
+   It must take over without automation fighting it. Existing Switch assignments
+   can use OPTIONS → MORPH TO NEXT; full switch assignment popup is still pending.
+6. CLOSE Firefox. Playback and an active morph must finish without the browser.
+   SAVE each processor and a Zynthian snapshot, recreate/reload with the same IDs,
+   and confirm phrases, modules, Controller mappings and Snapshots remain independent.
+7. PANIC, remove each processor, and verify every synth releases its notes. Perform
+   the rollback instructions above if retaining the prototype is not desired.
+
+The regression probe has separate JACK source and sink clients, so the test graph
+is acyclic and does not insert an implicit feedback-period delay into recording.
+It exercises actual overdub on Piano while Bass/Synth remain playing, Snapshot
+capture/recall and per-processor persistence/recreation. Three processor captures
+must remain on the shared two-bar grid. This does not qualify physical latency.

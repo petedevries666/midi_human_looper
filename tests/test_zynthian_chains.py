@@ -67,6 +67,12 @@ with tempfile.TemporaryDirectory(prefix='mbh-chains-') as temp:
             s=state(i);assert s['phrases'][0]['events']>=2,s
             assert s['chainLength']==192512 and s['chainRunning'],s
             for previous in range(1,i):assert state(previous)['chainRunning']
+        # Actual overdub while Bass and Synth remain playing independently.
+        previous_events=state(1)['phrases'][0]['events']
+        source(1);action(1,'record')
+        wait(1,'chainRecording',True);wait(1,'chainRecording',False);source(0)
+        assert state(1)['phrases'][0]['events']>=previous_events+2
+        assert state(2)['chainRunning'] and state(3)['chainRunning']
         if os.environ.get('RUN_CHAIN_BROWSER')=='1':
             from playwright.sync_api import sync_playwright
             playwright=sync_playwright().start();browser=playwright.chromium.launch(headless=True,executable_path=os.environ.get('CHROMIUM_PATH','/usr/bin/chromium'),args=['--no-sandbox'])
@@ -74,6 +80,7 @@ with tempfile.TemporaryDirectory(prefix='mbh-chains-') as temp:
             for i in range(1,4):
                 page=browser.new_page();page.goto('http://127.0.0.1:'+str(8765+i))
                 page.get_by_text('CONNECTED · Engine running',exact=True).wait_for()
+                page.locator('details').filter(has=page.locator('#metrics')).locator('summary').click()
                 page.get_by_text('Zynthian · two bars',exact=False).wait_for()
                 pages.append(page)
             assert pages[0].locator('[data-source-id]').count()==1
@@ -93,6 +100,15 @@ with tempfile.TemporaryDirectory(prefix='mbh-chains-') as temp:
         assert len(snapshot['processors'])==3
         for i in range(1,4):
             action(i,'save');assert (directory/f'midi-human-looper/processor-{i}/patch1.json').exists()
+        future_path=directory/'midi-human-looper/processor-2/patch1.json'
+        original=future_path.read_bytes();future=json.loads(original)
+        future['unknownModuleExtension']={'version':99,'preserve':True}
+        unsupported=json.dumps(future).encode();future_path.write_bytes(unsupported)
+        try:
+            action(2,'save');raise AssertionError('unknown extension overwritten')
+        except ValueError:pass
+        assert future_path.read_bytes()==unsupported
+        future_path.write_bytes(original)
         probe.stdin.close();lines=probe.stdout.read().splitlines();assert probe.wait(timeout=5)==0;probe=None
         events=[list(map(int,line.split())) for line in lines]
         for i in range(3):
@@ -100,7 +116,7 @@ with tempfile.TemporaryDirectory(prefix='mbh-chains-') as temp:
             assert own and all(e[4]==60+i and e[3]&15==i for e in own if e[3]&240==144 and e[5]>0),own
             playback=[e for e in own if e[1]>silence_frame and e[3]&240==144 and e[5]>0]
             assert playback,('missing recorded playback',i,own)
-            assert all((e[1]+e[2])%192512==2048 for e in playback),playback
+            assert all((e[1]+e[2])%192512==0 for e in playback),playback
             assert any(e[1]>silence_frame and e[4]==60+i and (e[3]&240==128 or (e[3]&240==144 and e[5]==0)) for e in own),own
         for engine in engines:engine.stop()
         engines=[]

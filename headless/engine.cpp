@@ -85,11 +85,12 @@ struct Instrument {
       transformerAssignments{};
   std::array<int, 6> parameterCounts{};
   int transformerCount = 0;
+  bool serialPitch = false;
 };
 struct Phrase {
   int events = 0, mode = 0;
   double time = 1, velocityDecay = .8, baseVelocity = 1;
-  int mute = 0, solo = 0;
+  int mute = 0, solo = 0, triggerNote = -1, triggerChannel = 0;
 };
 struct Snapshot {
   uint64_t samples = 0, blocks = 0, midi = 0, late = 0, last_sample = 0;
@@ -109,6 +110,7 @@ struct Snapshot {
   std::array<Phrase, 16> phrases{};
   controller::Configuration controllerConfig;
   uint32_t learnTarget = 0;
+  bool learnCommand = false;
   controller::Source learnCandidate;
   int learnConflict = 0;
   std::array<double, 32> effective{};
@@ -164,7 +166,7 @@ struct Model {
   mutable std::atomic<bool> abRestorePending{false};
   std::array<std::array<double *, 26>, 16> sw;
   std::array<std::array<double *, 22>, 8> inst;
-  std::array<std::array<double *, 8>, 16> phrase;
+  std::array<std::array<double *, 10>, 16> phrase;
   std::array<double *, 8> tfCount, levelAssignment, levelPending;
   std::array<std::array<double *, 6>, 8> tfCodes;
   std::array<std::array<double *, 12>, 8> tfIds, tfTypes;
@@ -278,6 +280,8 @@ struct Model {
                           : unsigned(variable(fx, "DS_RT_BASE")) + (i - 4) * 32;
       sw[i][24] = cell(fx, rt + 7);
       sw[i][25] = cell(fx, rt + 12);
+      phrase[i][8] = cell(fx, unsigned(variable(fx, "PHRASE_NOTE_BASE")) + i);
+      phrase[i][9] = cell(fx, unsigned(variable(fx, "SW_CFG_BASE")) + 1 + (i / 4) * 128 + 27 + i % 4);
       phrase[i][3] = cell(fx, unsigned(variable(fx, "DECAY_BASE")) + i);
       const char *extra[] = {"VEL_BASE", "MUTE_BASE", "SOLO_BASE", "MODE_BASE"};
       for (unsigned j = 0; j < 4; ++j)
@@ -465,6 +469,8 @@ struct Model {
       s.phrases[i].baseVelocity = *phrase[i][4];
       s.phrases[i].mute = int(*phrase[i][5]);
       s.phrases[i].solo = int(*phrase[i][6]);
+      s.phrases[i].triggerNote = int(*phrase[i][8]);
+      s.phrases[i].triggerChannel = int(*phrase[i][9]);
     }
     for (unsigned i = 0; i < 8; ++i) {
       auto &v = s.instruments[i];
@@ -474,6 +480,7 @@ struct Model {
       v.output = int(*inst[i][4]);
       v.level = int(*inst[i][5]);
       v.transformerCount = std::max(0, std::min(6, int(*tfCount[i])));
+      v.serialPitch = false;
       for (int j = 0; j < v.transformerCount; ++j) {
         int code = int(*tfCodes[i][j]);
         int k = std::abs(code);
@@ -487,6 +494,7 @@ struct Model {
           continue;
         }
         int type = v.transformerTypes[j];
+        if (k >= 7 && (type == 1 || type == 2 || type == 4)) v.serialPitch = true;
         v.parameterCounts[j] = performance::parameterCount(type);
         for (int r = 0; r < v.parameterCounts[j]; ++r) {
           v.transformerValues[j][r] = *values[i][k][r];
@@ -558,6 +566,7 @@ static std::string json(const Reply &r) {
       o << "{\"id\":" << v.id << ",\"name\":" << quote(v.name)
         << ",\"enabled\":" << v.on << ",\"input\":" << v.input
         << ",\"output\":" << v.output << ",\"level\":" << v.level
+        << ",\"serialPitchOrder\":" << (v.serialPitch ? "true" : "false")
         << ",\"transformers\":[";
       for (int j = 0; j < v.transformerCount; ++j) {
         if (j)
@@ -585,12 +594,13 @@ static std::string json(const Reply &r) {
       << ",\"timeDecay\":" << s.phrases[i].time
       << ",\"velocityDecay\":" << s.phrases[i].velocityDecay
       << ",\"baseVelocity\":" << s.phrases[i].baseVelocity
+      << ",\"triggerNote\":" << s.phrases[i].triggerNote << ",\"triggerChannel\":" << s.phrases[i].triggerChannel
       << ",\"mute\":" << s.phrases[i].mute << ",\"solo\":" << s.phrases[i].solo
       << '}';
   }
   o << "],\"controllerEngine\":"
     << controller::configurationJson(s.controllerConfig)
-    << ",\"controllerLearn\":{\"target\":" << s.learnTarget
+    << ",\"controllerLearn\":{\"domain\":" << quote(s.learnCommand ? "phrase" : "source") << ",\"target\":" << s.learnTarget
     << ",\"conflict\":" << s.learnConflict
     << ",\"kind\":" << s.learnCandidate.kind
     << ",\"channel\":" << s.learnCandidate.channel + 1
@@ -832,9 +842,9 @@ static void control(int listener, Queue<Request, 64> &commands,
                       request.arg >> request.revision >> request.ch >>
                       request.note >> request.value) &&
                  request.id > 0 && request.id <= 9007199254740991ULL &&
-                 request.op >= 0 && (request.op <= 32 || request.op == 40) && request.arg >= 0 &&
+                 request.op >= 0 && (request.op <= 34 || request.op == 40) && request.arg >= 0 &&
                  request.arg <= (request.op == 13   ? 5
-                                 : request.op == 15 || request.op == 40 ? 3
+                                 : request.op == 15 || request.op == 34 || request.op == 40 ? 3
                                  : request.op == 32 ? 24
                                                     : 2) &&
                  request.ch >= 0 &&
@@ -1202,6 +1212,10 @@ int main(int argc, char **argv) {
                            0);
     if (!structure)
       throw std::runtime_error("module lifecycle bridge");
+    auto instrumentLifecycle = NSEEL_code_compile(fx->vm.get(),
+        "remote_edit_op==0?remote_edit_result=i_add():"
+        "remote_edit_result=i_submit(2,remote_edit_i,remote_target);", 0);
+    if (!instrumentLifecycle) throw std::runtime_error("Instrument lifecycle bridge");
     auto edit = NSEEL_code_compile(
         fx->vm.get(),
         "remote_edit_code<7?param_apply(remote_edit_i,remote_edit_kind,remote_"
@@ -1226,10 +1240,15 @@ int main(int argc, char **argv) {
          learnCh = NSEEL_VM_regvar(fx->vm.get(), "remote_learn_ch"),
          learnNum = NSEEL_VM_regvar(fx->vm.get(), "remote_learn_num"),
          learnConflict = NSEEL_VM_regvar(fx->vm.get(), "remote_learn_conflict");
+    auto learnSkip = NSEEL_VM_regvar(fx->vm.get(), "remote_learn_skip");
+    auto phraseAssign = NSEEL_code_compile(fx->vm.get(),
+        "mem[PHRASE_NOTE_BASE+remote_phrase]=remote_learn_num;"
+        "mem[learn_phrase_channel(remote_phrase)]=remote_learn_ch+1;", 0);
+    if (!phraseAssign) throw std::runtime_error("phrase trigger assignment bridge");
     auto legacyConflict = NSEEL_code_compile(
         fx->vm.get(),
         "remote_learn_conflict=0;remote_learn_j=0;loop(SW_COUNT+CONTROLLERS+"
-        "LAYERS,learn_matches(remote_learn_j,remote_learn_kind,remote_learn_ch,"
+        "LAYERS,remote_learn_j!=remote_learn_skip && learn_matches(remote_learn_j,remote_learn_kind,remote_learn_ch,"
         "remote_learn_num)?remote_learn_conflict=1;remote_learn_j+=1;);",
         0);
     auto cancelLearn = NSEEL_code_compile(fx->vm.get(), "learn_cancel();", 0);
@@ -1238,8 +1257,10 @@ int main(int argc, char **argv) {
     Model model(fx);
     PatchModel patch(fx);
     controller::Host controllers;
+    const double phraseLearnBase = variable(fx, "SW_COUNT") + variable(fx, "CONTROLLERS");
     std::function<bool(int, int, int)> conflicts = [&](int kind, int ch,
                                                        int num) {
+      *learnSkip = controllers.learnsCommand() ? phraseLearnBase + controllers.learnTarget() - 1 : -1;
       *learnKind = kind;
       *learnCh = ch;
       *learnNum = num;
@@ -1782,7 +1803,51 @@ int main(int argc, char **argv) {
           }
         } else if (request.op >= 20) {
           bool valid = false;
-          if (request.op == 32) {
+          if (request.op == 34) {
+            if (request.target >= 1 && request.target <= 16) {
+              if (request.arg == 0) {
+                NSEEL_code_execute(cancelLearn);
+                valid = controllers.learnCommand(request.target);
+              } else if (request.arg == 1) { controllers.cancel(); valid = true; }
+              else if (request.arg == 2) {
+                controllers.cancel();
+                *model.phrase[request.target - 1][8] = -1;
+                *model.phrase[request.target - 1][9] = 0;
+                valid = true;
+              } else valid = controllers.learnsCommand() && controllers.learnTarget() == unsigned(request.target) && controllers.confirm();
+            }
+          } else if (request.op == 33) {
+            if (request.arg == 0) {
+              *editOp = 0;
+              NSEEL_code_execute(instrumentLifecycle);
+              valid = *editResult < 8;
+            } else if (request.arg == 1) {
+              unsigned i = 0;
+              for (; i < 8; ++i)
+                if (*model.inst[i][0] && *model.inst[i][1] == request.target) break;
+              if (i < 8) {
+                cancelAB();
+                for (unsigned j = 0; j < performanceTargetCount; ++j) {
+                  auto &p = (*performanceTargets)[j];
+                  if (p.key.instrument == unsigned(request.target) &&
+                      !performance::phraseKind(p.key.kind)) {
+                    cancelPerformance(p, p.token);
+                    p.active = false;
+                  }
+                }
+                for (const auto &b : controllers.configuration().bindings)
+                  if (b.policy.id && b.instrument == unsigned(request.target) &&
+                      !performance::phraseKind(b.kind) && b.kind != 16)
+                    controllers.remove(b.policy.id);
+                performanceSnapshots->pruneInstrument(request.target);
+                *editI = i;
+                *target = request.target;
+                *editOp = 1;
+                NSEEL_code_execute(instrumentLifecycle);
+                valid = true;
+              } else reply.status = 2;
+            }
+          } else if (request.op == 32) {
             controller::Binding b;
             b.instrument = request.target;
             b.module = request.module;
@@ -2040,7 +2105,10 @@ int main(int argc, char **argv) {
             if (!reply.status) {
               if (request.arg >= 4) {
                 int destination = slot + (request.arg == 4 ? -1 : 1);
-                if (destination < 0 || destination >= inst.transformerCount)
+                if (destination < 0 || destination >= inst.transformerCount ||
+                    !inst.serialPitch ||
+                    (inst.transformerTypes[slot] != 1 && inst.transformerTypes[slot] != 2) ||
+                    (inst.transformerTypes[destination] != 1 && inst.transformerTypes[destination] != 2))
                   reply.status = 3;
                 else {
                   NSEEL_code_execute(panic_bridge);
@@ -2216,6 +2284,14 @@ int main(int argc, char **argv) {
       }
       if (model.abRestorePending.exchange(false, std::memory_order_acq_rel))
         abRequested = true;
+      controller::Source triggerCapture;
+      if (controllers.takeCommandCapture(triggerCapture)) {
+        *phraseTarget = triggerCapture.id - 1;
+        *learnNum = triggerCapture.number;
+        *learnCh = triggerCapture.channel;
+        NSEEL_code_execute(phraseAssign);
+        ++state.revision;
+      }
       if (controllers.tick((state.samples + frames) / double(sampleRate),
                            resolveBinding, applyBinding))
         ++state.revision;
@@ -2407,6 +2483,7 @@ int main(int argc, char **argv) {
         model.snapshot(state);
         state.controllerConfig = controllers.configuration();
         state.learnTarget = controllers.learnTarget();
+        state.learnCommand = controllers.learnsCommand();
         state.learnCandidate = controllers.learnCandidate();
         state.learnConflict = controllers.learnConflict();
         for (unsigned j = 0; j < 32; ++j) {
@@ -2504,6 +2581,8 @@ int main(int argc, char **argv) {
     NSEEL_code_free(phraseStop);
     NSEEL_code_free(edit);
     NSEEL_code_free(structure);
+    NSEEL_code_free(instrumentLifecycle);
+    NSEEL_code_free(phraseAssign);
     NSEEL_code_free(safeApply);
     NSEEL_code_free(cancelPending);
   } catch (const std::exception &e) {

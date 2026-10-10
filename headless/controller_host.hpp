@@ -74,6 +74,8 @@ class Host {
   Engine core;
   Configuration config;
   uint32_t learning = 0;
+  bool commandLearning = false;
+  Source capturedCommand;
   Source candidate;
   int conflict = 0;
   // Captured note release must never leak into performance routing.
@@ -84,6 +86,15 @@ public:
   const Configuration &configuration() const { return config; }
   const Target *target(uint32_t id) const { return core.target(id); }
   uint32_t learnTarget() const { return learning; }
+  bool learnsCommand() const { return commandLearning; }
+  bool learnCommand(uint32_t id) {
+    if (!id || id > 16777215) return false;
+    cancel(); learning = id; commandLearning = true; return true;
+  }
+  bool takeCommandCapture(Source &out) {
+    if (!capturedCommand.id) return false;
+    out = capturedCommand; capturedCommand = Source{}; return true;
+  }
   const Source &learnCandidate() const { return candidate; }
   int learnConflict() const { return conflict; }
   template <class Resolve>
@@ -97,6 +108,8 @@ public:
     core.tick(time);
     config = next;
     learning = 0;
+    commandLearning = false;
+    capturedCommand = Source{};
     candidate = Source{};
     conflict = 0;
     for (auto &b : config.bindings)
@@ -148,6 +161,8 @@ public:
   }
   void cancel() {
     learning = 0;
+    commandLearning = false;
+    capturedCommand = Source{};
     candidate = Source{};
     conflict = 0;
   }
@@ -155,11 +170,21 @@ public:
     if (!learning || !candidate.kind || conflict < 0)
       return false;
     for (auto &s : config.sources)
-      if (s.id != learning && s.kind == candidate.kind &&
-          s.channel == candidate.channel && s.number == candidate.number)
+      if ((commandLearning || s.id != learning) && s.kind == candidate.kind &&
+          s.channel == candidate.channel && s.number == candidate.number) {
         s.kind = 0;
+        if (commandLearning)
+          for (const auto &b : config.bindings)
+            if (b.policy.id && b.policy.source == s.id) {
+              core.removeMapping(b.policy.id);
+              core.configure(b.policy);
+            }
+      }
     auto s = candidate;
     s.id = learning;
+    if (commandLearning) {
+      cancel(); capturedCommand = s; return true;
+    }
     bool ok = source(s);
     if (ok)
       cancel();
@@ -187,6 +212,7 @@ public:
     if (!kind || (kind == 2 && (num == 64 || num >= 120)))
       return false;
     if (learning && !off) {
+      if (commandLearning && kind != 1) return true; // Phrase trigger learns notes only.
       if (candidate.kind)
         return true; // Await deliberate conflict decision.
       candidate.id = learning;
@@ -197,7 +223,7 @@ public:
         quarantine[ch][num] = true;
       conflict = legacy(kind, ch, num) ? -1 : 0;
       for (auto &s : config.sources)
-        if (!conflict && s.id != learning && s.kind == kind &&
+        if (!conflict && (commandLearning || s.id != learning) && s.kind == kind &&
             s.channel == ch && s.number == num)
           conflict = int(s.id);
       if (!conflict)

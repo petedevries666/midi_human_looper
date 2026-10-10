@@ -11,12 +11,12 @@ struct Event {
 };
 std::array<Event, 16384> events{};
 std::atomic<unsigned> count{0}, mask{0};
-jack_client_t *client;
+jack_client_t *client, *sourceClient;
 std::array<jack_port_t *, 3> inputs, outputs;
 std::array<bool, 3> held{};
-int process(jack_nframes_t n, void *) {
+int sourceProcess(jack_nframes_t n, void *) {
   jack_position_t p{};
-  auto transport = jack_transport_query(client, &p);
+  auto transport = jack_transport_query(sourceClient, &p);
   unsigned phase = p.frame % 192512;
   for (unsigned i = 0; i < 3; ++i) {
     auto out = jack_port_get_buffer(outputs[i], n);
@@ -33,6 +33,13 @@ int process(jack_nframes_t n, void *) {
       if (!jack_midi_event_write(out, 0, data, 3))
         held[i] = attack;
     }
+  }
+  return 0;
+}
+int process(jack_nframes_t n, void *) {
+  jack_position_t p{};
+  jack_transport_query(client, &p);
+  for (unsigned i = 0; i < 3; ++i) {
     auto in = jack_port_get_buffer(inputs[i], n);
     for (unsigned j = 0; j < jack_midi_get_event_count(in); ++j) {
       jack_midi_event_t e;
@@ -51,17 +58,19 @@ int process(jack_nframes_t n, void *) {
 int main() {
   jack_status_t s;
   client = jack_client_open("mbh_three_chain_probe", JackNoStartServer, &s);
-  if (!client)
+  sourceClient = jack_client_open("mbh_three_chain_source", JackNoStartServer, &s);
+  if (!client || !sourceClient)
     return 2;
   for (unsigned i = 0; i < 3; ++i) {
     inputs[i] = jack_port_register(client, ("in" + std::to_string(i)).c_str(),
                                    JACK_DEFAULT_MIDI_TYPE, JackPortIsInput, 0);
     outputs[i] =
-        jack_port_register(client, ("out" + std::to_string(i)).c_str(),
+        jack_port_register(sourceClient, ("out" + std::to_string(i)).c_str(),
                            JACK_DEFAULT_MIDI_TYPE, JackPortIsOutput, 0);
   }
+  jack_set_process_callback(sourceClient, sourceProcess, nullptr);
   jack_set_process_callback(client, process, nullptr);
-  if (jack_activate(client))
+  if (jack_activate(sourceClient) || jack_activate(client))
     return 3;
   for (unsigned i = 0; i < 3; ++i) {
     auto name = "mbh_" + std::to_string(i + 1);
@@ -75,7 +84,9 @@ int main() {
   unsigned value;
   while (std::cin >> value)
     mask = value;
+  jack_deactivate(sourceClient);
   jack_deactivate(client);
+  jack_client_close(sourceClient);
   jack_client_close(client);
   for (unsigned i = 0; i < count; ++i) {
     auto &e = events[i];

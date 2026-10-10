@@ -17,15 +17,24 @@ class ControllerTests(HeadlessTests):
         m.update(kw);return self.command('mapping_commit',mapping=m)
     def source(self,id=101,**kw):return self.command('controller_source',sourceId=id,**kw)
     def cc(self,v,**kw):return self.command('midi_cc',channel=2,number=21,value=v,**kw)
+    def at_sample_time(self,start,seconds):
+        deadline=time.monotonic()+3
+        while True:
+            state=self.call()
+            if state['sampleClock']>=start+seconds*state['sampleRate']:return state
+            if time.monotonic()>deadline:raise AssertionError('engine sample clock did not advance')
+            time.sleep(.003)
     def test_controller_direct_glide_return_and_base(self):
         self.source(kind=2,channel=2,number=21)
-        self.mapping(takeover=2,glideSeconds=.2,returnMode=1,idleSeconds=.25,returnSeconds=.15)
-        self.cc(0)
-        time.sleep(.1);mid=self.call()['instruments'][0]['level'];self.assertGreater(mid,0);self.assertLess(mid,100)
-        time.sleep(.14);self.assertLess(self.call()['instruments'][0]['level'],5)
-        time.sleep(.25);self.assertEqual(self.call()['instruments'][0]['level'],100)
+        self.mapping(takeover=2,glideSeconds=.2,returnMode=1,idleSeconds=.4,returnSeconds=.15)
+        start=self.cc(0)['sampleClock']
+        mid=self.at_sample_time(start,.1)['instruments'][0]['level']
+        self.assertGreater(mid,0);self.assertLess(mid,100)
+        self.assertLess(self.at_sample_time(start,.23)['instruments'][0]['level'],5)
+        self.assertEqual(self.at_sample_time(start,.6)['instruments'][0]['level'],100)
         self.command('instrument_route',instrumentId=1,field='level',value=64)
-        self.cc(127);time.sleep(.5);self.assertEqual(self.call()['instruments'][0]['level'],64)
+        start=self.cc(127)['sampleClock']
+        self.assertEqual(self.at_sample_time(start,.6)['instruments'][0]['level'],64)
     def test_learn_isolation_conflict_cancel_forget(self):
         self.source();self.source(102)
         self.command('controller_learn',sourceId=101);self.cc(30)

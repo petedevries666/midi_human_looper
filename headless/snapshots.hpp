@@ -1,5 +1,6 @@
 #pragma once
 #include "controller_engine.hpp"
+#include "parameter_registry.hpp"
 #include <algorithm>
 #include <array>
 #include <cstring>
@@ -139,6 +140,20 @@ public:
     records[count++] = copy;
     ++revision;
     return copy.id;
+  }
+  void pruneInstrument(uint32_t id) {
+    for (unsigned i = 0; i < count; ++i) {
+      auto &state = records[i].state;
+      unsigned kept = 0;
+      for (unsigned j = 0; j < state.count; ++j) {
+        const auto &v = state.values[j];
+        if (v.key.instrument != id || phraseKind(v.key.kind))
+          state.values[kept++] = v;
+      }
+      for (unsigned j = kept; j < state.count; ++j) state.values[j] = Value{};
+      state.count = kept;
+    }
+    ++revision;
   }
   bool erase(uint32_t id) {
     for (unsigned i = 0; i < count; ++i)

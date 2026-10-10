@@ -21,6 +21,16 @@ from urllib.parse import urlsplit
 
 ROOT = Path(__file__).parent / 'web'
 
+PATCH_KEYS={'format','schema','work_mem_size','globals','memory','controllerEngine','globalSnapshots'}
+def validate_patch_extensions(patch):
+    if not isinstance(patch,dict) or set(patch)-PATCH_KEYS:
+        raise ValueError('Unsupported patch fields preserved; refusing to discard configuration.')
+    if patch.get('format')!='MIDI_HUMAN_LOOPER_PATCH' or type(patch.get('schema')) is not int or not 1<=patch['schema']<=7:
+        raise ValueError('Unsupported patch format/schema preserved; refusing overwrite or load.')
+    for name,versions in (('controllerEngine',(1,)),('globalSnapshots',(1,2,3,4))):
+        if name in patch and (not isinstance(patch[name],dict) or type(patch[name].get('version')) is not int or patch[name]['version'] not in versions):
+            raise ValueError('Unsupported patch extension preserved; refusing to discard configuration.')
+
 class Control:
     def __init__(self, path):
         self.path = path
@@ -43,6 +53,7 @@ class Control:
                 line=line.rstrip('\n')+f' {module} {len(parameters)} '+ ' '.join(f"{p['kind']} {p['value']:.17g}" for p in parameters)+'\n'
             if binding is not None:line=line.rstrip('\n')+' '+' '.join(format(v,'.17g') for v in binding)+'\n'
             if patch is not None:
+                validate_patch_extensions(patch)
                 line = line.rstrip('\n') + ' ' + ' '.join(format(v, '.17g') for v in patch['globals']+patch['memory'])+'\n'
                 if 'controllerEngine' in patch:
                     decode(patch['controllerEngine'])
@@ -162,7 +173,9 @@ class Handler(BaseHTTPRequestHandler):
         if path=='/api/v1/ws' and self.headers.get('Upgrade','').lower()=='websocket':
             self.websocket();return
         if path == '/api/v1/descriptors':
-            self.respond(200,REGISTRY.document());return
+            document=REGISTRY.document()
+            document['runtimeCapabilities']={'transformerTypes':[1,2,3,4,5,6], 'humanizer':False, 'echocity':False, 'phraseTransformers':False, 'snapshots':True, 'reaperSnapshots':False, 'ordering':'legacy-stages-or-serial-pitch'}
+            self.respond(200,document);return
         if path.startswith('/api/v1/snapshot/'):
             try:
                 id=int(path.rsplit('/',1)[-1])
@@ -280,6 +293,14 @@ class Handler(BaseHTTPRequestHandler):
                 if any(type(v) is not int or not 0<=v<=16777215 for v in (target,module,type_)) or not target or op not in ('add','delete','bypass','up','down'):raise ValueError()
                 if op=='add' and type_ not in REGISTRY.engine_types:raise ValueError()
                 args=dict(op=13,target=target,module=module,arg=('add','delete','bypass','up','down').index(op)+1,note=type_)
+            elif action in ('phrase_learn','phrase_learn_cancel','phrase_forget','phrase_learn_confirm'):
+                target=data.get('phraseId')
+                if type(target) is not int or not 1<=target<=16:raise ValueError()
+                args=dict(op=34,target=target,arg=('phrase_learn','phrase_learn_cancel','phrase_forget','phrase_learn_confirm').index(action))
+            elif action in ('instrument_add','instrument_delete'):
+                target=data.get('instrumentId',0)
+                if type(target) is not int or not 0<=target<=16777215 or (action=='instrument_delete' and not target):raise ValueError()
+                args=dict(op=33,target=target,arg=int(action=='instrument_delete'))
             elif action=='instrument_commit':
                 target=data.get('instrumentId');values=[data.get(k) for k in ('enabled','input','output','level')]
                 if type(target) is not int or not 1<=target<=16777215 or any(type(v) is not int or not 0<=v<=limit for v,limit in zip(values,(1,16,16,127))):raise ValueError()
@@ -329,9 +350,9 @@ class Handler(BaseHTTPRequestHandler):
             if self.path.endswith('/save') or self.path.endswith('/export'):
                 if path.exists():
                     previous=json.loads(path.read_text())
-                    for extension in ('globalSnapshots','controllerEngine'):
-                        if extension in previous and (not isinstance(previous[extension],dict) or type(previous[extension].get('version')) is not int or previous[extension]['version'] not in ((1,2,3,4) if extension=='globalSnapshots' else (1,))):
-                            self.respond(422,{'error':'Unsupported saved configuration preserved; refusing overwrite.'});return
+                    try:validate_patch_extensions(previous)
+                    except ValueError as error:
+                        self.respond(422,{'error':str(error)});return
                 patch=self.server.control.request(op=4,revision=rev,session=session)
                 if patch.get('status')=='conflict':self.respond(409,patch);return
                 if patch.get('format')!='MIDI_HUMAN_LOOPER_PATCH':raise ValueError()
@@ -353,6 +374,9 @@ class Handler(BaseHTTPRequestHandler):
             else:
                 if path.stat().st_size>16000000:raise ValueError()
                 patch=json.loads(path.read_text())
+                try:validate_patch_extensions(patch)
+                except ValueError as error:
+                    self.respond(422,{'error':str(error)});return
                 schema=patch.get('schema');memory=patch.get('memory');globals_=patch.get('globals')
                 if patch.get('format')!='MIDI_HUMAN_LOOPER_PATCH' or type(schema) is not int or not 1<=schema<=7 or not isinstance(memory,list) or patch.get('work_mem_size')!=len(memory) or not 0<len(memory)<=200000 or not isinstance(globals_,list) or len(globals_)!=9:raise ValueError()
                 if any(type(x) not in (int,float) or not math.isfinite(x) for x in globals_+memory):raise ValueError()

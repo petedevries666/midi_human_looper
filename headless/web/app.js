@@ -184,24 +184,9 @@ function render(s){
   }
   renderAB(s);
   renderControllers(s);
-  const model=JSON.stringify([s.phrases,s.instruments,s.switches.map(v=>({...v,step:0})),s.snapshotActions]);if(model===renderedModel)return;renderedModel=model;
-  $('phrases').replaceChildren(...s.phrases.map(p=>{const n=node('div',`PHRASE ${p.id}`,'phrase');n.append(node('small',`${p.events} events · ${p.mode===0?'LOOP':'ONCE / HOLD'} · TIME ×${p.timeDecay.toFixed(2)}`));for(const [label,action] of [['PLAY','phrase_play'],['REC / OVERDUB','phrase_record'],['FINISH REC','phrase_finish']])n.append(button(label,()=>command({action,phraseId:p.id})));return n;}));
-  $('instruments').replaceChildren(...s.instruments.map(i=>{
-    const n=node('article',undefined,'instrument');n.dataset.instrumentId=i.id;
-    n.append(node('h3',`${i.name||'INSTRUMENT'} · ID ${i.id} · ${i.enabled?'ON':'OFF'}`),node('div',`MIDI IN ${i.input||'ALL'} → OUT ${i.output||'ORIGINAL'}`,'routing'),node('p',`VOLUME ${i.level}`),button('EDIT',()=>editInstrument(i)));
-    const rail=node('div',undefined,'rail'),fill=node('span');fill.style.width=`${i.level/127*100}%`;rail.append(fill);n.append(rail);
-    const chain=node('div',undefined,'transformers');
-    for(const tf of i.transformers||[]){
-      const card=node('article',undefined,'module');card.dataset.moduleId=tf.id;
-      card.append(node('h3',`${descriptor(tf.type)?.label||'MODULE'} · ID ${tf.id}`),node('p',tf.enabled?'ON':'BYPASS'),button('EDIT',()=>editModule(i,tf)));
-      for(const [label,operation] of [['BYPASS','bypass'],['↑','up'],['↓','down'],['DELETE','delete']])card.append(button(label,()=>{if(operation==='delete'&&!confirm('Delete this Transformer?'))return;command({action:'module_structure',instrumentId:i.id,moduleId:tf.id,operation});}));
-      chain.append(card);
-    }
-    const select=node('select');select.setAttribute('aria-label',`Transformer type for Instrument ${i.id}`);
-    for(const d of catalog?.modules.filter(m=>m.engineType>0)||[]){const option=node('option',d.label);option.value=d.engineType;select.append(option);}
-    n.append(chain,select,button('ADD TRANSFORMER',()=>command({action:'module_structure',instrumentId:i.id,operation:'add',engineType:Number(select.value)})));
-    return n;
-  }));
+  const model=JSON.stringify([s.controllerLearn,s.phrases,s.instruments,s.switches.map(v=>({...v,step:0})),s.snapshotActions]);if(model===renderedModel)return;renderedModel=model;
+  compactPhrases(s);
+  $('instruments').replaceChildren(...s.instruments.map(compactInstrument));
   $('switches').replaceChildren(...s.switches.map(sw=>{
     const n=node('article',undefined,'switch');n.dataset.switchId=sw.id;n.append(node('strong',sw.name||`SWITCH ${sw.id}`),node('small',`${sw.kind===1?'NOTE':sw.kind===2?'CC':'UNASSIGNED'} ${sw.number} · CH ${sw.channel}`),node('small',`STEP ${sw.step} / ${sw.length}`,'step'),button('OPTIONS',()=>editSwitchSnapshots(sw)));
     const tests=node('div',undefined,'tests');for(const gesture of ['tap','double','hold']){const b=button(`TEST ${gesture.toUpperCase()}`,()=>command({action:'test',switchId:sw.id,gesture}));b.dataset.valid=sw.enabled?'1':'0';b.disabled=!sw.enabled;tests.append(b);}
@@ -240,7 +225,7 @@ function renderControllers(s){
     const card=node('article',undefined,'module');card.dataset.sourceId=source.id;
     card.append(node('h3',`SOURCE ${source.id}`),node('p',source.kind?`${source.kind===1?'NOTE':'CC'} ${source.number} · CH ${source.channel}`:'UNASSIGNED'));
     card.append(button('MIDI LEARN',()=>command({action:'controller_learn',sourceId:source.id})),button('FORGET',()=>command({action:'controller_forget',sourceId:source.id})));
-    if(learn.target===source.id){card.append(node('p',learn.conflict<0?'Already assigned to a legacy phrase/switch/controller. CANCEL and choose another input.':learn.conflict>0?`Already assigned to SOURCE ${learn.conflict}. Reassign deliberately?`:'Waiting for MIDI note or CC…'),button('CANCEL LEARN',()=>command({action:'controller_cancel',sourceId:source.id})));if(learn.conflict>0)card.append(button('REASSIGN',()=>command({action:'controller_confirm',sourceId:source.id})));}
+    if(learn.domain!=='phrase'&&learn.target===source.id){card.append(node('p',learn.conflict<0?'Already assigned to a legacy phrase/switch/controller. CANCEL and choose another input.':learn.conflict>0?`Already assigned to SOURCE ${learn.conflict}. Reassign deliberately?`:'Waiting for MIDI note or CC…'),button('CANCEL LEARN',()=>command({action:'controller_cancel',sourceId:source.id})));if(learn.conflict>0)card.append(button('REASSIGN',()=>command({action:'controller_confirm',sourceId:source.id})));}
     return card;
   }));
   $('mappings').replaceChildren(...mappings.map(m=>{
@@ -282,3 +267,55 @@ $('export-patch').addEventListener('click',()=>patch('export'));
 
 document.addEventListener('click',event=>{for(const menu of document.querySelectorAll('.snapshot-actions[open]'))if(!menu.contains(event.target))menu.open=false;});
 document.addEventListener('keydown',event=>{if(event.key==='Escape')for(const menu of document.querySelectorAll('.snapshot-actions[open]'))menu.open=false;});
+let phrasePage=0;
+function liveParameter(targetId,kind,value,moduleId=0){return command({action:'parameter_set',targetId,moduleId,kind,value});}
+function inlineNumber(label,value,min,max,step,onchange){
+  const wrap=node('label',label,'inline-control'),input=node('input');input.type='number';input.min=min;input.max=max;input.step=step;input.value=value;input.setAttribute('aria-label',label);input.onchange=()=>onchange(Number(input.value));wrap.append(input);return wrap;
+}
+function compactPhrases(s){
+  const pages=Math.ceil(s.phrases.length/6);phrasePage=Math.min(phrasePage,pages-1);
+  $('phrase-pagination').replaceChildren(button('←',()=>{phrasePage=Math.max(0,phrasePage-1);renderedModel='';render(latest);}),node('span',`${phrasePage+1} / ${pages}`),button('→',()=>{phrasePage=Math.min(pages-1,phrasePage+1);renderedModel='';render(latest);}));
+  $('phrases').replaceChildren(...s.phrases.slice(phrasePage*6,phrasePage*6+6).map(p=>{
+    const row=node('div',undefined,'phrase');row.dataset.phraseId=p.id;
+    row.append(button('REC / OVERDUB',()=>command({action:'phrase_record',phraseId:p.id})),button('TRIGGER',()=>command({action:'phrase_play',phraseId:p.id})),node('strong',`PHRASE ${p.id}`));
+    const learning=s.controllerLearn?.domain==='phrase'&&s.controllerLearn.target===p.id;
+    const learn=button(learning?'CANCEL LEARN':p.triggerNote>=0?`LEARN · CH${p.triggerChannel||'ANY'} N${p.triggerNote}`:'TRIGGER LEARN',()=>command({action:learning?'phrase_learn_cancel':'phrase_learn',phraseId:p.id}));
+    learn.title=p.triggerNote>=0?`NOTE ${p.triggerNote} · CH ${p.triggerChannel||'ANY'}`:'Unassigned phrase trigger';row.append(learn);
+    if(learning&&s.controllerLearn.conflict){row.append(node('small',s.controllerLearn.conflict<0?'Already assigned to a phrase/switch. Cancel or choose a different note.':'Already assigned to a Controller source.'));
+      if(s.controllerLearn.conflict>0)row.append(button('REASSIGN',()=>command({action:'phrase_learn_confirm',phraseId:p.id})));}
+    row.append(button(p.solo?'SOLO ON':'SOLO',()=>liveParameter(p.id,19,p.solo?0:1)),button(p.mute?'MUTE ON':'MUTE',()=>liveParameter(p.id,18,p.mute?0:1)));
+    const mode=node('select');mode.setAttribute('aria-label',`Play mode Phrase ${p.id}`);
+    for(const [value,label] of [[1,'ONCE'],[0,'LOOP'],[2,'HOLD']]){const option=node('option',label);option.value=value;mode.append(option);}mode.value=p.mode;mode.disabled=!!s.chainMode;mode.title=s.chainMode?'Native chain prototype uses synchronized two-bar LOOP playback':'';mode.onchange=()=>liveParameter(p.id,20,Number(mode.value));row.append(mode);
+    row.append(inlineNumber('BASE VEL',p.baseVelocity,.2,3,.01,value=>liveParameter(p.id,17,value)));
+    if(p.mode===1)row.append(inlineNumber('VEL DECAY',p.velocityDecay,.2,1,.01,value=>liveParameter(p.id,15,value)),inlineNumber('TIME DECAY',p.timeDecay,.5,2,.01,value=>liveParameter(p.id,14,value)));
+    const finish=button('FINISH REC',()=>command({action:'phrase_finish',phraseId:p.id}));finish.title='Finish record / overdub without discarding the take';row.append(finish,node('small',`${p.events} events`));
+    return row;
+  }));
+}
+function compactInstrument(i){
+  const n=node('article',undefined,'instrument');n.dataset.instrumentId=i.id;
+  const main=node('div',undefined,'instrument-main');
+  main.append(button(i.enabled?'ON':'OFF',()=>liveParameter(i.id,21,i.enabled?0:1)),node('strong',`${i.name||'INSTRUMENT'} · ${i.id}`));
+  for(const [label,kind,current,zero] of [['MIDI IN',22,i.input,'ALL'],['MIDI OUT',23,i.output,'ORIGINAL']]){
+    const wrap=node('label',label,'inline-control'),select=node('select');select.setAttribute('aria-label',`${label} Instrument ${i.id}`);
+    for(let channel=0;channel<=16;channel++){const option=node('option',channel?String(channel):zero);option.value=channel;select.append(option);}select.value=current;select.onchange=()=>liveParameter(i.id,kind,Number(select.value));wrap.append(select);main.append(wrap);
+  }
+  main.append(inlineNumber('VOLUME',i.level,0,127,1,value=>liveParameter(i.id,1,value)),button('×',()=>{if(confirm(`Delete Instrument ${i.id} and its complete Transformer chain?`))command({action:'instrument_delete',instrumentId:i.id});}));n.append(main);
+  const chain=node('div',undefined,'transformers');
+  for(const tf of i.transformers||[]){
+    const card=node('article',undefined,'module');card.dataset.moduleId=tf.id;
+    card.append(node('strong',`${descriptor(tf.type)?.label||'MODULE'} · ${tf.id}`),node('small',tf.enabled?'ON':'BYPASS'),button('EDIT',()=>editModule(i,tf)));
+    for(const [label,operation] of [['BYPASS','bypass'],['↑','up'],['↓','down'],['DELETE','delete']]){
+      if(operation==='up'||operation==='down'){
+        const index=i.transformers.indexOf(tf),other=i.transformers[index+(operation==='up'?-1:1)];
+        if(!i.serialPitchOrder||![1,2].includes(tf.type)||!other||![1,2].includes(other.type))continue;
+      }
+      card.append(button(label,()=>{if(operation==='delete'&&!confirm('Delete this Transformer?'))return;command({action:'module_structure',instrumentId:i.id,moduleId:tf.id,operation});}));
+    }chain.append(card);
+  }
+  const select=node('select');select.setAttribute('aria-label',`Transformer type for Instrument ${i.id}`);
+  for(const d of catalog?.modules.filter(m=>m.engineType>0&&(catalog.runtimeCapabilities?.transformerTypes||[1,2,3,4,5,6]).includes(m.engineType))||[]){const option=node('option',d.label);option.value=d.engineType;select.append(option);}
+  n.append(chain,node('small',i.serialPitchOrder?'Serial pitch order · Velocity → Polyphony → ARP; CC separate':'Legacy stages: Transpose → Range → Velocity → Polyphony → ARP; CC separate'),select,button('ADD TRANSFORMER',()=>command({action:'module_structure',instrumentId:i.id,operation:'add',engineType:Number(select.value)})),button('EDIT',()=>editInstrument(i)));return n;
+}
+
+$('add-instrument').onclick=()=>command({action:'instrument_add'});

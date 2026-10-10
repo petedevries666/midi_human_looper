@@ -9,7 +9,7 @@ def binding_wire(data):
     result=[data.get(field,default) for field,default in zip(FIELDS,DEFAULT)]
     result[17]=len(points)
     if any(type(v) is not int or not 0<=v<=16777215 for v in result[:6]):raise ValueError('stable IDs/kind required')
-    if not all(result[j] for j in (0,1,2,3)) or result[5]>15:raise ValueError('invalid mapping identity')
+    if not all(result[j] for j in (0,1,2,3)) or result[5]>16:raise ValueError('invalid mapping identity')
     if any(type(result[j]) is not int or not 0<=result[j]<=limit for j,limit in ((7,1000),(8,3),(9,3),(10,1),(16,1))):raise ValueError('invalid policy')
     if any(type(v) not in (int,float) or not math.isfinite(v) for v in result):raise ValueError('finite values required')
     if not 0<=result[6]<=1 or not 0<=result[11]<=1 or not 0<result[12]<=60 or not 0<result[13]<=1000 or not 0<=result[14]<=3600 or not 0<result[15]<=60:raise ValueError('invalid duration/threshold')

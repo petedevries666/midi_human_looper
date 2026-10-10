@@ -1,5 +1,6 @@
 #pragma once
 #include "controller_engine.hpp"
+#include <algorithm>
 #include <array>
 #include <cstring>
 namespace performance {
@@ -53,11 +54,22 @@ struct SwitchAction {
   unsigned gesture = 0, action = 0; // 1 next, 2 previous, 3 recall, 4 morph, 5
                                     // cycle, 6/7 morph next/previous
 };
+struct AB {
+  uint32_t a = 0, b = 0;
+  double position = 0;
+  unsigned ease = 0;
+  bool valid() const {
+    return a <= 16777215 && b <= 16777215 && std::isfinite(position) &&
+           position >= 0 && position <= 1 && ease <= 1 &&
+           ((!a && !b) || (a && b && a != b));
+  }
+};
 struct Configuration {
   uint32_t nextId = 1, selected = 0;
   unsigned count = 0;
   std::array<Record, 16> records{};
   std::array<SwitchAction, 48> actions{};
+  AB ab;
 };
 class Snapshots {
   std::array<Record, 16> records{};
@@ -65,7 +77,8 @@ class Snapshots {
   std::array<SwitchAction, 48> actions{};
 
 public:
-  static constexpr unsigned version = 2;
+  static constexpr unsigned version = 3;
+  AB ab;
   unsigned count = 0;
   uint32_t selected = 0, revision = 1;
   const Record *find(uint32_t id) const {
@@ -133,6 +146,8 @@ public:
         for (unsigned j = i + 1; j < count; ++j)
           records[j - 1] = records[j];
         records[--count] = Record{};
+        if (ab.a == id || ab.b == id)
+          ab = AB{};
         for (auto &a : actions)
           if ((a.action == 3 || a.action == 4) && a.snapshotId == id)
             a = SwitchAction{};
@@ -199,10 +214,11 @@ public:
     c.selected = selected;
     c.records = records;
     c.actions = actions;
+    c.ab = ab;
     return c;
   }
   bool restore(const Configuration &c) {
-    if (c.count > 16 || !c.nextId || c.nextId > 16777216)
+    if (!c.ab.valid() || c.count > 16 || !c.nextId || c.nextId > 16777216)
       return false;
     bool selectedKnown = c.selected == 0;
     for (unsigned i = 0; i < c.count; ++i) {
@@ -227,6 +243,13 @@ public:
             c.actions[j].gesture == a.gesture)
           return false;
     }
+    if (c.ab.a &&
+        (!std::any_of(c.records.begin(), c.records.begin() + c.count,
+                      [&](const Record &r) { return r.id == c.ab.a; }) ||
+         !std::any_of(c.records.begin(), c.records.begin() + c.count,
+                      [&](const Record &r) { return r.id == c.ab.b; })))
+      return false;
+    ab = c.ab;
     records = c.records;
     actions = c.actions;
     count = c.count;

@@ -433,6 +433,21 @@
       "assignmentEligible": true,
       "curveSupport": true,
       "serializationVersion": 1
+    },
+    {
+      "id": "snapshot_ab",
+      "engineKind": 16,
+      "label": "SNAPSHOT A/B",
+      "valueType": "float",
+      "min": 0,
+      "max": 1,
+      "default": 0,
+      "step": 0.001,
+      "unit": "",
+      "normalizedConversion": "linear_quantized",
+      "assignmentEligible": true,
+      "curveSupport": true,
+      "serializationVersion": 1
     }
   ],
   "modules": [

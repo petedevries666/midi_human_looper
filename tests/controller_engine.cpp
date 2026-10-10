@@ -143,9 +143,16 @@ int main() {
       auto token = e.external(1, .8, 100, 3);
       e.input(2, 0, 4);
       near(e.target(1)->effective, .8, "automation owns");
+      check(e.updateExternal(1, token, .75), "macro updates its owned token");
+      near(e.target(1)->effective, .75, "macro updated effective value");
+      check(!e.updateExternal(1, token + 1, .2), "stale macro update rejected");
+      check(!e.updateExternal(1, token, NAN),
+            "nonfinite macro update rejected");
       check(!e.releaseExternal(1, token + 1), "stale token rejected");
       check(e.releaseExternal(1, token), "release valid token");
       e.input(1, .6, 4);
+      check(!e.updateExternal(1, token, .1),
+            "macro cannot overwrite physical takeover");
       near(e.target(1)->effective, .6, "new snapshot after ownership release");
     }
     {

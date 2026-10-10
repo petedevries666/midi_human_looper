@@ -16,7 +16,7 @@ inline bool integer(std::istream &in, unsigned &value, unsigned maximum) {
 }
 inline bool readConfiguration(std::istream &in, Configuration &c) {
   unsigned version = 0;
-  if (!integer(in, version, 2) || version < 1 ||
+  if (!integer(in, version, 3) || version < 1 ||
       !integer(in, c.nextId, 16777216) || !integer(in, c.selected, 16777215) ||
       !integer(in, c.count, 16))
     return false;
@@ -53,12 +53,16 @@ inline bool readConfiguration(std::istream &in, Configuration &c) {
       if (!integer(in, a.switchId, 16777215) || !integer(in, a.gesture, 2) ||
           !integer(in, a.action, 7) || !integer(in, a.snapshotId, 16777215))
         return false;
+  if (version >= 3 &&
+      (!integer(in, c.ab.a, 16777215) || !integer(in, c.ab.b, 16777215) ||
+       !(in >> c.ab.position) || !integer(in, c.ab.ease, 1)))
+    return false;
   Snapshots validate;
   return validate.restore(c);
 }
 inline std::string configurationJson(const Configuration &c) {
   std::ostringstream o;
-  o << std::setprecision(17) << "{\"version\":2,\"configuration\":[2,"
+  o << std::setprecision(17) << "{\"version\":3,\"configuration\":[3,"
     << c.nextId << ',' << c.selected << ',' << c.count;
   for (unsigned i = 0; i < c.count; ++i) {
     const auto &r = c.records[i];
@@ -75,6 +79,8 @@ inline std::string configurationJson(const Configuration &c) {
   for (const auto &a : c.actions)
     o << ',' << a.switchId << ',' << a.gesture << ',' << a.action << ','
       << a.snapshotId;
+  o << ',' << c.ab.a << ',' << c.ab.b << ',' << c.ab.position << ','
+    << c.ab.ease;
   o << "]}";
   return o.str();
 }

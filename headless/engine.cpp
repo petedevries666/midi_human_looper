@@ -63,6 +63,7 @@ struct Request {
   int op = 0, target = 0, arg = 0, revision = 1, ch = 0, note = 0, value = 0;
   int module = 0, count = 0;
   char snapshotName[49]{};
+  double macroPosition = 0;
   double snapshotSeconds = 2;
   int snapshotEase = 1, snapshotSwitch = 2;
   std::array<ParameterChange, 4> parameters{};
@@ -115,6 +116,8 @@ struct Snapshot {
   std::array<int, 16> performanceEase{}, performanceSwitch{};
   std::array<bool, 16> performanceDirty{};
   std::array<performance::SwitchAction, 48> snapshotActions{};
+  performance::AB ab;
+  unsigned abSkipped = 0, abOverridden = 0;
 };
 struct Reply {
   uint64_t id = 0;
@@ -150,6 +153,7 @@ static void execute(ysfx_t *fx, const char *text) {
   NSEEL_code_free(p);
 }
 struct Model {
+  mutable double abPosition = 0;
   std::array<std::array<double *, 26>, 16> sw;
   std::array<std::array<double *, 22>, 8> inst;
   std::array<std::array<double *, 4>, 16> phrase;
@@ -377,6 +381,8 @@ struct Model {
     return false;
   }
   double *bindingValue(const controller::Binding &b) const {
+    if (b.kind == 16)
+      return b.instrument == 1 && !b.module ? &abPosition : nullptr;
     unsigned i;
     int c, r;
     if (!resolve(b, i, c, r))
@@ -384,6 +390,8 @@ struct Model {
     return c == -1 ? phrase[i][r] : c ? values[i][c][r] : inst[i][5];
   }
   double bindingBase(const controller::Binding &b) const {
+    if (b.kind == 16)
+      return abPosition;
     unsigned i;
     int c, r;
     if (!resolve(b, i, c, r))
@@ -564,7 +572,10 @@ static std::string json(const Reply &r) {
         << ",\"action\":" << a.action << ",\"snapshotId\":" << a.snapshotId
         << '}';
     }
-  o << ']';
+  o << "] ,\"snapshotAB\":{\"a\":" << s.ab.a << ",\"b\":" << s.ab.b
+    << ",\"position\":" << s.ab.position << ",\"ease\":" << s.ab.ease
+    << ",\"skipped\":" << s.abSkipped << ",\"overridden\":" << s.abOverridden
+    << '}';
   if (r.detail.id) {
     const auto &d = r.detail;
     o << ",\"snapshotDetail\":{\"id\":" << d.id << ",\"name\":" << quote(d.name)
@@ -783,7 +794,7 @@ static void control(int listener, Queue<Request, 64> &commands,
                       request.arg >> request.revision >> request.ch >>
                       request.note >> request.value) &&
                  request.id > 0 && request.id <= 9007199254740991ULL &&
-                 request.op >= 0 && request.op <= 29 && request.arg >= 0 &&
+                 request.op >= 0 && request.op <= 31 && request.arg >= 0 &&
                  request.arg <= (request.op == 13   ? 5
                                  : request.op == 15 ? 3
                                                     : 2) &&
@@ -817,6 +828,13 @@ static void control(int listener, Queue<Request, 64> &commands,
         if (input >> extra)
           valid = false;
       }
+    } else if (valid && (request.op == 30 || request.op == 31)) {
+      valid = bool(input >> request.module >> request.macroPosition) &&
+              request.module >= 0 && request.module <= 16777215 &&
+              std::isfinite(request.macroPosition) &&
+              request.macroPosition >= 0 && request.macroPosition <= 1;
+      if (input >> extra)
+        valid = false;
     } else if (valid && request.op == 28) {
       valid = bool(input >> request.module) && request.module >= 0 &&
               request.module <= 16777215 && request.ch <= 7;
@@ -950,8 +968,11 @@ static void control(int listener, Queue<Request, 64> &commands,
               reply.status = 3;
             }
           }
-          if (reply.status == 0 && request.op == 5)
+          if (reply.status == 0 && request.op == 5) {
             performanceSnapshots.restore(request.snapshotConfig);
+            model.abPosition = performanceSnapshots.ab.position;
+            controllers.recall(1, 0, 16, model.abPosition);
+          }
           send_line(fd, json(reply), shutdown);
         }
       }
@@ -1155,7 +1176,10 @@ int main(int argc, char **argv) {
     auto resolveBinding = [&](const controller::Binding &b) {
       return model.bindingValue(b) != nullptr;
     };
+    bool abRequested = false;
     auto normalizedBase = [](int k, double v) {
+      if (k == 16)
+        return controller::clamp(v);
       if (k >= 14)
         return controller::clamp(k == 14 ? (std::log2(v <= 0 ? 1 : v) + 1) / 2
                                          : (v - .2) / .8);
@@ -1172,6 +1196,13 @@ int main(int argc, char **argv) {
                                     : (v - low) / (high - low));
     };
     auto applyBinding = [&](const controller::Binding &b, double value) {
+      if (b.kind == 16) {
+        if (std::abs(model.abPosition - value) > 1e-12) {
+          model.abPosition = value;
+          abRequested = true;
+        }
+        return;
+      }
       unsigned i;
       int code, row;
       if (!model.resolve(b, i, code, row))
@@ -1234,9 +1265,30 @@ int main(int argc, char **argv) {
     state.sampleRate = sampleRate;
     state.blockSize = blockSize;
     int lastRecallStatus = 0;
-    auto recallSnapshot = [&](uint32_t snapshotId, bool timed) {
+    bool abActive = false;
+    struct ABTarget {
+      unsigned slot = 0;
+      uint64_t token = 0;
+      double a = 0, b = 0;
+    };
+    std::array<ABTarget, 256> abTargets{};
+    unsigned abCount = 0, abSkipped = 0;
+    auto cancelAB = [&]() {
+      for (unsigned j = 0; j < abCount; ++j) {
+        auto &p = (*performanceTargets)[abTargets[j].slot];
+        controllers.cancelPerformanceTarget(p.id, abTargets[j].token);
+      }
+      abCount = 0;
+      abActive = false;
+      abRequested = false;
+    };
+    auto recallSnapshot = [&](uint32_t snapshotId, bool timed,
+                              const performance::Record *supplied) {
+      if (!supplied)
+        cancelAB();
       int status = 0;
-      const auto *r = performanceSnapshots->find(snapshotId);
+      const auto *r =
+          supplied ? supplied : performanceSnapshots->find(snapshotId);
       std::array<controller::Transition, 256> transitions{};
       std::array<unsigned, 256> slots{};
       std::array<double, 256> starts{};
@@ -1342,9 +1394,103 @@ int main(int argc, char **argv) {
               *snapHostCells[si * 6 + a.gesture * 2 + 1] = a.snapshotId;
             }
     };
+    auto updateAB = [&]() {
+      if (!abRequested)
+        return;
+      abRequested = false;
+      auto &config = performanceSnapshots->ab;
+      const auto *a = performanceSnapshots->find(config.a),
+                 *b = performanceSnapshots->find(config.b);
+      if (!a || !b) {
+        cancelAB();
+        return;
+      }
+      config.position = controller::clamp(model.abPosition);
+      double x = config.position;
+      if (config.ease)
+        x = x * x * (3 - 2 * x);
+      if (!abActive) {
+        performance::Record blend = *a;
+        blend.state.count = 0;
+        abSkipped = 0;
+        for (unsigned j = 0; j < a->state.count; ++j) {
+          const auto &va = a->state.values[j];
+          if (!va.included)
+            continue;
+          const performance::Value *vb = nullptr;
+          for (unsigned k = 0; k < b->state.count; ++k)
+            if (b->state.values[k].included && va.key == b->state.values[k].key)
+              vb = &b->state.values[k];
+          controller::Binding binding;
+          binding.instrument = va.key.instrument;
+          binding.module = va.key.module;
+          binding.kind = va.key.kind;
+          if (!vb || !model.bindingValue(binding) ||
+              (va.key.kind == 14 &&
+               (va.effective <= 0 || vb->effective <= 0))) {
+            ++abSkipped;
+            continue;
+          }
+          auto &out = blend.state.values[blend.state.count++];
+          out = va;
+          out.effective = performance::discrete(va.key.kind)
+                              ? (x < .5 ? va.effective : vb->effective)
+                          : va.key.kind == 14
+                              ? std::pow(2, (1 - x) * std::log2(va.effective) +
+                                                x * std::log2(vb->effective))
+                              : (1 - x) * va.effective + x * vb->effective;
+        }
+        if (!blend.state.count || recallSnapshot(blend.id, false, &blend) != 0)
+          return;
+        abCount = 0;
+        for (unsigned j = 0; j < blend.state.count; ++j) {
+          const auto &v = blend.state.values[j];
+          unsigned slot = 0;
+          while (slot < performanceTargetCount &&
+                 !((*performanceTargets)[slot].key == v.key))
+            ++slot;
+          if (slot == performanceTargetCount)
+            continue;
+          auto &p = (*performanceTargets)[slot];
+          auto &t = abTargets[abCount++];
+          t.slot = slot;
+          for (unsigned k = 0; k < a->state.count; ++k)
+            if (a->state.values[k].key == v.key)
+              t.a = normalizedBase(v.key.kind, a->state.values[k].effective);
+          for (unsigned k = 0; k < b->state.count; ++k)
+            if (b->state.values[k].key == v.key)
+              t.b = normalizedBase(v.key.kind, b->state.values[k].effective);
+          t.token = controllers.acquirePerformanceTarget(
+              p.id, normalizedBase(v.key.kind, v.effective));
+          p.active = false;
+        }
+        abActive = true;
+        performanceSnapshots->selected = 0;
+        performanceMorphSeconds = 0;
+      }
+      for (unsigned j = 0; j < abCount; ++j) {
+        auto &t = abTargets[j];
+        auto &p = (*performanceTargets)[t.slot];
+        double value = performance::discrete(p.binding.kind)
+                           ? (x < .5 ? t.a : t.b)
+                           : (1 - x) * t.a + x * t.b;
+        if (t.token &&
+            controllers.updatePerformanceTarget(p.id, t.token, value))
+          applyBinding(p.binding, value);
+      }
+    };
     auto publishPerformance = [&]() {
       state.performanceCount = performanceSnapshots->count;
       state.snapshotActions = performanceSnapshots->switchActions();
+      state.ab = performanceSnapshots->ab;
+      state.abSkipped = abSkipped;
+      state.abOverridden = 0;
+      for (unsigned j = 0; j < abCount; ++j) {
+        auto &p = (*performanceTargets)[abTargets[j].slot];
+        auto t = controllers.target(p.id);
+        if (!t || t->owner != UINT32_MAX || t->token != abTargets[j].token)
+          ++state.abOverridden;
+      }
       state.performanceSelected = performanceSnapshots->selected;
       state.performanceSkipped = performanceSkipped;
       state.performanceProgress =
@@ -1459,8 +1605,10 @@ int main(int argc, char **argv) {
         if (controllers.midi(e.data, e.size,
                              (state.samples + e.offset) / double(sampleRate),
                              conflicts)) {
-          if (before && !controllers.learnTarget())
+          if (before && !controllers.learnTarget()) {
+            cancelAB();
             ++state.revision;
+          }
           continue;
         }
         if (!ysfx_send_midi(fx, &e)) {
@@ -1487,6 +1635,7 @@ int main(int argc, char **argv) {
             NSEEL_code_execute(panic_bridge);
           if (request.op == 5) {
             *snapHostRead = *snapHostWrite;
+            cancelAB();
             performanceTargetCount = 0;
             performanceSkipped = 0;
             performanceMorphSeconds = 0;
@@ -1498,7 +1647,33 @@ int main(int argc, char **argv) {
           maintenance = true;
         } else if (request.op >= 20) {
           bool valid = false;
-          if (request.op == 29) {
+          if (request.op == 30) {
+            performance::AB config;
+            config.a = request.target;
+            config.b = request.module;
+            config.position = request.macroPosition;
+            config.ease = request.arg;
+            valid = config.valid() &&
+                    (!config.a || (performanceSnapshots->find(config.a) &&
+                                   performanceSnapshots->find(config.b)));
+            if (valid) {
+              cancelAB();
+              performanceSnapshots->ab = config;
+              model.abPosition = config.position;
+              controllers.recall(1, 0, 16, config.position);
+              abRequested = config.a != 0;
+            }
+          } else if (request.op == 31) {
+            valid = performanceSnapshots->ab.a && performanceSnapshots->ab.b &&
+                    (!request.target ||
+                     (unsigned(request.target) == performanceSnapshots->ab.a &&
+                      unsigned(request.module) == performanceSnapshots->ab.b));
+            if (valid) {
+              model.abPosition = request.macroPosition;
+              controllers.recall(1, 0, 16, model.abPosition);
+              abRequested = true;
+            }
+          } else if (request.op == 29) {
             const auto *record = performanceSnapshots->find(request.target);
             valid = record != nullptr;
             if (valid) {
@@ -1513,6 +1688,9 @@ int main(int argc, char **argv) {
           else if (request.op == 22)
             valid = performanceSnapshots->duplicate(request.target) != 0;
           else if (request.op == 23) {
+            if (performanceSnapshots->ab.a == unsigned(request.target) ||
+                performanceSnapshots->ab.b == unsigned(request.target))
+              cancelAB();
             valid = performanceSnapshots->erase(request.target);
             if (valid) {
               for (unsigned j = 0; j < performanceTargetCount; ++j) {
@@ -1567,7 +1745,7 @@ int main(int argc, char **argv) {
             a.snapshotId = request.module;
             valid = exists && performanceSnapshots->setAction(a);
           } else if (request.op == 26) {
-            valid = recallSnapshot(request.target, request.arg) == 0;
+            valid = recallSnapshot(request.target, request.arg, nullptr) == 0;
             if (!valid)
               reply.status = lastRecallStatus;
           }
@@ -1580,6 +1758,7 @@ int main(int argc, char **argv) {
             reply.status = 3;
         } else if (request.op >= 14) {
           if (request.op == 14) {
+            cancelAB();
             controller::Source source;
             source.id = request.target;
             source.kind = request.arg;
@@ -1601,16 +1780,21 @@ int main(int argc, char **argv) {
               valid = controllers.learn(request.target);
             } else if (request.arg == 1)
               controllers.cancel();
-            else if (request.arg == 2)
+            else if (request.arg == 2) {
+              cancelAB();
               valid = controllers.learnTarget() == unsigned(request.target) &&
                       controllers.confirm();
-            else
+            } else {
+              cancelAB();
               valid = controllers.forget(request.target);
+            }
             if (!valid)
               reply.status = 3;
             else
               ++state.revision;
           } else if (request.op == 16) {
+            if (request.binding.kind != 16)
+              cancelAB();
             auto b = request.binding;
             auto address = model.bindingValue(b);
             if (!address)
@@ -1664,8 +1848,10 @@ int main(int argc, char **argv) {
               if (!ysfx_send_midi(fx, &event))
                 reply.status = 3;
             }
-            if (before && !controllers.learnTarget())
+            if (before && !controllers.learnTarget()) {
+              cancelAB();
               ++state.revision;
+            }
           }
         } else if (request.op == 13) {
           publishPerformance();
@@ -1822,6 +2008,7 @@ int main(int argc, char **argv) {
         } else if (request.op == 2) {
           *snapHostRead = *snapHostWrite;
           performanceMorphSeconds = 0;
+          cancelAB();
           controllers.panic();
           ysfx_midi_clear(fx->midi.in.get());
           inputRead = inputWrite;
@@ -1839,8 +2026,10 @@ int main(int argc, char **argv) {
           if (controllers.midi(data, 3,
                                (state.samples + frames) / double(sampleRate),
                                conflicts)) {
-            if (before && !controllers.learnTarget())
+            if (before && !controllers.learnTarget()) {
+              cancelAB();
               ++state.revision;
+            }
           } else if (!ysfx_send_midi(fx, &event))
             reply.status = 3;
         }
@@ -1848,6 +2037,7 @@ int main(int argc, char **argv) {
       for (unsigned j = 0; j < performanceTargetCount;) {
         auto &p = (*performanceTargets)[j];
         if (!model.bindingValue(p.binding)) {
+          cancelAB();
           controllers.cancelPerformanceTarget(p.id, p.token);
           controllers.retirePerformanceTarget(p.id);
           (*performanceTargets)[j] =
@@ -1876,9 +2066,11 @@ int main(int argc, char **argv) {
         } else
           p.active = false;
       }
+      updateAB();
       syncSwitchActions();
       ysfx_process_float(fx, nullptr, nullptr, 0, 0, frames);
       if (*snapHostCancel) {
+        cancelAB();
         controllers.panic();
         for (unsigned j = 0; j < performanceTargetCount; ++j)
           (*performanceTargets)[j].active = false;
@@ -1893,8 +2085,8 @@ int main(int argc, char **argv) {
         ++*snapHostRead;
         if (action != 3 && action != 4)
           id = performanceSnapshots->navigate(action);
-        if (id &&
-            recallSnapshot(id, action == 4 || action == 6 || action == 7) == 0)
+        if (id && recallSnapshot(id, action == 4 || action == 6 || action == 7,
+                                 nullptr) == 0)
           ++state.revision;
       }
       *snapHostRead = *snapHostWrite = 0;

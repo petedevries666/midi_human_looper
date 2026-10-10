@@ -25,7 +25,7 @@ acceptance target. No unrelated PRs are included and nothing is merged.
 * Transactional EDIT/DONE/CANCEL in the existing modal: name, duration 0–30 seconds,
   Linear/Smooth, discrete switching at start/midpoint/end. Dismissal discards
   drafts. Captured configuration revision and engine session reject stale commits.
-* Version-2 `globalSnapshots` extension alongside unchanged schema-7 memory. Version-1 snapshots migrate with no switch overrides.
+* Version-3 `globalSnapshots` extension alongside unchanged schema-7 memory. Versions 1/2 migrate with no A/B pair; version 1 has no switch overrides.
   Existing pause barrier and atomic file replacement are reused. IDs, order,
   stored values and settings survive engine restart and patch reload. Legacy
   patches load with no snapshots. Malformed configurations are rejected before
@@ -48,6 +48,14 @@ acceptance target. No unrelated PRs are included and nothing is merged.
   Missing or legacy-expression-owned targets are skipped safely with a visible
   PARTIAL count; eligible targets still recall. A recall with no eligible targets
   is refused. Legacy expression takeover itself is not implemented.
+* Manual A/B morph uses a global Controller target (kind 16), two stable snapshot
+  IDs and their common included targets. The compact collapsed A/B control supports
+  linear/smooth interpolation, manual position and existing MIDI Learn. A learned
+  CC can drive it with GLIDE/PICKUP/SLEW and BACK TO STATE policies. Each underlying
+  target holds a token: individual physical takeover remains effective until a
+  new A/B session is configured. Capture excludes the macro itself. Pair, position,
+  curve and Controller mappings persist; runtime tokens do not. STOP/PANIC cancels
+  the session. Learn capture is consumed and does not change audible parameters.
 * REAPER Lua refuses unsupported snapshot-bearing patch round trips. REAPER
   export refuses nonempty snapshots instead of dropping them. Empty extensions
   can be exported as the existing base patch.
@@ -67,7 +75,7 @@ has no native phrase Transformer chain implementation yet.
 
 Legacy expression-owned targets are captured but cannot safely recall through
 this ownership adapter. They are explicitly skipped, preserving their existing
-owner. There is no manual A/B macro, macro MIDI Learn, beat/bar duration,
+owner. There is no beat/bar duration,
 grouped current-versus-stored parameter editor or actual REAPER Snapshot engine/UI.
 Snapshot inclusion editing and partial counts exist, but detailed takeover/override
 feedback and editing individual stored numeric values remain unimplemented.
@@ -84,15 +92,9 @@ No real Pi, Helix, Firefox or REAPER execution validation is claimed.
 
 ## Resume: exact next coding step
 
-Continue on **this branch**, not a new audit or replacement branch. Next implement
-manual A/B macro ownership: add one explicitly global, uncaptured macro target to
-the existing Controller binding resolver and application callback, backed by two
-stable snapshot IDs and a bounded set of common eligible parameter identities.
-Route manual position and a learned existing Controller source through that same
-policy target. Apply only token-owned parameters, so an individual physical
-controller takeover is not overwritten on every subsequent processing tick.
-Test endpoints, curves, exclusions/missing targets, mapping takeover, BACK TO STATE,
-MIDI Learn conflict/cancel, browser disconnect and restart persistence before UI.
+Continue on **this branch**. Next extend the shared parameter registry and safe
+legacy-expression ownership. Keep legacy assignments intact and arbitrate their
+physical movement through existing Controller tokens before enabling recall.
 
 Then complete:
 
@@ -148,7 +150,7 @@ recalls, held-note deferred changes, STOP/PANIC, restart and snapshot restoratio
 
 The complete combined suite above passed with the final production code:
 14 baseline HTTP tests, 4 descriptor/registry tests (including C++11 catalog
-identity assertions), 9 Controller API tests, 11 Snapshot API tests, 162,442 policy
+identity assertions), 9 Controller API tests, 12 Snapshot API tests, 162,447 policy
 checks + 528 adapter checks both normally and under ASan/UBSan, 2,328 actual
 EEL2/GUI/MIDI checks, 3 stable concurrent-render cases, 5 Lua persistence tests,
 3 actual dummy-JACK routing/overflow/timestamp scenarios, and Chromium host,
@@ -179,3 +181,14 @@ DOUBLE and HOLD events, TEST routing, inclusion commit/rejection, exclusions
 surviving UPDATE, partial missing-target recall and switch-action persistence.
 The earlier TEST-draft regression was fixed and the existing REAPER GUI tests
 remain mandatory. No actual Helix testing is claimed.
+
+## Manual A/B test
+
+Capture two different states, expand MANUAL A/B MORPH and CONFIGURE A/B. Select
+the two snapshots and DONE; sweep the slider between endpoints. Click MIDI LEARN,
+move a Helix CC pedal once to capture its assignment, then sweep again. The first
+event only learns; later events morph. Use the existing Controller mapping editor
+to select pickup/glide/slew or return behavior. Save, restart and load the patch;
+verify the pair, curve, position and assignment. A separately mapped target must
+retain its physical takeover during subsequent pedal movements. Real Helix and
+Firefox verification remains required.

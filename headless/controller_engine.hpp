@@ -435,6 +435,19 @@ public:
     }
     return true;
   }
+  // Streaming performance macro updates retain their original token. Physical
+  // takeover cannot be undone by a subsequent macro tick.
+  bool updateExternal(uint32_t id, uint64_t token, double value) {
+    if (!std::isfinite(value) || value < 0 || value > 1)
+      return false;
+    for (auto &t : targets)
+      if (t.id == id && t.owner == UINT32_MAX && t.token == token) {
+        t.morphing = false;
+        t.effective = value;
+        return true;
+      }
+    return false;
+  }
   bool releaseExternal(uint32_t id, uint64_t token) {
     for (auto &t : targets)
       if (t.id == id && t.owner == UINT32_MAX && t.token == token) {

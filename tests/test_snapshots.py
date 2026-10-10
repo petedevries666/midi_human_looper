@@ -86,6 +86,37 @@ class SnapshotTests(HeadlessTests):
         time.sleep(.3);self.assertEqual(self.call()['instruments'][0]['level'],64)
         time.sleep(1.8);self.assertEqual(self.call()['instruments'][0]['level'],64)
         self.command('mapping_delete',mappingId=1)
+    def test_manual_ab_controller_learn_and_individual_takeover(self):
+        self.command('instrument_route',instrumentId=1,field='level',value=32);a=self.capture()
+        self.command('instrument_route',instrumentId=1,field='level',value=112);b=self.capture()
+        self.command('snapshot_ab_configure',a=a['id'],b=b['id'])
+        self.assertEqual(self.call()['instruments'][0]['level'],32)
+        self.command('snapshot_ab_position',position=.5)
+        self.assertEqual(self.call()['instruments'][0]['level'],72)
+        self.command('snapshot_ab_position',position=1)
+        self.assertEqual(self.call()['instruments'][0]['level'],112)
+        self.command('controller_source',sourceId=103,kind=0)
+        macro=dict(id=3,sourceId=103,targetId=204,instrumentId=1,moduleId=0,kind=16,priority=0,takeover=0,returnMode=0,threshold=.02,glideSeconds=.2,slewPerSecond=1,idleSeconds=1,returnSeconds=.5,easing=0,enabled=1,points=[[0,0,0],[1,1,0]])
+        self.command('mapping_commit',mapping=macro)
+        self.command('controller_learn',sourceId=103)
+        self.command('midi_cc',channel=3,number=22,value=0)
+        self.assertEqual(self.call()['controllerLearn']['target'],0)
+        self.assertEqual(self.call()['instruments'][0]['level'],112) # Learn capture is consumed.
+        self.command('midi_cc',channel=3,number=22,value=0)
+        self.wait_for(lambda:self.call()['instruments'][0]['level']==32,'pedal A')
+        self.command('midi_cc',channel=3,number=22,value=127)
+        self.wait_for(lambda:self.call()['instruments'][0]['level']==112,'pedal B')
+        self.command('controller_source',sourceId=104,kind=2,channel=4,number=23)
+        direct=dict(macro,id=4,sourceId=104,targetId=205,kind=1)
+        self.command('mapping_commit',mapping=direct)
+        self.command('snapshot_ab_configure',a=a['id'],b=b['id'])
+        self.command('midi_cc',channel=4,number=23,value=64)
+        self.command('midi_cc',channel=3,number=22,value=80)
+        self.assertEqual(self.call()['instruments'][0]['level'],64)
+        self.assertGreater(self.call()['snapshotAB']['overridden'],0)
+        self.command('panic')
+        for id in (3,4):self.command('mapping_delete',mappingId=id)
+        self.command('snapshot_ab_configure',a=0,b=0)
     def test_stable_target_inclusion_is_transactional(self):
         self.command('instrument_route',instrumentId=1,field='level',value=32);a=self.capture()
         details=json.load(urllib.request.urlopen(self.base+'/api/v1/snapshot/'+str(a['id'])))
@@ -153,6 +184,8 @@ class SnapshotTests(HeadlessTests):
     def test_patch_persistence_roundtrip(self):
         a=self.capture();self.command('snapshot_rename',snapshotId=a['id'],name='VERSE')
         self.command('snapshot_switch',switchId=1,gesture=0,snapshotAction=6)
+        b=self.command('snapshot_duplicate',snapshotId=a['id'])['snapshots'][-1]
+        self.command('snapshot_ab_configure',a=a['id'],b=b['id'],position=.4,ease=1)
         def patch(action):
             s=self.call();body=dict(slot=1,expectedRevision=s['revision'],expectedEngineSessionId=s['engineSessionId'])
             req=urllib.request.Request(self.base+'/api/v1/patch/'+action,data=json.dumps(body).encode(),headers={'Content-Type':'application/json'})
@@ -169,12 +202,18 @@ class SnapshotTests(HeadlessTests):
         patch('load');self.assertEqual(self.call()['snapshots'][0]['name'],'VERSE')
         self.assertEqual(self.call()['snapshots'][0]['id'],a['id'])
         self.assertEqual(self.call()['snapshotActions'][0]['action'],6)
+        ab=self.call()['snapshotAB']
+        self.assertEqual((ab['a'],ab['b'],ab['ease']),(a['id'],b['id'],1))
+        self.assertAlmostEqual(ab['position'],.4)
+        self.command('snapshot_ab_position',position=.75)
+        self.assertAlmostEqual(self.call()['snapshotAB']['position'],.75)
         path=Path(self.temp.name)/'patches/patch1.json';legacy=json.loads(path.read_text())
         extension=legacy['globalSnapshots'];extension['version']=1
-        extension['configuration']=extension['configuration'][:-192];extension['configuration'][0]=1
+        extension['configuration']=extension['configuration'][:-196];extension['configuration'][0]=1
         path.write_text(json.dumps(legacy));patch('load')
         self.assertEqual(self.call()['snapshots'][0]['name'],'VERSE')
         self.assertEqual(self.call()['snapshotActions'],[])
+        self.assertEqual(self.call()['snapshotAB']['a'],0)
 
 if __name__=='__main__':
     cases=[n for n in SnapshotTests.__dict__ if n.startswith('test_')]

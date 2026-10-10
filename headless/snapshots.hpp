@@ -48,17 +48,24 @@ struct Record {
            int(switching) <= 3 && state.valid();
   }
 };
+struct SwitchAction {
+  uint32_t switchId = 0, snapshotId = 0;
+  unsigned gesture = 0, action = 0; // 1 next, 2 previous, 3 recall, 4 morph, 5
+                                    // cycle, 6/7 morph next/previous
+};
 struct Configuration {
   uint32_t nextId = 1, selected = 0;
   unsigned count = 0;
   std::array<Record, 16> records{};
+  std::array<SwitchAction, 48> actions{};
 };
 class Snapshots {
   std::array<Record, 16> records{};
   uint32_t nextId = 1;
+  std::array<SwitchAction, 48> actions{};
 
 public:
-  static constexpr unsigned version = 1;
+  static constexpr unsigned version = 2;
   unsigned count = 0;
   uint32_t selected = 0, revision = 1;
   const Record *find(uint32_t id) const {
@@ -88,7 +95,12 @@ public:
       return false;
     for (unsigned i = 0; i < count; ++i)
       if (records[i].id == id) {
-        records[i].state = state;
+        State updated = state;
+        for (unsigned j = 0; j < updated.count; ++j)
+          for (unsigned k = 0; k < records[i].state.count; ++k)
+            if (updated.values[j].key == records[i].state.values[k].key)
+              updated.values[j].included = records[i].state.values[k].included;
+        records[i].state = updated;
         ++revision;
         return true;
       }
@@ -121,6 +133,9 @@ public:
         for (unsigned j = i + 1; j < count; ++j)
           records[j - 1] = records[j];
         records[--count] = Record{};
+        for (auto &a : actions)
+          if ((a.action == 3 || a.action == 4) && a.snapshotId == id)
+            a = SwitchAction{};
         if (selected == id)
           selected = 0;
         ++revision;
@@ -142,12 +157,48 @@ public:
       }
     return false;
   }
+  const std::array<SwitchAction, 48> &switchActions() const { return actions; }
+  bool setAction(SwitchAction a) {
+    if (!a.switchId || a.switchId > 16777215 || a.gesture > 2 || a.action > 7 ||
+        a.snapshotId > 16777215)
+      return false;
+    if ((a.action == 3 || a.action == 4) && !find(a.snapshotId))
+      return false;
+    for (auto &old : actions)
+      if (old.switchId == a.switchId && old.gesture == a.gesture) {
+        old = a.action ? a : SwitchAction{};
+        ++revision;
+        return true;
+      }
+    if (!a.action)
+      return true;
+    for (auto &old : actions)
+      if (!old.switchId) {
+        old = a;
+        ++revision;
+        return true;
+      }
+    return false;
+  }
+  uint32_t navigate(unsigned action) const {
+    if (!count)
+      return 0;
+    unsigned index = count - 1;
+    for (unsigned i = 0; i < count; ++i)
+      if (records[i].id == selected)
+        index = i;
+    bool previous = action == 2 || action == 7;
+    if (!selected && previous)
+      return records[count - 1].id;
+    return records[(index + (previous ? count - 1 : 1)) % count].id;
+  }
   Configuration configuration() const {
     Configuration c;
     c.nextId = nextId;
     c.count = count;
     c.selected = selected;
     c.records = records;
+    c.actions = actions;
     return c;
   }
   bool restore(const Configuration &c) {
@@ -165,7 +216,19 @@ public:
     }
     if (!selectedKnown)
       return false;
+    for (unsigned i = 0; i < c.actions.size(); ++i) {
+      const auto &a = c.actions[i];
+      if (a.gesture > 2 || a.action > 7 || a.switchId > 16777215 ||
+          a.snapshotId > 16777215 || (!a.switchId && a.action) ||
+          (a.switchId && !a.action))
+        return false;
+      for (unsigned j = 0; j < i; ++j)
+        if (a.switchId && c.actions[j].switchId == a.switchId &&
+            c.actions[j].gesture == a.gesture)
+          return false;
+    }
     records = c.records;
+    actions = c.actions;
     count = c.count;
     nextId = c.nextId;
     selected = c.selected;

@@ -2134,11 +2134,24 @@ local(gi,ch,n,key,live,mi,idx,remain,old,desired,mode,src)
   trigger_request=-1;hold_stop_request=-1;last_trigger_layer=-1;
   state==STATE_PLAYING ? state=STATE_STOPPED;
 );
+// Optional native performance bridge. Config/runtime live beyond serialized memory;
+// no GUI scratch variables or second gesture detector. Headless owns and drains it.
+function sw_gesture_action(si,gesture)
+local(a)
+(a=snap_host_enabled?mem[I_RUNTIME_END+si*6+gesture*2]:0;a>0?100+a:mem[sw_cfg(si)+14+gesture];);
+function sw_gesture_target(si,gesture)
+(snap_host_enabled && mem[I_RUNTIME_END+si*6+gesture*2]>0?mem[I_RUNTIME_END+si*6+gesture*2+1]:mem[sw_cfg(si)+17+gesture];);
 function sw_action(si,action,target,offs)
 local(b,r,step,phrase,gi,kind,k,c,found)
 (
+  snap_host_enabled && (action==SW_STOP || action==SW_STOP_RESET || action==SW_PANIC) ? snap_host_cancel=1;
   b=sw_cfg(si);r=sw_rt(si);mem[r+11]=action;mem[r+12]+=1;mem[r+17]=0;
-  action==SW_NEXT && mem[b+1]==0 ? (
+  action>=101 && action<=107 ? (
+    snap_host_enabled && snap_host_write-snap_host_read<64 ? (
+      k=I_RUNTIME_END+96+(snap_host_write%64)*3;
+      mem[k]=action-100;mem[k+1]=target;mem[k+2]=mem[b+21];snap_host_write+=1;
+    ) : mem[r+17]=5;
+  ) : action==SW_NEXT && mem[b+1]==0 ? (
     step=sw_traverse(si);step>=0 ? (
       phrase=mem[b+SW_LIST+step];
       phrase>=0 && phrase<LAYERS && layer_count(phrase)>0 ? (
@@ -2163,12 +2176,12 @@ local(b,r,step,phrase,gi,kind,k,c,found)
 );
 function sw_fire(si,gesture,offs)
 local(b)
-(b=sw_cfg(si);mem[b]>0 && mem[b+14+gesture]>0 ? sw_action(si,mem[b+14+gesture],mem[b+17+gesture],offs););
+(b=sw_cfg(si);mem[b]>0 && sw_gesture_action(si,gesture)>0 ? sw_action(si,sw_gesture_action(si,gesture),sw_gesture_target(si,gesture),offs););
 function sw_poll(now,offs)
 local(si,b,r,holdms)
 (
   si=0;loop(SW_COUNT,b=sw_cfg(si);r=sw_rt(si);
-    mem[r]>0 && mem[r+2]==0 && mem[b+16]>0 && now-mem[r+1]>=max(100,mem[b+8])*srate/1000 ? (
+    mem[r]>0 && mem[r+2]==0 && sw_gesture_action(si,2)>0 && now-mem[r+1]>=max(100,mem[b+8])*srate/1000 ? (
       mem[r+2]=1;mem[r+3]=0;mem[r+5]=0;sw_fire(si,2,offs);
     );
     mem[r+3]>0 && mem[r]==0 && now>=mem[r+4] ? (mem[r+3]==1 ? sw_fire(si,0,offs);mem[r+3]=0;);
@@ -2184,18 +2197,18 @@ local(b,r)
     mem[r]==0 ? (
       mem[r]=1;mem[r+1]=now;mem[r+2]=0;
       mem[r+13]=mem[b+2];mem[r+14]=mem[b+3];mem[r+15]=mem[b+4];mem[r+16]=mem[b+5];mem[r+19]=mem[b+13];
-      mem[r+5]=mem[r+3]>0 && now<=mem[r+4] && mem[b+15]>0;
+      mem[r+5]=mem[r+3]>0 && now<=mem[r+4] && sw_gesture_action(si,1)>0;
       mem[r+5]>0 ? mem[r+3]=0 : mem[r+3]=0;
-      mem[b+6]==0 || (mem[b+15]==0 && mem[b+16]==0) ? sw_fire(si,0,offs);
+      mem[b+6]==0 || (sw_gesture_action(si,1)==0 && sw_gesture_action(si,2)==0) ? sw_fire(si,0,offs);
     );
   ) : mem[r]>0 ? (
     mem[r]=0;
     mem[r+2]==0 ? (
       mem[r+5]>0 ? sw_fire(si,1,offs) : mem[b+6]>0 ? (
-        mem[b+15]>0 ? (mem[r+3]=1;mem[r+4]=now+max(50,mem[b+7])*srate/1000;) : mem[b+16]>0 ? sw_fire(si,0,offs);
+        sw_gesture_action(si,1)>0 ? (mem[r+3]=1;mem[r+4]=now+max(50,mem[b+7])*srate/1000;) : sw_gesture_action(si,2)>0 ? sw_fire(si,0,offs);
       );
       // Instant still tracks a second tap, without emitting another delayed TAP.
-      mem[b+6]==0 && mem[r+5]==0 && mem[b+15]>0 ? (mem[r+3]=2;mem[r+4]=now+max(50,mem[b+7])*srate/1000;);
+      mem[b+6]==0 && mem[r+5]==0 && sw_gesture_action(si,1)>0 ? (mem[r+3]=2;mem[r+4]=now+max(50,mem[b+7])*srate/1000;);
     );mem[r+5]=0;
   );
 );
@@ -2361,7 +2374,7 @@ local(q,si,op,arg,value,b,r,j,k,n,tmp,target,gi,kind,c,undo,editing)
       op==11 ? sw_begin_edit(si,0) : op==12 ? sw_commit_edit() : op==13 ? sw_end_edit() :
       op==14 ? (j=0;target=-1;loop(SW_COUNT,mem[sw_cfg(j)+20]==0 && target<0?target=j;j+=1;);target>=0?sw_begin_edit(target,1);) :
       op==15 ? sw_delete(si,value) : op==8 ? learn_forget(arg) : op==9 ? learn_confirm() : op==10 ? learn_cancel() :
-      op==0 ? (arg>=0 && arg<3 && mem[b+14+arg]>0 ? (sw_preview_target=editing?si:-1;sw_action(si,mem[b+14+arg],mem[b+17+arg],0);sw_preview_target=-1;);) : op==1 ? (
+      op==0 ? (arg>=0 && arg<3 && (mem[b+14+arg]>0 || (snap_host_enabled && mem[I_RUNTIME_END+si*6+arg*2]>0)) ? (sw_preview_target=editing?si:-1;sw_action(si,sw_gesture_action(si,arg),sw_gesture_target(si,arg),0);sw_preview_target=-1;);) : op==1 ? (
         // Assign message fields atomically; conflicting assignments remain unchanged.
         sw_assign(si,arg,mem[b+3],value,mem[b+12],mem[b+13]);
       ) : op==2 ? (

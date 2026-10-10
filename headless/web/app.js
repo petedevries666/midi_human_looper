@@ -47,9 +47,11 @@ function edit(module,instrument,values,instance){
   dialog.onclick=e=>{const r=dialog.getBoundingClientRect();if(e.target===dialog&&(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom))dismiss();};
   dialog.showModal();
 }
-function editSnapshot(record){
+async function editSnapshot(record){
   const dialog=$('editor'),content=$('editor-content');if(dialog.open)return;
-  const capturedRevision=revision,capturedSession=engineSession;
+  try{record=await request(`/api/v1/snapshot/${record.id}`);}catch(e){$('error').textContent=e.message;return;}
+  if(dialog.open)return;
+  const capturedRevision=record.revision,capturedSession=record.engineSessionId;
   let committing=false;
   content.replaceChildren(node('h2',`SNAPSHOT · ${record.id}`));
   const dismiss=()=>{if(!committing)dialog.close();};content.append(button('×',dismiss));
@@ -60,12 +62,18 @@ function editSnapshot(record){
   const ease=choices('CURVE',[[0,'LINEAR'],[1,'SMOOTH']],record.ease);
   const switching=choices('DISCRETE SWITCH',[[1,'AT START'],[2,'AT MIDPOINT'],[3,'AT END']],record.switching);
   content.append(node('small',`${record.parameterCount} captured targets. UPDATE recaptures current effective values.`));
+  const inclusion=node('details');inclusion.append(node('summary','INCLUDED PARAMETERS'));
+  for(const p of record.parameters||[]){
+    const label=node('label',`${p.kind>=14?'PHRASE':'INSTRUMENT'} ${p.instrumentId}${p.moduleId?` · MODULE ${p.moduleId}`:''} · ${parameter(p.kind)?.label||p.kind} = ${p.value}${p.expression?' · LEGACY EXPRESSION':''}`,'snapshot-inclusion');
+    const checkbox=node('input');checkbox.type='checkbox';checkbox.checked=p.included;checkbox.setAttribute('aria-label',`Include ${p.instrumentId}:${p.moduleId}:${p.kind}`);checkbox.onchange=()=>p.included=checkbox.checked;label.prepend(checkbox);inclusion.append(label);
+  }
+  content.append(inclusion);
   const error=node('p','');error.setAttribute('role','alert');content.append(error);
   const done=button('DONE',async()=>{
     if(committing)return;
     if(engineSession!==capturedSession){error.textContent='Engine restarted. CANCEL and reopen this editor.';return;}
     committing=true;done.disabled=cancel.disabled=true;
-    try{const state=await request('/api/v1/command',{protocolVersion:1,expectedRevision:capturedRevision,expectedEngineSessionId:capturedSession,action:'snapshot_commit',snapshotId:record.id,name:name.value,seconds:Number(seconds.value),ease:Number(ease.value),switching:Number(switching.value)});dialog.close();renderedSnapshots='';render(state);}
+    try{const state=await request('/api/v1/command',{protocolVersion:1,expectedRevision:capturedRevision,expectedEngineSessionId:capturedSession,action:'snapshot_commit',snapshotId:record.id,name:name.value,seconds:Number(seconds.value),ease:Number(ease.value),switching:Number(switching.value),inclusions:(record.parameters||[]).map(p=>({instrumentId:p.instrumentId,moduleId:p.moduleId,kind:p.kind,included:p.included}))});dialog.close();renderedSnapshots='';render(state);}
     catch(e){error.textContent=e.message==='conflict'?'Configuration changed. CANCEL and reopen this editor.':e.message;}
     finally{committing=false;done.disabled=cancel.disabled=false;}
   });
@@ -73,6 +81,33 @@ function editSnapshot(record){
   dialog.oncancel=e=>{if(committing)e.preventDefault();};
   dialog.onclick=e=>{const r=dialog.getBoundingClientRect();if(e.target===dialog&&(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom))dismiss();};
   dialog.showModal();
+}
+function editSwitchSnapshots(sw){
+  const dialog=$('editor'),content=$('editor-content');if(dialog.open)return;
+  const capturedRevision=revision,capturedSession=engineSession;
+  let committing=false;
+  content.replaceChildren(node('h2',`${sw.name||'SMART SWITCH'} · SNAPSHOTS`));
+  const dismiss=()=>{if(!committing)dialog.close();};content.append(button('×',dismiss));
+  const field=(label,input)=>{const row=node('label',label,'parameter');row.append(input);content.append(row);return input;};
+  const gesture=field('GESTURE',node('select'));gesture.setAttribute('aria-label','Switch gesture');
+  ['TAP','DOUBLE','HOLD'].forEach((text,id)=>{const option=node('option',text);option.value=id;gesture.append(option);});
+  const action=field('ACTION',node('select'));action.setAttribute('aria-label','Snapshot action');
+  ['EXISTING SWITCH ACTION','SNAPSHOT NEXT','SNAPSHOT PREVIOUS','SNAPSHOT RECALL','SNAPSHOT MORPH','SNAPSHOT CYCLE','MORPH TO NEXT','MORPH TO PREVIOUS'].forEach((text,id)=>{const option=node('option',text);option.value=id;action.append(option);});
+  const target=field('SNAPSHOT',node('select'));target.setAttribute('aria-label','Target snapshot');
+  for(const r of latest.snapshots||[]){const option=node('option',r.name);option.value=r.id;target.append(option);}
+  const load=()=>{const a=(latest.snapshotActions||[]).find(a=>a.switchId===sw.id&&a.gesture===Number(gesture.value));action.value=a?.action||0;if(a?.snapshotId)target.value=a.snapshotId;target.disabled=!['3','4'].includes(action.value);};
+  gesture.onchange=load;action.onchange=()=>target.disabled=!['3','4'].includes(action.value);load();
+  content.append(node('small','Navigation wraps in snapshot order. Morph uses the destination snapshot duration and curve. Existing MIDI assignment and gesture detection are preserved.'));
+  const error=node('p','');error.setAttribute('role','alert');content.append(error);
+  const done=button('DONE',async()=>{
+    if(committing)return;if(engineSession!==capturedSession){error.textContent='Engine restarted. CANCEL and reopen.';return;}
+    committing=true;done.disabled=cancel.disabled=true;
+    try{const state=await request('/api/v1/command',{protocolVersion:1,expectedRevision:capturedRevision,expectedEngineSessionId:capturedSession,action:'snapshot_switch',switchId:sw.id,gesture:Number(gesture.value),snapshotAction:Number(action.value),snapshotId:['3','4'].includes(action.value)?Number(target.value):0});dialog.close();renderedModel='';render(state);}
+    catch(e){error.textContent=e.message==='conflict'?'Configuration changed. CANCEL and reopen.':e.message;}
+    finally{committing=false;done.disabled=cancel.disabled=false;}
+  });
+  const cancel=button('CANCEL',dismiss);content.append(done,cancel);
+  dialog.oncancel=e=>{if(committing)e.preventDefault();};dialog.onclick=e=>{const r=dialog.getBoundingClientRect();if(e.target===dialog&&(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom))dismiss();};dialog.showModal();
 }
 function render(s){
   if(engineSession===s.engineSessionId&&s.revision<revision)return;
@@ -101,10 +136,10 @@ function render(s){
   }
   for(const r of s.snapshots||[]) {
     const feedback=document.querySelector(`[data-snapshot-id="${r.id}"] .snapshot-feedback`);
-    if(feedback)feedback.textContent=`${r.id===s.selectedSnapshotId?'SELECTED · ':''}${r.dirty?'MODIFIED':''}${r.id===s.targetSnapshotId?` · MORPH ${Math.round(s.morphProgress*100)}%`:''}`;
+    if(feedback)feedback.textContent=`${r.id===s.selectedSnapshotId?'SELECTED · ':''}${r.dirty?'MODIFIED':''}${r.id===s.selectedSnapshotId&&s.snapshotSkippedTargets?` · PARTIAL (${s.snapshotSkippedTargets} missing or legacy-owned)`:''}${r.id===s.targetSnapshotId?` · MORPH ${Math.round(s.morphProgress*100)}%`:''}`;
   }
   renderControllers(s);
-  const model=JSON.stringify([s.phrases,s.instruments,s.switches.map(v=>({...v,step:0}))]);if(model===renderedModel)return;renderedModel=model;
+  const model=JSON.stringify([s.phrases,s.instruments,s.switches.map(v=>({...v,step:0})),s.snapshotActions]);if(model===renderedModel)return;renderedModel=model;
   $('phrases').replaceChildren(...s.phrases.map(p=>{const n=node('div',`PHRASE ${p.id}`,'phrase');n.append(node('small',`${p.events} events · ${p.mode===0?'LOOP':'ONCE / HOLD'} · TIME ×${p.timeDecay.toFixed(2)}`));for(const [label,action] of [['PLAY','phrase_play'],['REC / OVERDUB','phrase_record'],['FINISH REC','phrase_finish']])n.append(button(label,()=>command({action,phraseId:p.id})));return n;}));
   $('instruments').replaceChildren(...s.instruments.map(i=>{
     const n=node('article',undefined,'instrument');n.dataset.instrumentId=i.id;
@@ -123,7 +158,7 @@ function render(s){
     return n;
   }));
   $('switches').replaceChildren(...s.switches.map(sw=>{
-    const n=node('article',undefined,'switch');n.dataset.switchId=sw.id;n.append(node('h3',sw.name||`SWITCH ${sw.id}`),node('p',`${sw.type===0?'PHRASE':'SPECIAL'} · ID ${sw.id}`),node('p',`${sw.kind===1?'NOTE':sw.kind===2?'CC':'UNASSIGNED'} ${sw.number} · CH ${sw.channel}`),node('p',`STEP ${sw.step} / ${sw.length}`,'step'));
+    const n=node('article',undefined,'switch');n.dataset.switchId=sw.id;n.append(node('strong',sw.name||`SWITCH ${sw.id}`),node('small',`${sw.kind===1?'NOTE':sw.kind===2?'CC':'UNASSIGNED'} ${sw.number} · CH ${sw.channel}`),node('small',`STEP ${sw.step} / ${sw.length}`,'step'),button('OPTIONS',()=>editSwitchSnapshots(sw)));
     const tests=node('div',undefined,'tests');for(const gesture of ['tap','double','hold']){const b=button(`TEST ${gesture.toUpperCase()}`,()=>command({action:'test',switchId:sw.id,gesture}));b.dataset.valid=sw.enabled?'1':'0';b.disabled=!sw.enabled;tests.append(b);}
     const hardware=button('SIMULATE FOOTSWITCH',async()=>{if(await command({action:'midi',channel:sw.channel,note:sw.number,value:100}))await command({action:'midi',channel:sw.channel,note:sw.number,value:0});});hardware.className='hardware';hardware.dataset.valid=sw.kind===1?'1':'0';hardware.disabled=sw.kind!==1;n.append(tests,hardware);return n;
   }));

@@ -106,7 +106,7 @@ struct Snapshot {
   std::array<double, 32> effective{};
   std::array<uint32_t, 32> owners{};
   std::array<bool, 32> returning{}, pickup{};
-  unsigned performanceCount = 0;
+  unsigned performanceCount = 0, performanceSkipped = 0;
   uint32_t performanceSelected = 0, performanceTarget = 0;
   double performanceProgress = 1;
   std::array<uint32_t, 16> performanceIds{}, performanceSizes{};
@@ -114,11 +114,14 @@ struct Snapshot {
   std::array<double, 16> performanceSeconds{};
   std::array<int, 16> performanceEase{}, performanceSwitch{};
   std::array<bool, 16> performanceDirty{};
+  std::array<performance::SwitchAction, 48> snapshotActions{};
 };
 struct Reply {
   uint64_t id = 0;
   int status = 0;
   Snapshot state;
+  performance::Record detail;
+  int detailRevision = 0;
 };
 static uint64_t engineSession = 0;
 static std::atomic<bool> running{true};
@@ -536,6 +539,7 @@ static std::string json(const Reply &r) {
       << '}';
   }
   o << "],\"selectedSnapshotId\":" << s.performanceSelected
+    << ",\"snapshotSkippedTargets\":" << s.performanceSkipped
     << ",\"targetSnapshotId\":" << s.performanceTarget
     << ",\"morphProgress\":" << s.performanceProgress << ",\"snapshots\":[";
   for (unsigned j = 0; j < s.performanceCount; ++j) {
@@ -549,7 +553,39 @@ static std::string json(const Reply &r) {
       << ",\"parameterCount\":" << s.performanceSizes[j]
       << ",\"dirty\":" << (s.performanceDirty[j] ? "true" : "false") << '}';
   }
-  o << "]}\n";
+  o << "],\"snapshotActions\":[";
+  bool firstAction = true;
+  for (const auto &a : s.snapshotActions)
+    if (a.switchId) {
+      if (!firstAction)
+        o << ',';
+      firstAction = false;
+      o << "{\"switchId\":" << a.switchId << ",\"gesture\":" << a.gesture
+        << ",\"action\":" << a.action << ",\"snapshotId\":" << a.snapshotId
+        << '}';
+    }
+  o << ']';
+  if (r.detail.id) {
+    const auto &d = r.detail;
+    o << ",\"snapshotDetail\":{\"id\":" << d.id << ",\"name\":" << quote(d.name)
+      << ",\"seconds\":" << d.seconds << ",\"ease\":" << int(d.ease)
+      << ",\"switching\":" << int(d.switching)
+      << ",\"revision\":" << r.detailRevision
+      << ",\"engineSessionId\":" << engineSession
+      << ",\"parameterCount\":" << d.state.count << ",\"parameters\":[";
+    for (unsigned j = 0; j < d.state.count; ++j) {
+      if (j)
+        o << ',';
+      const auto &v = d.state.values[j];
+      o << "{\"instrumentId\":" << v.key.instrument
+        << ",\"moduleId\":" << v.key.module << ",\"kind\":" << v.key.kind
+        << ",\"value\":" << v.effective
+        << ",\"included\":" << (v.included ? "true" : "false")
+        << ",\"expression\":" << (v.expression ? "true" : "false") << '}';
+    }
+    o << "]}";
+  }
+  o << "}\n";
   return o.str();
 }
 static bool send_line(int fd, const std::string &s,
@@ -747,7 +783,7 @@ static void control(int listener, Queue<Request, 64> &commands,
                       request.arg >> request.revision >> request.ch >>
                       request.note >> request.value) &&
                  request.id > 0 && request.id <= 9007199254740991ULL &&
-                 request.op >= 0 && request.op <= 27 && request.arg >= 0 &&
+                 request.op >= 0 && request.op <= 29 && request.arg >= 0 &&
                  request.arg <= (request.op == 13   ? 5
                                  : request.op == 15 ? 3
                                                     : 2) &&
@@ -781,6 +817,11 @@ static void control(int listener, Queue<Request, 64> &commands,
         if (input >> extra)
           valid = false;
       }
+    } else if (valid && request.op == 28) {
+      valid = bool(input >> request.module) && request.module >= 0 &&
+              request.module <= 16777215 && request.ch <= 7;
+      if (input >> extra)
+        valid = false;
     } else if (valid && (request.op == 25 || request.op == 27)) {
       std::string hex;
       valid = bool(input >> hex) && hex.size() > 0 && hex.size() <= 96 &&
@@ -804,6 +845,24 @@ static void control(int listener, Queue<Request, 64> &commands,
                 request.snapshotSeconds >= 0 && request.snapshotSeconds <= 30 &&
                 request.snapshotEase >= 0 && request.snapshotEase <= 1 &&
                 request.snapshotSwitch >= 1 && request.snapshotSwitch <= 3;
+      input >> std::ws;
+      if (valid && request.op == 27 && input.peek() != EOF) {
+        std::string marker;
+        auto &mask = request.snapshotConfig.records[0].state;
+        valid = bool(input >> marker) && marker == "include" &&
+                performance::integer(input, mask.count, 256);
+        for (unsigned j = 0; valid && j < mask.count; ++j) {
+          auto &v = mask.values[j];
+          unsigned kind = 0, included = 0;
+          valid = performance::integer(input, v.key.instrument, 16777215) &&
+                  performance::integer(input, v.key.module, 16777215) &&
+                  performance::integer(input, kind, 15) &&
+                  performance::integer(input, included, 1);
+          v.key.kind = kind;
+          v.included = included;
+        }
+        valid = valid && mask.valid();
+      }
       if (input >> extra)
         valid = false;
     } else if (valid && request.op == 16) {
@@ -1169,13 +1228,125 @@ int main(int argc, char **argv) {
     uint32_t performanceNextTarget = 8388608;
     uint32_t performanceTargetSnapshot = 0;
     double performanceMorphAt = 0, performanceMorphSeconds = 0;
+    unsigned performanceSkipped = 0;
     Snapshot state;
     state.backend = useJack;
     state.sampleRate = sampleRate;
     state.blockSize = blockSize;
+    int lastRecallStatus = 0;
+    auto recallSnapshot = [&](uint32_t snapshotId, bool timed) {
+      int status = 0;
+      const auto *r = performanceSnapshots->find(snapshotId);
+      std::array<controller::Transition, 256> transitions{};
+      std::array<unsigned, 256> slots{};
+      std::array<double, 256> starts{};
+      unsigned n = 0, newTargets = 0, skipped = 0;
+      bool valid = r != nullptr;
+      if (r)
+        for (unsigned j = 0; valid && j < r->state.count; ++j) {
+          const auto &v = r->state.values[j];
+          if (!v.included)
+            continue;
+          controller::Binding b;
+          b.instrument = v.key.instrument;
+          b.module = v.key.module;
+          b.kind = v.key.kind;
+          auto address = model.bindingValue(b);
+          if (!address) {
+            ++skipped;
+            continue;
+          }
+          unsigned slot = 0;
+          while (slot < performanceTargetCount &&
+                 !((*performanceTargets)[slot].key == v.key))
+            ++slot;
+          if (slot == performanceTargetCount) {
+            if (slot == 256) {
+              valid = false;
+              break;
+            }
+            auto &p = (*performanceTargets)[slot];
+            p.key = v.key;
+            p.binding = b;
+            ++performanceTargetCount;
+          }
+          auto &p = (*performanceTargets)[slot];
+          uint32_t mapped = 0;
+          for (const auto &mapping : controllers.configuration().bindings)
+            if (mapping.policy.id && mapping.instrument == b.instrument &&
+                mapping.module == b.module && mapping.kind == b.kind)
+              mapped = mapping.policy.target;
+          if (mapped)
+            p.id = mapped;
+          if (!p.id) {
+            while (controllers.target(performanceNextTarget))
+              ++performanceNextTarget;
+            p.id = performanceNextTarget++;
+          }
+          if (!controllers.target(p.id))
+            ++newTargets;
+          slots[n] = slot;
+          starts[n] = normalizedBase(b.kind, *address);
+          transitions[n].target = p.id;
+          transitions[n].goal = normalizedBase(b.kind, v.effective);
+          transitions[n].seconds = timed ? r->seconds : 0;
+          transitions[n].ease = r->ease;
+          bool discrete = performance::discrete(b.kind);
+          transitions[n].switching =
+              discrete ? r->switching : controller::Switch::Continuous;
+          ++n;
+        }
+      if (valid && !n && skipped)
+        status = 2;
+      valid = valid && n > 0 && newTargets <= controllers.freeTargets();
+      if (valid) {
+        for (unsigned j = 0; j < n; ++j)
+          controllers.stagePerformanceTarget(transitions[j].target, starts[j]);
+        valid = controllers.morphBatch(transitions.data(), n);
+        if (valid) {
+          performanceSnapshots->selected = r->id;
+          performanceSkipped = skipped;
+          performanceTargetSnapshot = r->id;
+          performanceMorphAt = controllers.time;
+          performanceMorphSeconds = timed ? r->seconds : 0;
+          for (unsigned j = 0; j < n; ++j) {
+            auto &p = (*performanceTargets)[slots[j]];
+            p.token = controllers.target(p.id)->token;
+            p.goal = transitions[j].goal;
+            p.active = true;
+            p.snapshotId = r->id;
+          }
+        }
+      }
+      lastRecallStatus = valid ? 0 : status ? status : 3;
+      return lastRecallStatus;
+    };
+    auto snapHostEnabled = NSEEL_VM_regvar(fx->vm.get(), "snap_host_enabled");
+    auto snapHostCancel = NSEEL_VM_regvar(fx->vm.get(), "snap_host_cancel");
+    auto snapHostRead = NSEEL_VM_regvar(fx->vm.get(), "snap_host_read");
+    auto snapHostWrite = NSEEL_VM_regvar(fx->vm.get(), "snap_host_write");
+    unsigned snapHostBase = unsigned(variable(fx, "I_RUNTIME_END"));
+    std::array<double *, 288> snapHostCells{};
+    for (unsigned j = 0; j < snapHostCells.size(); ++j)
+      snapHostCells[j] = cell(fx, snapHostBase + j);
+    *snapHostEnabled = 1;
+    *snapHostRead = *snapHostWrite = 0;
+    auto syncSwitchActions = [&]() {
+      for (unsigned j = 0; j < 96; ++j)
+        *snapHostCells[j] = 0;
+      for (const auto &a : performanceSnapshots->switchActions())
+        if (a.switchId)
+          for (unsigned si = 0; si < 16; ++si)
+            if (*model.sw[si][0] && *model.sw[si][1] == a.switchId) {
+              *snapHostCells[si * 6 + a.gesture * 2] = a.action;
+              *snapHostCells[si * 6 + a.gesture * 2 + 1] = a.snapshotId;
+            }
+    };
     auto publishPerformance = [&]() {
       state.performanceCount = performanceSnapshots->count;
+      state.snapshotActions = performanceSnapshots->switchActions();
       state.performanceSelected = performanceSnapshots->selected;
+      state.performanceSkipped = performanceSkipped;
       state.performanceProgress =
           performanceMorphSeconds > 0
               ? controller::clamp((controllers.time - performanceMorphAt) /
@@ -1315,7 +1486,11 @@ int main(int argc, char **argv) {
           if (request.op == 5)
             NSEEL_code_execute(panic_bridge);
           if (request.op == 5) {
+            *snapHostRead = *snapHostWrite;
             performanceTargetCount = 0;
+            performanceSkipped = 0;
+            performanceMorphSeconds = 0;
+            performanceTargetSnapshot = 0;
             controllers.panic();
             ++state.revision;
             loading.store(true, std::memory_order_release);
@@ -1323,7 +1498,14 @@ int main(int argc, char **argv) {
           maintenance = true;
         } else if (request.op >= 20) {
           bool valid = false;
-          if (request.op == 20)
+          if (request.op == 29) {
+            const auto *record = performanceSnapshots->find(request.target);
+            valid = record != nullptr;
+            if (valid) {
+              reply.detail = *record;
+              reply.detailRevision = state.revision;
+            }
+          } else if (request.op == 20)
             valid = performanceSnapshots->capture(model.effectiveState()) != 0;
           else if (request.op == 21)
             valid = performanceSnapshots->update(request.target,
@@ -1340,8 +1522,10 @@ int main(int argc, char **argv) {
                   p.active = false;
                 }
               }
-              if (performanceTargetSnapshot == unsigned(request.target))
+              if (performanceTargetSnapshot == unsigned(request.target)) {
+                *snapHostRead = *snapHostWrite;
                 performanceMorphSeconds = 0;
+              }
             }
           } else if (request.op == 24)
             valid = performanceSnapshots->move(request.target,
@@ -1356,95 +1540,43 @@ int main(int argc, char **argv) {
                 draft.ease = controller::Ease(request.snapshotEase);
                 draft.switching = controller::Switch(request.snapshotSwitch);
               }
-              valid = performanceSnapshots->commit(
-                  draft, performanceSnapshots->revision);
-            }
-          } else if (request.op == 26) {
-            const auto *r = performanceSnapshots->find(request.target);
-            std::array<controller::Transition, 256> transitions{};
-            std::array<unsigned, 256> slots{};
-            std::array<double, 256> starts{};
-            unsigned n = 0, newTargets = 0;
-            valid = r != nullptr;
-            if (r)
-              for (unsigned j = 0; valid && j < r->state.count; ++j) {
-                const auto &v = r->state.values[j];
-                if (!v.included)
-                  continue;
-                controller::Binding b;
-                b.instrument = v.key.instrument;
-                b.module = v.key.module;
-                b.kind = v.key.kind;
-                auto address = model.bindingValue(b);
-                if (!address) {
-                  reply.status = 2;
-                  valid = false;
-                  break;
-                }
-                unsigned slot = 0;
-                while (slot < performanceTargetCount &&
-                       !((*performanceTargets)[slot].key == v.key))
-                  ++slot;
-                if (slot == performanceTargetCount) {
-                  if (slot == 256) {
-                    valid = false;
-                    break;
+              bool known = true;
+              const auto &mask = request.snapshotConfig.records[0].state;
+              for (unsigned j = 0; j < mask.count; ++j) {
+                bool found = false;
+                for (unsigned k = 0; k < draft.state.count; ++k)
+                  if (draft.state.values[k].key == mask.values[j].key) {
+                    draft.state.values[k].included = mask.values[j].included;
+                    found = true;
                   }
-                  auto &p = (*performanceTargets)[slot];
-                  p.key = v.key;
-                  p.binding = b;
-                  ++performanceTargetCount;
-                }
-                auto &p = (*performanceTargets)[slot];
-                uint32_t mapped = 0;
-                for (const auto &mapping : controllers.configuration().bindings)
-                  if (mapping.policy.id && mapping.instrument == b.instrument &&
-                      mapping.module == b.module && mapping.kind == b.kind)
-                    mapped = mapping.policy.target;
-                if (mapped)
-                  p.id = mapped;
-                if (!p.id) {
-                  while (controllers.target(performanceNextTarget))
-                    ++performanceNextTarget;
-                  p.id = performanceNextTarget++;
-                }
-                if (!controllers.target(p.id))
-                  ++newTargets;
-                slots[n] = slot;
-                starts[n] = normalizedBase(b.kind, *address);
-                transitions[n].target = p.id;
-                transitions[n].goal = normalizedBase(b.kind, v.effective);
-                transitions[n].seconds = request.arg ? r->seconds : 0;
-                transitions[n].ease = r->ease;
-                bool discrete = performance::discrete(b.kind);
-                transitions[n].switching =
-                    discrete ? r->switching : controller::Switch::Continuous;
-                ++n;
+                if (!found)
+                  known = false;
               }
-            valid = valid && n > 0 && newTargets <= controllers.freeTargets();
-            if (valid) {
-              for (unsigned j = 0; j < n; ++j)
-                controllers.stagePerformanceTarget(transitions[j].target,
-                                                   starts[j]);
-              valid = controllers.morphBatch(transitions.data(), n);
-              if (valid) {
-                performanceSnapshots->selected = r->id;
-                performanceTargetSnapshot = r->id;
-                performanceMorphAt = controllers.time;
-                performanceMorphSeconds = request.arg ? r->seconds : 0;
-                for (unsigned j = 0; j < n; ++j) {
-                  auto &p = (*performanceTargets)[slots[j]];
-                  p.token = controllers.target(p.id)->token;
-                  p.goal = transitions[j].goal;
-                  p.active = true;
-                  p.snapshotId = r->id;
-                }
-              }
+              valid = known && performanceSnapshots->commit(
+                                   draft, performanceSnapshots->revision);
             }
+          } else if (request.op == 28) {
+            bool exists = false;
+            for (unsigned si = 0; si < 16; ++si)
+              if (*model.sw[si][0] && *model.sw[si][1] == request.target)
+                exists = true;
+            performance::SwitchAction a;
+            a.switchId = request.target;
+            a.gesture = request.arg;
+            a.action = request.ch;
+            a.snapshotId = request.module;
+            valid = exists && performanceSnapshots->setAction(a);
+          } else if (request.op == 26) {
+            valid = recallSnapshot(request.target, request.arg) == 0;
+            if (!valid)
+              reply.status = lastRecallStatus;
           }
-          if (valid)
-            ++state.revision;
-          else if (reply.status == 0)
+          if (valid) {
+            if (request.op == 20 || request.op == 21)
+              performanceSkipped = 0;
+            if (request.op != 29)
+              ++state.revision;
+          } else if (reply.status == 0)
             reply.status = 3;
         } else if (request.op >= 14) {
           if (request.op == 14) {
@@ -1525,6 +1657,7 @@ int main(int argc, char **argv) {
             if (!controllers.midi(data, 3,
                                   (state.samples + frames) / double(sampleRate),
                                   conflicts)) {
+              *snapHostRead = *snapHostWrite = 0;
               ysfx_midi_event_t event{};
               event.size = 3;
               event.data = data;
@@ -1687,6 +1820,7 @@ int main(int argc, char **argv) {
           if (*ok != 1)
             reply.status = 2;
         } else if (request.op == 2) {
+          *snapHostRead = *snapHostWrite;
           performanceMorphSeconds = 0;
           controllers.panic();
           ysfx_midi_clear(fx->midi.in.get());
@@ -1697,6 +1831,7 @@ int main(int argc, char **argv) {
         } else if (request.op == 3) {
           uint8_t data[] = {uint8_t(144 | request.ch), uint8_t(request.note),
                             uint8_t(request.value)};
+          *snapHostRead = *snapHostWrite = 0;
           ysfx_midi_event_t event{};
           event.size = 3;
           event.data = data;
@@ -1741,7 +1876,28 @@ int main(int argc, char **argv) {
         } else
           p.active = false;
       }
+      syncSwitchActions();
       ysfx_process_float(fx, nullptr, nullptr, 0, 0, frames);
+      if (*snapHostCancel) {
+        controllers.panic();
+        for (unsigned j = 0; j < performanceTargetCount; ++j)
+          (*performanceTargets)[j].active = false;
+        performanceMorphSeconds = 0;
+        *snapHostRead = *snapHostWrite;
+        *snapHostCancel = 0;
+      }
+      while (*snapHostRead < *snapHostWrite) {
+        unsigned at = 96 + (unsigned(*snapHostRead) % 64) * 3;
+        unsigned action = unsigned(*snapHostCells[at]);
+        uint32_t id = uint32_t(*snapHostCells[at + 1]);
+        ++*snapHostRead;
+        if (action != 3 && action != 4)
+          id = performanceSnapshots->navigate(action);
+        if (id &&
+            recallSnapshot(id, action == 4 || action == 6 || action == 7) == 0)
+          ++state.revision;
+      }
+      *snapHostRead = *snapHostWrite = 0;
       ysfx_midi_event_t event{};
       unsigned outputCount = 0;
       bool outputSorted = true;

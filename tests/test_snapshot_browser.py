@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Real browser controls against the native engine and HTTP worker."""
-import sys
+import sys,json,urllib.request
 from pathlib import Path
 from test_snapshots import SnapshotTests
 from playwright.sync_api import sync_playwright
@@ -37,6 +37,22 @@ try:
         page.get_by_label('CURVE',exact=True).select_option('0')
         page.get_by_role('button',name='DONE',exact=True).click()
         case.wait_for(lambda:case.call()['snapshots'][0]['seconds']==.4,'transactional settings')
+        page.locator('#snapshots details summary').first.click()
+        page.locator('#snapshots').get_by_role('button',name='EDIT',exact=True).first.click()
+        page.get_by_text('INCLUDED PARAMETERS',exact=True).click()
+        page.get_by_label('Include 1:0:1',exact=True).uncheck()
+        page.get_by_role('button',name='DONE',exact=True).click()
+        case.wait_for(lambda:not json.load(urllib.request.urlopen(case.base+'/api/v1/snapshot/'+str(case.call()['snapshots'][0]['id'])))['parameters'][0]['included'],'inclusion commit')
+        page.locator('[data-switch-id="1"]').get_by_role('button',name='OPTIONS',exact=True).click()
+        page.get_by_label('Snapshot action',exact=True).select_option('6')
+        page.get_by_role('button',name='CANCEL',exact=True).click()
+        assert case.call()['snapshotActions']==[]
+        page.locator('[data-switch-id="1"]').get_by_role('button',name='OPTIONS',exact=True).click()
+        page.get_by_label('Snapshot action',exact=True).select_option('6')
+        page.get_by_role('button',name='DONE',exact=True).click()
+        case.wait_for(lambda:len(case.call()['snapshotActions'])==1,'switch popup commit')
+        page.locator('[data-switch-id="1"]').get_by_role('button',name='TEST TAP',exact=True).click()
+        case.wait_for(lambda:case.call()['selectedSnapshotId']==case.call()['snapshots'][0]['id'],'snapshot navigation TEST')
         page.on('dialog',lambda d:d.accept())
         page.locator('#snapshots details summary').last.click()
         page.wait_for_timeout(600)

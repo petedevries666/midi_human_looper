@@ -7,6 +7,8 @@ from test_headless_mvp import HeadlessTests
 class SnapshotTests(HeadlessTests):
     def setUp(self):
         super().setUp()
+        for a in self.call().get('snapshotActions',[]):
+            self.command('snapshot_switch',switchId=a['switchId'],gesture=a['gesture'],snapshotAction=0)
         for r in self.call()['snapshots']:
             self.command('snapshot_delete',snapshotId=r['id'])
     def capture(self):
@@ -37,14 +39,15 @@ class SnapshotTests(HeadlessTests):
         self.assertEqual(len(self.call()['snapshots']),16)
         self.command('snapshot_capture',expected=400)
         self.command('snapshot_update',snapshotId=a['id'],expected=400)
-    def test_missing_target_recall_is_atomic(self):
+    def test_missing_target_recall_applies_only_surviving_identities(self):
         self.command('instrument_route',instrumentId=1,field='level',value=32)
         tf=self.command('module_structure',instrumentId=1,operation='add',engineType=1)['instruments'][0]['transformers'][-1]
         a=self.capture()
         self.command('module_structure',instrumentId=1,moduleId=tf['id'],operation='delete')
         self.command('instrument_route',instrumentId=1,field='level',value=96)
-        self.command('snapshot_recall',snapshotId=a['id'],expected=422)
-        self.assertEqual(self.call()['instruments'][0]['level'],96)
+        result=self.command('snapshot_recall',snapshotId=a['id'])
+        self.assertEqual(result['snapshotSkippedTargets'],1)
+        self.assertEqual(self.call()['instruments'][0]['level'],32)
     def test_transactional_settings_and_validation(self):
         a=self.capture()
         before=self.call()
@@ -83,6 +86,54 @@ class SnapshotTests(HeadlessTests):
         time.sleep(.3);self.assertEqual(self.call()['instruments'][0]['level'],64)
         time.sleep(1.8);self.assertEqual(self.call()['instruments'][0]['level'],64)
         self.command('mapping_delete',mappingId=1)
+    def test_stable_target_inclusion_is_transactional(self):
+        self.command('instrument_route',instrumentId=1,field='level',value=32);a=self.capture()
+        details=json.load(urllib.request.urlopen(self.base+'/api/v1/snapshot/'+str(a['id'])))
+        volume=next(v for v in details['parameters'] if v['instrumentId']==1 and v['moduleId']==0 and v['kind']==1)
+        self.assertEqual(volume['value'],32)
+        mask=dict(instrumentId=1,moduleId=0,kind=1,included=False)
+        self.command('snapshot_commit',snapshotId=a['id'],name=a['name'],seconds=2,ease=1,switching=2,inclusions=[mask])
+        self.command('instrument_route',instrumentId=1,field='level',value=96)
+        self.command('snapshot_recall',snapshotId=a['id'])
+        self.assertEqual(self.call()['instruments'][0]['level'],96)
+        self.assertFalse(self.call()['snapshots'][0]['dirty'])
+        self.command('snapshot_update',snapshotId=a['id'])
+        details=json.load(urllib.request.urlopen(self.base+'/api/v1/snapshot/'+str(a['id'])))
+        self.assertFalse(next(v for v in details['parameters'] if v['instrumentId']==1 and v['moduleId']==0 and v['kind']==1)['included'])
+        bad=dict(instrumentId=999,moduleId=0,kind=1,included=False)
+        self.command('snapshot_commit',snapshotId=a['id'],name='INVALID',seconds=1,ease=0,switching=1,inclusions=[bad],expected=400)
+        self.assertEqual(self.call()['snapshots'][0]['name'],a['name'])
+    def test_switch_snapshot_gestures_hardware_and_test(self):
+        self.command('instrument_route',instrumentId=1,field='level',value=32);a=self.capture()
+        self.command('instrument_route',instrumentId=1,field='level',value=112);b=self.capture()
+        for gesture,action,target in ((0,1,0),(1,3,b['id']),(2,4,a['id'])):
+            self.command('snapshot_switch',switchId=1,gesture=gesture,snapshotAction=action,snapshotId=target)
+        self.command('test',switchId=1,gesture='tap')
+        self.wait_for(lambda:self.call()['instruments'][0]['level']==32,'snapshot NEXT via TEST')
+        self.command('test',switchId=1,gesture='double')
+        self.wait_for(lambda:self.call()['instruments'][0]['level']==112,'snapshot RECALL via DOUBLE TEST')
+        self.command('snapshot_commit',snapshotId=a['id'],name='A',seconds=.1,ease=0,switching=2)
+        self.command('test',switchId=1,gesture='hold')
+        self.wait_for(lambda:self.call()['instruments'][0]['level']==32,'snapshot MORPH via HOLD TEST')
+        switch=next(sw for sw in self.call()['switches'] if sw['id']==1)
+        self.command('midi',channel=switch['channel'],note=switch['number'],value=100)
+        self.wait_for(lambda:self.call()['instruments'][0]['level']==112,'snapshot NEXT hardware press')
+        self.command('midi',channel=switch['channel'],note=switch['number'],value=0)
+        self.command('snapshot_switch',switchId=2,gesture=0,snapshotAction=7)
+        self.command('test',switchId=2,gesture='tap')
+        self.wait_for(lambda:self.call()['instruments'][0]['level']==32,'independent MORPH PREVIOUS')
+        time.sleep(.35) # Finish the previous independent single-tap window.
+        for _ in range(2):
+            self.command('midi',channel=switch['channel'],note=switch['number'],value=100)
+            self.command('midi',channel=switch['channel'],note=switch['number'],value=0)
+        self.wait_for(lambda:self.call()['instruments'][0]['level']==112,'hardware DOUBLE routing')
+        self.command('snapshot_switch',switchId=1,gesture=2,snapshotAction=3,snapshotId=b['id'])
+        self.command('midi',channel=switch['channel'],note=switch['number'],value=100)
+        time.sleep(1)
+        self.assertEqual(self.call()['instruments'][0]['level'],112)
+        self.command('midi',channel=switch['channel'],note=switch['number'],value=0)
+        for sw,gesture in ((1,0),(1,1),(1,2),(2,0)):
+            self.command('snapshot_switch',switchId=sw,gesture=gesture,snapshotAction=0)
     def test_invalid_persistence_and_export_preserve_data(self):
         a=self.capture()
         def patch(action,expected=200):
@@ -101,6 +152,7 @@ class SnapshotTests(HeadlessTests):
         patch('save',422);self.assertEqual(path.read_bytes(),raw)
     def test_patch_persistence_roundtrip(self):
         a=self.capture();self.command('snapshot_rename',snapshotId=a['id'],name='VERSE')
+        self.command('snapshot_switch',switchId=1,gesture=0,snapshotAction=6)
         def patch(action):
             s=self.call();body=dict(slot=1,expectedRevision=s['revision'],expectedEngineSessionId=s['engineSessionId'])
             req=urllib.request.Request(self.base+'/api/v1/patch/'+action,data=json.dumps(body).encode(),headers={'Content-Type':'application/json'})
@@ -116,6 +168,13 @@ class SnapshotTests(HeadlessTests):
         self.assertEqual(self.call()['snapshots'],[])
         patch('load');self.assertEqual(self.call()['snapshots'][0]['name'],'VERSE')
         self.assertEqual(self.call()['snapshots'][0]['id'],a['id'])
+        self.assertEqual(self.call()['snapshotActions'][0]['action'],6)
+        path=Path(self.temp.name)/'patches/patch1.json';legacy=json.loads(path.read_text())
+        extension=legacy['globalSnapshots'];extension['version']=1
+        extension['configuration']=extension['configuration'][:-192];extension['configuration'][0]=1
+        path.write_text(json.dumps(legacy));patch('load')
+        self.assertEqual(self.call()['snapshots'][0]['name'],'VERSE')
+        self.assertEqual(self.call()['snapshotActions'],[])
 
 if __name__=='__main__':
     cases=[n for n in SnapshotTests.__dict__ if n.startswith('test_')]

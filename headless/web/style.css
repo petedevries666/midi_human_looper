@@ -9,3 +9,5 @@ dialog{max-width:min(600px,94vw);width:600px;background:#222;color:#ddd;border:1
 .snapshot-actions {position:relative;display:inline-block;}
 .snapshot-actions summary {cursor:pointer;padding:6px;}
 .snapshot-menu {position:absolute;right:0;z-index:5;min-width:130px;padding:5px;background:#20242b;border:1px solid #666;}
+
+#switches{display:flex;flex-direction:column;gap:.25rem}#switches .switch{display:flex;align-items:center;flex-wrap:wrap;gap:.5rem;padding:.35rem;margin:0}#switches .switch strong{min-width:8rem}#switches .tests{display:flex;gap:.2rem}

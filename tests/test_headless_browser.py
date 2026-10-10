@@ -30,6 +30,7 @@ try:
         assert page.locator('.switch').count()==4
         assert page.locator('[data-switch-id="3"] .tests button').first.is_disabled()
         before=api.call()
+        assert page.locator('#metrics').text_content().find('Build '+before['buildRevision'])>=0
         page.locator('[data-switch-id="1"]').get_by_role('button',name='TEST TAP',exact=True).click()
         page.wait_for_timeout(600)
         assert api.call()['midiCount']>before['midiCount']

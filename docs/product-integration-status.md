@@ -10,11 +10,12 @@ atomic slot persistence. It does not merge drafts or claim full Controller/Snaps
 studio/live execution parity. Existing musical engine, source MIDI, IDs, legacy
 patch readers, bridge, note ownership and compact UI are preserved.
 
-Next precise coding step: implement and test one shared ownership/takeover vertical
-slice on an existing stable target, using the current Controller token contract and
-ReaScript/JSFX mailbox. Do not introduce another owner or scheduler. Demonstrate
-physical takeover during one snapshot transition in both actual hosts before
-expanding target coverage or accepting full studio/live parity.
+Current integration candidate is PR #44, `integration/studio-live-rc`.
+For the requested Pitch Bias feature, the next coding step is the versioned raw
+and portable migration described in [its checkpoint](velocity-decay-pitch-bias-checkpoint.md).
+The response helper is tested but inactive; no Pivot/Bias controls are delivered.
+Shared Controller ownership/takeover execution in both hosts remains a separate
+unimplemented vertical slice, not implied by the native controls or bridge.
 
 Before merging the stack, review #30 lifecycle and native controls, rerun the
 complete regression runner after changing each base, and perform the physical

@@ -86,7 +86,8 @@ Do not restart JACK, unrelated services or the whole Pi to activate registration
    Overdub Piano. STOP Bass alone. Verify other phrases and parameters do not
    change. Record a result for each step, not just that the editor loads.
 
-Confirm the running binary revision through the state API's `buildRevision`.
+Expand **ENGINE TEST / DIAGNOSTICS** in Firefox and read **Build** to confirm
+the running binary revision (also the state API's `buildRevision`).
 It is embedded at compile time; `.dirty` means tracked changes existed at build.
 It is distinct from the mutable parameter `revision` and `engineSessionId`.
 An older/manual build may report `unknown` and must not be treated as identified.

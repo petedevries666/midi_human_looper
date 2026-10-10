@@ -11,7 +11,8 @@ not merged or hardware-qualified release functionality.**
 → #41 (shared parameter contract) → #42 (project restoration authority)
 → #43 (shared browser observation / named controller choices).
 
-Named integration candidate: `integration/studio-live-rc`, based on #43 commit
+Named integration candidate: [PR #44](https://github.com/petedevries666/midi_human_looper/pull/44)
+(`integration/studio-live-rc`), based on #43 commit
 `57910e7`. All eight fetched PR heads were verified as ancestors on 10 October
 2026. Its build identity and read-only reliability monitor aid qualification;
 they do not establish physical acceptance. See [V4 first test](zynthian-v4-first-test.md)

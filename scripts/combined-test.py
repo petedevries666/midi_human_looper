@@ -30,6 +30,8 @@ try:
     run([sys.executable,'tests/test_controller_integration.py'])
     run([sys.executable,'tests/test_snapshots.py'])
     run([sys.executable,'tests/test_product_integration.py'])
+    run([sys.executable,'tests/test_phrase_midi.py'])
+    run([sys.executable,'tests/test_phrase_midi_integration.py'])
     run(['scripts/controller-test.sh'])
     run(['scripts/controller-test.sh'],{'SANITIZE':'1'})
     if a.native:
@@ -44,6 +46,7 @@ try:
             run([sys.executable,'tests/test_controller_browser.py'])
             run([sys.executable,'tests/test_snapshot_browser.py'])
             run([sys.executable,'tests/test_product_browser.py'])
+            run([sys.executable,'tests/test_phrase_midi_browser.py'])
     print('PASS selected combined regression suite',flush=True)
 except (RuntimeError,subprocess.TimeoutExpired,KeyboardInterrupt) as error:
     print(f'FAILED: {error}',file=sys.stderr);sys.exit(1)

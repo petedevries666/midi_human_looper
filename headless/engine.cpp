@@ -842,7 +842,7 @@ static void control(int listener, Queue<Request, 64> &commands,
                       request.arg >> request.revision >> request.ch >>
                       request.note >> request.value) &&
                  request.id > 0 && request.id <= 9007199254740991ULL &&
-                 request.op >= 0 && (request.op <= 34 || request.op == 40) && request.arg >= 0 &&
+                 request.op >= 0 && (request.op <= 35 || request.op == 40) && request.arg >= 0 &&
                  request.arg <= (request.op == 13   ? 5
                                  : request.op == 15 || request.op == 34 || request.op == 40 ? 3
                                  : request.op == 32 ? 24
@@ -857,7 +857,33 @@ static void control(int listener, Queue<Request, 64> &commands,
       valid = bool(input >> marker >> request.session) && marker == "session" &&
               request.session > 0 && request.session <= 9007199254740991ULL;
     }
-    if (valid && request.op == 5) {
+    if (valid && request.op == 35) {
+      valid = request.target >= 0 && request.target < 16 && request.arg <= 1;
+      if (valid && request.arg == 1) {
+        double duration=0; unsigned count=0;
+        valid = bool(input >> duration >> count) && std::isfinite(duration) &&
+                duration > 0 && duration <= 3600 && count > 0 && count <= 2048;
+        patchValues.push_back(duration);
+        double previous = -1;
+        std::array<unsigned,2048> held{};
+        for (unsigned j=0; valid && j<count; ++j) {
+          double time; int status, note, velocity;
+          valid = bool(input >> time >> status >> note >> velocity) &&
+                  std::isfinite(time) && time >= previous && time >= 0 && time <= duration &&
+                  (status >= 128 && status < 160) && note >= 0 && note < 128 &&
+                  velocity >= 0 && velocity < 128;
+          if (!valid) break;
+          unsigned key=(status&15)*128+note;
+          if ((status&240)==144 && velocity) ++held[key];
+          else if (!held[key]) valid=false;
+          else --held[key];
+          previous=time;
+          patchValues.insert(patchValues.end(),{time,double(status),double(note),double(velocity)});
+        }
+        for (auto n:held) if (n) valid=false;
+      }
+      if (input >> extra) valid=false;
+    } else if (valid && request.op == 5) {
       double x;
       while (input >> x)
         patchValues.push_back(x);
@@ -988,7 +1014,63 @@ static void control(int listener, Queue<Request, 64> &commands,
           std::this_thread::sleep_for(std::chrono::milliseconds(1));
       }
       if (received) {
-        if (reply.status == 0 && request.op == 4) {
+        if (reply.status == 0 && request.op == 35) {
+          const unsigned selected=unsigned(request.target), base=selected*unsigned(variable(patch.fx,"LAYER_STRIDE"));
+          const unsigned countBase=unsigned(variable(patch.fx,"COUNT_BASE"));
+          const unsigned lengthBase=unsigned(variable(patch.fx,"LEN_BASE"));
+          const double rate=reply.state.sampleRate;
+          if (request.arg == 1) {
+            double duration=std::max(std::ceil(patchValues[0]*rate),std::round(patchValues[patchValues.size()-4]*rate)+1);
+            if (reply.state.chain && (duration>reply.state.chainLength ||
+                std::round(patchValues[patchValues.size()-4]*rate)>=reply.state.chainLength)) reply.status=3;
+            if (!reply.state.chain && *patch.memory[unsigned(variable(patch.fx,"MODE_BASE"))+selected]<.5 &&
+                *patch.globals[0]>0 && duration>*patch.globals[0]) reply.status=3;
+            if (!reply.status) {
+              for (unsigned j=0;j<(patchValues.size()-1)/4;++j) {
+                *patch.memory[base+j*5]=std::round(patchValues[1+j*4]*rate);
+                for(unsigned k=1;k<4;++k) *patch.memory[base+j*5+k]=patchValues[1+j*4+k];
+                *patch.memory[base+j*5+4]=0;
+              }
+              *patch.memory[countBase+selected]=(patchValues.size()-1)/4;
+              *patch.memory[lengthBase+selected]=reply.state.chain?reply.state.chainLength:duration;
+              if(reply.state.chain) *patch.memory[unsigned(variable(patch.fx,"MODE_BASE"))+selected]=0;
+              if (*patch.globals[0]<=0) { *patch.globals[0]=duration; *patch.globals[1]=1; }
+            }
+            paused.store(false,std::memory_order_release);
+            send_line(fd,json(reply),shutdown);
+          } else {
+            double storedCount=*patch.memory[countBase+selected];
+            bool validEvents=std::isfinite(storedCount) && storedCount>=0 && storedCount<=2048 && std::floor(storedCount)==storedCount;
+            unsigned count=validEvents?unsigned(storedCount):0;
+            for(unsigned j=0;validEvents && j<count;++j) {
+              double time=*patch.memory[base+j*5];
+              validEvents=std::isfinite(time) && time>=0 && time<=rate*3600;
+              for(unsigned k=1;validEvents && k<4;++k) {
+                double v=*patch.memory[base+j*5+k];
+                validEvents=std::isfinite(v) && v>=0 && v<=(k==1?239:127) && std::floor(v)==v;
+              }
+            }
+            if (!validEvents) send_line(fd,"{\"status\":\"invalid\"}\n",shutdown);
+            else {
+              std::ostringstream out; out<<std::setprecision(17);
+              double duration=*patch.memory[lengthBase+selected];
+              if(duration<=0) duration=*patch.globals[0];
+              for(unsigned j=0;j<count;++j) duration=std::max(duration,*patch.memory[base+j*5]+1);
+              out<<"{\"status\":\"ok\",\"phraseData\":{\"lengthSeconds\":"<<duration/rate
+                 <<",\"bpm\":"<<(*patch.globals[4]>0?*patch.globals[4]:120)<<",\"events\":[";
+              for(unsigned j=0;j<count;++j) {
+                if(j) out<<',';
+                out<<'['<<*patch.memory[base+j*5]/rate;
+                for(unsigned k=1;k<4;++k) out<<','<<int(*patch.memory[base+j*5+k]);
+                out<<']';
+              }
+              out<<"]}}\n";
+              paused.store(false,std::memory_order_release);
+              send_line(fd,out.str(),shutdown);
+            }
+          }
+          paused.store(false,std::memory_order_release);
+        } else if (reply.status == 0 && request.op == 4) {
           auto document =
               patch.save(paused, reply.state.controllerConfig, model);
           auto last = document.find_last_of('}');
@@ -1034,7 +1116,7 @@ static void control(int listener, Queue<Request, 64> &commands,
           send_line(fd, json(reply), shutdown);
         }
       }
-      if (request.op == 4 || request.op == 5) {
+      if (request.op == 4 || request.op == 5 || request.op == 35) {
         loading.store(false, std::memory_order_release);
         paused.store(false, std::memory_order_release);
       }
@@ -1257,6 +1339,10 @@ int main(int argc, char **argv) {
       throw std::runtime_error("controller bridge");
     Model model(fx);
     PatchModel patch(fx);
+    auto importState=ysfx_find_var(fx,"state"), importOverdub=ysfx_find_var(fx,"overdub_active");
+    std::array<double*,12> importVoices{};
+    for(unsigned j=0;j<12;++j) importVoices[j]=cell(fx,unsigned(variable(fx,"VOICE_ACTIVE_BASE"))+j);
+    const double importRecording=variable(fx,"STATE_RECORDING"), importPlaying=variable(fx,"STATE_PLAYING");
     controller::Host controllers;
     const double phraseLearnBase = variable(fx, "SW_COUNT") + variable(fx, "CONTROLLERS");
     auto matchesLegacy = [&](int kind, int ch, int num, double skip) {
@@ -1789,6 +1875,16 @@ int main(int argc, char **argv) {
             ((request.session && request.session != engineSession) ||
              (request.revision != state.revision && request.revision != -1)))
           reply.status = 1;
+        else if (request.op == 35) {
+          // Transactional interchange: stopped processor only. No parsing, copying
+          // event vectors or filesystem work occurs in the real-time callback.
+          if (chain.recording || chain.armed || *importOverdub>.5 ||
+              *importState==importRecording ||
+              (request.arg==1 && (chain.run ||
+               *importState==importPlaying ||
+               std::any_of(importVoices.begin(),importVoices.end(),[](double* p){return *p>.5;})))) reply.status=3;
+          else { maintenance=true; if(request.arg==1) ++state.revision; }
+        }
         else if (request.op == 4 || request.op == 5) {
           if (chainMode) {
             chain.cancel();

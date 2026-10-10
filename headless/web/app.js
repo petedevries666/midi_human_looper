@@ -267,6 +267,40 @@ $('export-patch').addEventListener('click',()=>patch('export'));
 
 document.addEventListener('click',event=>{for(const menu of document.querySelectorAll('.snapshot-actions[open]'))if(!menu.contains(event.target))menu.open=false;});
 document.addEventListener('keydown',event=>{if(event.key==='Escape')for(const menu of document.querySelectorAll('.snapshot-actions[open]'))menu.open=false;});
+function phraseOptions(phraseId){
+  const dialog=$('editor'),content=$('editor-content');if(dialog.open)return;
+  let committing=false;
+  const dismiss=()=>{if(!committing)dialog.close();};
+  content.replaceChildren(node('h2',`PHRASE ${phraseId} · MIDI`),button('×',dismiss));
+  const error=node('p','');error.setAttribute('role','alert');
+  const file=node('input');file.type='file';file.accept='.mid,.midi,audio/midi';file.setAttribute('aria-label','MIDI file');
+  content.append(button('IMPORT MIDI',()=>file.click()),file,button('EXPORT MIDI',async()=>{
+    try{
+      const response=await fetch(`/api/v1/phrase/${phraseId}/midi`,{headers:headers()});
+      if(!response.ok)throw new Error((await response.json()).error);
+      const url=URL.createObjectURL(await response.blob()),link=node('a');link.href=url;link.download=`mbmf-phrase-${String(phraseId).padStart(2,'0')}.mid`;link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+    }catch(e){error.textContent=e.message;}
+  }));
+  const preview=node('div');content.append(preview,error,button('CANCEL',dismiss));
+  file.onchange=async()=>{
+    preview.replaceChildren();error.textContent='';
+    try{
+      if(!file.files[0]||file.files[0].size>1048576)throw new Error('MIDI file limit: 1 MiB');
+      const bytes=new Uint8Array(await file.files[0].arrayBuffer());let binary='';for(const b of bytes)binary+=String.fromCharCode(b);
+      const encoded=btoa(binary),capturedRevision=revision,capturedSession=engineSession;
+      const body={phraseId,file:encoded,mode:'preview'};
+      const info=await request('/api/v1/phrase/midi',body);
+      const initialTempo=info.tempos.filter(t=>t[0]===0).at(-1)?.[1]||120,meter=info.meters[0];
+      preview.append(node('p',`${info.noteCount} notes · ${info.tracks} tracks · ${info.lengthSeconds.toFixed(3)} s`),node('small',`Initial ${initialTempo.toFixed(2)} BPM · ${meter?`${meter[1]}/${meter[2]}`:'4/4 (default)'}`),node('p',info.tempoPolicy),node('p','Replace stored source notes. Stop this processor first. Other processors are independent.'));
+      const replace=button('REPLACE PHRASE',async()=>{
+        committing=true;replace.disabled=true;
+        try{await request('/api/v1/phrase/midi',{...body,mode:'replace',expectedRevision:capturedRevision,expectedEngineSessionId:capturedSession});dialog.close();await refresh();}
+        catch(e){error.textContent=e.message;}finally{committing=false;replace.disabled=false;}
+      });preview.append(replace);
+    }catch(e){error.textContent=e.message;}
+  };
+  dialog.oncancel=e=>{if(committing)e.preventDefault();};dialog.onclick=e=>{const r=dialog.getBoundingClientRect();if(e.target===dialog&&(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom))dismiss();};dialog.showModal();
+}
 let phrasePage=0;
 function liveParameter(targetId,kind,value,moduleId=0){return command({action:'parameter_set',targetId,moduleId,kind,value});}
 function inlineNumber(label,value,min,max,step,onchange){
@@ -288,7 +322,7 @@ function compactPhrases(s){
     for(const [value,label] of [[1,'ONCE'],[0,'LOOP'],[2,'HOLD']]){const option=node('option',label);option.value=value;mode.append(option);}mode.value=p.mode;mode.disabled=!!s.chainMode;mode.title=s.chainMode?'Native chain prototype uses synchronized two-bar LOOP playback':'';mode.onchange=()=>liveParameter(p.id,20,Number(mode.value));row.append(mode);
     row.append(inlineNumber('BASE VEL',p.baseVelocity,.2,3,.01,value=>liveParameter(p.id,17,value)));
     if(p.mode===1)row.append(inlineNumber('VEL DECAY',p.velocityDecay,.2,1,.01,value=>liveParameter(p.id,15,value)),inlineNumber('TIME DECAY',p.timeDecay,.5,2,.01,value=>liveParameter(p.id,14,value)));
-    const finish=button('FINISH REC',()=>command({action:'phrase_finish',phraseId:p.id}));finish.title='Finish record / overdub without discarding the take';row.append(finish,node('small',`${p.events} events`));
+    const finish=button('FINISH REC',()=>command({action:'phrase_finish',phraseId:p.id}));finish.title='Finish record / overdub without discarding the take';row.append(finish,node('small',`${p.events} events`),button('PHRASE OPTIONS',()=>phraseOptions(p.id)));
     return row;
   }));
 }

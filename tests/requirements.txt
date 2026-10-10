@@ -1,0 +1,4 @@
+# Optional full regression dependencies; engine/server use the Python standard library.
+lupa==2.6
+playwright==1.63.0
+mido==1.3.3

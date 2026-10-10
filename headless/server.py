@@ -11,6 +11,7 @@ import struct
 import os
 import math
 import time
+from phrase_midi import read_smf, write_smf, MAX_BYTES
 from registry import REGISTRY
 from controller_config import binding_wire, decode
 import socket
@@ -37,7 +38,7 @@ class Control:
         self.lock = threading.Lock()
         self.ids = itertools.count(1)
 
-    def request(self, op=0, target=0, arg=0, revision=1, ch=0, note=0, value=0, session=0, patch=None, parameters=None, module=0, binding=None, name=None, settings=None, inclusions=None, macro=None):
+    def request(self, op=0, target=0, arg=0, revision=1, ch=0, note=0, value=0, session=0, patch=None, parameters=None, module=0, binding=None, name=None, settings=None, inclusions=None, macro=None, phrase=None):
         # One worker producer owns the engine's command queue; HTTP threads never
         # inspect live engine state. A timeout does not cancel an already executed TEST.
         with self.lock:
@@ -52,6 +53,8 @@ class Control:
             if parameters is not None:
                 line=line.rstrip('\n')+f' {module} {len(parameters)} '+ ' '.join(f"{p['kind']} {p['value']:.17g}" for p in parameters)+'\n'
             if binding is not None:line=line.rstrip('\n')+' '+' '.join(format(v,'.17g') for v in binding)+'\n'
+            if phrase is not None:
+                line=line.rstrip('\n')+' '+format(phrase['lengthSeconds'],'.17g')+' '+str(len(phrase['events']))+' '+' '.join(format(v,'.17g') for e in phrase['events'] for v in e)+'\n'
             if patch is not None:
                 validate_patch_extensions(patch)
                 line = line.rstrip('\n') + ' ' + ' '.join(format(v, '.17g') for v in patch['globals']+patch['memory'])+'\n'
@@ -172,6 +175,8 @@ class Handler(BaseHTTPRequestHandler):
             return
         if path=='/api/v1/ws' and self.headers.get('Upgrade','').lower()=='websocket':
             self.websocket();return
+        if path.startswith('/api/v1/phrase/') and path.endswith('/midi'):
+            self.phrase_export(path);return
         if path == '/api/v1/descriptors':
             document=REGISTRY.document()
             document['runtimeCapabilities']={'transformerTypes':[1,2,3,4,5,6], 'humanizer':False, 'echocity':False, 'phraseTransformers':False, 'snapshots':True, 'reaperSnapshots':False, 'ordering':'legacy-stages-or-serial-pitch'}
@@ -197,9 +202,47 @@ class Handler(BaseHTTPRequestHandler):
         name, mime = files[path]
         self.respond(200, (ROOT / name).read_bytes(), mime)
 
+    def phrase_export(self, path):
+        try:
+            phrase_id=int(path.split('/')[4])
+            if not 1<=phrase_id<=16:raise ValueError('Invalid phrase')
+            result=self.server.control.request(op=35,target=phrase_id-1,arg=0,revision=-1)
+            if result.get('status')!='ok':raise ValueError('Finish recording before exporting MIDI')
+            self.respond(200,write_smf(result['phraseData']),'audio/midi')
+        except (ValueError,KeyError) as error:self.respond(422,{'error':str(error)})
+        except OSError:self.respond(503,{'error':'Engine unavailable'})
+
+    def phrase_import(self):
+        try:
+            length=int(self.headers.get('Content-Length','0'))
+            if not 0<length<=MAX_BYTES*4//3+4096:raise ValueError('Oversized MIDI upload (limit 1 MiB)')
+            data=json.loads(self.rfile.read(length));phrase_id=data.get('phraseId');mode=data.get('mode')
+            if type(phrase_id) is not int or not 1<=phrase_id<=16 or mode not in ('preview','replace'):
+                raise ValueError('Choose a valid destination and preview or replace')
+            raw=base64.b64decode(data['file'],validate=True)
+            parsed=read_smf(raw)
+            state=self.server.control.request()
+            capacity=state.get('chainLength',0)/state['sampleRate'] if state.get('chainMode') else 3600
+            if parsed['lengthSeconds']>capacity or (state.get('chainMode') and max(e[0] for e in parsed['events'])>=capacity):
+                raise ValueError('File exceeds phrase capacity; replacement cancelled. Shorten the source MIDI explicitly.')
+            if mode=='preview':
+                self.respond(200,{k:v for k,v in parsed.items() if k!='events'});return
+            revision=data.get('expectedRevision');session=data.get('expectedEngineSessionId')
+            if type(revision) is not int or not 1<=revision<2147483647 or type(session) is not int or not 1<=session<=9007199254740991:
+                raise ValueError('Expected revision/session required')
+            result=self.server.control.request(op=35,target=phrase_id-1,arg=1,revision=revision,session=session,phrase=parsed)
+            status=result.get('status')
+            if status=='conflict':self.respond(409,result);return
+            if status!='ok':raise ValueError('Stop playback and finish recording before replacing a phrase; check capacity')
+            self.respond(200,{'status':'imported','phraseId':phrase_id,'events':len(parsed['events'])})
+        except (ValueError,KeyError,TypeError) as error:self.respond(422,{'error':str(error)})
+        except OSError:self.respond(503,{'error':'Engine unavailable'})
+
     def do_POST(self):
         if not self.allowed(api=True):
             return
+        if self.path == '/api/v1/phrase/midi':
+            self.phrase_import();return
         if self.path in ('/api/v1/patch/save','/api/v1/patch/load','/api/v1/patch/export'):
             self.patch_command();return
         if self.path != '/api/v1/command':

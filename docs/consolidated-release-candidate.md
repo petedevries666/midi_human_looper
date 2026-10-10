@@ -110,7 +110,10 @@ three-chain recording after a detected missed JACK callback (equal transport and
 clock gaps of 8192 frames, with XRUNs reported). The engine correctly rejected the
 interrupted take; the underlying cause is not established. This failure is retained
 as evidence and does not qualify reliability merely because another run passes.
-There was no safety-check relaxation or automatic retry in the test.
+There was no safety-check relaxation or automatic retry in the test. A separate
+full rerun subsequently passed, including native/JACK/JSFX/Controller/Snapshot,
+interchange, authority/rollback and all Chromium workflows. The earlier missed
+callback still prevents a hardware reliability claim.
 
 
 Required physical validation: actual REAPER APIs/RPP save and restart, full Firefox

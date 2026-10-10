@@ -9,7 +9,7 @@ not merged or hardware-qualified release functionality.**
 `main` → #30 (core/lifecycle/native snapshots/UI) → #34 (SMF interchange) → #37
 (portable carrier) → #38 (ReaScript/sync) → #40 (sample-grid transport correction)
 → #41 (shared parameter contract) → #42 (project restoration authority)
-→ shared browser observation / named controller choices.
+→ #43 (shared browser observation / named controller choices).
 
 No PR was merged during consolidation. #30 remains a large review dependency;
 review lifecycle/ownership, native snapshots and UI separately before integrating.

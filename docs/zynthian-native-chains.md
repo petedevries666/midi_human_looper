@@ -220,10 +220,14 @@ operation are still part of physical acceptance.
 
 ## Cloud integration regression buffer
 
-The three-processor desktop regression uses 48 kHz / 2,048 frames (42.7 ms)
-so browser startup on a shared, non-realtime cloud machine does not invalidate
-recording. The two-bar period is rounded to 192,512 samples at that buffer size;
-this is a software workflow test, not a Raspberry Pi latency qualification.
+The three-processor desktop regression defaults to 48 kHz / 2,048 frames
+(42.7 ms), with `CHAIN_JACK_BLOCK=4096` or `8192` available for throttled CI.
+This cloud machine occasionally misses recording deadlines even at 2,048 frames;
+those runs fail safely with `chainError=1`, not silent recording corruption.
+The full cloud functional matrix uses `CHAIN_JACK_BLOCK=8192` (170.7 ms), with
+its two-bar period rounded to 196,608 samples. This is not a low-latency or
+Raspberry Pi performance qualification. The separate ordering/overflow JACK tests
+continue using their existing smaller buffers. No Zynthian JACK settings change.
 A missed recording callback cancels the take and now reports a clock error.
 A missed playback callback releases channel state with 48 bounded MIDI channel
 messages (CC64/123/120) on this processor's output, resets owned notes and resumes
@@ -267,3 +271,13 @@ is acyclic and does not insert an implicit feedback-period delay into recording.
 It exercises actual overdub on Piano while Bass/Synth remain playing, Snapshot
 capture/recall and per-processor persistence/recreation. Three processor captures
 must remain on the shared two-bar grid. This does not qualify physical latency.
+
+Native chain STOP/PANIC and SAVE/LOAD cleanup now uses the same bounded channel
+release path as missed playback. This prevents rapid SAVE → LOAD → PLAY from
+filling the output FIFO with repeated 2,048-note sweeps at large buffers. The
+separate REAPER/standalone paths retain their established explicit note sweeps.
+Actual JACK capture validates chronological output and an empty final note ledger,
+including channel-mode cleanup. Synth response to CC64/123/120 remains mandatory
+for this native cleanup policy and must be verified on the physical image.
+For the initial Helix expression test, use an unassigned CC such as 21 or 22;
+legacy expression CCs remain protected and cannot be silently reassigned.

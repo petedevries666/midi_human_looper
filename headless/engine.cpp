@@ -1183,6 +1183,7 @@ int main(int argc, char **argv) {
       throw std::runtime_error("panic bridge compilation");
     // A skipped chain callback must not enqueue 2,048 synthetic releases ahead
     // of current grid events. Reset ownership and emit bounded channel cleanup.
+    auto panicPending = ysfx_find_var(fx, "panic_pending");
     auto chainRecovery = NSEEL_code_compile(fx->vm.get(),
         "send_all_notes_off();reset_note_runtime();panic_pending=0;", 0);
     if (!chainRecovery) throw std::runtime_error("chain recovery bridge");
@@ -1258,14 +1259,17 @@ int main(int argc, char **argv) {
     PatchModel patch(fx);
     controller::Host controllers;
     const double phraseLearnBase = variable(fx, "SW_COUNT") + variable(fx, "CONTROLLERS");
-    std::function<bool(int, int, int)> conflicts = [&](int kind, int ch,
-                                                       int num) {
-      *learnSkip = controllers.learnsCommand() ? phraseLearnBase + controllers.learnTarget() - 1 : -1;
+    auto matchesLegacy = [&](int kind, int ch, int num, double skip) {
+      *learnSkip = skip;
       *learnKind = kind;
       *learnCh = ch;
       *learnNum = num;
       NSEEL_code_execute(legacyConflict);
       return *learnConflict != 0;
+    };
+    std::function<bool(int, int, int)> conflicts = [&](int kind, int ch, int num) {
+      return matchesLegacy(kind, ch, num, controllers.learnsCommand()
+          ? phraseLearnBase + controllers.learnTarget() - 1 : -1);
     };
     auto resolveBinding = [&](const controller::Binding &b) {
       return model.bindingValue(b, true) != nullptr;
@@ -1682,6 +1686,28 @@ int main(int argc, char **argv) {
     std::function<int(jack_nframes_t)> process = [&](jack_nframes_t frames) {
       void *outBuffer =
           useJack ? jack_port_get_buffer(midiOut, frames) : nullptr;
+      auto cleanupChain = [&]() {
+        outputRead = outputWrite;
+        NSEEL_code_execute(chainRecovery);
+        ysfx_midi_clear(fx->midi.out.get());
+        bool complete = true;
+        for (unsigned ch = 0; ch < 16; ++ch)
+          for (unsigned cc : {64u, 123u, 120u}) {
+            uint8_t data[] = {uint8_t(176 | ch), uint8_t(cc), 0};
+            if (jack_midi_event_write(outBuffer, 0, data, 3)) {
+              complete = false;
+              overflowRecovery = true;
+              ++state.outputOverflow;
+            } else {
+              ++state.midi;
+              state.last_sample = state.samples;
+              state.last_status = 176 | ch;
+              state.last_note = cc;
+              state.last_value = 0;
+            }
+          }
+        if (complete) { held.fill(false); state.active = 0; }
+      };
       bool recovering = overflowRecovery;
       overflowRecovery = false;
       if (outBuffer) {
@@ -1990,7 +2016,7 @@ int main(int argc, char **argv) {
             if (source.kind &&
                 (source.kind == 2 &&
                      (source.number == 64 || source.number >= 120) ||
-                 conflicts(source.kind, source.channel, source.number)))
+                 matchesLegacy(source.kind, source.channel, source.number, -1)))
               reply.status = 3;
             else if (!controllers.source(source))
               reply.status = 3;
@@ -2309,15 +2335,7 @@ int main(int argc, char **argv) {
                        jack ? uint64_t(jack_last_frame_time(jack)) : 0)) {
           controllers.panic();
           if (chain.run && outBuffer) {
-            outputRead = outputWrite;
-            NSEEL_code_execute(chainRecovery);
-            ysfx_midi_clear(fx->midi.out.get());
-            for (unsigned ch = 0; ch < 16; ++ch)
-              for (unsigned cc : {64u, 123u, 120u}) {
-                uint8_t data[] = {uint8_t(176 | ch), uint8_t(cc), 0};
-                if (jack_midi_event_write(outBuffer, 0, data, 3))
-                  overflowRecovery = true;
-              }
+            cleanupChain();
           } else
             NSEEL_code_execute(panic_bridge);
         }
@@ -2373,6 +2391,8 @@ int main(int argc, char **argv) {
             t->owner == UINT32_MAX && t->token == p.token)
           *snapHostCells[288 + p.legacyCurve] = 1;
       }
+      if (chainMode && outBuffer && *panicPending > .5)
+        cleanupChain();
       ysfx_process_float(fx, nullptr, nullptr, 0, 0, frames);
       for (unsigned j = 0; j < performanceTargetCount; ++j) {
         auto &p = (*performanceTargets)[j];

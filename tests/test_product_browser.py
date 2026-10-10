@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Compact editor workflow against the native engine, including confirmation."""
 import os
+import time
 from playwright.sync_api import sync_playwright
 from test_headless_mvp import HeadlessTests
 HeadlessTests.setUpClass();api=HeadlessTests('test_real_engine_and_fifo')
@@ -13,7 +14,10 @@ try:
         assert not page.locator('#controller-section').evaluate('(e)=>e.open')
         row=page.locator('[data-instrument-id="1"]')
         row.get_by_label('VOLUME',exact=True).fill('68');row.get_by_label('VOLUME',exact=True).press('Tab')
-        page.wait_for_function('latest.instruments[0].level===68')
+        deadline=time.monotonic()+5
+        while api.call()['instruments'][0]['level']!=68:
+            assert time.monotonic()<deadline, 'inline volume did not reach engine'
+            page.wait_for_timeout(50)
         assert api.call()['instruments'][1]['level']==127
         confirmations=[]
         def reject(dialog):confirmations.append(dialog.message);dialog.dismiss()

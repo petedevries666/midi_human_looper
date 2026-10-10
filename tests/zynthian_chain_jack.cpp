@@ -1,6 +1,7 @@
 // Three independent chain destinations and a hardware-like source; no Python in
 // JACK callback.
 #include <array>
+#include <cmath>
 #include <atomic>
 #include <iostream>
 #include <jack/jack.h>
@@ -14,10 +15,11 @@ std::atomic<unsigned> count{0}, mask{0};
 jack_client_t *client, *sourceClient;
 std::array<jack_port_t *, 3> inputs, outputs;
 std::array<bool, 3> held{};
+unsigned loopLength=192512;
 int sourceProcess(jack_nframes_t n, void *) {
   jack_position_t p{};
   auto transport = jack_transport_query(sourceClient, &p);
-  unsigned phase = p.frame % 192512;
+  unsigned phase = p.frame % loopLength;
   for (unsigned i = 0; i < 3; ++i) {
     auto out = jack_port_get_buffer(outputs[i], n);
     jack_midi_clear_buffer(out);
@@ -44,8 +46,9 @@ int process(jack_nframes_t n, void *) {
     for (unsigned j = 0; j < jack_midi_get_event_count(in); ++j) {
       jack_midi_event_t e;
       jack_midi_event_get(&e, in, j);
-      if (e.size == 3 && e.buffer[1] >= 60 && e.buffer[1] <= 62 &&
-          (e.buffer[0] & 240) != 176 && count < events.size()) {
+      if (e.size == 3 && count < events.size() &&
+          (((e.buffer[0] & 240) != 176 && e.buffer[1] >= 60 && e.buffer[1] <= 62) ||
+           ((e.buffer[0] & 240) == 176 && (e.buffer[1] == 64 || e.buffer[1] >= 120)))) {
         auto index = count.load();
         events[index] = {i,           p.frame,     e.time,
                          e.buffer[0], e.buffer[1], e.buffer[2]};
@@ -68,6 +71,7 @@ int main() {
         jack_port_register(sourceClient, ("out" + std::to_string(i)).c_str(),
                            JACK_DEFAULT_MIDI_TYPE, JackPortIsOutput, 0);
   }
+  loopLength=unsigned(std::llround(192000.0/jack_get_buffer_size(sourceClient)))*jack_get_buffer_size(sourceClient);
   jack_set_process_callback(sourceClient, sourceProcess, nullptr);
   jack_set_process_callback(client, process, nullptr);
   if (jack_activate(sourceClient) || jack_activate(client))

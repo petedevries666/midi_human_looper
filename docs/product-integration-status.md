@@ -12,7 +12,8 @@ Controller-owned external morphing; PR #30 builds the Snapshot manager on it.
 PR #27 is merged after the complete native/JACK/Chromium regression passed,
 including bounded recovery and interrupted-recording diagnostics. The integration
 branch joins it with #29/#30; native looper commands now use opcode 40, leaving
-Snapshot opcode 20 intact. The combination remains reviewable before merging.
+Snapshot opcode 20 intact. PR #29 is also merged after combined Controller and
+Snapshot regression validation. PR #30 remains a draft for the integrated prototype.
 
 PR #25 is a HUMANIZER mathematical/descriptor foundation, **not playback**.
 PR #28 is a bounded scheduler foundation, **not a playable ECHOCITY module**.
@@ -102,3 +103,32 @@ record/play/stop semantics under fixed-grid transport. Zynthian's native PLAY/RE
 STOP/FINISH controls are the reproducible first-test path. Full stock Firefox,
 Helix, Zynthian UI registration/autoconnect, audible synths, Pi CPU/RAM and latency
 remain hardware validation pending. No release candidate hardware certification.
+
+Cloud timing limitation: the three-process dummy JACK capture sometimes overruns
+at 2,048 frames under shared-container CPU scheduling. Functional validation uses
+`CHAIN_JACK_BLOCK=8192`; the engine reports and safely cancels missed recordings.
+A passing high-buffer workflow must not be presented as a playable Pi latency result.
+Physical JACK buffer/CPU qualification is a release blocker, not a hidden test waiver.
+
+## Executed validation of this integration
+
+The complete combined runner passed on the final implementation:
+
+```sh
+CHAIN_JACK_BLOCK=8192 PATH=/workspace/setup-tools/venv/bin:$PATH \
+YSFX_SOURCE=/workspace/setup-tools/ysfx YSFX_BUILD=/workspace/setup-tools/ysfx/build \
+JACK_INCLUDE=/workspace/scratch/midi-deps/root/usr/include \
+JACKD=/workspace/scratch/midi-deps/root/usr/bin/jackd \
+JACK_DRIVER_DIR=/workspace/scratch/midi-deps/root/usr/lib/x86_64-linux-gnu/jack \
+HEADLESS_BINARY=/workspace/scratch/midi-headless-engine \
+python3 scripts/combined-test.py --native --jack --browser chromium
+```
+
+This includes 162,709 synthetic-time Controller checks and 543 host adapter checks
+in both normal and ASAN/UBSAN builds; 2,355 actual EEL2/GUI/MIDI checks with stable
+concurrent GUI hashes; baseline HTTP, registry, installer, Controller and Snapshot
+API suites; the complete product workflow; five Lua tests; five Chromium workflows;
+and actual dummy JACK three-processor recording/overdub/persistence, timestamp
+ordering and overflow recovery. The JACK probe checks chronological events and an
+empty final note ledger, including channel-mode cleanup. No physical certification
+or stock Firefox qualification is inferred from these results.

@@ -2,6 +2,9 @@
 import importlib.util,json,os,subprocess,sys,tempfile,time,types
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
+BLOCK=int(os.environ.get('CHAIN_JACK_BLOCK','2048'))
+if BLOCK not in (2048,4096,8192):raise ValueError('CHAIN_JACK_BLOCK must be 2048, 4096 or 8192')
+PERIOD=int(192000/BLOCK+.5)*BLOCK
 # UI prerequisites are hardware-specific. Only base/UI controls are stubbed; adapter,
 # IPC, engine, persistence, transport and MIDI routing are real.
 class Base:
@@ -17,7 +20,7 @@ with tempfile.TemporaryDirectory(prefix='mbh-chains-') as temp:
     directory=Path(temp);Base.my_data_dir=temp
     config=directory/'config.json';config.write_text(json.dumps(dict(version=1,repository=str(ROOT),binary=os.environ['HEADLESS_BINARY'])))
     os.environ['MBH_CONFIG']=str(config);os.environ['JACK_DEFAULT_SERVER']='mbh-chains-test'
-    server=subprocess.Popen([os.environ.get('JACKD','jackd'),'--name','mbh-chains-test','--no-realtime','-d','dummy','-r','48000','-p','2048'],stdout=subprocess.DEVNULL,stderr=subprocess.PIPE)
+    server=subprocess.Popen([os.environ.get('JACKD','jackd'),'--name','mbh-chains-test','--no-realtime','-d','dummy','-r','48000','-p',str(BLOCK)],stdout=subprocess.DEVNULL,stderr=subprocess.PIPE)
     processors=[Processor(i) for i in range(1,4)];engines=[];probe=None;browser=None;playwright=None
     try:
         time.sleep(1)
@@ -65,7 +68,7 @@ with tempfile.TemporaryDirectory(prefix='mbh-chains-') as temp:
             wait(i,'chainRecording',True);wait(i,'chainRecording',False)
             source(0)
             s=state(i);assert s['phrases'][0]['events']>=2,s
-            assert s['chainLength']==192512 and s['chainRunning'],s
+            assert s['chainLength']==PERIOD and s['chainRunning'],s
             for previous in range(1,i):assert state(previous)['chainRunning']
         # Actual overdub while Bass and Synth remain playing independently.
         previous_events=state(1)['phrases'][0]['events']
@@ -113,10 +116,20 @@ with tempfile.TemporaryDirectory(prefix='mbh-chains-') as temp:
         events=[list(map(int,line.split())) for line in lines]
         for i in range(3):
             own=[e for e in events if e[0]==i]
+            held_notes=set();last_time=-1
+            for event in own:
+                _,frame,offset,status,note,value=event
+                assert frame+offset>=last_time,('nonmonotonic JACK output',event,last_time)
+                last_time=frame+offset
+                key=(status&15,note)
+                if status&240==144 and value:held_notes.add(key)
+                elif status&240==128 or (status&240==144 and not value):held_notes.discard(key)
+                elif status&240==176 and note in (120,123):held_notes={k for k in held_notes if k[0]!=(status&15)}
+            assert not held_notes,('unreleased actual MIDI output',i,held_notes)
             assert own and all(e[4]==60+i and e[3]&15==i for e in own if e[3]&240==144 and e[5]>0),own
             playback=[e for e in own if e[1]>silence_frame and e[3]&240==144 and e[5]>0]
             assert playback,('missing recorded playback',i,own)
-            assert all((e[1]+e[2])%192512==0 for e in playback),playback
+            assert all((e[1]+e[2])%PERIOD==0 for e in playback),playback
             assert any(e[1]>silence_frame and e[4]==60+i and (e[3]&240==128 or (e[3]&240==144 and e[5]==0)) for e in own),own
         for engine in engines:engine.stop()
         engines=[]

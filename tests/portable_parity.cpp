@@ -35,5 +35,39 @@ int main(int argc,char**argv) {
     check(std::abs(a[i].seconds-b[i].seconds)<.003,"studio/live block timing parity");
     check(std::abs(a[i].seconds-expected[i])<.003,"source-time playback");
   }
+  Host bridge(argv[1],false);ysfx_set_sample_rate(bridge.f,48000);ysfx_init(bridge.f);
+  bridge.run("state=STATE_PLAYING;gmem[19]=1;gmem[20]=11;gmem[0]=0;");bridge.block();
+  bridge.eq("gmem[21]",11,"bridge rejection acknowledges exact request");
+  bridge.eq("gmem[22]",0,"REAPER bridge refuses running playback");
+  bridge.run("state=STATE_STOPPED;panic_pending=1;");bridge.block();bridge.events();
+  bridge.run("gmem[19]=1;gmem[20]=12;");bridge.block();
+  bridge.eq("gmem[22]",1,"REAPER bridge captures stopped patch");
+  bridge.eq("gmem[3]",171649,"shared portable schema dimensions");
+  const unsigned markers[]={164892,165316,165829,166494,166828,168366};unsigned markerIndex=0;
+  for(const char* name : {"WORK_MEM_SIZE","SW_LEGACY_PAYLOAD","CC_LEGACY_PAYLOAD","TF_LEGACY_PAYLOAD","DS_LEGACY_PAYLOAD","I_LEGACY_PAYLOAD"}) check(bridge.val(name)==markers[markerIndex++],"portable layout agrees with actual JSFX schema");
+  bridge.eq("gmem[17]",48000,"source adapter rate advertised");
+  bridge.eq("payload_addr(164851)",bridge.val("INST_TRANSFORM_COUNT_BASE"),"portable legacy chain layout");
+  bridge.eq("payload_addr(164854)",bridge.val("INST_TRANSFORM_TYPE_BASE"),"portable legacy instance layout");
+  bridge.eq("payload_addr(168474)",bridge.val("I_INST_TRANSFORM_COUNT_BASE"),"portable dynamic chain layout");
+  bridge.eq("payload_addr(169964)",bridge.val("I_INST_TRANSFORM_TYPE_BASE"),"portable dynamic instance layout");
+  bridge.eq("payload_addr(166513)",bridge.val("TF_RECORD_BASE"),"portable legacy type-record layout");
+  bridge.eq("payload_addr(171124)",bridge.val("I_TF_RECORD_BASE"),"portable dynamic type-record layout");
+
+  bridge.run("gmem[10]=4;gmem[19]=2;gmem[20]=13;");bridge.block();
+  bridge.eq("gmem[21]",13,"REAPER bridge apply acknowledgement");
+  bridge.eq("gmem[22]",1,"REAPER bridge validated apply");
+  bridge.eq("slider8",4,"actual EEL2 configuration applied");
+  bridge.run("gmem[19]=1;gmem[20]=14;");bridge.block();
+  bridge.run("gmem[2]=999;gmem[10]=9;gmem[19]=2;gmem[20]=14;");bridge.block();
+  bridge.eq("gmem[22]",0,"invalid REAPER schema rejected");
+  bridge.eq("slider8",4,"failed application preserves prior configuration");
+  bridge.run("gmem[19]=1;gmem[20]=15;");bridge.block();
+  bridge.run("slider9=.75;gmem[19]=2;gmem[20]=16;");bridge.block();
+  bridge.eq("gmem[22]",0,"local edit after capture rejects PULL compare-and-apply");
+  bridge.eq("slider9",.75,"local edit retained after rejected PULL");
+  bridge.run("mem[SUSTAIN_REF_BASE]=1;gmem[19]=1;gmem[20]=17;");bridge.block();
+  bridge.eq("gmem[22]",0,"held sustain rejects destructive capture");
+  bridge.run("mem[SUSTAIN_REF_BASE]=0;");
+
   printf("PASS portable shared-EEL2 MIDI parity at 44100/48000 Hz (%d checks)\n",checks);
 }

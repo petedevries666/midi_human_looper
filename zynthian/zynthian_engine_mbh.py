@@ -60,14 +60,17 @@ class zynthian_engine_mbh(zynthian_engine):
                 time.sleep(.05)
             else:raise TimeoutError('MBH engine startup timeout')
             if entry['control'].request().get('status')!='ok':raise RuntimeError('MBH engine not ready')
+            state=self.restored.get(str(pid))
+            if state:self._restore(entry,state)
+            else:
+                from project_sync import ProjectStore
+                ProjectStore(data,entry['control']).restore()
             web=[sys.executable,str(self.root/'headless/server.py'),'--socket',socket_path,'--patch-dir',str(data),'--port',str(self.config.get('web_port_base',8765)+pid),'--bind',self.config.get('web_bind','127.0.0.1')]
             if self.config.get('token_file'):web+=['--token-file',self.config['token_file']]
             entry['web']=subprocess.Popen(web,stdout=log,stderr=log)
             processor.jackname=self.jackname
             self.processors.append(processor)
             processor.refresh_controllers()
-            state=self.restored.get(str(pid))
-            if state:self._restore(entry,state)
         except BaseException:
             self.remove_processor(processor)
             raise

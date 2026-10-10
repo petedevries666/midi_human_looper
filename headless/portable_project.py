@@ -15,6 +15,7 @@ SIZE = 171649
 LAYERS, STRIDE, COUNT = 16, 10240, 163840
 LENGTH, TRIGGER, POSITION, REPEAT = 163952, 163920, 163936, 163984
 MAX_BYTES = 16000000
+MARKERS = (164892,165316,165829,166494,166828,168366)
 
 
 def canonical(value):
@@ -44,16 +45,44 @@ def validate_patch(patch):
         raise ValueError('Invalid numeric patch data')
     if globals_[0] < 0:
         raise ValueError('Invalid loop length')
+    if any(memory[index]!=version for version,index in enumerate(MARKERS,2)):
+        raise ValueError('Invalid schema-7 extension markers')
+    if int(globals_[8])!=globals_[8] or not 0<=globals_[8]<LAYERS:
+        raise ValueError('Invalid phrase identity')
+    from registry import REGISTRY
+    supported={code for code in REGISTRY.engine_types if code>0}
+    # Resolve existing schema-7 instance codes exactly like transform_type().
+    # 7..11 are instance slots, not new effect types. Do not alias them across
+    # instruments or silently execute future unsupported module records.
+    for instrument in range(8):
+        count_index=164851+instrument if instrument<3 else 168474+instrument-3
+        type_index=164854+instrument*6 if instrument<3 else 169964+(instrument-3)*6
+        count=memory[count_index]
+        if int(count)!=count or not 0<=count<=6:raise ValueError('Invalid Transformer chain length')
+        used=set()
+        for slot in range(int(count)):
+            code=abs(memory[type_index+slot])
+            if int(code)!=code or not 1<=code<=11 or code in used:raise ValueError('Invalid/aliased Transformer instance code')
+            used.add(code)
+            if code>=7:
+                index=instrument*5+int(code)-7
+                address=166513+index*21 if index<15 else 171124+(index-15)*21
+                kind=memory[address]
+                if kind in (3,5):raise ValueError('Stateful Transformer stacking is unsupported; original retained')
+            else:kind=code
+            if kind not in supported:raise ValueError('Unsupported Transformer capability; original retained')
     for p in range(LAYERS):
         n = memory[COUNT+p]
         if int(n) != n or not 0 <= n <= 2048 or memory[LENGTH+p] < 0:
             raise ValueError('Invalid phrase capacity or duration')
-        previous = -1
+        notes=[]
         for j in range(int(n)):
             t, st, d1, d2, offset = memory[p*STRIDE+j*5:p*STRIDE+j*5+5]
-            if t < previous or offset < 0 or any(int(x) != x for x in (st,d1,d2)) or not 128 <= st <= 239 or not 0 <= d1 <= 127 or not 0 <= d2 <= 127:
+            if t < 0 or offset < 0 or any(int(x) != x for x in (st,d1,d2)) or not 128 <= st <= 239 or not 0 <= d1 <= 127 or not 0 <= d2 <= 127:
                 raise ValueError('Invalid source MIDI event')
-            previous = t
+            if int(st)&240 in (128,144):notes.append([t,int(st),int(d1),int(d2)])
+        from phrase_midi import validate_notes
+        validate_notes(sorted(notes,key=lambda event:event[0]))
 
 
 def timing(patch, scale):
@@ -112,16 +141,30 @@ def validate(project):
 def materialize(project, sample_rate, adapter='native'):
     validate(project)
     patch = timing(project['payload']['patch'], rate(sample_rate))
+    # MIDI source events are emitted on the destination sample grid. This also
+    # prevents harmless floating error from failing the native fixed-grid guard.
+    patch['globals'][0]=round(patch['globals'][0])
+    for phrase in range(LAYERS):
+        patch['memory'][LENGTH+phrase]=round(patch['memory'][LENGTH+phrase])
+        for event in range(int(patch['memory'][COUNT+phrase])):
+            index=phrase*STRIDE+event*5
+            patch['memory'][index]=round(patch['memory'][index])
+            patch['memory'][index+4]=round(patch['memory'][index+4])
     if adapter == 'reaper':
         # Preserve the portable original, reject execution of native-only data.
         ce = patch.get('controllerEngine',{})
         gs = patch.get('globalSnapshots',{})
         from controller_config import decode
-        if (ce and (decode(ce)['sources'] or decode(ce)['mappings'])) or (len(gs.get('configuration',[])) >= 4 and gs['configuration'][3]):
-            raise ValueError('REAPER execution of native controllers/snapshots is not supported; portable original retained')
-        # Unknown shapes must not be guessed to mean an empty configuration.
-        if ce and set(ce)-{'version','configuration'}:
+        if ce and set(ce) != {'version','configuration'}:
             raise ValueError('Unsupported REAPER controller configuration')
+        if ce and (decode(ce)['sources'] or decode(ce)['mappings']):
+            raise ValueError('REAPER cannot execute native Controller Engine assignments; portable original retained')
+        if gs:
+            wire=gs.get('configuration');version=gs.get('version')
+            size={1:4,2:196,3:200,4:200}.get(version)
+            if (set(gs) != {'version','configuration'} or not isinstance(wire,list) or
+                len(wire)!=size or wire[0]!=version or wire[1]<1 or wire[2]!=0 or wire[3]!=0 or any(wire[4:])):
+                raise ValueError('REAPER cannot execute native Snapshots/actions/A-B; portable original retained')
         patch.pop('controllerEngine',None)
         patch.pop('globalSnapshots',None)
     elif adapter != 'native':

@@ -19,6 +19,13 @@ class PortableEngineTests(HeadlessTests):
         restored=p.materialize(project,state['sampleRate'])
         result=control.request(op=5,arg=1,target=7,patch=restored,revision=state['revision'],session=state['engineSessionId'])
         self.assertEqual(result['status'],'ok')
+        # Even with a fresh revision, an old raw baseline cannot overwrite a
+        # parameter edited between capture and apply.
+        self.command('parameter_set',targetId=1,kind=1,value=77)
+        changed=self.call()
+        rejected=control.request(op=5,arg=1,target=7,patch=restored,revision=changed['revision'],session=changed['engineSessionId'])
+        self.assertNotEqual(rejected['status'],'ok')
+        self.assertEqual(self.call()['instruments'][0]['level'],77)
         data=control.request(op=35,target=2,revision=-1)['phraseData']
         self.assertEqual([e[2:] for e in data['events']],[[66,99],[66,0]])
         self.command('phrase_play',phraseId=3)

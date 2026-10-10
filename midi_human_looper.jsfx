@@ -13,6 +13,15 @@ slider10=0; slider11=0;
 
 @init
 
+// Allocate bridge gmem banks during initialization, never on the first MIDI
+// callback capture/apply. Preserve existing shared payload cells on FX reload.
+bridge_alloc_index=16384;
+loop(6,
+  bridge_alloc_value=gmem[bridge_alloc_index];
+  gmem[bridge_alloc_index]=0;gmem[bridge_alloc_index]=bridge_alloc_value;
+  bridge_alloc_index+=65536;
+);
+
 STATE_IDLE = 0;
 STATE_READY = 1;
 STATE_RECORDING = 2;
@@ -2662,6 +2671,31 @@ ps_magic==727121 && ps_version==1 && ps_schema==7 && ps_size>0 && ps_size<=20000
 @block
 
 project_restore_pending?project_restore();
+// ReaScript bridge mailbox: one verified JSFX instance per REAPER project.
+// Metadata and requests use reserved cells below the existing payload at 32.
+gmem[17]=srate;
+gmem[18]=state;
+gmem[19]>0 && gmem[0]==0 ? (
+  bridge_busy=state==STATE_RECORDING || state==STATE_PLAYING || overdub_active || overdub_armed;
+  bridge_ni=0;loop(NOTE_REF_SIZE,mem[NOTE_REF_BASE+bridge_ni]>.5?bridge_busy=1;bridge_ni+=1;);
+  bridge_si=0;loop(16,(mem[SUSTAIN_REF_BASE+bridge_si]>.5 || mem[SW_LIVE_SUSTAIN_BASE+bridge_si]>=64)?bridge_busy=1;bridge_si+=1;);
+  bridge_vi=0;loop(MAX_ONCE_VOICES,mem[VOICE_ACTIVE_BASE+bridge_vi]>.5?bridge_busy=1;bridge_vi+=1;);
+  // Exact compare-and-apply protects local edits made after the last capture.
+  // Baseline is a separate, bounded gmem bank, never the incoming patch buffer.
+  gmem[19]==2 && !bridge_busy ? (
+    bridge_j=0;loop(PATCH_PAYLOAD_SIZE,mem[payload_addr(bridge_j)]!=gmem[200000+bridge_j]?bridge_busy=1;bridge_j+=1;);
+    (loop_len_samples!=gmem[199980] || analysis_done!=gmem[199981] || slider4!=gmem[199982] || slider5!=gmem[199983] || slider6!=gmem[199984] || slider7!=gmem[199985] || slider8!=gmem[199986] || slider9!=gmem[199987] || record_layer!=gmem[199988])?bridge_busy=1;
+  );
+  bridge_busy ? gmem[22]=0 : (
+    gmem[19]==1 ? (
+      bridge_io_before=io_status;external_patch_save_request(current_patch);gmem[0]=0;io_status=bridge_io_before;
+      bridge_j=0;loop(PATCH_PAYLOAD_SIZE,gmem[200000+bridge_j]=gmem[IO_PAYLOAD_BASE+bridge_j];bridge_j+=1;);
+      bridge_j=0;loop(9,gmem[199980+bridge_j]=gmem[4+bridge_j];bridge_j+=1;);
+      gmem[22]=1;
+    ) : gmem[19]==2 ? (external_patch_apply();gmem[22]=io_status==3;) : gmem[22]=0;
+  );
+  gmem[21]=gmem[20];gmem[19]=0;
+);
 gmem[0]==3 ? external_patch_apply();
 gmem[0]==4 ? (io_status=4; gmem[0]=0;);
 gmem[0]==5 ? (io_status=5; gmem[0]=0;);

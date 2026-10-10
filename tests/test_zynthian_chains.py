@@ -35,6 +35,19 @@ with tempfile.TemporaryDirectory(prefix='mbh-chains-') as temp:
         assert re.search(engines[0].jackname,'mbh_1:midi_in') and not re.search(engines[0].jackname,'mbh_10:midi_in')
         from controller_config import binding_wire,decode
         c=engines[0].instances[1]['control'];now=c.request()
+        # A brand-new studio patch has no source loop duration. Adopt the native
+        # grid explicitly, without changing the shared transport or other chains.
+        from project_sync import ProjectStore,Conflict
+        import portable_project as project_contract
+        initial_store=ProjectStore(engines[0].instances[1]['data'],c)
+        initial=initial_store.capture()
+        studio=project_contract.materialize(initial['project'],now['sampleRate']);studio['globals'][0]=0
+        empty=project_contract.capture(studio,now['sampleRate'],initial['project']['projectId'])
+        initial_store.stage(dict(project=empty,expectedActiveRevisionId=None))
+        activation=initial_store.activate(dict(revisionId=empty['revisionId'],expectedActiveRevisionId=None,
+            expectedRevision=initial['engineRevision'],expectedEngineSessionId=initial['engineSessionId'],expectedFingerprint=initial['fingerprint']))
+        assert activation['emptyGridAdopted'] and c.request()['chainLength']==PERIOD
+        now=c.request()
         assert c.request(op=14,target=101,arg=2,ch=0,note=21,revision=now['revision'],session=now['engineSessionId'])['status']=='ok'
         now=c.request();wire=binding_wire(dict(id=201,sourceId=101,targetId=301,instrumentId=1,moduleId=0,kind=1,base=1,takeover=2,returnMode=1))
         assert c.request(op=16,target=201,binding=wire,revision=now['revision'],session=now['engineSessionId'])['status']=='ok'
@@ -136,9 +149,27 @@ with tempfile.TemporaryDirectory(prefix='mbh-chains-') as temp:
         now=c.request();assert c.request(op=35,target=1,arg=1,revision=now['revision'],session=now['engineSessionId'],phrase=too_long)['status']=='invalid'
         assert guarded(c,op=35,target=1,arg=0)['phraseData']==copied
         assert state(1)['phrases'][1]['mode']==0
+        # Portable activation through the actual JACK processor preserves #30's
+        # controllers/snapshots and #34's source data, with other chains untouched.
+        from project_sync import ProjectStore,Conflict
+        store=ProjectStore(engines[0].instances[1]['data'],c)
+        action(2,'play');action(3,'play')
+        portable=store.capture();project=portable['project']
+        store.stage(dict(project=project,expectedActiveRevisionId=portable['activeRevisionId']))
+        activated=store.activate(dict(revisionId=project['revisionId'],expectedActiveRevisionId=portable['activeRevisionId'],
+            expectedRevision=portable['engineRevision'],expectedEngineSessionId=portable['engineSessionId'],expectedFingerprint=portable['fingerprint']))
+        assert activated['status']=='active'
+        assert state(2)['chainRunning'] and state(3)['chainRunning'],'target activation stopped another processor'
+        action(2,'stop');action(3,'stop')
+        assert guarded(c,op=35,target=1,arg=0)['phraseData']==copied
+        assert len(state(1)['snapshots'])==2 and decode(state(1)['controllerEngine'])['mappings'][0]['id']==201
+        assert engines[1].instances[2]['control'].request(op=35,target=0,arg=0,revision=-1)['phraseData']==original_other
         guarded(c,op=32,target=1,arg=18,macro=[0,1]) # Mute the original; imported copy must be the source.
         imported_frame=state(1)['chainFrame']
-        guarded(c,op=40,target=1,arg=1);time.sleep(4.5);action(1,'stop')
+        guarded(c,op=40,target=1,arg=1)
+        try:store.capture();raise AssertionError('running JACK synchronization was accepted')
+        except Conflict:pass
+        time.sleep(4.5);action(1,'stop')
         assert not state(2)['chainRunning'] and not state(3)['chainRunning']
         time.sleep(.3);assert state(1)['activeNotes']==0
         action(1,'save');snapshot=engines[0].get_extended_config()

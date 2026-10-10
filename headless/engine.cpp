@@ -689,7 +689,8 @@ struct PatchModel {
   std::array<double *, 9> globals;
   std::array<unsigned, 8> sizes{};
   std::array<unsigned, 6> markers{};
-  std::vector<double> snapshot;
+  std::vector<double> snapshot, guardedSnapshot;
+  bool guardedReady = false;
   ysfx_t *fx;
   explicit PatchModel(ysfx_t *f) : fx(f) {
     const char *sizeNames[] = {"WORK_MEM_SIZE",     "SW_LEGACY_PAYLOAD",
@@ -711,6 +712,7 @@ struct PatchModel {
       throw std::runtime_error("patch bridge");
     memory.reserve(sizes[7]);
     snapshot.resize(sizes[7] + 9);
+    guardedSnapshot.resize(sizes[7] + 9);
     for (unsigned i = 0; i < sizes[7]; ++i) {
       *j = i;
       NSEEL_code_execute(code);
@@ -737,13 +739,25 @@ struct PatchModel {
         return false;
     return v[0] >= 0 && v[0] <= 48000.0 * 3600 && v[8] >= 0 && v[8] < 16;
   }
+  bool unchanged() const {
+    if (!guardedReady) return false;
+    for (unsigned i=0;i<9;++i)
+      if (*globals[i] != guardedSnapshot[i]) return false;
+    for (unsigned i=0;i<memory.size();++i)
+      if (*memory[i] != guardedSnapshot[9+i]) return false;
+    return true;
+  }
   std::string save(std::atomic<bool> &paused,
                    const controller::Configuration &config,
-                   const Model &model) {
+                   const Model &model, bool guarded = false) {
     for (unsigned i = 0; i < 9; ++i)
       snapshot[i] = *globals[i];
     for (unsigned i = 0; i < memory.size(); ++i)
       snapshot[9 + i] = *memory[i];
+    if (guarded) {
+      std::copy(snapshot.begin(),snapshot.end(),guardedSnapshot.begin());
+      guardedReady = true;
+    }
     // Save committed bases, never a transient pedal/return value, in the legacy
     // payload.
     for (auto &b : config.bindings)
@@ -1072,7 +1086,7 @@ static void control(int listener, Queue<Request, 64> &commands,
           paused.store(false,std::memory_order_release);
         } else if (reply.status == 0 && request.op == 4) {
           auto document =
-              patch.save(paused, reply.state.controllerConfig, model);
+              patch.save(paused, reply.state.controllerConfig, model, request.arg == 1);
           auto last = document.find_last_of('}');
           if (last != std::string::npos)
             document.insert(last,
@@ -1341,6 +1355,11 @@ int main(int argc, char **argv) {
     PatchModel patch(fx);
     auto importState=ysfx_find_var(fx,"state"), importOverdub=ysfx_find_var(fx,"overdub_active");
     std::array<double*,12> importVoices{};
+    std::array<double*,16> importSustain{}, importLiveSustain{};
+    for(unsigned j=0;j<16;++j) {
+      importSustain[j]=cell(fx,unsigned(variable(fx,"SUSTAIN_REF_BASE"))+j);
+      importLiveSustain[j]=cell(fx,unsigned(variable(fx,"SW_LIVE_SUSTAIN_BASE"))+j);
+    }
     for(unsigned j=0;j<12;++j) importVoices[j]=cell(fx,unsigned(variable(fx,"VOICE_ACTIVE_BASE"))+j);
     const double importRecording=variable(fx,"STATE_RECORDING"), importPlaying=variable(fx,"STATE_PLAYING");
     controller::Host controllers;
@@ -1888,11 +1907,14 @@ int main(int argc, char **argv) {
         else if (request.op == 4 || request.op == 5) {
           // Portable activation/capture must never stop a running performance.
           // The test and maintenance handoff occur in this same callback.
-          if (request.arg == 1 && (chain.run || chain.recording || chain.armed ||
+          if (request.arg == 1 && (state.active > 0 || chain.run || chain.recording || chain.armed ||
               *importOverdub > .5 || *importState == importRecording ||
               *importState == importPlaying || performanceMorphSeconds > 0 ||
+              std::any_of(importSustain.begin(),importSustain.end(),[](double* p){return *p>.5;}) ||
+              std::any_of(importLiveSustain.begin(),importLiveSustain.end(),[](double* p){return *p>=64;}) ||
               std::any_of(importVoices.begin(), importVoices.end(),
-                          [](double* p) { return *p > .5; }))) {
+                          [](double* p) { return *p > .5; }) ||
+              (request.op == 5 && !patch.unchanged()))) {
             reply.status = 3;
           } else {
           if (chainMode) {

@@ -88,3 +88,11 @@ Lua, API, six Chromium workflows and dummy-JACK ordering/overflow tests. The nat
 three-processor test mutes the original phrase before playing the imported copy,
 rejects an overlong replacement without mutation, retains other chain data, and
 restores the imported phrase through saved Zynthian extended configuration.
+
+Final focused JACK checks additionally use a counted note ledger for repeated
+pitches and retain server/engine logs on failure. The final run passed after routing
+dummy-JACK stderr to a temporary log file rather than an undrained pipe. Two earlier
+follow-up runs saw closed control connections while engines remained alive; that
+root cause was not conclusively identified. Do not interpret successful reruns as
+hardware reliability certification. Pi timing and repeated SAVE/LOAD/record stress
+qualification remain required. No automatic retry of performance commands was added.

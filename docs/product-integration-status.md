@@ -172,3 +172,10 @@ chains, complete native Smart Switch configuration, full transactional ADD,
 unrestricted module ordering, native Motion v1 and REAPER Snapshot/Motion execution.
 Physical Zynthian/Helix/Firefox/REAPER and playable Pi latency remain blockers to
 hardware release qualification. No OS, LUMAZ or hardware service changes were made.
+
+Issue #33 delivery: PR #34 is a draft stacked on #30. The full combined native,
+JACK, EEL2, sanitized Controller, Lua, HTTP and six-browser-workflow suite passed.
+Final counted-ledger three-processor JACK validation also passed with file-based
+server diagnostics. Two earlier follow-ups lost control replies with live engine
+processes; their root cause remains unconfirmed, so reliability qualification is
+still pending. No PR was merged during this implementation stage.

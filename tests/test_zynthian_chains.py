@@ -20,11 +20,14 @@ with tempfile.TemporaryDirectory(prefix='mbh-chains-') as temp:
     directory=Path(temp);Base.my_data_dir=temp
     config=directory/'config.json';config.write_text(json.dumps(dict(version=1,repository=str(ROOT),binary=os.environ['HEADLESS_BINARY'])))
     os.environ['MBH_CONFIG']=str(config);os.environ['JACK_DEFAULT_SERVER']='mbh-chains-test'
-    server=subprocess.Popen([os.environ.get('JACKD','jackd'),'--name','mbh-chains-test','--no-realtime','-d','dummy','-r','48000','-p',str(BLOCK)],stdout=subprocess.DEVNULL,stderr=subprocess.PIPE)
+    server_log_path=directory/'jack.log'
+    # Never leave an unread logging pipe behind a real-time server.
+    with server_log_path.open('wb') as server_output:
+        server=subprocess.Popen([os.environ.get('JACKD','jackd'),'--name','mbh-chains-test','--no-realtime','-d','dummy','-r','48000','-p',str(BLOCK)],stdout=subprocess.DEVNULL,stderr=server_output)
     processors=[Processor(i) for i in range(1,4)];engines=[];probe=None;browser=None;playwright=None
     try:
         time.sleep(1)
-        if server.poll() is not None:raise RuntimeError(server.stderr.read().decode())
+        if server.poll() is not None:raise RuntimeError(server_log_path.read_text(errors='replace'))
         engines=[adapter.zynthian_engine_mbh(None) for _ in processors]
         for engine,p in zip(engines,processors):engine.add_processor(p)
         assert [p.jackname for p in processors]==['^mbh_1:','^mbh_2:','^mbh_3:']
@@ -173,6 +176,12 @@ with tempfile.TemporaryDirectory(prefix='mbh-chains-') as temp:
         assert not decode(state(2)['controllerEngine'])['mappings']
         print('PASS native Zynthian adapter: three isolated chains, sequential recording during playback, shared phase, Note Offs, per-chain STOP/SAVE/LOAD and snapshot recreation')
     finally:
+        if sys.exc_info()[0]:
+            for engine in engines:
+                for pid,entry in engine.instances.items():
+                    log=entry['data']/'engine.log'
+                    print('CHAIN FAILURE',pid,'process exit',entry['engine'].poll(),flush=True)
+                    if log.exists():print(log.read_text(errors='replace')[-4096:],flush=True)
         if browser:browser.close()
         if playwright:playwright.stop()
         if probe:
@@ -180,4 +189,6 @@ with tempfile.TemporaryDirectory(prefix='mbh-chains-') as temp:
             try:probe.wait(timeout=5)
             except subprocess.TimeoutExpired:probe.kill();probe.wait()
         for engine in engines:engine.stop()
+        failed=sys.exc_info()[0] is not None
         server.terminate();server.communicate(timeout=5)
+        if failed:print('JACK FAILURE LOG',server_log_path.read_text(errors='replace')[-4096:],flush=True)

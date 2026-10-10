@@ -54,6 +54,11 @@ skip that step. From the candidate checkout:
 python3 zynthian/install.py --binary "$PWD/.build/midi-headless-engine" --lan
 ```
 
+Before rollback or installation, run the same installer with `--check` and the
+binary path. It validates known UI anchors and binary existence without writing
+files; `upgradeRequiresRollback` identifies an older/different installed adapter.
+This does not execute the binary or certify its architecture/hardware behavior.
+
 An existing `install.json` is preserved intentionally. For a separate-checkout
 update, inspect it and explicitly change only `repository` and `binary` to the new
 absolute paths while processors are stopped. Preserve token, bind, port and timing

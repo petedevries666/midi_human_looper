@@ -23,11 +23,21 @@ class Installation(unittest.TestCase):
             original='from zyngine import *\nengine2class = {\n}\nclass Chain:\n    def config(self, eng_info):\n        cls.engine_info = eng_info\n        if True: pass\n        elif eng_code in ("SF", "PD"):\n            pass\n'
             manager.write_text(original)
             command=[sys.executable,str(ROOT/'zynthian/install.py'),'--ui-dir',str(ui),'--data-dir',str(path/'data'),'--binary',sys.executable]
+            result=subprocess.run(command+['--check'],check=True,capture_output=True,text=True)
+            self.assertFalse(module.json.loads(result.stdout)['writesPerformed'])
+            self.assertFalse((path/'data').exists());self.assertEqual(manager.read_text(),original)
+            self.assertFalse((ui/'zyngine/zynthian_engine_mbh.py').exists())
             subprocess.run(command+['--lan'],check=True,capture_output=True)
             config=path/'data/midi-human-looper/install.json';saved=config.read_text()
             self.assertEqual(module.json.loads(saved)["chain_timing_version"],2)
             token=path/'data/midi-human-looper/editor.token'
             self.assertEqual(token.stat().st_mode&0o777,0o600)
+            adapter=ui/'zyngine/zynthian_engine_mbh.py';installed=adapter.read_text()
+            adapter.write_text(installed+'# different adapter version\n')
+            result=subprocess.run(command+['--check'],check=True,capture_output=True,text=True)
+            self.assertTrue(module.json.loads(result.stdout)['upgradeRequiresRollback'])
+            self.assertEqual(config.read_text(),saved)
+            adapter.write_text(installed)
             subprocess.run(command,check=True,capture_output=True);self.assertEqual(config.read_text(),saved)
             manager.write_text(manager.read_text()+'# unrelated change\n')
             self.assertNotEqual(subprocess.run(command+['--rollback'],capture_output=True).returncode,0)

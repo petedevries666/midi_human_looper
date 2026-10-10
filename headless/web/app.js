@@ -156,7 +156,7 @@ function render(s){
   if(engineSession===s.engineSessionId&&s.revision<revision)return;
   engineSession=s.engineSessionId;revision=s.revision;latest=s;
   $('connection').textContent='CONNECTED · Engine running';
-  $('metrics').replaceChildren(...[`Backend ${s.backend} · ${s.sampleRate} Hz / ${s.blockSize}`,`Sample clock ${s.sampleClock}`,`MIDI messages ${s.midiCount}`,`Active notes ${s.activeNotes}`,`Maximum callback ${s.maxCallbackUs.toFixed(1)} µs`,`Late blocks ${s.lateBlocks}`,`Output overflow ${s.outputOverflow}`].map(v=>node('span',v)));
+  $('metrics').replaceChildren(...[`Build ${s.buildRevision||'unknown'}`,`Backend ${s.backend} · ${s.sampleRate} Hz / ${s.blockSize}`,`Sample clock ${s.sampleClock}`,`MIDI messages ${s.midiCount}`,`Active notes ${s.activeNotes}`,`Maximum callback ${s.maxCallbackUs.toFixed(1)} µs`,`JACK XRUN notifications ${s.lateBlocks}`,`Output overflow ${s.outputOverflow}`].map(v=>node('span',v)));
   if(s.chainMode)$('metrics').append(node('span',`Zynthian · two bars · ${s.chainBpm} BPM · ${s.chainError?'CLOCK / CAPACITY ERROR — stopped':s.chainRecording?'RECORDING':s.chainArmed?'WAITING FOR NEXT LOOP':s.chainRunning?'PLAYING':'STOPPED'}`));
   $('last-midi').textContent=`Last MIDI · sample ${s.lastEvent[0]} · status ${s.lastEvent[1]} · number ${s.lastEvent[2]} · value ${s.lastEvent[3]}`;
   for(const sw of s.switches){const el=document.querySelector(`[data-switch-id="${sw.id}"] .step`);if(el)el.textContent=`STEP ${sw.step} / ${sw.length}`;}

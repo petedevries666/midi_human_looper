@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Install/revert the minimal MIDI Tool registration without replacing Zynthian routing.
-No services are restarted. Build with scripts/headless-setup.sh first.
+No services are restarted. Build with scripts/headless-build.sh first.
 """
 import argparse
 import ast
@@ -48,7 +48,9 @@ def main():
     parser.add_argument('--binary',type=Path)
     parser.add_argument('--lan',action='store_true')
     parser.add_argument('--rollback',action='store_true')
+    parser.add_argument('--check',action='store_true',help='validate binary and UI anchors without writing anything')
     args=parser.parse_args();root=Path(__file__).resolve().parents[1]
+    if args.check and args.rollback:parser.error('--check and --rollback are mutually exclusive')
     manager=args.ui_dir/'zyngine/zynthian_chain_manager.py';adapter=args.ui_dir/'zyngine/zynthian_engine_mbh.py'
     directory=args.data_dir/'midi-human-looper';manifest=directory/'installation.json'
     before=manager.read_text()
@@ -65,6 +67,13 @@ def main():
     binary=(args.binary or root/'.build/midi-headless-engine').resolve()
     if not binary.is_file() or not os.access(binary,os.X_OK):raise ValueError('build the native engine first')
     source=(root/'zynthian/zynthian_engine_mbh.py').read_text();ast.parse(source)
+    if args.check:
+        proposed=registration(before);ast.parse(proposed)
+        print(json.dumps(dict(registrationCompatible=True,binary=str(binary),
+            upgradeRequiresRollback=adapter.exists() and adapter.read_text()!=source,
+            existingConfigurationPreserved=(directory/'install.json').exists(),
+            writesPerformed=False),indent=2))
+        return
     if adapter.exists() and adapter.read_text()!=source:raise ValueError('existing adapter differs; rollback old installation before upgrading')
     after=registration(before)
     directory.mkdir(parents=True,exist_ok=True)

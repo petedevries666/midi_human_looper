@@ -11,6 +11,13 @@ not merged or hardware-qualified release functionality.**
 → #41 (shared parameter contract) → #42 (project restoration authority)
 → #43 (shared browser observation / named controller choices).
 
+Named integration candidate: [PR #44](https://github.com/petedevries666/midi_human_looper/pull/44)
+(`integration/studio-live-rc`), based on #43 commit
+`57910e7`. All eight fetched PR heads were verified as ancestors on 10 October
+2026. Its build identity and read-only reliability monitor aid qualification;
+they do not establish physical acceptance. See [V4 first test](zynthian-v4-first-test.md)
+and [REAPER acceptance](reaper-studio-live-acceptance.md).
+
 No PR was merged during consolidation. #30 remains a large review dependency;
 review lifecycle/ownership, native snapshots and UI separately before integrating.
 The full software regression suite is a gate, not automatic permission to label
@@ -35,6 +42,7 @@ still a Motion specification. #35/#36 are design antecedents, #39 is the audit.
 | PUSH/PULL | One recognized track JSFX across open projects | Immutable staged revision, guarded STOP-only activation | UUID/revision/session/hash checks; no unattended background sync |
 | Restart authority | RPP saved by REAPER; bridge baseline is pairing metadata | Explicit committed portable project; explicit Zynthian snapshot overrides | Legacy slot SAVE is manual, not automatic restart authority |
 | Headless operation | Studio host required | Browser/worker/network can disconnect after committed transfer | Restore stopped, never autoplay |
+| Velocity Decay Pitch Bias | Response helper only, inactive | Same inactive EEL helper | Controls, playback integration, descriptors and migration remain [unimplemented](velocity-decay-pitch-bias-checkpoint.md) |
 | HUMANIZER/ECHOCITY/Motion | Not released | Not playable modules | #25 algorithms/#28 scheduler/#32 design remain isolated |
 
 Compact phrase/instrument controls and six phrases/page exist. Controllers remain

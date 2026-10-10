@@ -9,8 +9,8 @@ Nothing was merged automatically during consolidation.
 Use the top of the reviewed stack; all prerequisites are ancestors:
 
 ```sh
-git fetch origin perf/shared-engine-observation:refs/remotes/origin/perf/shared-engine-observation
-git switch perf/shared-engine-observation
+git fetch origin integration/studio-live-rc:refs/remotes/origin/integration/studio-live-rc
+git switch integration/studio-live-rc
 python3 scripts/generate-parameters.py --check
 YSFX_SOURCE=/path/to/pinned/ysfx YSFX_BUILD=/path/to/pinned/ysfx/build \
   HEADLESS_BINARY="$PWD/.build/midi-headless-engine" scripts/headless-build.sh

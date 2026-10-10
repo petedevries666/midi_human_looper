@@ -1,6 +1,6 @@
 'use strict';
 let revision=1, engineSession=null, pending=false, renderedModel='', latest=null;
-let catalog=null, ws=null, reconnect=null;
+let catalog=null, ws=null, reconnect=null, renderedSnapshots='', renderedSnapshotSession=null;
 const $=id=>document.getElementById(id);
 const node=(tag,text,cls)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;if(cls)n.className=cls;return n;};
 function headers(){return {'Content-Type':'application/json','X-Engine-Token':$('token').value};}
@@ -47,6 +47,111 @@ function edit(module,instrument,values,instance){
   dialog.onclick=e=>{const r=dialog.getBoundingClientRect();if(e.target===dialog&&(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom))dismiss();};
   dialog.showModal();
 }
+async function editSnapshot(record){
+  const dialog=$('editor'),content=$('editor-content');if(dialog.open)return;
+  try{record=await request(`/api/v1/snapshot/${record.id}`);}catch(e){$('error').textContent=e.message;return;}
+  if(dialog.open)return;
+  const capturedRevision=record.revision,capturedSession=record.engineSessionId;
+  let committing=false;
+  content.replaceChildren(node('h2',`SNAPSHOT · ${record.id}`));
+  const dismiss=()=>{if(!committing)dialog.close();};content.append(button('×',dismiss));
+  const field=(label,input)=>{const row=node('label',label,'parameter');row.append(input);content.append(row);return input;};
+  const name=field('NAME',node('input'));name.value=record.name;name.maxLength=48;name.setAttribute('aria-label','Snapshot name');
+  const seconds=field('MORPH SECONDS',node('input'));seconds.type='number';seconds.min=0;seconds.max=30;seconds.step=.1;seconds.value=record.seconds;seconds.setAttribute('aria-label','Morph seconds');
+  const choices=(label,values,current)=>{const select=node('select');select.setAttribute('aria-label',label);for(const [value,text] of values){const option=node('option',text);option.value=value;select.append(option);}select.value=current;return field(label,select);};
+  const ease=choices('CURVE',[[0,'LINEAR'],[1,'SMOOTH']],record.ease);
+  const switching=choices('DISCRETE SWITCH',[[1,'AT START'],[2,'AT MIDPOINT'],[3,'AT END']],record.switching);
+  content.append(node('small',`${record.parameterCount} captured targets. UPDATE recaptures current effective values.`));
+  const inclusion=node('details');inclusion.append(node('summary','INCLUDED PARAMETERS'));
+  for(const p of record.parameters||[]){
+    const label=node('label',`${[14,15,17,18,19,20].includes(p.kind)?'PHRASE':'INSTRUMENT'} ${p.instrumentId}${p.moduleId?` · MODULE ${p.moduleId}`:''} · ${parameter(p.kind)?.label||p.kind} = ${p.value}${p.expression?' · LEGACY EXPRESSION':''}`,'snapshot-inclusion');
+    const checkbox=node('input');checkbox.type='checkbox';checkbox.checked=p.included;checkbox.setAttribute('aria-label',`Include ${p.instrumentId}:${p.moduleId}:${p.kind}`);checkbox.onchange=()=>p.included=checkbox.checked;label.prepend(checkbox);inclusion.append(label);
+  }
+  content.append(inclusion);
+  const error=node('p','');error.setAttribute('role','alert');content.append(error);
+  const done=button('DONE',async()=>{
+    if(committing)return;
+    if(engineSession!==capturedSession){error.textContent='Engine restarted. CANCEL and reopen this editor.';return;}
+    committing=true;done.disabled=cancel.disabled=true;
+    try{const state=await request('/api/v1/command',{protocolVersion:1,expectedRevision:capturedRevision,expectedEngineSessionId:capturedSession,action:'snapshot_commit',snapshotId:record.id,name:name.value,seconds:Number(seconds.value),ease:Number(ease.value),switching:Number(switching.value),inclusions:(record.parameters||[]).map(p=>({instrumentId:p.instrumentId,moduleId:p.moduleId,kind:p.kind,included:p.included}))});dialog.close();renderedSnapshots='';render(state);}
+    catch(e){error.textContent=e.message==='conflict'?'Configuration changed. CANCEL and reopen this editor.':e.message;}
+    finally{committing=false;done.disabled=cancel.disabled=false;}
+  });
+  const cancel=button('CANCEL',dismiss);content.append(done,cancel);
+  dialog.oncancel=e=>{if(committing)e.preventDefault();};
+  dialog.onclick=e=>{const r=dialog.getBoundingClientRect();if(e.target===dialog&&(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom))dismiss();};
+  dialog.showModal();
+}
+function editSwitchSnapshots(sw){
+  const dialog=$('editor'),content=$('editor-content');if(dialog.open)return;
+  const capturedRevision=revision,capturedSession=engineSession;
+  let committing=false;
+  content.replaceChildren(node('h2',`${sw.name||'SMART SWITCH'} · SNAPSHOTS`));
+  const dismiss=()=>{if(!committing)dialog.close();};content.append(button('×',dismiss));
+  const field=(label,input)=>{const row=node('label',label,'parameter');row.append(input);content.append(row);return input;};
+  const gesture=field('GESTURE',node('select'));gesture.setAttribute('aria-label','Switch gesture');
+  ['TAP','DOUBLE','HOLD'].forEach((text,id)=>{const option=node('option',text);option.value=id;gesture.append(option);});
+  const action=field('ACTION',node('select'));action.setAttribute('aria-label','Snapshot action');
+  ['EXISTING SWITCH ACTION','SNAPSHOT NEXT','SNAPSHOT PREVIOUS','SNAPSHOT RECALL','SNAPSHOT MORPH','SNAPSHOT CYCLE','MORPH TO NEXT','MORPH TO PREVIOUS'].forEach((text,id)=>{const option=node('option',text);option.value=id;action.append(option);});
+  const target=field('SNAPSHOT',node('select'));target.setAttribute('aria-label','Target snapshot');
+  for(const r of latest.snapshots||[]){const option=node('option',r.name);option.value=r.id;target.append(option);}
+  const load=()=>{const a=(latest.snapshotActions||[]).find(a=>a.switchId===sw.id&&a.gesture===Number(gesture.value));action.value=a?.action||0;if(a?.snapshotId)target.value=a.snapshotId;target.disabled=!['3','4'].includes(action.value);};
+  gesture.onchange=load;action.onchange=()=>target.disabled=!['3','4'].includes(action.value);load();
+  content.append(node('small','Navigation wraps in snapshot order. Morph uses the destination snapshot duration and curve. Existing MIDI assignment and gesture detection are preserved.'));
+  const error=node('p','');error.setAttribute('role','alert');content.append(error);
+  const done=button('DONE',async()=>{
+    if(committing)return;if(engineSession!==capturedSession){error.textContent='Engine restarted. CANCEL and reopen.';return;}
+    committing=true;done.disabled=cancel.disabled=true;
+    try{const state=await request('/api/v1/command',{protocolVersion:1,expectedRevision:capturedRevision,expectedEngineSessionId:capturedSession,action:'snapshot_switch',switchId:sw.id,gesture:Number(gesture.value),snapshotAction:Number(action.value),snapshotId:['3','4'].includes(action.value)?Number(target.value):0});dialog.close();renderedModel='';render(state);}
+    catch(e){error.textContent=e.message==='conflict'?'Configuration changed. CANCEL and reopen.':e.message;}
+    finally{committing=false;done.disabled=cancel.disabled=false;}
+  });
+  const cancel=button('CANCEL',dismiss);content.append(done,cancel);
+  dialog.oncancel=e=>{if(committing)e.preventDefault();};dialog.onclick=e=>{const r=dialog.getBoundingClientRect();if(e.target===dialog&&(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom))dismiss();};dialog.showModal();
+}
+let renderedAB='',abDesired=null,abSendTimer=null;
+function queueAB(position){
+  abDesired={position,revision,session:engineSession,a:latest.snapshotAB?.a,b:latest.snapshotAB?.b};
+  const send=async()=>{if(pending){abSendTimer=setTimeout(send,50);return;}const value=abDesired;abDesired=null;if(value.session!==engineSession||value.a!==latest.snapshotAB?.a||value.b!==latest.snapshotAB?.b)return;await command({action:'snapshot_ab_position',position:value.position,a:value.a,b:value.b,expectedRevision:value.revision,expectedEngineSessionId:value.session});if(abDesired!==null)abSendTimer=setTimeout(send,50);};
+  clearTimeout(abSendTimer);abSendTimer=setTimeout(send,40);
+}
+async function learnAB(){
+  let {sources,mappings}=controllerConfiguration();let mapping=mappings.find(m=>m.kind===16&&m.enabled);
+  if(!mapping){
+    const sourceId=freshId(sources.map(v=>v.id));
+    if(!await command({action:'controller_source',sourceId,kind:0}))return;
+    ({sources,mappings}=controllerConfiguration());
+    mapping={id:freshId(mappings.map(v=>v.id)),sourceId,targetId:freshId(mappings.map(v=>v.targetId)),instrumentId:1,moduleId:0,kind:16,priority:0,takeover:2,returnMode:0,threshold:.02,glideSeconds:.2,slewPerSecond:1,idleSeconds:1,returnSeconds:.5,easing:0,enabled:1,points:[[0,0,0],[1,1,0]]};
+    if(!await command({action:'mapping_commit',mapping}))return;
+  }
+  await command({action:'controller_learn',sourceId:mapping.sourceId});
+}
+function editAB(){
+  const dialog=$('editor'),content=$('editor-content');if(dialog.open)return;
+  const capturedRevision=revision,capturedSession=engineSession;let committing=false;
+  content.replaceChildren(node('h2','SNAPSHOT A/B'));const dismiss=()=>{if(!committing)dialog.close();};content.append(button('×',dismiss));
+  const choice=(label,current,values)=>{const row=node('label',label,'parameter'),select=node('select');select.setAttribute('aria-label',label);for(const [id,text] of values){const option=node('option',text);option.value=id;select.append(option);}select.value=current;row.append(select);content.append(row);return select;};
+  const options=latest.snapshots.map(r=>[r.id,r.name]);
+  const a=choice('SNAPSHOT A',latest.snapshotAB?.a||options[0][0],options),b=choice('SNAPSHOT B',latest.snapshotAB?.b||options[1][0],options),ease=choice('A/B CURVE',latest.snapshotAB?.ease||0,[[0,'LINEAR'],[1,'SMOOTH']]);
+  content.append(node('small','Use shared included targets. Individual controller takeovers remain overridden until A/B is configured again. MIDI Learn uses the existing Controller Engine.'));
+  const error=node('p','');error.setAttribute('role','alert');content.append(error);
+  const done=button('DONE',async()=>{if(committing)return;committing=true;done.disabled=cancel.disabled=true;
+    try{const state=await request('/api/v1/command',{protocolVersion:1,expectedRevision:capturedRevision,expectedEngineSessionId:capturedSession,action:'snapshot_ab_configure',a:Number(a.value),b:Number(b.value),ease:Number(ease.value),position:latest.snapshotAB?.position||0});dialog.close();renderedAB='';render(state);}catch(e){error.textContent=e.message;}finally{committing=false;done.disabled=cancel.disabled=false;}
+  });const cancel=button('CANCEL',dismiss);content.append(done,cancel);dialog.oncancel=e=>{if(committing)e.preventDefault();};dialog.onclick=e=>{const r=dialog.getBoundingClientRect();if(e.target===dialog&&(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom))dismiss();};dialog.showModal();
+}
+function renderAB(s){
+  const macro=s.snapshotAB||{},key=JSON.stringify([s.engineSessionId,(s.snapshots||[]).map(r=>[r.id,r.name]),macro.a,macro.b,macro.ease]);
+  if(key!==renderedAB){const open=$('snapshot-ab').querySelector('details')?.open;renderedAB=key;$('snapshot-ab').replaceChildren();
+    if((s.snapshots||[]).length>=2){const details=node('details');details.open=!!open;details.append(node('summary','MANUAL A/B MORPH'));const row=node('div',undefined,'snapshot-row');row.append(button('CONFIGURE A/B',editAB));
+      if(macro.a&&macro.b){const slider=node('input');slider.id='ab-position';slider.type='range';slider.min=0;slider.max=1;slider.step=.001;slider.value=macro.position;slider.setAttribute('aria-label','Snapshot A/B position');slider.oninput=()=>queueAB(Number(slider.value));row.append(slider,button('MIDI LEARN',learnAB));}
+      details.append(row,node('small','','ab-feedback'));$('snapshot-ab').append(details);
+    }
+  }
+  const slider=$('ab-position');if(slider&&document.activeElement!==slider&&abDesired===null)slider.value=macro.position||0;
+  const feedback=document.querySelector('.ab-feedback');if(feedback){const {sources,mappings}=controllerConfiguration(s),mapping=mappings.find(m=>m.kind===16&&m.enabled),source=sources.find(v=>v.id===mapping?.sourceId),learn=s.controllerLearn||{};feedback.replaceChildren(node('span',`${Math.round((macro.position||0)*100)}% · ${macro.skipped||0} skipped · ${macro.overridden||0} overridden${source?.kind?` · ${source.kind===2?'CC':'NOTE'} ${source.number} CH ${source.channel+1}`:''}`));
+    if(mapping&&learn.target===mapping.sourceId){feedback.append(node('span',learn.conflict<0?' · Assigned to a legacy controller: cancel and choose another input.':learn.conflict>0?' · Already assigned: deliberate reassignment required.':' · Waiting for MIDI…'),button('CANCEL LEARN',()=>command({action:'controller_cancel',sourceId:mapping.sourceId})));if(learn.conflict>0)feedback.append(button('REASSIGN',()=>command({action:'controller_confirm',sourceId:mapping.sourceId})));}
+  }
+}
 function render(s){
   if(engineSession===s.engineSessionId&&s.revision<revision)return;
   engineSession=s.engineSessionId;revision=s.revision;latest=s;
@@ -55,8 +160,31 @@ function render(s){
   if(s.chainMode)$('metrics').append(node('span',`Zynthian · two bars · ${s.chainBpm} BPM · ${s.chainError?'CLOCK / CAPACITY ERROR — stopped':s.chainRecording?'RECORDING':s.chainArmed?'WAITING FOR NEXT LOOP':s.chainRunning?'PLAYING':'STOPPED'}`));
   $('last-midi').textContent=`Last MIDI · sample ${s.lastEvent[0]} · status ${s.lastEvent[1]} · number ${s.lastEvent[2]} · value ${s.lastEvent[3]}`;
   for(const sw of s.switches){const el=document.querySelector(`[data-switch-id="${sw.id}"] .step`);if(el)el.textContent=`STEP ${sw.step} / ${sw.length}`;}
+  $('capture-snapshot').onclick=()=>command({action:'snapshot_capture'});
+  const snapshotKey=JSON.stringify([s.engineSessionId,(s.snapshots||[]).map(r=>[r.id,r.name,r.seconds,r.ease,r.switching])]);
+  if(renderedSnapshotSession!==s.engineSessionId || (snapshotKey!==renderedSnapshots && !document.activeElement?.hasAttribute('data-snapshot-name') && !document.querySelector('.snapshot-actions[open]'))) {
+  renderedSnapshots=snapshotKey;renderedSnapshotSession=s.engineSessionId;
+  const snapshotSession=s.engineSessionId;
+  $('snapshots').replaceChildren(...(s.snapshots||[]).map((r,index)=>{
+    const row=node('div',undefined,'snapshot-row');row.dataset.snapshotId=r.id;const name=node('input');name.value=r.name;name.maxLength=48;name.setAttribute('data-snapshot-name','');name.setAttribute('aria-label','Snapshot name');name.onchange=()=>{if(snapshotSession!==engineSession){$('error').textContent='Engine restarted; reopen the snapshot controls.';return;}if(name.value!==r.name)command({action:'snapshot_rename',snapshotId:r.id,name:name.value});};row.append(name,node('small','','snapshot-feedback'));
+    const more=node('details');more.className='snapshot-actions';more.append(node('summary','•••'));const menu=node('div',undefined,'snapshot-menu');more.append(menu);
+    for(const [label,action] of [['RECALL','snapshot_recall'],['MORPH','snapshot_morph'],['UPDATE','snapshot_update'],['DUPLICATE','snapshot_duplicate'],['↑','snapshot_move'],['↓','snapshot_move'],['DELETE','snapshot_delete']]) {
+      const control=button(label,()=>{if(snapshotSession!==engineSession){$('error').textContent='Engine restarted; reopen the snapshot controls.';return;}if(action==='snapshot_delete'&&!confirm('Delete this snapshot?'))return;more.open=false;command({action,snapshotId:r.id,direction:label==='↓'?'down':'up'});});
+      control.disabled=(label==='↑'&&index===0)||(label==='↓'&&index===(s.snapshots||[]).length-1);
+      (['RECALL','MORPH','UPDATE'].includes(label)?row:menu).append(control);
+    }
+    menu.prepend(button('EDIT',()=>{more.open=false;const current=latest?.snapshots?.find(v=>v.id===r.id);if(current&&snapshotSession===engineSession)editSnapshot(current);}));
+    row.append(more);
+    return row;
+  }));
+  }
+  for(const r of s.snapshots||[]) {
+    const feedback=document.querySelector(`[data-snapshot-id="${r.id}"] .snapshot-feedback`);
+    if(feedback)feedback.textContent=`${r.id===s.selectedSnapshotId?'SELECTED · ':''}${r.dirty?'MODIFIED':''}${r.id===s.selectedSnapshotId&&s.snapshotSkippedTargets?` · PARTIAL (${s.snapshotSkippedTargets} missing)`:''}${r.id===s.targetSnapshotId?` · MORPH ${Math.round(s.morphProgress*100)}%`:''}`;
+  }
+  renderAB(s);
   renderControllers(s);
-  const model=JSON.stringify([s.phrases,s.instruments,s.switches.map(v=>({...v,step:0}))]);if(model===renderedModel)return;renderedModel=model;
+  const model=JSON.stringify([s.phrases,s.instruments,s.switches.map(v=>({...v,step:0})),s.snapshotActions]);if(model===renderedModel)return;renderedModel=model;
   $('phrases').replaceChildren(...s.phrases.map(p=>{const n=node('div',`PHRASE ${p.id}`,'phrase');n.append(node('small',`${p.events} events · ${p.mode===0?'LOOP':'ONCE / HOLD'} · TIME ×${p.timeDecay.toFixed(2)}`));for(const [label,action] of [['PLAY','phrase_play'],['REC / OVERDUB','phrase_record'],['FINISH REC','phrase_finish']])n.append(button(label,()=>command({action,phraseId:p.id})));return n;}));
   $('instruments').replaceChildren(...s.instruments.map(i=>{
     const n=node('article',undefined,'instrument');n.dataset.instrumentId=i.id;
@@ -75,14 +203,14 @@ function render(s){
     return n;
   }));
   $('switches').replaceChildren(...s.switches.map(sw=>{
-    const n=node('article',undefined,'switch');n.dataset.switchId=sw.id;n.append(node('h3',sw.name||`SWITCH ${sw.id}`),node('p',`${sw.type===0?'PHRASE':'SPECIAL'} · ID ${sw.id}`),node('p',`${sw.kind===1?'NOTE':sw.kind===2?'CC':'UNASSIGNED'} ${sw.number} · CH ${sw.channel}`),node('p',`STEP ${sw.step} / ${sw.length}`,'step'));
+    const n=node('article',undefined,'switch');n.dataset.switchId=sw.id;n.append(node('strong',sw.name||`SWITCH ${sw.id}`),node('small',`${sw.kind===1?'NOTE':sw.kind===2?'CC':'UNASSIGNED'} ${sw.number} · CH ${sw.channel}`),node('small',`STEP ${sw.step} / ${sw.length}`,'step'),button('OPTIONS',()=>editSwitchSnapshots(sw)));
     const tests=node('div',undefined,'tests');for(const gesture of ['tap','double','hold']){const b=button(`TEST ${gesture.toUpperCase()}`,()=>command({action:'test',switchId:sw.id,gesture}));b.dataset.valid=sw.enabled?'1':'0';b.disabled=!sw.enabled;tests.append(b);}
     const hardware=button('SIMULATE FOOTSWITCH',async()=>{if(await command({action:'midi',channel:sw.channel,note:sw.number,value:100}))await command({action:'midi',channel:sw.channel,note:sw.number,value:0});});hardware.className='hardware';hardware.dataset.valid=sw.kind===1?'1':'0';hardware.disabled=sw.kind!==1;n.append(tests,hardware);return n;
   }));
 }
 async function refresh(){try{render(await request('/api/v1/state'));}catch(e){$('connection').textContent='DISCONNECTED · Engine continues independently';$('error').textContent=e.message;}}
 function setPending(value){pending=value;for(const b of document.querySelectorAll('main button')){if(value){b.dataset.pendingDisabled=b.disabled?'1':'0';b.disabled=true;}else if(b.dataset.pendingDisabled!==undefined){b.disabled=b.dataset.pendingDisabled==='1';delete b.dataset.pendingDisabled;}}}
-async function command(value){if(pending)return false;setPending(true);try{render(await request('/api/v1/command',{protocolVersion:1,expectedRevision:revision,expectedEngineSessionId:engineSession,...value}));$('error').textContent='';return true;}catch(e){$('error').textContent=e.message;await refresh();return false;}finally{setPending(false);}}
+async function command(value){if(pending)return false;setPending(true);try{render(await request('/api/v1/command',{protocolVersion:1,expectedRevision:revision,expectedEngineSessionId:engineSession,...value}));$('error').textContent='';return true;}catch(e){$('error').textContent=value.action?.startsWith('snapshot_')&&e.message==='unknown_target'?'Recall was not applied: a target is missing or has a legacy expression assignment.':e.message;await refresh();return false;}finally{setPending(false);}}
 function connectStream(){
   if(ws){ws.onclose=null;ws.close();}
   ws=new WebSocket(`${location.protocol==='https:'?'wss':'ws'}://${location.host}/api/v1/ws`);
@@ -117,7 +245,7 @@ function renderControllers(s){
   }));
   $('mappings').replaceChildren(...mappings.map(m=>{
     const runtime=s.controllerRuntime[m.slot],card=node('article',undefined,'module');card.dataset.mappingId=m.id;
-    card.append(node('h3',`SOURCE ${m.sourceId} → ${m.kind>=14?'PHRASE':'I'}${m.instrumentId} / ${m.kind>=14?'DECAY':m.moduleId||'VOLUME'} / ${parameter(m.kind)?.label||m.kind}`),node('p',`${(runtime.effective*100).toFixed(1)}% · ${runtime.returning?'RETURNING':runtime.pickup?'PICKUP WAIT':runtime.owner?'CONTROLLED':'BASE'}`),button('EDIT',()=>editMapping(m)),button(m.enabled?'BYPASS':'ENABLE',()=>command({action:'mapping_commit',mapping:{...m,enabled:m.enabled?0:1}})),button('CAPTURE STATE',()=>command({action:'controller_capture',targetId:m.targetId})),button('RETURN',()=>command({action:'controller_return',targetId:m.targetId})),button('DELETE',()=>command({action:'mapping_delete',mappingId:m.id})));
+    card.append(node('h3',`SOURCE ${m.sourceId} → ${m.kind===16?'GLOBAL':[14,15,17,18,19,20].includes(m.kind)?'PHRASE':'I'}${m.instrumentId} / ${m.moduleId||parameter(m.kind)?.label||'PARAMETER'} / ${parameter(m.kind)?.label||m.kind}`),node('p',`${(runtime.effective*100).toFixed(1)}% · ${runtime.returning?'RETURNING':runtime.pickup?'PICKUP WAIT':runtime.owner?'CONTROLLED':'BASE'}`),button('EDIT',()=>editMapping(m)),button(m.enabled?'BYPASS':'ENABLE',()=>command({action:'mapping_commit',mapping:{...m,enabled:m.enabled?0:1}})),button('CAPTURE STATE',()=>command({action:'controller_capture',targetId:m.targetId})),button('RETURN',()=>command({action:'controller_return',targetId:m.targetId})),button('DELETE',()=>command({action:'mapping_delete',mappingId:m.id})));
     return card;
   }));
 }
@@ -136,7 +264,7 @@ function editMapping(existing){
   const dismiss=()=>{if(!committing)dialog.close();};content.replaceChildren(node('h2','CONTROLLER MAPPING'),button('×',dismiss));
   const source=node('select');source.setAttribute('aria-label','Controller source');for(const s of sources){const o=node('option',`SOURCE ${s.id}`);o.value=s.id;source.append(o);}source.value=draft.sourceId;content.append(source);
   const target=node('select');target.setAttribute('aria-label','Controller target');
-  const targets=[];for(const p of latest.phrases)for(const kind of [14,15])targets.push({instrumentId:p.id,moduleId:0,kind,label:`PHRASE ${p.id} / ${parameter(kind).label}`});for(const i of latest.instruments){targets.push({instrumentId:i.id,moduleId:0,kind:1,label:`I${i.id} VOLUME`});for(const tf of i.transformers)for(const p of tf.parameters)if(!p.assignment && parameter(p.kind)?.assignmentEligible)targets.push({instrumentId:i.id,moduleId:tf.id,kind:p.kind,label:`I${i.id} / ${tf.id} / ${parameter(p.kind).label}`});}
+  const targets=[{instrumentId:1,moduleId:0,kind:16,label:'GLOBAL SNAPSHOT A/B'}];for(const p of latest.phrases)for(const kind of [14,15,17,18,19,20])targets.push({instrumentId:p.id,moduleId:0,kind,label:`PHRASE ${p.id} / ${parameter(kind).label}`});for(const i of latest.instruments){for(const kind of [1,21,22,23])targets.push({instrumentId:i.id,moduleId:0,kind,label:`I${i.id} / ${parameter(kind).label}`});for(const tf of i.transformers){targets.push({instrumentId:i.id,moduleId:tf.id,kind:24,label:`I${i.id} / ${tf.id} ON/OFF`});for(const p of tf.parameters)if(!p.assignment && parameter(p.kind)?.assignmentEligible)targets.push({instrumentId:i.id,moduleId:tf.id,kind:p.kind,label:`I${i.id} / ${tf.id} / ${parameter(p.kind).label}`});}}
   targets.forEach((t,j)=>{const o=node('option',t.label);o.value=j;target.append(o);});let selection=targets.findIndex(t=>t.instrumentId===draft.instrumentId&&t.moduleId===draft.moduleId&&t.kind===draft.kind);target.value=selection<0?targets.findIndex(t=>t.kind===1):selection;content.append(target);
   const descriptor=descriptorForMapping();for(const id of descriptor.parameters){const p=catalog.parameters.find(p=>p.id===id),label=node('label',p.label,'parameter'),input=node('input');input.type='number';input.min=p.min;input.max=p.max;input.step=p.step;input.value=draft[p.policyField]??p.default;draft[p.policyField]=Number(input.value);input.addEventListener('input',()=>draft[p.policyField]=Number(input.value));label.append(input,node('span',p.unit));content.append(label);}
   content.append(node('p','TAKEOVER: 0 DIRECT · 1 PICKUP · 2 GLIDE · 3 SLEW. BACK TO STATE: 0 OFF · 1 IDLE · 2 RELEASE · 3 COMMAND. EASING: 0 LINEAR · 1 SMOOTH.'),curveEditor(draft.points));
@@ -151,3 +279,6 @@ $('add-controller').addEventListener('click',()=>{const {sources}=controllerConf
 $('add-mapping').addEventListener('click',()=>editMapping());
 
 $('export-patch').addEventListener('click',()=>patch('export'));
+
+document.addEventListener('click',event=>{for(const menu of document.querySelectorAll('.snapshot-actions[open]'))if(!menu.contains(event.target))menu.open=false;});
+document.addEventListener('keydown',event=>{if(event.key==='Escape')for(const menu of document.querySelectorAll('.snapshot-actions[open]'))menu.open=false;});

@@ -32,6 +32,21 @@ with tempfile.TemporaryDirectory(prefix='mbh-chains-') as temp:
         assert c.request(op=14,target=101,arg=2,ch=0,note=21,revision=now['revision'],session=now['engineSessionId'])['status']=='ok'
         now=c.request();wire=binding_wire(dict(id=201,sourceId=101,targetId=301,instrumentId=1,moduleId=0,kind=1,base=1,takeover=2,returnMode=1))
         assert c.request(op=16,target=201,binding=wire,revision=now['revision'],session=now['engineSessionId'])['status']=='ok'
+        # Native chain actions use opcode 40; snapshots keep opcode 20. Both
+        # must coexist and persist without sharing state across processors.
+        def guarded(control, **args):
+            current=control.request()
+            result=control.request(revision=current['revision'], session=current['engineSessionId'], **args)
+            assert result.get('status')=='ok',result
+            return result
+        guarded(c,op=20)
+        captured=c.request()['snapshots'][0]['id']
+        guarded(c,op=32,target=1,arg=1,macro=[0,64])
+        guarded(c,op=20)
+        guarded(c,op=26,target=captured)
+        assert c.request()['instruments'][0]['level']==127
+        assert len(c.request()['snapshots'])==2
+        assert not engines[1].instances[2]['control'].request()['snapshots']
         probe=subprocess.Popen([os.environ.get('CHAIN_JACK_PROBE','/tmp/mbh-chain-probe')],stdin=subprocess.PIPE,stdout=subprocess.PIPE,text=True)
         assert probe.stdout.readline().strip()=='READY'
         def source(mask):probe.stdin.write(str(mask)+'\n');probe.stdin.flush()
@@ -94,6 +109,7 @@ with tempfile.TemporaryDirectory(prefix='mbh-chains-') as temp:
         for engine,p in zip(engines,processors):engine.set_extended_config(snapshot);engine.add_processor(p)
         for i in range(1,4):assert state(i)['phrases'][0]['events']>=2 and not state(i)['chainRunning']
         assert all(engine.get_extended_config()['processors']==snapshot['processors'] for engine in engines)
+        assert len(state(1)['snapshots'])==2 and not state(2)['snapshots'] and not state(3)['snapshots']
         assert decode(state(1)['controllerEngine'])['mappings'][0]['id']==201
         assert not decode(state(2)['controllerEngine'])['mappings']
         print('PASS native Zynthian adapter: three isolated chains, sequential recording during playback, shared phase, Note Offs, per-chain STOP/SAVE/LOAD and snapshot recreation')

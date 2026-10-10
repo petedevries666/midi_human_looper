@@ -2,6 +2,8 @@
 // Disk, sockets and JSON are confined to the control worker.
 #include "chain_mode.hpp"
 #include "controller_wire.hpp"
+#include "parameter_registry.hpp"
+#include "snapshot_wire.hpp"
 #include "ysfx.hpp"
 #include <algorithm>
 #include <array>
@@ -61,9 +63,14 @@ struct Request {
   uint64_t id = 0, session = 0;
   int op = 0, target = 0, arg = 0, revision = 1, ch = 0, note = 0, value = 0;
   int module = 0, count = 0;
+  char snapshotName[49]{};
+  double macroPosition = 0;
+  double snapshotSeconds = 2;
+  int snapshotEase = 1, snapshotSwitch = 2;
   std::array<ParameterChange, 4> parameters{};
   controller::Binding binding;
   controller::Configuration controllerConfig;
+  performance::Configuration snapshotConfig;
 };
 struct Switch {
   int id = 0, on = 0, type = 0, kind = 0, ch = 0, num = 0, length = 0, step = 0;
@@ -81,7 +88,8 @@ struct Instrument {
 };
 struct Phrase {
   int events = 0, mode = 0;
-  double time = 1, velocityDecay = .8;
+  double time = 1, velocityDecay = .8, baseVelocity = 1;
+  int mute = 0, solo = 0;
 };
 struct Snapshot {
   uint64_t samples = 0, blocks = 0, midi = 0, late = 0, last_sample = 0;
@@ -106,11 +114,24 @@ struct Snapshot {
   std::array<double, 32> effective{};
   std::array<uint32_t, 32> owners{};
   std::array<bool, 32> returning{}, pickup{};
+  unsigned performanceCount = 0, performanceSkipped = 0;
+  uint32_t performanceSelected = 0, performanceTarget = 0;
+  double performanceProgress = 1;
+  std::array<uint32_t, 16> performanceIds{}, performanceSizes{};
+  std::array<std::array<char, 49>, 16> performanceNames{};
+  std::array<double, 16> performanceSeconds{};
+  std::array<int, 16> performanceEase{}, performanceSwitch{};
+  std::array<bool, 16> performanceDirty{};
+  std::array<performance::SwitchAction, 48> snapshotActions{};
+  performance::AB ab;
+  unsigned abSkipped = 0, abOverridden = 0;
 };
 struct Reply {
   uint64_t id = 0;
   int status = 0;
   Snapshot state;
+  performance::Record detail;
+  int detailRevision = 0;
 };
 static uint64_t engineSession = 0;
 static std::atomic<bool> running{true};
@@ -139,15 +160,18 @@ static void execute(ysfx_t *fx, const char *text) {
   NSEEL_code_free(p);
 }
 struct Model {
+  mutable double abPosition = 0;
+  mutable std::atomic<bool> abRestorePending{false};
   std::array<std::array<double *, 26>, 16> sw;
   std::array<std::array<double *, 22>, 8> inst;
-  std::array<std::array<double *, 4>, 16> phrase;
+  std::array<std::array<double *, 8>, 16> phrase;
   std::array<double *, 8> tfCount, levelAssignment, levelPending;
   std::array<std::array<double *, 6>, 8> tfCodes;
   std::array<std::array<double *, 12>, 8> tfIds, tfTypes;
   std::array<std::array<std::array<double *, 4>, 12>, 8> values, assignments,
       pendingValues;
-  std::array<std::array<std::array<int, 4>, 12>, 8> kinds;
+  std::array<std::array<std::array<int, 4>, 12>, 8> kinds, curveIndices;
+  std::array<int, 8> levelCurveIndices;
   void initParameters(ysfx_t *fx) {
     auto i = NSEEL_VM_regvar(fx->vm.get(), "remote_pi"),
          c = NSEEL_VM_regvar(fx->vm.get(), "remote_pc"),
@@ -155,7 +179,8 @@ struct Model {
          k = NSEEL_VM_regvar(fx->vm.get(), "remote_pk"),
          a = NSEEL_VM_regvar(fx->vm.get(), "remote_pa"),
          b = NSEEL_VM_regvar(fx->vm.get(), "remote_pb"),
-         pending = NSEEL_VM_regvar(fx->vm.get(), "remote_pending");
+         pending = NSEEL_VM_regvar(fx->vm.get(), "remote_pending"),
+         ti = NSEEL_VM_regvar(fx->vm.get(), "remote_pti");
     auto lookup = NSEEL_code_compile(
         fx->vm.get(),
         "remote_pk=param_editor_kind(transform_type(remote_pi,remote_pc),"
@@ -177,22 +202,25 @@ struct Model {
           *r = row;
           NSEEL_code_execute(lookup);
           kinds[gi][code][row] = int(*k);
+          curveIndices[gi][code][row] = int(*ti);
           values[gi][code][row] = cell(fx, unsigned(*a));
           assignments[gi][code][row] = cell(fx, unsigned(*b));
           pendingValues[gi][code][row] =
               *pending ? cell(fx, unsigned(*pending)) : nullptr;
         }
     NSEEL_code_free(lookup);
-    auto level = NSEEL_code_compile(
-        fx->vm.get(),
-        "remote_pb=exp_assign_addr(param_ti(remote_pi,1));remote_pending=param_"
-        "pending_addr(param_ti(remote_pi,1));",
-        0);
+    auto level =
+        NSEEL_code_compile(fx->vm.get(),
+                           "remote_pti=param_ti(remote_pi,1);remote_pb=exp_"
+                           "assign_addr(remote_pti);remote_pending=param_"
+                           "pending_addr(param_ti(remote_pi,1));",
+                           0);
     if (!level)
       throw std::runtime_error("level assignment bridge");
     for (unsigned gi = 0; gi < 8; ++gi) {
       *i = gi;
       NSEEL_code_execute(level);
+      levelCurveIndices[gi] = int(*ti);
       levelAssignment[gi] = cell(fx, unsigned(*b));
       levelPending[gi] = cell(fx, unsigned(*pending));
     }
@@ -251,6 +279,9 @@ struct Model {
       sw[i][24] = cell(fx, rt + 7);
       sw[i][25] = cell(fx, rt + 12);
       phrase[i][3] = cell(fx, unsigned(variable(fx, "DECAY_BASE")) + i);
+      const char *extra[] = {"VEL_BASE", "MUTE_BASE", "SOLO_BASE", "MODE_BASE"};
+      for (unsigned j = 0; j < 4; ++j)
+        phrase[i][4 + j] = cell(fx, unsigned(variable(fx, extra[j])) + i);
       phrase[i][0] = cell(fx, unsigned(variable(fx, "COUNT_BASE")) + i);
       phrase[i][1] = cell(fx, unsigned(variable(fx, "MODE_BASE")) + i);
       phrase[i][2] = cell(fx, unsigned(variable(fx, "SW_CFG_BASE")) + 1 +
@@ -273,12 +304,74 @@ struct Model {
                          (i < 3 ? i : i - 3) * 16 + j);
     }
   }
-  bool resolve(const controller::Binding &b, unsigned &i, int &code,
-               int &row) const {
-    if (b.kind >= 14) {
+  performance::State effectiveState() const {
+    performance::State result;
+    auto identity = [](double value) -> uint32_t {
+      return std::isfinite(value) && value == std::floor(value) && value > 0 &&
+                     value <= 16777215
+                 ? uint32_t(value)
+                 : 0;
+    };
+    auto add = [&](unsigned instrument, unsigned module, int kind, double value,
+                   bool expression) {
+      if (result.count >= result.values.size())
+        return;
+      auto &v = result.values[result.count++];
+      v.key.instrument = instrument;
+      v.key.module = module;
+      v.key.kind = kind;
+      v.effective = value;
+      v.expression = expression;
+    };
+    for (unsigned i = 0; i < 8; ++i)
+      if (*inst[i][0]) {
+        add(identity(*inst[i][1]), 0, 1, *inst[i][5], *levelAssignment[i] != 0);
+        for (unsigned j = 0; j < 3; ++j)
+          add(identity(*inst[i][1]), 0, 21 + j, *inst[i][2 + j], false);
+        if (!std::isfinite(*tfCount[i]) || *tfCount[i] < 0 || *tfCount[i] > 6 ||
+            *tfCount[i] != std::floor(*tfCount[i])) {
+          result.count = 513;
+          return result;
+        }
+        unsigned count = unsigned(*tfCount[i]);
+        for (unsigned j = 0; j < count; ++j) {
+          double raw = std::abs(*tfCodes[i][j]);
+          if (!std::isfinite(raw) || raw < 1 || raw >= 12 ||
+              raw != std::floor(raw)) {
+            result.count = 513;
+            return result;
+          }
+          int c = int(raw);
+          double rawType = c < 7 ? c : *tfTypes[i][c];
+          if (!std::isfinite(rawType) || rawType < 1 || rawType > 6 ||
+              rawType != std::floor(rawType)) {
+            result.count = 513;
+            return result;
+          }
+          int type = int(rawType);
+          int rows = performance::parameterCount(type);
+          add(identity(*inst[i][1]), identity(*tfIds[i][c]), 24,
+              *tfCodes[i][j] > 0, false);
+          for (int r = 0; r < rows; ++r)
+            add(identity(*inst[i][1]), identity(*tfIds[i][c]),
+                performance::parameterKind(type, r), *values[i][c][r],
+                *assignments[i][c][r] != 0);
+        }
+      }
+    for (unsigned i = 0; i < 16; ++i) {
+      add(i + 1, 0, 14, *phrase[i][2], false);
+      add(i + 1, 0, 15, *phrase[i][3], false);
+      for (unsigned j = 0; j < 4; ++j)
+        add(i + 1, 0, 17 + j, *phrase[i][4 + j], false);
+    }
+    return result;
+  }
+  bool resolve(const controller::Binding &b, unsigned &i, int &code, int &row,
+               bool legacy = false) const {
+    if (performance::phraseKind(b.kind)) {
       i = b.instrument - 1;
       code = -1;
-      row = b.kind == 14 ? 2 : 3;
+      row = b.kind == 14 ? 2 : b.kind == 15 ? 3 : b.kind - 13;
       return i < 16 && !b.module;
     }
     for (i = 0; i < 8; ++i)
@@ -289,7 +382,8 @@ struct Model {
     if (!b.module) {
       code = 0;
       row = 0;
-      return b.kind == 1 && !*levelAssignment[i];
+      return (b.kind >= 21 && b.kind <= 23) ||
+             (b.kind == 1 && (legacy || !*levelAssignment[i]));
     }
     if (!std::isfinite(*tfCount[i]) || *tfCount[i] < 0 || *tfCount[i] > 6)
       return false;
@@ -300,33 +394,52 @@ struct Model {
       int c = int(raw);
       if (c > 0 && c < 12 && *tfIds[i][c] == double(b.module)) {
         code = c;
+        if (b.kind == 24) {
+          code = -2;
+          row = j;
+          return true;
+        }
         int type = c < 7 ? c : int(*tfTypes[i][c]);
-        int rows = type == 2 ? 3 : type == 5 ? 4 : type == 6 ? 2 : 1;
+        int rows = performance::parameterCount(type);
         for (row = 0; row < rows; ++row)
-          if ((type == 1   ? 7
-               : type == 2 ? 8 + row
-               : type == 3 ? 11
-               : type == 4 ? 0
-               : type == 5 ? (row < 3 ? 4 + row : 12)
-               : row == 0  ? 2
-                           : 13) == b.kind)
-            return !*assignments[i][c][row];
+          if (performance::parameterKind(type, row) == b.kind)
+            return legacy || !*assignments[i][c][row];
       }
     }
     return false;
   }
-  double *bindingValue(const controller::Binding &b) const {
+  double *bindingValue(const controller::Binding &b,
+                       bool legacy = false) const {
+    if (b.kind == 16)
+      return b.instrument == 1 && !b.module ? &abPosition : nullptr;
     unsigned i;
     int c, r;
-    if (!resolve(b, i, c, r))
+    if (!resolve(b, i, c, r, legacy))
       return nullptr;
-    return c == -1 ? phrase[i][r] : c ? values[i][c][r] : inst[i][5];
+    return c == -1   ? phrase[i][r]
+           : c == -2 ? tfCodes[i][r]
+           : c       ? values[i][c][r]
+                     : inst[i][b.kind >= 21 ? b.kind - 19 : 5];
+  }
+  int legacyCurve(const controller::Binding &b) const {
+    if (b.kind >= 14)
+      return -1;
+    unsigned i;
+    int c, r;
+    if (!resolve(b, i, c, r, true))
+      return -1;
+    return c ? (*assignments[i][c][r] ? curveIndices[i][c][r] : -1)
+             : (*levelAssignment[i] ? levelCurveIndices[i] : -1);
   }
   double bindingBase(const controller::Binding &b) const {
+    if (b.kind == 16)
+      return abPosition;
     unsigned i;
     int c, r;
     if (!resolve(b, i, c, r))
       return 0;
+    if (b.kind >= 17)
+      return b.kind == 24 ? (*bindingValue(b) > 0 ? 1 : 0) : *bindingValue(b);
     auto pending = c == -1 ? nullptr
                    : c     ? pendingValues[i][c][r]
                            : levelPending[i];
@@ -349,6 +462,9 @@ struct Model {
       s.phrases[i].mode = int(*phrase[i][1]);
       s.phrases[i].time = *phrase[i][2];
       s.phrases[i].velocityDecay = *phrase[i][3];
+      s.phrases[i].baseVelocity = *phrase[i][4];
+      s.phrases[i].mute = int(*phrase[i][5]);
+      s.phrases[i].solo = int(*phrase[i][6]);
     }
     for (unsigned i = 0; i < 8; ++i) {
       auto &v = s.instruments[i];
@@ -371,20 +487,11 @@ struct Model {
           continue;
         }
         int type = v.transformerTypes[j];
-        v.parameterCounts[j] = type == 2   ? 3
-                               : type == 5 ? 4
-                               : type == 6 ? 2
-                                           : 1;
+        v.parameterCounts[j] = performance::parameterCount(type);
         for (int r = 0; r < v.parameterCounts[j]; ++r) {
           v.transformerValues[j][r] = *values[i][k][r];
           v.transformerAssignments[j][r] = int(*assignments[i][k][r]);
-          v.transformerKinds[j][r] = type == 1   ? 7
-                                     : type == 2 ? 8 + r
-                                     : type == 3 ? 11
-                                     : type == 4 ? 0
-                                     : type == 5 ? (r < 3 ? 4 + r : 12)
-                                     : r == 0    ? 2
-                                                 : 13;
+          v.transformerKinds[j][r] = performance::parameterKind(type, r);
         }
       }
 
@@ -476,7 +583,10 @@ static std::string json(const Reply &r) {
     o << "{\"id\":" << i + 1 << ",\"events\":" << s.phrases[i].events
       << ",\"mode\":" << s.phrases[i].mode
       << ",\"timeDecay\":" << s.phrases[i].time
-      << ",\"velocityDecay\":" << s.phrases[i].velocityDecay << '}';
+      << ",\"velocityDecay\":" << s.phrases[i].velocityDecay
+      << ",\"baseVelocity\":" << s.phrases[i].baseVelocity
+      << ",\"mute\":" << s.phrases[i].mute << ",\"solo\":" << s.phrases[i].solo
+      << '}';
   }
   o << "],\"controllerEngine\":"
     << controller::configurationJson(s.controllerConfig)
@@ -492,7 +602,57 @@ static std::string json(const Reply &r) {
       << ",\"returning\":" << s.returning[j] << ",\"pickup\":" << s.pickup[j]
       << '}';
   }
-  o << "]}\n";
+  o << "],\"selectedSnapshotId\":" << s.performanceSelected
+    << ",\"snapshotSkippedTargets\":" << s.performanceSkipped
+    << ",\"targetSnapshotId\":" << s.performanceTarget
+    << ",\"morphProgress\":" << s.performanceProgress << ",\"snapshots\":[";
+  for (unsigned j = 0; j < s.performanceCount; ++j) {
+    if (j)
+      o << ',';
+    o << "{\"id\":" << s.performanceIds[j]
+      << ",\"name\":" << quote(s.performanceNames[j].data())
+      << ",\"seconds\":" << s.performanceSeconds[j]
+      << ",\"ease\":" << s.performanceEase[j]
+      << ",\"switching\":" << s.performanceSwitch[j]
+      << ",\"parameterCount\":" << s.performanceSizes[j]
+      << ",\"dirty\":" << (s.performanceDirty[j] ? "true" : "false") << '}';
+  }
+  o << "],\"snapshotActions\":[";
+  bool firstAction = true;
+  for (const auto &a : s.snapshotActions)
+    if (a.switchId) {
+      if (!firstAction)
+        o << ',';
+      firstAction = false;
+      o << "{\"switchId\":" << a.switchId << ",\"gesture\":" << a.gesture
+        << ",\"action\":" << a.action << ",\"snapshotId\":" << a.snapshotId
+        << '}';
+    }
+  o << "] ,\"snapshotAB\":{\"a\":" << s.ab.a << ",\"b\":" << s.ab.b
+    << ",\"position\":" << s.ab.position << ",\"ease\":" << s.ab.ease
+    << ",\"skipped\":" << s.abSkipped << ",\"overridden\":" << s.abOverridden
+    << '}';
+  if (r.detail.id) {
+    const auto &d = r.detail;
+    o << ",\"snapshotDetail\":{\"id\":" << d.id << ",\"name\":" << quote(d.name)
+      << ",\"seconds\":" << d.seconds << ",\"ease\":" << int(d.ease)
+      << ",\"switching\":" << int(d.switching)
+      << ",\"revision\":" << r.detailRevision
+      << ",\"engineSessionId\":" << engineSession
+      << ",\"parameterCount\":" << d.state.count << ",\"parameters\":[";
+    for (unsigned j = 0; j < d.state.count; ++j) {
+      if (j)
+        o << ',';
+      const auto &v = d.state.values[j];
+      o << "{\"instrumentId\":" << v.key.instrument
+        << ",\"moduleId\":" << v.key.module << ",\"kind\":" << v.key.kind
+        << ",\"value\":" << v.effective
+        << ",\"included\":" << (v.included ? "true" : "false")
+        << ",\"expression\":" << (v.expression ? "true" : "false") << '}';
+    }
+    o << "]}";
+  }
+  o << "}\n";
   return o.str();
 }
 static bool send_line(int fd, const std::string &s,
@@ -581,27 +741,9 @@ struct PatchModel {
         auto address = model.bindingValue(b);
         if (!address)
           continue;
-        double v = b.base;
-        int k = b.kind;
-        double low = k == 7   ? -48
-                     : k == 0 ? .2
-                     : k == 5 ? .25
-                     : k == 6 ? .02
-                              : 0;
-        double high = k == 7              ? 48
-                      : k == 0            ? 3
-                      : k == 5            ? 16
-                      : k == 6 || k == 12 ? 1
-                      : k == 4            ? 2
-                      : k == 8 || k == 11 ? 3
-                                          : 127;
-        bool bins = k == 3 || k == 4 || k == 8 || k == 11 || k == 12;
-        double step = k == 0 || k == 6 ? .01 : k == 5 ? .25 : 1;
-        double physical =
-            bins ? std::min(high, std::floor(v * (high + 1)))
-                 : std::floor((low + (high - low) * v) / step + .5) * step;
-        if (k >= 14)
-          physical = k == 14 ? std::pow(2, 2 * v - 1) : .2 + .8 * v;
+        double physical = performance::physical(b.kind, b.base);
+        if (b.kind == 24)
+          physical = physical > .5 ? std::abs(*address) : -std::abs(*address);
         for (unsigned j = 0; j < memory.size(); ++j)
           if (memory[j] == address) {
             snapshot[9 + j] = physical;
@@ -653,6 +795,7 @@ static void control(int listener, Queue<Request, 64> &commands,
                     std::atomic<bool> &paused, std::atomic<bool> &loading,
                     PatchModel &patch, Model &model,
                     controller::Host &controllers,
+                    performance::Snapshots &performanceSnapshots,
                     const std::function<bool(int, int, int)> &conflicts) {
   while (!shutdown) {
     pollfd p{listener, POLLIN, 0};
@@ -689,10 +832,11 @@ static void control(int listener, Queue<Request, 64> &commands,
                       request.arg >> request.revision >> request.ch >>
                       request.note >> request.value) &&
                  request.id > 0 && request.id <= 9007199254740991ULL &&
-                 request.op >= 0 && request.op <= 20 && request.arg >= 0 &&
-                 request.arg <= (request.op == 13                       ? 5
-                                 : request.op == 15 || request.op == 20 ? 3
-                                                                        : 2) &&
+                 request.op >= 0 && (request.op <= 32 || request.op == 40) && request.arg >= 0 &&
+                 request.arg <= (request.op == 13   ? 5
+                                 : request.op == 15 || request.op == 40 ? 3
+                                 : request.op == 32 ? 24
+                                                    : 2) &&
                  request.ch >= 0 &&
                  (request.op == 11 ? request.ch <= 16 : request.ch < 16) &&
                  request.note >= 0 && request.note < 128 &&
@@ -713,9 +857,73 @@ static void control(int listener, Queue<Request, 64> &commands,
         std::string marker;
         valid = valid && bool(input >> marker) && marker == "controllers" &&
                 controller::readConfiguration(input, request.controllerConfig);
+        input >> std::ws;
+        if (input.peek() != EOF) {
+          std::string snapshotsMarker;
+          valid = valid && bool(input >> snapshotsMarker) &&
+                  snapshotsMarker == "snapshots" &&
+                  performance::readConfiguration(input, request.snapshotConfig);
+        }
         if (input >> extra)
           valid = false;
       }
+    } else if (valid &&
+               (request.op == 30 || request.op == 31 || request.op == 32)) {
+      valid = bool(input >> request.module >> request.macroPosition) &&
+              request.module >= 0 && request.module <= 16777215 &&
+              std::isfinite(request.macroPosition) &&
+              (request.op == 32 ||
+               (request.macroPosition >= 0 && request.macroPosition <= 1));
+      if (input >> extra)
+        valid = false;
+    } else if (valid && request.op == 28) {
+      valid = bool(input >> request.module) && request.module >= 0 &&
+              request.module <= 16777215 && request.ch <= 7;
+      if (input >> extra)
+        valid = false;
+    } else if (valid && (request.op == 25 || request.op == 27)) {
+      std::string hex;
+      valid = bool(input >> hex) && hex.size() > 0 && hex.size() <= 96 &&
+              hex.size() % 2 == 0;
+      for (unsigned j = 0; valid && j < hex.size() / 2; ++j) {
+        auto digit = [](char c) {
+          return c >= '0' && c <= '9'   ? c - '0'
+                 : c >= 'a' && c <= 'f' ? c - 'a' + 10
+                                        : -1;
+        };
+        int a = digit(hex[j * 2]), b = digit(hex[j * 2 + 1]);
+        int value = a * 16 + b;
+        valid = a >= 0 && b >= 0 && value >= 32 && value < 127;
+        if (valid)
+          request.snapshotName[j] = char(value);
+      }
+      if (valid && request.op == 27)
+        valid = bool(input >> request.snapshotSeconds >> request.snapshotEase >>
+                     request.snapshotSwitch) &&
+                std::isfinite(request.snapshotSeconds) &&
+                request.snapshotSeconds >= 0 && request.snapshotSeconds <= 30 &&
+                request.snapshotEase >= 0 && request.snapshotEase <= 1 &&
+                request.snapshotSwitch >= 1 && request.snapshotSwitch <= 3;
+      input >> std::ws;
+      if (valid && request.op == 27 && input.peek() != EOF) {
+        std::string marker;
+        auto &mask = request.snapshotConfig.records[0].state;
+        valid = bool(input >> marker) && marker == "include" &&
+                performance::integer(input, mask.count, 512);
+        for (unsigned j = 0; valid && j < mask.count; ++j) {
+          auto &v = mask.values[j];
+          unsigned kind = 0, included = 0;
+          valid = performance::integer(input, v.key.instrument, 16777215) &&
+                  performance::integer(input, v.key.module, 16777215) &&
+                  performance::integer(input, kind, 24) &&
+                  performance::integer(input, included, 1);
+          v.key.kind = kind;
+          v.included = included;
+        }
+        valid = valid && mask.valid();
+      }
+      if (input >> extra)
+        valid = false;
     } else if (valid && request.op == 16) {
       valid = controller::readBinding(input, request.binding) &&
               request.binding.policy.id == unsigned(request.target) &&
@@ -750,7 +958,7 @@ static void control(int listener, Queue<Request, 64> &commands,
       valid = request.arg <= 1 && request.note <= 16;
     if (valid && request.op >= 11 && request.op <= 18)
       valid = request.target > 0 && request.target <= 16777215;
-    if (valid && request.op == 20)
+    if (valid && request.op == 40)
       valid = request.target >= 0 && request.target < 16;
     if (!valid)
       send_line(fd, "{\"status\":\"invalid\"}\n", shutdown);
@@ -773,6 +981,12 @@ static void control(int listener, Queue<Request, 64> &commands,
         if (reply.status == 0 && request.op == 4) {
           auto document =
               patch.save(paused, reply.state.controllerConfig, model);
+          auto last = document.find_last_of('}');
+          if (last != std::string::npos)
+            document.insert(last,
+                            ",\"globalSnapshots\":" +
+                                performance::configurationJson(
+                                    performanceSnapshots.configuration()));
           paused.store(false, std::memory_order_release);
           send_line(fd, document, shutdown);
         } else {
@@ -799,6 +1013,13 @@ static void control(int listener, Queue<Request, 64> &commands,
               patch.load(7, previous);
               reply.status = 3;
             }
+          }
+          if (reply.status == 0 && request.op == 5) {
+            performanceSnapshots.restore(request.snapshotConfig);
+            model.abPosition = performanceSnapshots.ab.position;
+            controllers.recall(1, 0, 16, model.abPosition);
+            model.abRestorePending.store(performanceSnapshots.ab.a != 0,
+                                         std::memory_order_release);
           }
           send_line(fd, json(reply), shutdown);
         }
@@ -943,9 +1164,11 @@ int main(int argc, char **argv) {
         0);
     if (!bridge)
       throw std::runtime_error("command bridge compilation");
-    auto panic_bridge = NSEEL_code_compile(
-        fx->vm.get(), "sw_stop_phrases();reset_note_runtime();panic_pending=1;",
-        0);
+    auto panic_bridge =
+        NSEEL_code_compile(fx->vm.get(),
+                           "sw_stop_phrases();reset_note_runtime();snap_"
+                           "parameter_cancel();panic_pending=1;",
+                           0);
     if (!panic_bridge)
       throw std::runtime_error("panic bridge compilation");
     // A skipped chain callback must not enqueue 2,048 synthetic releases ahead
@@ -1024,32 +1247,42 @@ int main(int argc, char **argv) {
       return *learnConflict != 0;
     };
     auto resolveBinding = [&](const controller::Binding &b) {
-      return model.bindingValue(b) != nullptr;
+      return model.bindingValue(b, true) != nullptr;
     };
+    bool abRequested = false;
     auto normalizedBase = [](int k, double v) {
-      if (k >= 14)
-        return controller::clamp(k == 14 ? (std::log2(v <= 0 ? 1 : v) + 1) / 2
-                                         : (v - .2) / .8);
-      double low = k == 7 ? -48 : k == 0 ? .2 : k == 5 ? .25 : k == 6 ? .02 : 0;
-      double high = k == 7              ? 48
-                    : k == 0            ? 3
-                    : k == 5            ? 16
-                    : k == 6 || k == 12 ? 1
-                    : k == 4            ? 2
-                    : k == 8 || k == 11 ? 3
-                                        : 127;
-      bool bins = k == 3 || k == 4 || k == 8 || k == 11 || k == 12;
-      return controller::clamp(bins ? (v + .5) / (high + 1)
-                                    : (v - low) / (high - low));
+      return performance::normalized(k, k == 24 ? (v > 0 ? 1 : 0) : v);
     };
+    auto safeApply = NSEEL_code_compile(
+        fx->vm.get(),
+        "snap_parameter_apply(remote_edit_i,remote_edit_code,remote_edit_row,"
+        "remote_edit_kind,remote_edit_value);",
+        0);
+    if (!safeApply)
+      throw std::runtime_error("safe descriptor parameter bridge");
     auto applyBinding = [&](const controller::Binding &b, double value) {
+      if (b.kind == 16) {
+        if (std::abs(model.abPosition - value) > 1e-12) {
+          model.abPosition = value;
+          abRequested = true;
+        }
+        return;
+      }
       unsigned i;
       int code, row;
-      if (!model.resolve(b, i, code, row))
+      if (!model.resolve(b, i, code, row, true))
         return;
+      if (b.kind >= 17) {
+        *editI = i;
+        *editCode = code;
+        *editRow = row;
+        *editKind = b.kind;
+        *editValue = performance::physical(b.kind, value);
+        NSEEL_code_execute(safeApply);
+        return;
+      }
       if (code == -1) {
-        *model.phrase[i][row] =
-            b.kind == 14 ? std::pow(2, 2 * value - 1) : .2 + .8 * value;
+        *model.phrase[i][row] = performance::physical(b.kind, value);
         return;
       }
       *editI = i;
@@ -1075,14 +1308,314 @@ int main(int argc, char **argv) {
     std::signal(SIGINT, stop);
     std::signal(SIGTERM, stop);
     std::signal(SIGPIPE, SIG_IGN);
-    Queue<Request, 64> commands;
-    Queue<Reply, 64> replies;
+    std::unique_ptr<Queue<Request, 64>> commandStorage(
+        new Queue<Request, 64>());
+    std::unique_ptr<Queue<Reply, 64>> replyStorage(new Queue<Reply, 64>());
+    auto &commands = *commandStorage;
+    auto &replies = *replyStorage;
     std::atomic<bool> shutdown{false}, paused{false}, loading{false};
     std::thread io;
+    std::unique_ptr<performance::Snapshots> performanceSnapshots(
+        new performance::Snapshots());
+    struct PerformanceTarget {
+      performance::Key key;
+      controller::Binding binding;
+      uint32_t id = 0;
+      uint64_t token = 0;
+      double goal = 0;
+      bool active = false;
+      int legacyCurve = -1;
+      uint32_t snapshotId = 0;
+    };
+    std::unique_ptr<std::array<PerformanceTarget, 512>> performanceTargets(
+        new std::array<PerformanceTarget, 512>());
+    unsigned performanceTargetCount = 0;
+    uint32_t performanceNextTarget = 8388608;
+    uint32_t performanceTargetSnapshot = 0;
+    double performanceMorphAt = 0, performanceMorphSeconds = 0;
+    unsigned performanceSkipped = 0;
     Snapshot state;
     state.backend = useJack;
     state.sampleRate = sampleRate;
     state.blockSize = blockSize;
+    int lastRecallStatus = 0;
+    bool abActive = false;
+    struct ABTarget {
+      unsigned slot = 0;
+      uint64_t token = 0;
+      double a = 0, b = 0;
+    };
+    std::array<ABTarget, 512> abTargets{};
+    unsigned abCount = 0, abSkipped = 0;
+    auto cancelPending =
+        NSEEL_code_compile(fx->vm.get(),
+                           "snap_parameter_cancel_target(remote_edit_i,remote_"
+                           "edit_row,remote_edit_kind);",
+                           0);
+    if (!cancelPending)
+      throw std::runtime_error("pending target cancellation");
+    auto cancelPerformance = [&](PerformanceTarget &p, uint64_t token) {
+      auto t = controllers.target(p.id);
+      bool owned =
+          t && t->token == token && (t->owner == 0 || t->owner == UINT32_MAX);
+      controllers.cancelPerformanceTarget(p.id, token);
+      unsigned i;
+      int c, r;
+      if (owned && p.binding.kind >= 18 &&
+          model.resolve(p.binding, i, c, r, true)) {
+        *editI = i;
+        *editRow = r;
+        *editKind = p.binding.kind;
+        NSEEL_code_execute(cancelPending);
+      }
+    };
+    auto cancelAB = [&]() {
+      for (unsigned j = 0; j < abCount; ++j) {
+        auto &p = (*performanceTargets)[abTargets[j].slot];
+        cancelPerformance(p, abTargets[j].token);
+      }
+      abCount = 0;
+      abActive = false;
+      abRequested = false;
+    };
+    auto recallSnapshot = [&](uint32_t snapshotId, bool timed,
+                              const performance::Record *supplied) {
+      if (!supplied)
+        cancelAB();
+      int status = 0;
+      const auto *r =
+          supplied ? supplied : performanceSnapshots->find(snapshotId);
+      std::array<controller::Transition, 512> transitions{};
+      std::array<unsigned, 512> slots{};
+      std::array<double, 512> starts{};
+      unsigned n = 0, newTargets = 0, skipped = 0;
+      bool valid = r != nullptr;
+      if (r)
+        for (unsigned j = 0; valid && j < r->state.count; ++j) {
+          const auto &v = r->state.values[j];
+          if (!v.included)
+            continue;
+          controller::Binding b;
+          b.instrument = v.key.instrument;
+          b.module = v.key.module;
+          b.kind = v.key.kind;
+          auto address = model.bindingValue(b, true);
+          if (!address) {
+            ++skipped;
+            continue;
+          }
+          unsigned slot = 0;
+          while (slot < performanceTargetCount &&
+                 !((*performanceTargets)[slot].key == v.key))
+            ++slot;
+          if (slot == performanceTargetCount) {
+            if (slot == 512) {
+              valid = false;
+              break;
+            }
+            auto &p = (*performanceTargets)[slot];
+            p.key = v.key;
+            p.binding = b;
+            ++performanceTargetCount;
+          }
+          auto &p = (*performanceTargets)[slot];
+          uint32_t mapped = 0;
+          for (const auto &mapping : controllers.configuration().bindings)
+            if (mapping.policy.id && mapping.instrument == b.instrument &&
+                mapping.module == b.module && mapping.kind == b.kind)
+              mapped = mapping.policy.target;
+          if (mapped)
+            p.id = mapped;
+          if (!p.id) {
+            while (controllers.target(performanceNextTarget))
+              ++performanceNextTarget;
+            p.id = performanceNextTarget++;
+          }
+          if (!controllers.target(p.id))
+            ++newTargets;
+          slots[n] = slot;
+          starts[n] = normalizedBase(b.kind, *address);
+          transitions[n].target = p.id;
+          transitions[n].goal = performance::normalized(b.kind, v.effective);
+          transitions[n].seconds = timed ? r->seconds : 0;
+          transitions[n].ease = r->ease;
+          bool discrete = performance::discrete(b.kind);
+          transitions[n].switching =
+              discrete ? r->switching : controller::Switch::Continuous;
+          ++n;
+        }
+      if (valid && !n && skipped)
+        status = 2;
+      valid = valid && n > 0 && newTargets <= controllers.freeTargets();
+      if (valid) {
+        for (unsigned j = 0; j < n; ++j)
+          controllers.stagePerformanceTarget(transitions[j].target, starts[j]);
+        valid = controllers.morphBatch(transitions.data(), n);
+        if (valid) {
+          performanceSnapshots->selected = r->id;
+          performanceSkipped = skipped;
+          performanceTargetSnapshot = r->id;
+          performanceMorphAt = controllers.time;
+          performanceMorphSeconds = timed ? r->seconds : 0;
+          for (unsigned j = 0; j < n; ++j) {
+            auto &p = (*performanceTargets)[slots[j]];
+            p.token = controllers.target(p.id)->token;
+            p.goal = transitions[j].goal;
+            p.active = true;
+            p.snapshotId = r->id;
+            p.legacyCurve = model.legacyCurve(p.binding);
+          }
+        }
+      }
+      lastRecallStatus = valid ? 0 : status ? status : 3;
+      return lastRecallStatus;
+    };
+    auto snapHostEnabled = NSEEL_VM_regvar(fx->vm.get(), "snap_host_enabled");
+    auto snapHostCancel = NSEEL_VM_regvar(fx->vm.get(), "snap_host_cancel");
+    auto snapHostRead = NSEEL_VM_regvar(fx->vm.get(), "snap_host_read");
+    auto snapHostWrite = NSEEL_VM_regvar(fx->vm.get(), "snap_host_write");
+    unsigned snapHostBase = unsigned(variable(fx, "I_RUNTIME_END"));
+    for (unsigned j = 520; j < 1000; ++j)
+      *cell(fx, snapHostBase + j) = 0;
+    std::array<double *, 520> snapHostCells{};
+    for (unsigned j = 0; j < snapHostCells.size(); ++j)
+      snapHostCells[j] = cell(fx, snapHostBase + j);
+    *snapHostEnabled = 1;
+    *snapHostRead = *snapHostWrite = 0;
+    for (unsigned j = 288; j < snapHostCells.size(); ++j)
+      *snapHostCells[j] = 0;
+    auto syncSwitchActions = [&]() {
+      for (unsigned j = 0; j < 96; ++j)
+        *snapHostCells[j] = 0;
+      for (const auto &a : performanceSnapshots->switchActions())
+        if (a.switchId)
+          for (unsigned si = 0; si < 16; ++si)
+            if (*model.sw[si][0] && *model.sw[si][1] == a.switchId) {
+              *snapHostCells[si * 6 + a.gesture * 2] = a.action;
+              *snapHostCells[si * 6 + a.gesture * 2 + 1] = a.snapshotId;
+            }
+    };
+    auto updateAB = [&]() {
+      if (!abRequested)
+        return;
+      abRequested = false;
+      auto &config = performanceSnapshots->ab;
+      const auto *a = performanceSnapshots->find(config.a),
+                 *b = performanceSnapshots->find(config.b);
+      if (!a || !b) {
+        cancelAB();
+        return;
+      }
+      double x = controller::clamp(model.abPosition);
+      if (config.ease)
+        x = x * x * (3 - 2 * x);
+      if (!abActive) {
+        performance::Record blend = *a;
+        blend.state.count = 0;
+        abSkipped = 0;
+        for (unsigned j = 0; j < a->state.count; ++j) {
+          const auto &va = a->state.values[j];
+          if (!va.included)
+            continue;
+          const performance::Value *vb = nullptr;
+          for (unsigned k = 0; k < b->state.count; ++k)
+            if (b->state.values[k].included && va.key == b->state.values[k].key)
+              vb = &b->state.values[k];
+          controller::Binding binding;
+          binding.instrument = va.key.instrument;
+          binding.module = va.key.module;
+          binding.kind = va.key.kind;
+          if (!vb || !model.bindingValue(binding, true) ||
+              (va.key.kind == 14 &&
+               (va.effective <= 0 || vb->effective <= 0))) {
+            ++abSkipped;
+            continue;
+          }
+          auto &out = blend.state.values[blend.state.count++];
+          out = va;
+          out.effective = performance::discrete(va.key.kind)
+                              ? (x < .5 ? va.effective : vb->effective)
+                          : va.key.kind == 14
+                              ? std::pow(2, (1 - x) * std::log2(va.effective) +
+                                                x * std::log2(vb->effective))
+                              : (1 - x) * va.effective + x * vb->effective;
+        }
+        if (!blend.state.count || recallSnapshot(blend.id, false, &blend) != 0)
+          return;
+        abCount = 0;
+        for (unsigned j = 0; j < blend.state.count; ++j) {
+          const auto &v = blend.state.values[j];
+          unsigned slot = 0;
+          while (slot < performanceTargetCount &&
+                 !((*performanceTargets)[slot].key == v.key))
+            ++slot;
+          if (slot == performanceTargetCount)
+            continue;
+          auto &p = (*performanceTargets)[slot];
+          auto &t = abTargets[abCount++];
+          t.slot = slot;
+          for (unsigned k = 0; k < a->state.count; ++k)
+            if (a->state.values[k].key == v.key)
+              t.a = performance::normalized(v.key.kind,
+                                            a->state.values[k].effective);
+          for (unsigned k = 0; k < b->state.count; ++k)
+            if (b->state.values[k].key == v.key)
+              t.b = performance::normalized(v.key.kind,
+                                            b->state.values[k].effective);
+          t.token = controllers.acquirePerformanceTarget(
+              p.id, performance::normalized(v.key.kind, v.effective));
+          p.token = t.token;
+          p.active = false;
+        }
+        abActive = true;
+        performanceSnapshots->selected = 0;
+        performanceMorphSeconds = 0;
+      }
+      for (unsigned j = 0; j < abCount; ++j) {
+        auto &t = abTargets[j];
+        auto &p = (*performanceTargets)[t.slot];
+        double value = performance::discrete(p.binding.kind)
+                           ? (x < .5 ? t.a : t.b)
+                           : (1 - x) * t.a + x * t.b;
+        if (t.token &&
+            controllers.updatePerformanceTarget(p.id, t.token, value))
+          applyBinding(p.binding, value);
+      }
+    };
+    auto publishPerformance = [&]() {
+      state.performanceCount = performanceSnapshots->count;
+      state.snapshotActions = performanceSnapshots->switchActions();
+      state.ab = performanceSnapshots->ab;
+      state.ab.position = model.abPosition;
+      state.abSkipped = abSkipped;
+      state.abOverridden = 0;
+      for (unsigned j = 0; j < abCount; ++j) {
+        auto &p = (*performanceTargets)[abTargets[j].slot];
+        auto t = controllers.target(p.id);
+        if (!t || t->owner != UINT32_MAX || t->token != abTargets[j].token)
+          ++state.abOverridden;
+      }
+      state.performanceSelected = performanceSnapshots->selected;
+      state.performanceSkipped = performanceSkipped;
+      state.performanceProgress =
+          performanceMorphSeconds > 0
+              ? controller::clamp((controllers.time - performanceMorphAt) /
+                                  performanceMorphSeconds)
+              : 1;
+      state.performanceTarget =
+          state.performanceProgress < 1 ? performanceTargetSnapshot : 0;
+      auto current = model.effectiveState();
+      for (unsigned j = 0; j < state.performanceCount; ++j) {
+        const auto &r = performanceSnapshots->at(j);
+        state.performanceIds[j] = r.id;
+        state.performanceSizes[j] = r.state.count;
+        std::memcpy(state.performanceNames[j].data(), r.name, 49);
+        state.performanceSeconds[j] = r.seconds;
+        state.performanceEase[j] = int(r.ease);
+        state.performanceSwitch[j] = int(r.switching);
+        state.performanceDirty[j] = performanceSnapshots->dirty(r.id, current);
+      }
+    };
     std::array<bool, 2048> held{};
     struct MidiPacket {
       unsigned size = 0, offset = 0;
@@ -1119,6 +1652,12 @@ int main(int argc, char **argv) {
     const auto period =
         std::chrono::nanoseconds(uint64_t(1e9 * blockSize / sampleRate));
     std::cout << "READY " << argv[2] << std::endl;
+    // Large fixed command records must not consume JACK's small callback stack.
+    // Allocate them once; the sole processing thread owns these scratch
+    // buffers.
+    std::unique_ptr<std::array<Reply, 8>> pendingStorage(
+        new std::array<Reply, 8>());
+    std::unique_ptr<Request> processingRequest(new Request());
     std::function<int(jack_nframes_t)> process = [&](jack_nframes_t frames) {
       void *outBuffer =
           useJack ? jack_port_get_buffer(midiOut, frames) : nullptr;
@@ -1176,8 +1715,10 @@ int main(int argc, char **argv) {
         if (controllers.midi(e.data, e.size,
                              (state.samples + e.offset) / double(sampleRate),
                              conflicts)) {
-          if (before && !controllers.learnTarget())
+          if (before && !controllers.learnTarget()) {
+            cancelAB();
             ++state.revision;
+          }
           continue;
         }
         if (!ysfx_send_midi(fx, &e)) {
@@ -1188,12 +1729,14 @@ int main(int argc, char **argv) {
       for (unsigned q = inputRead; q != inputWrite; ++q)
         (*inputQueue)[q % 8192].offset = 0;
       auto start = std::chrono::steady_clock::now();
-      std::array<Reply, 8> pending{};
+      auto &pending = *pendingStorage;
       unsigned count = 0;
       bool maintenance = false;
-      Request request;
+      auto &request = *processingRequest;
       while (count < 8 && replies.free() > count && commands.pop(request)) {
         auto &reply = pending[count++];
+        reply.status = 0;
+        reply.detailRevision = 0;
         reply.id = request.id;
         if (request.op != 0 &&
             ((request.session && request.session != engineSession) ||
@@ -1208,16 +1751,25 @@ int main(int argc, char **argv) {
             NSEEL_code_execute(panic_bridge);
           if (request.op == 5) {
             chain.cancel();
+            *snapHostRead = *snapHostWrite;
+            cancelAB();
+            performanceTargetCount = 0;
+            performanceSkipped = 0;
+            performanceMorphSeconds = 0;
+            performanceTargetSnapshot = 0;
             controllers.panic();
             ++state.revision;
             loading.store(true, std::memory_order_release);
           }
           maintenance = true;
-        } else if (request.op == 20) {
+        } else if (request.op == 40) {
           if (!chainMode)
             reply.status = 3;
           else {
             if (request.arg == 0) {
+              *snapHostRead = *snapHostWrite;
+              performanceMorphSeconds = 0;
+              cancelAB();
               controllers.panic();
               NSEEL_code_execute(panic_bridge);
             }
@@ -1228,8 +1780,143 @@ int main(int argc, char **argv) {
             if (!chain.command(request.arg, request.target))
               reply.status = 3;
           }
+        } else if (request.op >= 20) {
+          bool valid = false;
+          if (request.op == 32) {
+            controller::Binding b;
+            b.instrument = request.target;
+            b.module = request.module;
+            b.kind = request.arg;
+            double value = request.macroPosition;
+            valid = b.kind != 16 && model.bindingValue(b) &&
+                    value >= performance::physical(b.kind, 0) &&
+                    value <= performance::physical(b.kind, 1);
+            if (valid) {
+              for (unsigned j = 0; j < performanceTargetCount; ++j) {
+                auto &p = (*performanceTargets)[j];
+                if (p.key.instrument == b.instrument &&
+                    p.key.module == b.module && p.key.kind == b.kind) {
+                  cancelPerformance(p, p.token);
+                  p.active = false;
+                }
+              }
+              controllers.recall(b.instrument, b.module, b.kind,
+                                 performance::normalized(b.kind, value));
+              applyBinding(b, performance::normalized(b.kind, value));
+            }
+          } else if (request.op == 30) {
+            performance::AB config;
+            config.a = request.target;
+            config.b = request.module;
+            config.position = request.macroPosition;
+            config.ease = request.arg;
+            valid = config.valid() &&
+                    (!config.a || (performanceSnapshots->find(config.a) &&
+                                   performanceSnapshots->find(config.b)));
+            if (valid) {
+              cancelAB();
+              performanceSnapshots->ab = config;
+              model.abPosition = config.position;
+              controllers.recall(1, 0, 16, config.position);
+              abRequested = config.a != 0;
+            }
+          } else if (request.op == 31) {
+            valid = performanceSnapshots->ab.a && performanceSnapshots->ab.b &&
+                    (!request.target ||
+                     (unsigned(request.target) == performanceSnapshots->ab.a &&
+                      unsigned(request.module) == performanceSnapshots->ab.b));
+            if (valid) {
+              model.abPosition = request.macroPosition;
+              performanceSnapshots->ab.position = request.macroPosition;
+              controllers.recall(1, 0, 16, model.abPosition);
+              abRequested = true;
+            }
+          } else if (request.op == 29) {
+            const auto *record = performanceSnapshots->find(request.target);
+            valid = record != nullptr;
+            if (valid) {
+              reply.detail = *record;
+              reply.detailRevision = state.revision;
+            }
+          } else if (request.op == 20)
+            valid = performanceSnapshots->capture(model.effectiveState()) != 0;
+          else if (request.op == 21)
+            valid = performanceSnapshots->update(request.target,
+                                                 model.effectiveState());
+          else if (request.op == 22)
+            valid = performanceSnapshots->duplicate(request.target) != 0;
+          else if (request.op == 23) {
+            if (performanceSnapshots->ab.a == unsigned(request.target) ||
+                performanceSnapshots->ab.b == unsigned(request.target))
+              cancelAB();
+            valid = performanceSnapshots->erase(request.target);
+            if (valid) {
+              for (unsigned j = 0; j < performanceTargetCount; ++j) {
+                auto &p = (*performanceTargets)[j];
+                if (p.snapshotId == unsigned(request.target)) {
+                  cancelPerformance(p, p.token);
+                  p.active = false;
+                }
+              }
+              if (performanceTargetSnapshot == unsigned(request.target)) {
+                *snapHostRead = *snapHostWrite;
+                performanceMorphSeconds = 0;
+              }
+            }
+          } else if (request.op == 24)
+            valid = performanceSnapshots->move(request.target,
+                                               request.arg ? 1 : -1);
+          else if (request.op == 25 || request.op == 27) {
+            const auto *r = performanceSnapshots->find(request.target);
+            if (r) {
+              auto draft = *r;
+              std::memcpy(draft.name, request.snapshotName, 49);
+              if (request.op == 27) {
+                draft.seconds = request.snapshotSeconds;
+                draft.ease = controller::Ease(request.snapshotEase);
+                draft.switching = controller::Switch(request.snapshotSwitch);
+              }
+              bool known = true;
+              const auto &mask = request.snapshotConfig.records[0].state;
+              for (unsigned j = 0; j < mask.count; ++j) {
+                bool found = false;
+                for (unsigned k = 0; k < draft.state.count; ++k)
+                  if (draft.state.values[k].key == mask.values[j].key) {
+                    draft.state.values[k].included = mask.values[j].included;
+                    found = true;
+                  }
+                if (!found)
+                  known = false;
+              }
+              valid = known && performanceSnapshots->commit(
+                                   draft, performanceSnapshots->revision);
+            }
+          } else if (request.op == 28) {
+            bool exists = false;
+            for (unsigned si = 0; si < 16; ++si)
+              if (*model.sw[si][0] && *model.sw[si][1] == request.target)
+                exists = true;
+            performance::SwitchAction a;
+            a.switchId = request.target;
+            a.gesture = request.arg;
+            a.action = request.ch;
+            a.snapshotId = request.module;
+            valid = exists && performanceSnapshots->setAction(a);
+          } else if (request.op == 26) {
+            valid = recallSnapshot(request.target, request.arg, nullptr) == 0;
+            if (!valid)
+              reply.status = lastRecallStatus;
+          }
+          if (valid) {
+            if (request.op == 20 || request.op == 21)
+              performanceSkipped = 0;
+            if (request.op != 29)
+              ++state.revision;
+          } else if (reply.status == 0)
+            reply.status = 3;
         } else if (request.op >= 14) {
           if (request.op == 14) {
+            cancelAB();
             controller::Source source;
             source.id = request.target;
             source.kind = request.arg;
@@ -1251,16 +1938,21 @@ int main(int argc, char **argv) {
               valid = controllers.learn(request.target);
             } else if (request.arg == 1)
               controllers.cancel();
-            else if (request.arg == 2)
+            else if (request.arg == 2) {
+              cancelAB();
               valid = controllers.learnTarget() == unsigned(request.target) &&
                       controllers.confirm();
-            else
+            } else {
+              cancelAB();
               valid = controllers.forget(request.target);
+            }
             if (!valid)
               reply.status = 3;
             else
               ++state.revision;
           } else if (request.op == 16) {
+            if (request.binding.kind != 16)
+              cancelAB();
             auto b = request.binding;
             auto address = model.bindingValue(b);
             if (!address)
@@ -1279,8 +1971,17 @@ int main(int argc, char **argv) {
                 b.base = normalizedBase(b.kind, model.bindingBase(b));
               if (!controllers.bind(b))
                 reply.status = 3;
-              else
+              else {
+                for (unsigned j = 0; j < performanceTargetCount; ++j) {
+                  auto &p = (*performanceTargets)[j];
+                  if (p.key.instrument == b.instrument &&
+                      p.key.module == b.module && p.key.kind == b.kind) {
+                    cancelPerformance(p, p.token);
+                    p.active = false;
+                  }
+                }
                 ++state.revision;
+              }
             }
           } else if (request.op == 17) {
             if (!controllers.remove(request.target))
@@ -1298,16 +1999,20 @@ int main(int argc, char **argv) {
             if (!controllers.midi(data, 3,
                                   (state.samples + frames) / double(sampleRate),
                                   conflicts)) {
+              *snapHostRead = *snapHostWrite = 0;
               ysfx_midi_event_t event{};
               event.size = 3;
               event.data = data;
               if (!ysfx_send_midi(fx, &event))
                 reply.status = 3;
             }
-            if (before && !controllers.learnTarget())
+            if (before && !controllers.learnTarget()) {
+              cancelAB();
               ++state.revision;
+            }
           }
         } else if (request.op == 13) {
+          publishPerformance();
           model.snapshot(state);
           unsigned i = 0;
           for (; i < 8; ++i)
@@ -1371,6 +2076,7 @@ int main(int argc, char **argv) {
             controllers.recall(request.target, 0, 1, request.value / 127.);
             ++state.revision;
           } else {
+            publishPerformance();
             model.snapshot(state);
             int slot = -1;
             for (int j = 0; j < state.instruments[i].transformerCount; ++j)
@@ -1469,6 +2175,9 @@ int main(int argc, char **argv) {
             reply.status = 2;
         } else if (request.op == 2) {
           chain.cancel();
+          *snapHostRead = *snapHostWrite;
+          performanceMorphSeconds = 0;
+          cancelAB();
           controllers.panic();
           ysfx_midi_clear(fx->midi.in.get());
           inputRead = inputWrite;
@@ -1478,6 +2187,7 @@ int main(int argc, char **argv) {
         } else if (request.op == 3) {
           uint8_t data[] = {uint8_t(144 | request.ch), uint8_t(request.note),
                             uint8_t(request.value)};
+          *snapHostRead = *snapHostWrite = 0;
           ysfx_midi_event_t event{};
           event.size = 3;
           event.data = data;
@@ -1485,12 +2195,27 @@ int main(int argc, char **argv) {
           if (controllers.midi(data, 3,
                                (state.samples + frames) / double(sampleRate),
                                conflicts)) {
-            if (before && !controllers.learnTarget())
+            if (before && !controllers.learnTarget()) {
+              cancelAB();
               ++state.revision;
+            }
           } else if (!ysfx_send_midi(fx, &event))
             reply.status = 3;
         }
       }
+      for (unsigned j = 0; j < performanceTargetCount;) {
+        auto &p = (*performanceTargets)[j];
+        if (!model.bindingValue(p.binding, true)) {
+          cancelAB();
+          cancelPerformance(p, p.token);
+          controllers.retirePerformanceTarget(p.id);
+          (*performanceTargets)[j] =
+              (*performanceTargets)[--performanceTargetCount];
+        } else
+          ++j;
+      }
+      if (model.abRestorePending.exchange(false, std::memory_order_acq_rel))
+        abRequested = true;
       if (controllers.tick((state.samples + frames) / double(sampleRate),
                            resolveBinding, applyBinding))
         ++state.revision;
@@ -1538,7 +2263,70 @@ int main(int argc, char **argv) {
         time.time_signature[1] = 4;
         ysfx_set_time_info(fx, &time);
       }
+      for (unsigned j = 0; j < performanceTargetCount; ++j) {
+        auto &p = (*performanceTargets)[j];
+        if (!p.active)
+          continue;
+        auto target = controllers.target(p.id);
+        if (!target) {
+          p.active = false;
+          continue;
+        }
+        if (target->owner == UINT32_MAX && target->token == p.token)
+          applyBinding(p.binding, target->effective);
+        else if (target->owner == 0 &&
+                 std::abs(target->effective - p.goal) < 1e-8) {
+          applyBinding(p.binding, target->effective);
+          // Legacy expression remains suspended after recall until its pedal
+          // moves.
+          if (p.legacyCurve >= 0)
+            p.token =
+                controllers.acquirePerformanceTarget(p.id, target->effective);
+          p.active = false;
+        } else
+          p.active = false;
+      }
+      updateAB();
+      syncSwitchActions();
+      for (unsigned j = 288; j < snapHostCells.size(); ++j)
+        *snapHostCells[j] = 0;
+      for (unsigned j = 0; j < performanceTargetCount; ++j) {
+        const auto &p = (*performanceTargets)[j];
+        auto t = controllers.target(p.id);
+        if (p.legacyCurve >= 0 && p.legacyCurve < 232 && t &&
+            t->owner == UINT32_MAX && t->token == p.token)
+          *snapHostCells[288 + p.legacyCurve] = 1;
+      }
       ysfx_process_float(fx, nullptr, nullptr, 0, 0, frames);
+      for (unsigned j = 0; j < performanceTargetCount; ++j) {
+        auto &p = (*performanceTargets)[j];
+        if (p.legacyCurve >= 0 && p.legacyCurve < 232 &&
+            !*snapHostCells[288 + p.legacyCurve]) {
+          cancelPerformance(p, p.token);
+          p.active = false;
+        }
+      }
+      if (*snapHostCancel) {
+        cancelAB();
+        controllers.panic();
+        for (unsigned j = 0; j < performanceTargetCount; ++j)
+          (*performanceTargets)[j].active = false;
+        performanceMorphSeconds = 0;
+        *snapHostRead = *snapHostWrite;
+        *snapHostCancel = 0;
+      }
+      while (*snapHostRead < *snapHostWrite) {
+        unsigned at = 96 + (unsigned(*snapHostRead) % 64) * 3;
+        unsigned action = unsigned(*snapHostCells[at]);
+        uint32_t id = uint32_t(*snapHostCells[at + 1]);
+        ++*snapHostRead;
+        if (action != 3 && action != 4)
+          id = performanceSnapshots->navigate(action);
+        if (id && recallSnapshot(id, action == 4 || action == 6 || action == 7,
+                                 nullptr) == 0)
+          ++state.revision;
+      }
+      *snapHostRead = *snapHostWrite = 0;
       ysfx_midi_event_t event{};
       unsigned outputCount = 0;
       bool outputSorted = true;
@@ -1615,6 +2403,7 @@ int main(int argc, char **argv) {
       if (count) {
         if (maintenance)
           paused.store(true, std::memory_order_release);
+        publishPerformance();
         model.snapshot(state);
         state.controllerConfig = controllers.configuration();
         state.learnTarget = controllers.learnTarget();
@@ -1666,7 +2455,7 @@ int main(int argc, char **argv) {
     io = std::thread(control, listener, std::ref(commands), std::ref(replies),
                      std::ref(shutdown), std::ref(paused), std::ref(loading),
                      std::ref(patch), std::ref(model), std::ref(controllers),
-                     std::cref(conflicts));
+                     std::ref(*performanceSnapshots), std::cref(conflicts));
     while (running) {
       if (!useJack)
         process(blockSize);
@@ -1715,6 +2504,8 @@ int main(int argc, char **argv) {
     NSEEL_code_free(phraseStop);
     NSEEL_code_free(edit);
     NSEEL_code_free(structure);
+    NSEEL_code_free(safeApply);
+    NSEEL_code_free(cancelPending);
   } catch (const std::exception &e) {
     std::cerr << e.what() << '\n';
     if (listener >= 0)

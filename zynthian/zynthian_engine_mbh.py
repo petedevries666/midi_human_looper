@@ -93,7 +93,7 @@ class zynthian_engine_mbh(zynthian_engine):
         control=entry['control'];state=control.request()
         common=dict(revision=state['revision'],session=state['engineSessionId'])
         if action in ('play','record','stop','finish'):
-            response=control.request(op=20,target=entry['phrase'],arg={'stop':0,'play':1,'record':2,'finish':3}[action],**common)
+            response=control.request(op=40,target=entry['phrase'],arg={'stop':0,'play':1,'record':2,'finish':3}[action],**common)
         elif action=='save':
             patch=control.request(op=4,**common)
             if patch.get('format')!='MIDI_HUMAN_LOOPER_PATCH':raise RuntimeError('MBH save rejected; previous file retained')

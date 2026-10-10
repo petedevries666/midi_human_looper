@@ -11,6 +11,7 @@ inline double clamp(double x) { return std::max(0., std::min(1., x)); }
 enum class Takeover { Direct, Pickup, Glide, Slew };
 enum class Return { Off, Idle, Release, Command };
 enum class Ease { Linear, Smooth };
+enum class Switch { Continuous, Start, Midpoint, End };
 struct Point {
   double x, y, bend;
   Point(double px = 0, double py = 0, double pb = 0) : x(px), y(py), bend(pb) {}
@@ -70,15 +71,29 @@ struct Mapping {
            int(back) >= 0 && int(back) <= 3 && int(ease) >= 0 && int(ease) <= 1;
   }
 };
+struct Transition {
+  uint32_t target = 0;
+  double goal = 0, seconds = 0;
+  Ease ease = Ease::Linear;
+  Switch switching = Switch::Continuous;
+};
 struct Target {
   uint32_t id = 0, owner = 0;
   uint64_t token = 0;
   int priority = -1;
   double effective = 0, snapshot = 0;
   bool returning = false, takeoverPending = false;
+  // Runtime only: the existing target owner is the sole writer during a morph.
+  bool morphing = false;
+  double morphStart = 0, morphGoal = 0, morphAt = 0, morphSeconds = 0;
+  Ease morphEase = Ease::Linear;
+  Switch morphSwitch = Switch::Continuous;
 };
 class Engine {
-  static const unsigned TargetCapacity = 256, MappingCapacity = 64;
+public:
+  static const unsigned TargetCapacity = 512, MappingCapacity = 64;
+
+private:
   struct Runtime {
     Mapping config;
     bool used = false, previousKnown = false, active = false, returning = false;
@@ -101,6 +116,7 @@ class Engine {
       m->active = false;
       m->returning = false;
     }
+    t.morphing = false;
     t.owner = 0;
     t.priority = -1;
     t.token = ++generation;
@@ -144,6 +160,13 @@ public:
       if (t.id == id && id)
         return &t;
     return nullptr;
+  }
+  unsigned freeTargets() const {
+    unsigned count = 0;
+    for (const auto &t : targets)
+      if (!t.id)
+        ++count;
+    return count;
   }
   bool addTarget(uint32_t id, double effective) {
     if (!id || target(id) || !std::isfinite(effective) || effective < 0 ||
@@ -214,6 +237,22 @@ public:
       return false;
     for (auto &t : targets)
       if (t.id) {
+        if (t.morphing && t.owner == UINT32_MAX) {
+          double x = clamp((now - t.morphAt) / t.morphSeconds);
+          double shaped = t.morphEase == Ease::Smooth ? x * x * (3 - 2 * x) : x;
+          if (t.morphSwitch == Switch::Continuous)
+            t.effective =
+                clamp(t.morphStart + (t.morphGoal - t.morphStart) * shaped);
+          else {
+            double boundary = t.morphSwitch == Switch::Start      ? 0
+                              : t.morphSwitch == Switch::Midpoint ? .5
+                                                                  : 1;
+            t.effective = x >= boundary ? t.morphGoal : t.morphStart;
+          }
+          if (x >= 1)
+            release(t);
+          continue;
+        }
         auto *m = owner(t);
         if (!m)
           continue;
@@ -336,6 +375,81 @@ public:
         return t.token;
       }
     return 0;
+  }
+  // A recall is an explicit performance command: it replaces the current owner
+  // once. Physical mappings of any configured priority can then take over using
+  // their normal Pickup/Glide/Slew policy. A morph never reacquires that
+  // target.
+  uint64_t morph(uint32_t id, double goal, double seconds, double now,
+                 Ease ease = Ease::Linear,
+                 Switch switching = Switch::Continuous) {
+    if (!target(id) || !std::isfinite(goal) || goal < 0 || goal > 1 ||
+        !std::isfinite(seconds) || seconds < 0 || seconds > 3600 ||
+        int(ease) < 0 || int(ease) > 1 || int(switching) < 0 ||
+        int(switching) > 3 || !tick(now))
+      return 0;
+    for (auto &t : targets)
+      if (t.id == id) {
+        release(t);
+        // Forget previous Pickup crossings; a new recall is a new reference
+        // state.
+        for (auto &m : mappings)
+          if (m.used && m.config.target == id)
+            m.previousKnown = false;
+        t.owner = UINT32_MAX;
+        t.priority = 0;
+        t.morphStart = t.effective;
+        t.morphGoal = goal;
+        t.morphAt = now;
+        t.morphSeconds = seconds;
+        t.morphEase = ease;
+        t.morphSwitch = switching;
+        t.morphing = seconds > 0;
+        if (!seconds || switching == Switch::Start)
+          t.effective = goal;
+        auto token = t.token;
+        if (!seconds)
+          release(t);
+        return token;
+      }
+    return 0;
+  }
+  // Validate the whole global performance command before touching time/owners.
+  // All transitions share one engine timestamp. Fixed target capacity bounds
+  // validation and application; caller-owned storage is never retained.
+  bool morphBatch(const Transition *entries, unsigned count, double now) {
+    if (!entries || !count || count > TargetCapacity || !std::isfinite(now) ||
+        now < time)
+      return false;
+    for (unsigned i = 0; i < count; ++i) {
+      const auto &e = entries[i];
+      if (!target(e.target) || !std::isfinite(e.goal) || e.goal < 0 ||
+          e.goal > 1 || !std::isfinite(e.seconds) || e.seconds < 0 ||
+          e.seconds > 3600 || int(e.ease) < 0 || int(e.ease) > 1 ||
+          int(e.switching) < 0 || int(e.switching) > 3)
+        return false;
+      for (unsigned j = 0; j < i; ++j)
+        if (entries[j].target == e.target)
+          return false;
+    }
+    for (unsigned i = 0; i < count; ++i) {
+      const auto &e = entries[i];
+      morph(e.target, e.goal, e.seconds, now, e.ease, e.switching);
+    }
+    return true;
+  }
+  // Streaming performance macro updates retain their original token. Physical
+  // takeover cannot be undone by a subsequent macro tick.
+  bool updateExternal(uint32_t id, uint64_t token, double value) {
+    if (!std::isfinite(value) || value < 0 || value > 1)
+      return false;
+    for (auto &t : targets)
+      if (t.id == id && t.owner == UINT32_MAX && t.token == token) {
+        t.morphing = false;
+        t.effective = value;
+        return true;
+      }
+    return false;
   }
   bool releaseExternal(uint32_t id, uint64_t token) {
     for (auto &t : targets)

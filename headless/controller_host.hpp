@@ -1,5 +1,6 @@
 #pragma once
 #include "controller_engine.hpp"
+#include "parameter_registry.hpp"
 #include <array>
 #include <cstdint>
 // Host adapter configuration v1. Stable IDs are never array positions.
@@ -20,8 +21,12 @@ struct Binding {
   double base = 0; // normalized committed value; runtime never serialized
   bool valid() const {
     return policy.valid() && instrument && instrument <= 16777215 &&
-           module <= 16777215 && kind >= 0 && kind < 16 &&
-           (kind < 14 || (instrument <= 16 && !module)) &&
+           module <= 16777215 && kind >= 0 && kind <= 24 &&
+           (performance::phraseKind(kind) ? instrument <= 16 && !module
+            : kind == 16                  ? instrument == 1 && !module
+            : kind >= 21 && kind <= 23    ? !module
+            : kind == 24                  ? module != 0
+                                          : true) &&
            std::isfinite(base) && base >= 0 && base <= 1;
   }
 };
@@ -285,6 +290,34 @@ public:
           apply(b, t->effective);
       }
     return changed;
+  }
+  bool retirePerformanceTarget(uint32_t id) {
+    for (const auto &b : config.bindings)
+      if (b.policy.id && b.policy.target == id)
+        return false;
+    return core.removeTarget(id);
+  }
+  unsigned freeTargets() const { return core.freeTargets(); }
+  uint64_t acquirePerformanceTarget(uint32_t id, double value) {
+    return core.external(id, value, 0, time);
+  }
+  bool updatePerformanceTarget(uint32_t id, uint64_t token, double value) {
+    return core.updateExternal(id, token, value);
+  }
+  bool cancelPerformanceTarget(uint32_t id, uint64_t token) {
+    return core.releaseExternal(id, token);
+  }
+  bool stagePerformanceTarget(uint32_t id, double effective) {
+    return core.target(id) ? core.recall(id, effective)
+                           : core.addTarget(id, effective);
+  }
+  uint64_t morph(uint32_t id, double goal, double seconds,
+                 Ease ease = Ease::Linear,
+                 Switch switching = Switch::Continuous) {
+    return core.morph(id, goal, seconds, time, ease, switching);
+  }
+  bool morphBatch(const Transition *entries, unsigned count) {
+    return core.morphBatch(entries, count, time);
   }
   bool returnCommand(uint32_t id) { return core.returnCommand(id, time); }
   bool capture(uint32_t id) { return core.capture(id); }

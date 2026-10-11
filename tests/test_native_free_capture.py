@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """Actual native engine + HTTP + source SMF; no JACK or hardware simulation claim."""
-import socket, subprocess, sys, tempfile, time, unittest, urllib.request
+import base64, json, socket, subprocess, sys, tempfile, time, unittest, urllib.request
 from pathlib import Path
 from test_snapshots import SnapshotTests
 from test_headless_mvp import BINARY, ROOT
 sys.path.insert(0,str(ROOT/"headless"))
-from phrase_midi import read_smf
+from phrase_midi import read_smf, write_smf
 
 class FreeCapture(SnapshotTests):
     @classmethod
@@ -54,6 +54,21 @@ class FreeCapture(SnapshotTests):
         self.command('phrase_record',phraseId=4);self.command('panic')
         self.assertFalse(self.call()['chainArmed'])
         self.assertEqual(self.call()['phrases'][3]['events'],0)
+        # Free-time interchange must not inherit the old native grid capacity
+        # or silently force an imported ONCE phrase into LOOP.
+        raw=write_smf(dict(lengthSeconds=8,bpm=120,events=[[0,145,60,81],[8,129,60,23]]))
+        state=self.call()
+        body=dict(file=base64.b64encode(raw).decode(),phraseId=4,mode='replace',
+                  expectedRevision=state['revision'],expectedEngineSessionId=state['engineSessionId'])
+        request=urllib.request.Request(self.base+'/api/v1/phrase/midi',data=json.dumps(body).encode(),
+                                       headers={'Content-Type':'application/json'})
+        with urllib.request.urlopen(request,timeout=5) as response:
+            self.assertEqual(response.status,200)
+        self.assertEqual(self.call()['phrases'][3]['mode'],1)
+        imported=read_smf(self.export(4))
+        self.assertEqual(imported['events'],[[0,145,60,81],[8,129,60,23]])
+        self.patch('save');self.patch('load')
+        self.assertEqual(read_smf(self.export(4))['events'],imported['events'])
 
 if __name__=='__main__':
     result=unittest.TextTestRunner(verbosity=2).run(unittest.TestSuite([FreeCapture('test_free_capture')]))

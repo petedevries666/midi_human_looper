@@ -96,6 +96,41 @@ mandatory.
   retaining musical data, interrupted activation journal and actual native preflight.
   Service transitions are mocked; no hardware service restart is claimed.
 
+Final clean software validation at `ca10a1f8fe93fd1fef4f8b3aeb6d898c1b8038cc`:
+
+```sh
+PATH=/workspace/setup-tools/venv/bin:$PATH \
+YSFX_SOURCE=/workspace/setup-tools/ysfx \
+YSFX_BUILD=/workspace/setup-tools/ysfx/build \
+JACK_INCLUDE=/workspace/scratch/midi-deps/root/usr/include \
+HEADLESS_BINARY=$PWD/.build/midi-native-hold \
+JACKD=/workspace/scratch/midi-deps/root/usr/bin/jackd \
+JACK_DRIVER_DIR=/workspace/scratch/midi-deps/root/usr/lib/x86_64-linux-gnu/jack \
+CHAIN_JACK_BLOCK=8192 \
+/workspace/setup-tools/venv/bin/python scripts/combined-test.py \
+  --native --jack --browser chromium --timeout 240
+```
+
+Result: **PASS selected combined regression suite**. This includes 7,002
+shared EEL/GUI/MIDI checks, 18 actual capture-to-SMF fixtures, real dummy-JACK
+three-processor and dedicated-fanout tests, normal and sanitized Controller tests,
+portable/bridge/persistence regressions, updater's nine tests, and all ten Chromium
+suites (including native HOLD pointer/keyboard/MIDI release).
+
+An earlier Cloud run failed the recording discontinuity guard. JACK reported
+`Process XRun = 8959 usec` and all three MBMF clients **and the probe/source clients**
+were unfinished. The captured callback maximum was about 6 ms at an 8192-frame /
+48 kHz period (~171 ms); this is consistent with graph scheduling interruption,
+not proof of a slow MBMF callback. The serial retry passed. No guard, timestamp
+check or overflow assertion was relaxed. Physical CPU/XRUN measurement remains
+required, especially at normal smaller Zynthian buffers. Do not treat this retry
+as proof that the observed hardware XRUN is solved.
+
+The real screenshot run captured 93 PNGs at 320×240, 800×480, 1366×768 and
+1440×900. Every generated view was visually inspected; automated layout findings
+were zero. The committed manifest identifies the clean `ca10a1f` source and native
+build. CONDUCTOR remains explicitly unsupported, with no fabricated screenshot.
+
 Browser network loss prevents delivery of a release command. The autonomous engine
 continues independently; use a physical release or STOP/PANIC if connectivity is
 lost while holding a browser trigger. Offline physical MIDI performance does not

@@ -23,15 +23,16 @@ sudo python3 /path/to/midi_human_looper/scripts/zynthian-update.py --revision RE
 ```
 
 For an installation predating this script, the first update can also be one
-command from PuTTY (replace the path and SHA in both places):
+command from PuTTY, without locating or altering the old checkout (replace the
+SHA in both places with the reviewed full commit):
 
 ```sh
-bash -o pipefail -c 'git -C /path/to/midi_human_looper fetch origin REVIEWED_40_CHARACTER_SHA && git -C /path/to/midi_human_looper show REVIEWED_40_CHARACTER_SHA:scripts/zynthian-update.py | sudo python3 - --revision REVIEWED_40_CHARACTER_SHA'
+bash -o pipefail -c 'curl -fsSL https://raw.githubusercontent.com/petedevries666/midi_human_looper/REVIEWED_40_CHARACTER_SHA/scripts/zynthian-update.py | sudo python3 - --revision REVIEWED_40_CHARACTER_SHA'
 ```
 
-This fetches metadata without changing your working tree. It executes only the
-reviewed script and does not activate the runtime until validation succeeds.
-No manual removal or re-registration is needed. Releases are isolated under
+This requires the existing `curl` command; it installs no packages. The script
+reads the existing installation configuration. No manual removal or re-registration
+is needed. Releases are isolated under
 `/zynthian/zynthian-my-data/midi-human-looper/releases/<sha>/`.
 
 The pinned ysfx/WDL library and application are built with `-fsigned-char` on

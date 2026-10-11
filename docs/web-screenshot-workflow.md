@@ -8,7 +8,8 @@ the existing integration-test lifecycle rather than a second demo application.
 
 [Browse the real PNG artifacts](screenshots/README.md). The manifest records the
 browser version, checkout revision, viewport dimensions and per-view layout checks.
-All PNG dimensions are verified. Failed layout runs retain diagnostics under
+Viewports are 320×240, 800×480, 1366×768 and 1440×900, including inline name
+edits. All PNG dimensions are verified. Failed layout runs retain diagnostics under
 `.build/screenshot-failures/` and do not publish their images into the documentation.
 No visual baseline comparison is claimed: review the actual PNGs before committing.
 

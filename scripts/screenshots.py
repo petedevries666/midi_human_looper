@@ -153,7 +153,7 @@ def run(output):
                 if errors: raise AssertionError(errors)
                 context.close()
             browser.close()
-        manifest=dict(browser=browser.version,sourceRevision=subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip(),application='MIDI BAD MOTHERFUCKER',data='Native --demo; PANIC; one controller source; no playback',artifacts=artifacts,
+        manifest=dict(browser=browser.version,sourceRevision=subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip(),sourceDirty=bool(subprocess.check_output(['git','status','--porcelain','--untracked-files=no'],cwd=ROOT,text=True).strip()),runtimeBuildRevision=api.call()['buildRevision'],application='MIDI BAD MOTHERFUCKER',data='Native --demo; PANIC; one controller source; no playback',artifacts=artifacts,
                       unsupported={'CONDUCTOR':'No implemented CONDUCTOR editor on the integration candidate; no mock screenshot supplied.'})
         (output/'manifest.json').write_text(json.dumps(manifest,indent=2)+'\n')
         failures=[a for a in artifacts if a['checks']]

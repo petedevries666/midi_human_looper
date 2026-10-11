@@ -344,7 +344,10 @@ function compactPhrases(s){
   $('phrase-pagination').replaceChildren(button('←',()=>{phrasePage=Math.max(0,phrasePage-1);renderedModel='';render(latest);}),node('span',`${phrasePage+1} / ${pages}`),button('→',()=>{phrasePage=Math.min(pages-1,phrasePage+1);renderedModel='';render(latest);}));
   $('phrases').replaceChildren(...s.phrases.slice(phrasePage*6,phrasePage*6+6).map(p=>{
     const row=node('div',undefined,'phrase');row.dataset.phraseId=p.id;
-    row.append(button('REC / OVERDUB',()=>command({action:'phrase_record',phraseId:p.id})),button('TRIGGER',()=>command({action:'phrase_play',phraseId:p.id})),editableName('Phrase',p.id,p.name,`PHRASE ${p.id}`));
+    const trigger=button('TRIGGER',()=>command({action:'phrase_play',phraseId:p.id}));
+    trigger.disabled=!!s.chainMode&&p.mode===2;
+    if(trigger.disabled)trigger.title='Legacy HOLD data is preserved. STOP and choose LOOP or ONCE; native held release is not implemented.';
+    row.append(button('REC / OVERDUB',()=>command({action:'phrase_record',phraseId:p.id})),trigger,editableName('Phrase',p.id,p.name,`PHRASE ${p.id}`));
     const learning=s.controllerLearn?.domain==='phrase'&&s.controllerLearn.target===p.id;
     const learn=button(learning?'CANCEL LEARN':p.triggerNote>=0?`LEARN · CH${p.triggerChannel||'ANY'} N${p.triggerNote}`:'TRIGGER LEARN',()=>command({action:learning?'phrase_learn_cancel':'phrase_learn',phraseId:p.id}));
     learn.title=p.triggerNote>=0?`NOTE ${p.triggerNote} · CH ${p.triggerChannel||'ANY'}`:'Unassigned phrase trigger';row.append(learn);

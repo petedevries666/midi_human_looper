@@ -68,6 +68,25 @@ with tempfile.TemporaryDirectory(prefix='mbh-dedicated-') as temp:
         assert {event[1]&15 for event in notes['events']}=={0,1,2},notes
         time.sleep(4.2) # One full recorded playback cycle without physical input.
         command(0) # Bounded chain STOP cleanup to every connected receiver.
+        def mode(value):
+            state=control.request()
+            response=control.request(op=32,target=1,arg=20,macro=[0,value],revision=state['revision'],session=state['engineSessionId'])
+            assert response['status']=='ok',response
+            wait(lambda:control.request()['phrases'][0]['mode']==value,'mode update was not applied')
+        mode(1)
+        before=control.request()['midiCount'];command(1);time.sleep(4.4)
+        once=control.request()
+        assert once['midiCount']>before and once['activeNotes']==0,once
+        time.sleep(.5)
+        assert control.request()['midiCount']==once['midiCount'],'ONCE repeated on shared transport'
+        command(1);time.sleep(.4)
+        assert control.request()['midiCount']>once['midiCount'],'ONCE could not retrigger'
+        command(0)
+        mode(2)
+        state=control.request()
+        unsupported=control.request(op=40,target=0,arg=1,revision=state['revision'],session=state['engineSessionId'])
+        assert unsupported['status']=='invalid' and not control.request()['chainRunning'],unsupported
+        mode(0)
         send(8);time.sleep(.4)
         assert not control.request()['chainRunning']
         send(9);command(1);time.sleep(4.2)
@@ -99,7 +118,7 @@ with tempfile.TemporaryDirectory(prefix='mbh-dedicated-') as temp:
             # does not protect an omni synth. This is an intentional guardrail.
             assert {status&15 for _,_,status,_,value in stream if status&240==144 and value}=={0,1,2}
         print('PASS one actual MBMF instance: 3-channel source capture/playback, native-style fanout, '
-              'identical ordered output streams, explicit receiver channel isolation, STOP/transport/restart/removal cleanup')
+              'identical ordered output streams, explicit receiver channel isolation, LOOP/ONCE/retrigger/unavailable-HOLD, STOP/transport/restart/removal cleanup')
     finally:
         if probe and probe.poll() is None:
             probe.terminate();probe.communicate(timeout=5)

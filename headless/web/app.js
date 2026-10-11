@@ -5,30 +5,61 @@ const $=id=>document.getElementById(id);
 const node=(tag,text,cls)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;if(cls)n.className=cls;return n;};
 function headers(){return {'Content-Type':'application/json','X-Engine-Token':$('token').value};}
 async function request(path,body){const response=await fetch(path,{method:body?'POST':'GET',headers:headers(),body:body?JSON.stringify(body):undefined});const data=await response.json();if(!response.ok)throw new Error(data.error||data.status||'Request failed');return data;}
-function button(label,action){const b=node('button',label);b.addEventListener('click',action);return b;}
+const iconPaths={play:'M6 3l12 9-12 9z',stop:'M5 5h14v14H5z',record:'M12 4a8 8 0 1 0 0 16a8 8 0 1 0 0-16',mute:'M4 9h4l5-4v14l-5-4H4z M17 8l5 8m0-8-5 8',solo:'M12 3l3 6 7 1-5 5 1 7-6-3-6 3 1-7-5-5 7-1z',edit:'M4 20l1-6L17 2l5 5L10 19z',add:'M12 4v16M4 12h16',remove:'M5 5l14 14M19 5L5 19',prev:'M16 4l-8 8 8 8',next:'M8 4l8 8-8 8',save:'M4 3h14l3 3v15H3V3z M7 3v7h10V3 M7 21v-7h10v7',load:'M3 8h7l2 3h9l-3 10H3z M12 2v7m-3-3 3 3 3-3',midi:'M4 4h16v16H4z M8 4v9m4-9v9m4-9v9'};
+function decorateButton(b,label){
+  const key=/LEARN|MIDI/.test(label)?'midi':/^REC(?: |$)|FINISH/.test(label)?'record':/TRIGGER|TEST|RECALL/.test(label)?'play':/STOP/.test(label)?'stop':/MUTE/.test(label)?'mute':/SOLO/.test(label)?'solo':/LEARN|MIDI/.test(label)?'midi':/EDIT|OPTIONS|CONFIGURE/.test(label)?'edit':/ADD|CAPTURE/.test(label)?'add':/DELETE|FORGET|^×$/.test(label)?'remove':/SAVE/.test(label)?'save':/LOAD/.test(label)?'load':label==='←'?'prev':label==='→'?'next':null;
+  if(!key)return;b.setAttribute('aria-label',label);b.title=label;if(/^(MUTE|SOLO)/.test(label))b.setAttribute('aria-pressed',String(label.endsWith(' ON')));
+  const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');svg.setAttribute('viewBox','0 0 24 24');svg.setAttribute('aria-hidden','true');svg.classList.add('action-icon');
+  const path=document.createElementNS(svg.namespaceURI,'path');path.setAttribute('d',iconPaths[key]);svg.append(path);b.prepend(svg);
+}
+function button(label,action){const b=node('button',label);b.setAttribute('aria-label',label);b.title=label;decorateButton(b,label);compactAction(b,label);b.addEventListener('click',action);return b;}
+function compactAction(b,label){
+  const short={'SOLO':'S','SOLO ON':'S','MUTE':'M','MUTE ON':'M','FINISH REC':'END','MIDI LEARN':'LEARN','TRIGGER LEARN':'','CANCEL LEARN':'','ADD TRANSFORMER':'','ADD INSTRUMENT':'INST','ADD CONTROLLER SOURCE':'SOURCE','ADD MAPPING':'MAP','+ CAPTURE SNAPSHOT':'CAPTURE','CAPTURE STATE':'STATE','SIMULATE FOOTSWITCH':'MIDI','CONFIGURE A/B':'A/B','SAVE PATCH':'','LOAD PATCH':'','STOP':'','EDIT':'','PHRASE OPTIONS':'','OPTIONS':'','DELETE':'','FORGET':'','×':'','TRIGGER':'','REC / OVERDUB':'','RECALL':'','←':'','→':''};
+  const text=Object.hasOwn(short,label)?short[label]:label.startsWith('TEST ')?label.slice(5):label.startsWith('LEARN ·')?'':null;
+  if(text===null)return;if(label==='CANCEL LEARN')b.setAttribute('aria-pressed','true');if(label==='FINISH REC')b.querySelector('svg')?.remove();for(const child of [...b.childNodes])if(child.nodeType===Node.TEXT_NODE)child.remove();if(text)b.append(document.createTextNode(text));b.classList.toggle('icon-only',!text);}
+const shortParameter=label=>({'BASE VEL':'VEL','VEL DECAY':'V.DEC','TIME DECAY':'T.DEC','VOLUME':'VOL','SEMITONES':'ST','LOW NOTE':'LOW','HIGH NOTE':'HIGH'}[label]||label);
+function contextualHelp(text){const help=node('details',undefined,'context-help');help.append(node('summary','HELP'),node('p',text));return help;}
+// Native range inputs provide pointer/touch capture and standard keyboard semantics.
+function tactileSlider(label,value,min,max,step,oncommit,defaultValue=1,logarithmic=false){
+  const root=node('label',undefined,'tactile-slider'),caption=node('span',shortParameter(label.replace(/ (Phrase|Instrument) \d+$/,'')),'slider-caption'),rail=node('input'),readout=node('output');
+  rail.type='range';rail.min=logarithmic?-1:min;rail.max=logarithmic?1:max;rail.step=logarithmic?.001:step;rail.value=logarithmic?Math.log2(value):value;rail.setAttribute('aria-label',label);
+  const decode=()=>logarithmic?Math.pow(2,Number(rail.value)):Number(rail.value);
+  const paint=()=>{const v=decode();root.style.setProperty('--position',`${100*(Number(rail.value)-Number(rail.min))/(Number(rail.max)-Number(rail.min))}%`);readout.value=step===1?String(Math.round(v)):label.startsWith('VEL DECAY')?`${Math.round(v*100)}%`:`×${v.toFixed(2)}`;rail.setAttribute('aria-valuetext',readout.value);};
+  let accepted=Number(value),desired=null,sending=false;
+  async function commit(){desired=decode();if(sending)return;sending=true;try{while(desired!==null){const next=desired;desired=null;const ok=await oncommit(next);if(ok===false&&desired===null){rail.value=logarithmic?Math.log2(accepted):accepted;paint();}else if(ok!==false)accepted=next;}}finally{sending=false;}}
+  rail.oninput=paint;rail.onchange=commit;rail.ondblclick=()=>{rail.value=logarithmic?Math.log2(defaultValue):defaultValue;paint();commit();};
+  root.append(caption,rail,readout);paint();return root;
+}
 function descriptor(type){return catalog?.modules.find(m=>m.engineType===type);}
 function parameter(kind){return catalog?.parameters.find(p=>p.engineKind===kind);}
-async function loadDescriptors(){try{catalog=await request('/api/v1/descriptors');renderedModel='';if(latest)render(latest);}catch(e){$('error').textContent=e.message;}}
+async function loadDescriptors(){try{catalog=await request('/api/v1/descriptors');$('app-version').textContent=`V ${catalog.applicationVersion||'UNKNOWN'}`;renderedModel='';if(latest)render(latest);}catch(e){$('error').textContent=e.message;}}
 function editInstrument(i){const d=descriptor(0);if(!d)return;edit(d,i,d.parameters.map(id=>{const p=catalog.parameters.find(p=>p.id===id);return {descriptor:p,value:i[p.engineField],assignment:0};}),null);}
-function editModule(i,tf){const d=descriptor(tf.type);if(!d)return;edit(d,i,tf.parameters.map(p=>({descriptor:parameter(p.kind),...p})),tf);}
+function editModule(i,tf){for(const element of document.querySelectorAll('.module'))element.classList.toggle('selected',Number(element.dataset.moduleId)===tf.id);const d=descriptor(tf.type);if(!d)return;edit(d,i,tf.parameters.map(p=>({descriptor:parameter(p.kind),...p})),tf);}
 function edit(module,instrument,values,instance){
   const dialog=$('editor'),content=$('editor-content');if(dialog.open)return;
   const capturedRevision=revision,capturedSession=engineSession;
   let committing=false;
   const drafts=values.map(v=>({...v}));
-  content.replaceChildren(node('h2',`${module.label} · ${instance?.id||instrument.id}`));
+  const heading=node('h2',instance?module.label:instrument.name||`${module.label} ${instrument.id}`);heading.title=`Stable target ${instance?.id||instrument.id}`;content.replaceChildren(heading);if(!instance)content.append(contextualHelp(instrument.serialPitchOrder?'Serial pitch order · Velocity → Polyphony → ARP; CC separate':'Legacy stages: Transpose → Range → Velocity → Polyphony → ARP; CC separate'));
   const dismiss=()=>{if(!committing)dialog.close();};
   content.append(button('×',dismiss));
   for(const draft of drafts){
     const p=draft.descriptor;if(!p)continue;
-    const label=node('label',p.label,'parameter');
+    const label=node('label',shortParameter(p.label),'parameter');
+    if(p.valueType==='toggle'||p.valueType==='enum'){
+      const control=p.valueType==='toggle'?button(draft.value?'ON':'OFF',()=>{draft.value=draft.value?0:1;control.textContent=draft.value?'ON':'OFF';control.setAttribute('aria-pressed',String(!!draft.value));}):node('select');
+      control.setAttribute('aria-label',p.label);control.title=p.label;control.disabled=!!draft.assignment;
+      if(p.valueType==='toggle')control.setAttribute('aria-pressed',String(!!draft.value));
+      else{const names=p.choices||({4:['RANDOM','UP','DOWN'],8:['FULL','DOWN','UP','BOTH'],11:['POLY','BASS','LAST','LEGATO']}[p.engineKind]);for(let v=p.min;v<=p.max;v+=p.step){const o=node('option',names?.[v]||String(v));o.value=v;control.append(o);}control.value=draft.value;control.onchange=()=>draft.value=Number(control.value);}
+      label.append(control);if(draft.assignment)label.append(node('small',`EXP ${draft.assignment}`));content.append(label);continue;
+    }
     const number=node('input');number.type='number';number.min=p.min;number.max=p.max;number.step=p.step;number.value=draft.value;
     const rail=node('input');rail.type='range';rail.min=p.min;rail.max=p.max;rail.step=p.step;rail.value=draft.value;
     rail.disabled=number.disabled=!!draft.assignment;
     function update(value){draft.value=Number(value);number.value=draft.value;rail.value=draft.value;}
     number.addEventListener('input',()=>update(number.value));rail.addEventListener('input',()=>update(rail.value));rail.addEventListener('dblclick',()=>update(p.default));
-    label.append(number,node('span',p.unit),rail);
-    if(draft.assignment)label.append(node('small',`EXPRESSION ${draft.assignment} owns this target`));
+    const paintRail=()=>rail.style.setProperty('--position',`${100*(Number(rail.value)-p.min)/(p.max-p.min||1)}%`);rail.addEventListener('input',paintRail);number.addEventListener('input',paintRail);rail.addEventListener('dblclick',paintRail);paintRail();rail.setAttribute('aria-label',p.label);label.append(number,node('span',p.unit),rail);
+    if(draft.assignment)label.append(node('small',`EXP ${draft.assignment}`));
     content.append(label);
   }
   const error=node('p','');error.setAttribute('role','alert');content.append(error);
@@ -61,7 +92,7 @@ async function editSnapshot(record){
   const choices=(label,values,current)=>{const select=node('select');select.setAttribute('aria-label',label);for(const [value,text] of values){const option=node('option',text);option.value=value;select.append(option);}select.value=current;return field(label,select);};
   const ease=choices('CURVE',[[0,'LINEAR'],[1,'SMOOTH']],record.ease);
   const switching=choices('DISCRETE SWITCH',[[1,'AT START'],[2,'AT MIDPOINT'],[3,'AT END']],record.switching);
-  content.append(node('small',`${record.parameterCount} captured targets. UPDATE recaptures current effective values.`));
+  content.append(contextualHelp(`${record.parameterCount} captured targets. UPDATE recaptures current effective values.`));
   const inclusion=node('details');inclusion.append(node('summary','INCLUDED PARAMETERS'));
   for(const p of record.parameters||[]){
     const label=node('label',`${[14,15,17,18,19,20].includes(p.kind)?'PHRASE':'INSTRUMENT'} ${p.instrumentId}${p.moduleId?` · MODULE ${p.moduleId}`:''} · ${parameter(p.kind)?.label||p.kind} = ${p.value}${p.expression?' · LEGACY EXPRESSION':''}`,'snapshot-inclusion');
@@ -97,7 +128,7 @@ function editSwitchSnapshots(sw){
   for(const r of latest.snapshots||[]){const option=node('option',r.name);option.value=r.id;target.append(option);}
   const load=()=>{const a=(latest.snapshotActions||[]).find(a=>a.switchId===sw.id&&a.gesture===Number(gesture.value));action.value=a?.action||0;if(a?.snapshotId)target.value=a.snapshotId;target.disabled=!['3','4'].includes(action.value);};
   gesture.onchange=load;action.onchange=()=>target.disabled=!['3','4'].includes(action.value);load();
-  content.append(node('small','Navigation wraps in snapshot order. Morph uses the destination snapshot duration and curve. Existing MIDI assignment and gesture detection are preserved.'));
+  content.append(contextualHelp('Navigation wraps in snapshot order. Morph uses the destination snapshot duration and curve. Existing MIDI assignment and gesture detection are preserved.'));
   const error=node('p','');error.setAttribute('role','alert');content.append(error);
   const done=button('DONE',async()=>{
     if(committing)return;if(engineSession!==capturedSession){error.textContent='Engine restarted. CANCEL and reopen.';return;}
@@ -133,7 +164,7 @@ function editAB(){
   const choice=(label,current,values)=>{const row=node('label',label,'parameter'),select=node('select');select.setAttribute('aria-label',label);for(const [id,text] of values){const option=node('option',text);option.value=id;select.append(option);}select.value=current;row.append(select);content.append(row);return select;};
   const options=latest.snapshots.map(r=>[r.id,r.name]);
   const a=choice('SNAPSHOT A',latest.snapshotAB?.a||options[0][0],options),b=choice('SNAPSHOT B',latest.snapshotAB?.b||options[1][0],options),ease=choice('A/B CURVE',latest.snapshotAB?.ease||0,[[0,'LINEAR'],[1,'SMOOTH']]);
-  content.append(node('small','Use shared included targets. Individual controller takeovers remain overridden until A/B is configured again. MIDI Learn uses the existing Controller Engine.'));
+  content.append(contextualHelp('Use shared included targets. Individual controller takeovers remain overridden until A/B is configured again. MIDI Learn uses the existing Controller Engine.'));
   const error=node('p','');error.setAttribute('role','alert');content.append(error);
   const done=button('DONE',async()=>{if(committing)return;committing=true;done.disabled=cancel.disabled=true;
     try{const state=await request('/api/v1/command',{protocolVersion:1,expectedRevision:capturedRevision,expectedEngineSessionId:capturedSession,action:'snapshot_ab_configure',a:Number(a.value),b:Number(b.value),ease:Number(ease.value),position:latest.snapshotAB?.position||0});dialog.close();renderedAB='';render(state);}catch(e){error.textContent=e.message;}finally{committing=false;done.disabled=cancel.disabled=false;}
@@ -156,6 +187,8 @@ function render(s){
   if(engineSession===s.engineSessionId&&s.revision<revision)return;
   engineSession=s.engineSessionId;revision=s.revision;latest=s;
   $('connection').textContent='CONNECTED · Engine running';
+  $('stop-native').hidden=!s.chainMode;
+  $('transport-state').textContent=s.chainMode?`NATIVE · ${s.chainRecording?'RECORDING':s.chainArmed?'RECORD ARMED':s.chainRunning?'PLAYING':'STOPPED'} · ${s.activeNotes} ACTIVE NOTES`:`ENGINE RUNNING · ${s.activeNotes} ACTIVE NOTES`;
   $('metrics').replaceChildren(...[`Build ${s.buildRevision||'unknown'}`,`Backend ${s.backend} · ${s.sampleRate} Hz / ${s.blockSize}`,`Sample clock ${s.sampleClock}`,`MIDI messages ${s.midiCount}`,`Active notes ${s.activeNotes}`,`Maximum callback ${s.maxCallbackUs.toFixed(1)} µs`,`JACK XRUN notifications ${s.lateBlocks}`,`Output overflow ${s.outputOverflow}`].map(v=>node('span',v)));
   if(s.chainMode)$('metrics').append(node('span',`Zynthian · two bars · ${s.chainBpm} BPM · ${s.chainError?'CLOCK / CAPACITY ERROR — stopped':s.chainRecording?'RECORDING':s.chainArmed?'WAITING FOR NEXT LOOP':s.chainRunning?'PLAYING':'STOPPED'}`));
   $('last-midi').textContent=`Last MIDI · sample ${s.lastEvent[0]} · status ${s.lastEvent[1]} · number ${s.lastEvent[2]} · value ${s.lastEvent[3]}`;
@@ -184,13 +217,15 @@ function render(s){
   }
   renderAB(s);
   renderControllers(s);
+  if(document.activeElement?.classList.contains('name-input')||document.activeElement?.type==='range')return;
   const model=JSON.stringify([s.controllerLearn,s.phrases,s.instruments,s.switches.map(v=>({...v,step:0})),s.snapshotActions]);if(model===renderedModel)return;renderedModel=model;
   compactPhrases(s);
   $('instruments').replaceChildren(...s.instruments.map(compactInstrument));
+  const openSwitchTests=new Set([...document.querySelectorAll('.switch-test[open]')].map(e=>e.closest('[data-switch-id]').dataset.switchId));
   $('switches').replaceChildren(...s.switches.map(sw=>{
     const n=node('article',undefined,'switch');n.dataset.switchId=sw.id;n.append(node('strong',sw.name||`SWITCH ${sw.id}`),node('small',`${sw.kind===1?'NOTE':sw.kind===2?'CC':'UNASSIGNED'} ${sw.number} · CH ${sw.channel}`),node('small',`STEP ${sw.step} / ${sw.length}`,'step'),button('OPTIONS',()=>editSwitchSnapshots(sw)));
     const tests=node('div',undefined,'tests');for(const gesture of ['tap','double','hold']){const b=button(`TEST ${gesture.toUpperCase()}`,()=>command({action:'test',switchId:sw.id,gesture}));b.dataset.valid=sw.enabled?'1':'0';b.disabled=!sw.enabled;tests.append(b);}
-    const hardware=button('SIMULATE FOOTSWITCH',async()=>{if(await command({action:'midi',channel:sw.channel,note:sw.number,value:100}))await command({action:'midi',channel:sw.channel,note:sw.number,value:0});});hardware.className='hardware';hardware.dataset.valid=sw.kind===1?'1':'0';hardware.disabled=sw.kind!==1;n.append(tests,hardware);return n;
+    const hardware=button('SIMULATE FOOTSWITCH',async()=>{if(await command({action:'midi',channel:sw.channel,note:sw.number,value:100}))await command({action:'midi',channel:sw.channel,note:sw.number,value:0});});hardware.className='hardware';hardware.dataset.valid=sw.kind===1?'1':'0';hardware.disabled=sw.kind!==1;const tools=node('details',undefined,'switch-test');tools.open=openSwitchTests.has(String(sw.id));tools.append(node('summary','TEST'),tests,hardware);n.append(tools);return n;
   }));
 }
 async function refresh(){try{render(await request('/api/v1/state'));}catch(e){$('connection').textContent='DISCONNECTED · Engine continues independently';$('error').textContent=e.message;}}
@@ -237,8 +272,11 @@ function renderControllers(s){
 function curveEditor(points){
   const root=node('div'),canvas=node('canvas');canvas.width=400;canvas.height=120;canvas.className='curve-preview';root.append(canvas);
   const controls=node('div');root.append(controls);
-  function draw(){const c=canvas.getContext('2d');c.clearRect(0,0,400,120);c.strokeStyle='#ddd';c.beginPath();for(let pixel=0;pixel<=400;pixel++){const x=pixel/400;let y=points[points.length-1][1];for(let i=1;i<points.length;i++)if(x<=points[i][0]){const a=points[i-1],b=points[i];let t=(x-a[0])/(b[0]-a[0]),power=1+5*Math.abs(a[2]);t=a[2]>0?Math.pow(t,power):a[2]<0?1-Math.pow(1-t,power):t;y=a[1]+(b[1]-a[1])*t;break;}const sy=120*(1-y);if(pixel)c.lineTo(pixel,sy);else c.moveTo(pixel,sy);}c.stroke();}
+  function draw(){const c=canvas.getContext('2d');c.clearRect(0,0,400,120);c.strokeStyle='#ffe34d';c.beginPath();for(let pixel=0;pixel<=400;pixel++){const x=pixel/400;let y=points[points.length-1][1];for(let i=1;i<points.length;i++)if(x<=points[i][0]){const a=points[i-1],b=points[i];let t=(x-a[0])/(b[0]-a[0]),power=1+5*Math.abs(a[2]);t=a[2]>0?Math.pow(t,power):a[2]<0?1-Math.pow(1-t,power):t;y=a[1]+(b[1]-a[1])*t;break;}const sy=120*(1-y);if(pixel)c.lineTo(pixel,sy);else c.moveTo(pixel,sy);}c.stroke();c.fillStyle='#ffe34d';for(const p of points){c.beginPath();c.arc(p[0]*400,(1-p[1])*120,4,0,Math.PI*2);c.fill();}}
   function rows(){controls.replaceChildren();points.forEach((p,index)=>{const row=node('div',undefined,'curve-point');['X','Y','BEND'].forEach((name,k)=>{const label=node('label',name),input=node('input');input.type='number';input.min=k===2?-.98:0;input.max=k===2?.98:1;input.step=.01;input.value=p[k];input.disabled=k===0&&(index===0||index===points.length-1);input.setAttribute('aria-label',`${name} point ${index+1}`);input.addEventListener('input',()=>{p[k]=Number(input.value);draw();});label.append(input);row.append(label);});if(index&&index<points.length-1)row.append(button('REMOVE POINT',()=>{points.splice(index,1);rows();draw();}));controls.append(row);});draw();}
+  let dragged=-1;canvas.setAttribute('aria-label','Drag curve points; numeric controls below provide keyboard editing');canvas.style.touchAction='none';
+  canvas.onpointerdown=e=>{const r=canvas.getBoundingClientRect(),x=(e.clientX-r.left)/r.width,y=1-(e.clientY-r.top)/r.height;dragged=points.reduce((best,p,i)=>Math.hypot(p[0]-x,p[1]-y)<Math.hypot(points[best][0]-x,points[best][1]-y)?i:best,0);canvas.setPointerCapture(e.pointerId);};
+  canvas.onpointermove=e=>{if(dragged<0)return;const r=canvas.getBoundingClientRect(),p=points[dragged];p[1]=Math.max(0,Math.min(1,1-(e.clientY-r.top)/r.height));if(dragged>0&&dragged<points.length-1)p[0]=Math.max(points[dragged-1][0]+.001,Math.min(points[dragged+1][0]-.001,(e.clientX-r.left)/r.width));rows();};canvas.onpointerup=canvas.onpointercancel=()=>dragged=-1;
   root.append(button('ADD POINT',()=>{if(points.length>=16)return;let at=1;for(let i=2;i<points.length;i++)if(points[i][0]-points[i-1][0]>points[at][0]-points[at-1][0])at=i;points.splice(at,0,[(points[at-1][0]+points[at][0])/2,(points[at-1][1]+points[at][1])/2,0]);rows();}));rows();return root;
 }
 function editMapping(existing){
@@ -252,7 +290,7 @@ function editMapping(existing){
   const targets=[{instrumentId:1,moduleId:0,kind:16,label:'GLOBAL SNAPSHOT A/B'}];for(const p of latest.phrases)for(const kind of [14,15,17,18,19,20])targets.push({instrumentId:p.id,moduleId:0,kind,label:`PHRASE ${p.id} / ${parameter(kind).label}`});for(const i of latest.instruments){for(const kind of [1,21,22,23])targets.push({instrumentId:i.id,moduleId:0,kind,label:`I${i.id} / ${parameter(kind).label}`});for(const tf of i.transformers){targets.push({instrumentId:i.id,moduleId:tf.id,kind:24,label:`I${i.id} / ${tf.id} ON/OFF`});for(const p of tf.parameters)if(!p.assignment && parameter(p.kind)?.assignmentEligible)targets.push({instrumentId:i.id,moduleId:tf.id,kind:p.kind,label:`I${i.id} / ${tf.id} / ${parameter(p.kind).label}`});}}
   targets.forEach((t,j)=>{const o=node('option',t.label);o.value=j;target.append(o);});let selection=targets.findIndex(t=>t.instrumentId===draft.instrumentId&&t.moduleId===draft.moduleId&&t.kind===draft.kind);target.value=selection<0?targets.findIndex(t=>t.kind===1):selection;content.append(target);
   const advanced=node('details');advanced.append(node('summary','ADVANCED OPTIONS'));
-  const descriptor=descriptorForMapping();for(const id of descriptor.parameters){const p=catalog.parameters.find(p=>p.id===id),label=node('label',p.label,'parameter'),input=node(p.choices?'select':'input');if(p.choices){p.choices.forEach((text,value)=>{const option=node('option',text);option.value=value;input.append(option);});}else{input.type='number';input.min=p.min;input.max=p.max;input.step=p.step;}input.setAttribute('aria-label',p.label);input.value=draft[p.policyField]??p.default;draft[p.policyField]=Number(input.value);input.addEventListener('input',()=>draft[p.policyField]=Number(input.value));label.append(input,node('span',p.unit));(p.choices?content:advanced).append(label);}
+  const descriptor=descriptorForMapping();for(const id of descriptor.parameters){const p=catalog.parameters.find(p=>p.id===id),label=node('label',shortParameter(p.label),'parameter'),input=node(p.choices?'select':'input');if(p.choices){p.choices.forEach((text,value)=>{const option=node('option',text);option.value=value;input.append(option);});}else{input.type='number';input.min=p.min;input.max=p.max;input.step=p.step;}input.setAttribute('aria-label',p.label);input.value=draft[p.policyField]??p.default;draft[p.policyField]=Number(input.value);input.addEventListener('input',()=>draft[p.policyField]=Number(input.value));label.append(input,node('span',p.unit));(p.choices?content:advanced).append(label);}
   content.append(advanced,curveEditor(draft.points));
   const error=node('p','');error.setAttribute('role','alert');content.append(error);
   const done=button('DONE',async()=>{if(committing)return;const t=targets[Number(target.value)];if(!t){error.textContent='No eligible target';return;}Object.assign(draft,t);delete draft.label;draft.sourceId=Number(source.value);const same=mappings.find(m=>m.instrumentId===t.instrumentId&&m.moduleId===t.moduleId&&m.kind===t.kind);draft.targetId=same?.targetId||freshId(mappings.map(m=>m.targetId));
@@ -304,42 +342,79 @@ function phraseOptions(phraseId){
 }
 let phrasePage=0;
 function liveParameter(targetId,kind,value,moduleId=0){return command({action:'parameter_set',targetId,moduleId,kind,value});}
-function inlineNumber(label,value,min,max,step,onchange){
-  const wrap=node('label',label,'inline-control'),input=node('input');input.type='number';input.min=min;input.max=max;input.step=step;input.value=value;input.setAttribute('aria-label',label);input.onchange=()=>onchange(Number(input.value));wrap.append(input);return wrap;
+function editableName(domain,id,value,fallback){
+  const control=button(value||fallback,()=>{
+    if(pending)return;
+    const input=node('input');input.value=value||'';input.maxLength=16;
+    input.className='name-input';input.setAttribute('aria-label',`${domain} ${id} name`);
+    const capturedSession=engineSession,capturedRevision=revision;
+    control.replaceWith(input);input.focus();input.select();
+    let finished=false;
+    const cancel=()=>{if(finished)return;finished=true;input.replaceWith(control);control.focus();};
+    input.onkeydown=async event=>{
+      if(event.key==='Escape'){event.preventDefault();cancel();}
+      if(event.key==='Enter'){
+        event.preventDefault();if(finished)return;
+        if([...input.value].some(c=>c.charCodeAt(0)<32||c.charCodeAt(0)>126)){
+          $('error').textContent='Names use up to 16 printable ASCII characters, matching REAPER.';return;
+        }
+        finished=true;input.disabled=true;input.blur();
+        const ok=await command({action:domain==='Phrase'?'phrase_rename':'instrument_rename',
+          [domain==='Phrase'?'phraseId':'instrumentId']:id,name:input.value,
+          expectedRevision:capturedRevision,expectedEngineSessionId:capturedSession});
+        if(!ok){finished=false;input.disabled=false;input.focus();}
+        else document.querySelector(`[data-${domain.toLowerCase()}-id="${id}"] .editable-name`)?.focus();
+      }
+    };
+    input.onblur=()=>{if(!finished)cancel();};
+  });
+  control.className='editable-name';control.setAttribute('aria-label',`Edit ${domain} ${id} name`);
+  control.title='Click to rename · Enter saves · Escape cancels · 16 characters';return control;
 }
 function compactPhrases(s){
   const pages=Math.ceil(s.phrases.length/6);phrasePage=Math.min(phrasePage,pages-1);
   $('phrase-pagination').replaceChildren(button('←',()=>{phrasePage=Math.max(0,phrasePage-1);renderedModel='';render(latest);}),node('span',`${phrasePage+1} / ${pages}`),button('→',()=>{phrasePage=Math.min(pages-1,phrasePage+1);renderedModel='';render(latest);}));
+  if(!$('phrase-columns')){const head=node('div',undefined,'phrase-columns');head.id='phrase-columns';for(const text of ['#','NAME','PLAY','REC','M','S','MODE','VEL','V.DEC','T.DEC','MIDI','END','EDIT'])head.append(node('span',text));$('phrases').before(head);}
   $('phrases').replaceChildren(...s.phrases.slice(phrasePage*6,phrasePage*6+6).map(p=>{
-    const row=node('div',undefined,'phrase');row.dataset.phraseId=p.id;
-    row.append(button('REC / OVERDUB',()=>command({action:'phrase_record',phraseId:p.id})),button('TRIGGER',()=>command({action:'phrase_play',phraseId:p.id})),node('strong',`PHRASE ${p.id}`));
+    const row=node('div',undefined,'phrase');row.dataset.phraseId=p.id;row.classList.toggle('empty',!p.events);row.classList.toggle('muted',!!p.mute);row.classList.toggle('soloed',!!p.solo);row.append(node('span',String(p.id).padStart(2,'0'),'phrase-number'));
+    const trigger=button('TRIGGER',()=>command({action:'phrase_play',phraseId:p.id}));
+    trigger.disabled=!!s.chainMode&&p.mode===2;
+    if(trigger.disabled)trigger.title='Legacy HOLD data is preserved. STOP and choose LOOP or ONCE; native held release is not implemented.';
+    row.append(button('REC / OVERDUB',()=>command({action:'phrase_record',phraseId:p.id})),trigger,editableName('Phrase',p.id,p.name,`PHRASE ${p.id}`));
     const learning=s.controllerLearn?.domain==='phrase'&&s.controllerLearn.target===p.id;
     const learn=button(learning?'CANCEL LEARN':p.triggerNote>=0?`LEARN · CH${p.triggerChannel||'ANY'} N${p.triggerNote}`:'TRIGGER LEARN',()=>command({action:learning?'phrase_learn_cancel':'phrase_learn',phraseId:p.id}));
-    learn.title=p.triggerNote>=0?`NOTE ${p.triggerNote} · CH ${p.triggerChannel||'ANY'}`:'Unassigned phrase trigger';row.append(learn);
+    learn.title=learning?'Cancel Learn · waiting for MIDI note':p.triggerNote>=0?`NOTE ${p.triggerNote} · CH ${p.triggerChannel||'ANY'}`:'Unassigned phrase trigger';row.append(learn);
     if(learning&&s.controllerLearn.conflict){row.append(node('small',s.controllerLearn.conflict<0?'Already assigned to a phrase/switch. Cancel or choose a different note.':'Already assigned to a Controller source.'));
       if(s.controllerLearn.conflict>0)row.append(button('REASSIGN',()=>command({action:'phrase_learn_confirm',phraseId:p.id})));}
     row.append(button(p.solo?'SOLO ON':'SOLO',()=>liveParameter(p.id,19,p.solo?0:1)),button(p.mute?'MUTE ON':'MUTE',()=>liveParameter(p.id,18,p.mute?0:1)));
     const mode=node('select');mode.setAttribute('aria-label',`Play mode Phrase ${p.id}`);
-    for(const [value,label] of [[1,'ONCE'],[0,'LOOP'],[2,'HOLD']]){const option=node('option',label);option.value=value;mode.append(option);}mode.value=p.mode;mode.disabled=!!s.chainMode;mode.title=s.chainMode?'Native chain prototype uses synchronized two-bar LOOP playback':'';mode.onchange=()=>liveParameter(p.id,20,Number(mode.value));row.append(mode);
-    row.append(inlineNumber('BASE VEL',p.baseVelocity,.2,3,.01,value=>liveParameter(p.id,17,value)));
-    if(p.mode===1)row.append(inlineNumber('VEL DECAY',p.velocityDecay,.2,1,.01,value=>liveParameter(p.id,15,value)),inlineNumber('TIME DECAY',p.timeDecay,.5,2,.01,value=>liveParameter(p.id,14,value)));
+    for(const [value,label] of [[1,'ONCE'],[0,'LOOP'],[2,'HOLD']]){const option=node('option',label);option.value=value;option.disabled=!!s.chainMode&&value===2;if(option.disabled)option.textContent='HOLD (UNAVAILABLE)';if(option.disabled)option.title='Native held-trigger release is not supported yet';mode.append(option);}mode.value=p.mode;mode.title=s.chainMode?'LOOP: shared two-bar timeline · ONCE: immediate one-shot · STOP to apply mode edits safely · HOLD: native release ownership unavailable':'REAPER legacy HOLD sustains notes until STOP / next phrase';mode.onchange=async()=>{if(await liveParameter(p.id,20,Number(mode.value))&&latest.chainMode&&latest.chainRunning)$('error').textContent='Mode change queued. STOP this processor to apply safely.';};row.append(mode);
+    row.append(tactileSlider(`BASE VEL Phrase ${p.id}`,p.baseVelocity,.2,3,.01,value=>liveParameter(p.id,17,value)));
+    if(p.mode===1)row.append(tactileSlider(`VEL DECAY Phrase ${p.id}`,p.velocityDecay,.2,1,.01,value=>liveParameter(p.id,15,value)),tactileSlider(`TIME DECAY Phrase ${p.id}`,p.timeDecay,.5,2,.01,value=>liveParameter(p.id,14,value),1,true));
     const finish=button('FINISH REC',()=>command({action:'phrase_finish',phraseId:p.id}));finish.title='Finish record / overdub without discarding the take';row.append(finish,node('small',`${p.events} events`),button('PHRASE OPTIONS',()=>phraseOptions(p.id)));
+    const buttons=[...row.querySelectorAll('button')],find=label=>buttons.find(b=>b.getAttribute('aria-label')===label),rails=[...row.querySelectorAll('.tactile-slider')];
+    for(const rail of rails){rail.dataset.shortLabel=rail.querySelector('.slider-caption').textContent;rail.querySelector('.slider-caption').remove();}
+    const empty=()=>{const n=node('span','—','decay-empty');n.title='Decay controls are available in ONCE mode';return n;};
+    const cells=[row.querySelector('.phrase-number'),row.querySelector('.editable-name'),trigger,find('REC / OVERDUB'),buttons.find(b=>/^MUTE/.test(b.getAttribute('aria-label'))),buttons.find(b=>/^SOLO/.test(b.getAttribute('aria-label'))),mode,rails[0],rails[1]||empty(),rails[2]||empty(),learn,finish,find('PHRASE OPTIONS')];
+    const notices=[...row.children].filter(n=>!cells.includes(n)&&n.tagName==='SMALL'&&!n.textContent.endsWith(' events'));
+    row.replaceChildren(...cells);row.querySelector('.phrase-number').title=`Phrase ${p.id} · ${p.events} source events`;row.querySelector('.phrase-number').setAttribute('aria-label',row.querySelector('.phrase-number').title);for(const notice of notices){notice.classList.add('phrase-alert');row.append(notice);}const reassign=find('REASSIGN');if(reassign){reassign.classList.add('phrase-alert');row.append(reassign);}
     return row;
   }));
 }
 function compactInstrument(i){
   const n=node('article',undefined,'instrument');n.dataset.instrumentId=i.id;
   const main=node('div',undefined,'instrument-main');
-  main.append(button(i.enabled?'ON':'OFF',()=>liveParameter(i.id,21,i.enabled?0:1)),node('strong',`${i.name||'INSTRUMENT'} · ${i.id}`));
+  const enable=button(i.enabled?'ON':'OFF',()=>liveParameter(i.id,21,i.enabled?0:1));enable.setAttribute('aria-pressed',String(!!i.enabled));main.append(enable,editableName('Instrument',i.id,i.name,`INSTRUMENT ${i.id}`));
   for(const [label,kind,current,zero] of [['MIDI IN',22,i.input,'ALL'],['MIDI OUT',23,i.output,'ORIGINAL']]){
-    const wrap=node('label',label,'inline-control'),select=node('select');select.setAttribute('aria-label',`${label} Instrument ${i.id}`);
+    const wrap=node('label',label==='MIDI IN'?'IN':'OUT','inline-control'),select=node('select');select.setAttribute('aria-label',`${label} Instrument ${i.id}`);
     for(let channel=0;channel<=16;channel++){const option=node('option',channel?String(channel):zero);option.value=channel;select.append(option);}select.value=current;select.onchange=()=>liveParameter(i.id,kind,Number(select.value));wrap.append(select);main.append(wrap);
   }
-  main.append(inlineNumber('VOLUME',i.level,0,127,1,value=>liveParameter(i.id,1,value)),button('×',()=>{if(confirm(`Delete Instrument ${i.id} and its complete Transformer chain?`))command({action:'instrument_delete',instrumentId:i.id});}));n.append(main);
+  main.append(tactileSlider(`VOLUME Instrument ${i.id}`,i.level,0,127,1,value=>liveParameter(i.id,1,value),parameter(1)?.default??127),button('×',()=>{if(confirm(`Delete Instrument ${i.id} and its complete Transformer chain?`))command({action:'instrument_delete',instrumentId:i.id});}));n.append(main);
   const chain=node('div',undefined,'transformers');
   for(const tf of i.transformers||[]){
-    const card=node('article',undefined,'module');card.dataset.moduleId=tf.id;
-    card.append(node('strong',`${descriptor(tf.type)?.label||'MODULE'} · ${tf.id}`),node('small',tf.enabled?'ON':'BYPASS'),button('EDIT',()=>editModule(i,tf)));
+    const card=node('article',undefined,'module');card.dataset.moduleId=tf.id;card.classList.toggle('bypassed',!tf.enabled);
+    card.append(node('strong',`${descriptor(tf.type)?.label||'MODULE'}`),node('small',tf.enabled?'ON':'BYPASS'),button('EDIT',()=>editModule(i,tf)));
+    for(const p of tf.parameters||[]){const d=parameter(p.kind);if(!d)continue;const meter=node('meter');meter.min=d.min;meter.max=d.max;meter.value=p.value;meter.title=`${d.label}: ${p.value}${p.assignment?' · EXPRESSION '+p.assignment:''}`;meter.setAttribute('aria-label',meter.title);const feedback=node('div',undefined,'module-feedback');feedback.append(node('small',shortParameter(d.label)),meter,node('output',`${Number(p.value).toFixed(d.step>=1?0:2)} ${d.unit||''}`));card.append(feedback);}
     for(const [label,operation] of [['BYPASS','bypass'],['↑','up'],['↓','down'],['DELETE','delete']]){
       if(operation==='up'||operation==='down'){
         const index=i.transformers.indexOf(tf),other=i.transformers[index+(operation==='up'?-1:1)];
@@ -350,7 +425,7 @@ function compactInstrument(i){
   }
   const select=node('select');select.setAttribute('aria-label',`Transformer type for Instrument ${i.id}`);
   for(const d of catalog?.modules.filter(m=>m.engineType>0&&(catalog.runtimeCapabilities?.transformerTypes||[1,2,3,4,5,6]).includes(m.engineType))||[]){const option=node('option',d.label);option.value=d.engineType;select.append(option);}
-  n.append(chain,node('small',i.serialPitchOrder?'Serial pitch order · Velocity → Polyphony → ARP; CC separate':'Legacy stages: Transpose → Range → Velocity → Polyphony → ARP; CC separate'),select,button('ADD TRANSFORMER',()=>command({action:'module_structure',instrumentId:i.id,operation:'add',engineType:Number(select.value)})),button('EDIT',()=>editInstrument(i)));return n;
+  chain.title=i.serialPitchOrder?'Serial pitch order · Velocity → Polyphony → ARP; CC separate':'Legacy stages: Transpose → Range → Velocity → Polyphony → ARP; CC separate';chain.append(select,button('ADD TRANSFORMER',()=>command({action:'module_structure',instrumentId:i.id,operation:'add',engineType:Number(select.value)})),button('EDIT',()=>editInstrument(i)));n.append(chain);return n;
 }
 
 $('add-instrument').onclick=()=>command({action:'instrument_add'});
@@ -374,3 +449,9 @@ $('commit-project').onclick=async()=>{
     await inspectProject();$('patch-status').textContent='RESTART STATE COMMITTED';
   }catch(e){$('error').textContent=e.message;}finally{setPending(false);}
 };
+
+$('stop-native').onclick=()=>command({action:'chain_stop'});
+
+for(const id of ['stop-native','save-patch','load-patch','add-instrument','add-controller','add-mapping'])decorateButton($(id),$(id).textContent);
+
+for(const id of ['stop-native','save-patch','load-patch','add-instrument','add-controller','add-mapping']){const b=$(id);compactAction(b,b.getAttribute('aria-label')||b.textContent);}

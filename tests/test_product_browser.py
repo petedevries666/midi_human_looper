@@ -13,7 +13,9 @@ try:
         assert page.locator('.phrase').count()==6
         assert not page.locator('#controller-section').evaluate('(e)=>e.open')
         row=page.locator('[data-instrument-id="1"]')
-        row.get_by_label('VOLUME',exact=True).fill('68');row.get_by_label('VOLUME',exact=True).press('Tab')
+        slider=row.get_by_role('slider',name='VOLUME Instrument 1',exact=True);slider.focus();slider.press('Home')
+        for _ in range(68):slider.press('ArrowRight')
+        slider.press('Tab')
         deadline=time.monotonic()+5
         while api.call()['instruments'][0]['level']!=68:
             assert time.monotonic()<deadline, 'inline volume did not reach engine'
@@ -36,7 +38,7 @@ try:
         assert api.call()['phrases'][1]['triggerNote']==94
         page.get_by_role('button',name='+ CAPTURE SNAPSHOT',exact=True).click()
         page.locator('[data-snapshot-id]').first.wait_for()
-        page.get_by_role('button',name='COMMIT RESTART STATE',exact=True).click()
+        page.locator('#project-tools > summary').click();page.get_by_role('button',name='COMMIT RESTART STATE',exact=True).click()
         page.get_by_text('RESTART STATE COMMITTED',exact=True).wait_for()
         assert 'SAVED' in page.locator('#project-status').inner_text()
         assert not errors,errors

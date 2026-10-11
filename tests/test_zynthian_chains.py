@@ -102,6 +102,21 @@ with tempfile.TemporaryDirectory(prefix='mbh-chains-') as temp:
                 page.get_by_text('CONNECTED · Engine running',exact=True).wait_for()
                 page.locator('details').filter(has=page.locator('#metrics')).locator('summary').click()
                 page.get_by_text('Zynthian · two bars',exact=False).wait_for()
+                page.get_by_role('button',name='STOP',exact=True).click()
+                page.get_by_text('NATIVE · STOPPED',exact=False).wait_for()
+                assert not state(i)['chainRunning']
+                mode=page.get_by_label('Play mode Phrase 6',exact=True)
+                assert not mode.is_disabled()
+                assert mode.locator('option[value="2"]').is_disabled()
+                initial=mode.input_value();mode.select_option('0')
+                deadline=time.monotonic()+3
+                while state(i)['phrases'][5]['mode']!=0 and time.monotonic()<deadline:time.sleep(.05)
+                assert state(i)['phrases'][5]['mode']==0
+                mode.select_option(initial)
+                deadline=time.monotonic()+3
+                while state(i)['phrases'][5]['mode']!=int(initial) and time.monotonic()<deadline:time.sleep(.05)
+                assert state(i)['phrases'][5]['mode']==int(initial)
+                action(i,'play')
                 pages.append(page)
             assert pages[0].locator('[data-source-id]').count()==1
             assert pages[1].locator('[data-source-id]').count()==0

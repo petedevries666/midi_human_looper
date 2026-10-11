@@ -58,7 +58,7 @@ class Control:
             line = f'{request_id} {op} {target} {arg} {revision} {ch} {note} {value}\n'
             if session:line=line.rstrip('\n')+f' session {session}\n'
             if op in (13,28):line=line.rstrip('\n')+f' {module}\n'
-            if name is not None:line=line.rstrip('\n')+' '+name.encode('ascii').hex()+'\n'
+            if name is not None:line=line.rstrip('\n')+' '+(name.encode('ascii').hex() or '-')+'\n'
             if settings is not None:line=line.rstrip('\n')+' '+' '.join(format(v,'.17g') for v in settings)+'\n'
             if inclusions is not None:line=line.rstrip('\n')+' include '+str(len(inclusions))+' '+ ' '.join(str(v) for a in inclusions for v in (a['instrumentId'],a['moduleId'],a['kind'],int(a['included'])))+'\n'
             if macro is not None:line=line.rstrip('\n')+' '+' '.join(format(v,'.17g') for v in macro)+'\n'
@@ -195,7 +195,10 @@ class Handler(BaseHTTPRequestHandler):
             self.project_command('capture');return
         if path == '/api/v1/descriptors':
             document=REGISTRY.document()
-            document['runtimeCapabilities']={'transformerTypes':[1,2,3,4,5,6], 'humanizer':False, 'echocity':False, 'phraseTransformers':False, 'snapshots':True, 'reaperSnapshots':False, 'ordering':'legacy-stages-or-serial-pitch'}
+            import re
+            match=re.search(r'^desc:.* v(\d+\.\d+\.\d+)',(Path(__file__).resolve().parents[1]/'midi_human_looper.jsfx').read_text(),re.M)
+            document['applicationVersion']=match.group(1) if match else 'unknown'
+            document['runtimeCapabilities']={'transformerTypes':[1,2,3,4,5,6], 'humanizer':False, 'echocity':False, 'nativePhrasePlayModes':[0,1], 'nativeHeldRelease':False, 'phraseTransformers':False, 'snapshots':True, 'reaperSnapshots':False, 'ordering':'legacy-stages-or-serial-pitch'}
             self.respond(200,document);return
         if path.startswith('/api/v1/snapshot/'):
             try:
@@ -211,7 +214,8 @@ class Handler(BaseHTTPRequestHandler):
             return
         files = {'/': ('index.html', 'text/html; charset=utf-8'),
                  '/app.js': ('app.js', 'text/javascript; charset=utf-8'),
-                 '/style.css': ('style.css', 'text/css; charset=utf-8')}
+                 '/style.css': ('style.css', 'text/css; charset=utf-8'),
+                 '/fonts/mbmf-block.woff2': ('fonts/mbmf-block.woff2', 'font/woff2')}
         if path not in files:
             self.respond(404, {'error': 'not found'})
             return
@@ -359,8 +363,14 @@ class Handler(BaseHTTPRequestHandler):
                 channel,number,value=data.get('channel'),data.get('number'),data.get('value')
                 if any(type(v) is not int for v in (channel,number,value)) or not 1<=channel<=16 or not 0<=number<=127 or not 0<=value<=127:raise ValueError()
                 args=dict(op=19,ch=channel-1,note=number,value=value)
+            elif action == 'chain_stop':
+                args=dict(op=40,target=0,arg=0)
             elif action == 'panic':
                 args = dict(op=2)
+            elif action in ('phrase_rename','instrument_rename'):
+                target=data.get('phraseId' if action=='phrase_rename' else 'instrumentId');name=data.get('name')
+                if type(target) is not int or not 1<=target<=(16 if action=='phrase_rename' else 16777215) or not isinstance(name,str) or len(name)>16 or any(not 32<=ord(c)<127 for c in name):raise ValueError('Names support up to 16 printable ASCII characters, matching REAPER')
+                args=dict(op=36,target=target,arg=int(action=='instrument_rename'),name=name)
             elif action=='parameter_set':
                 target,module,kind,value=data.get('targetId'),data.get('moduleId',0),data.get('kind'),data.get('value')
                 if any(type(v) is not int for v in (target,module,kind)) or not 1<=target<=16777215 or not 0<=module<=16777215 or kind==16 or type(value) not in (int,float) or not math.isfinite(value):raise ValueError()

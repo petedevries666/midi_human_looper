@@ -64,3 +64,31 @@ Representative actual browser captures at 1366×768:
 [Transformer editor](screenshots/transformer-editor-1366x768.png),
 [Smart Switches](screenshots/smart-switches-1366x768.png),
 [Header / transport](screenshots/patch-1366x768.png).
+
+## Executed results for this pass
+
+- `python scripts/combined-test.py --native --browser chromium --timeout 240`:
+  **PASS**, including native/JSFX host regressions, controller normal/sanitized
+  checks, patch/project/bridge/SMF persistence, editor transactions, snapshots,
+  naming, direct sliders, MIDI Learn and browser import/export.
+- `python tests/test_screenshot_audit.py`: **7 PASS**. `scripts/screenshots.sh`:
+  all artifact layout checks and PNG dimension/existence checks passed. Every
+  view was visually inspected at 320×240, 800×480, 1366×768 and 1440×900.
+- The full `--native --jack --browser chromium` command was executed. Its first
+  run passed all actual dummy-JACK graph, overload, timestamp-ordering,
+  three-chain and dedicated fanout tests, then failed the obsolete browser
+  VOLUME-number-field locator. That test now uses actual keyboard slider
+  interaction and passes, including a rapid 68-step adjustment.
+- Subsequent full JACK reruns **failed intermittently**: one observer failure
+  with `lateBlocks=1`, zero active notes and zero output overflow; an isolated
+  rerun stopped chain recording after `chainFrameGap=8192`,
+  `chainClockGap=16384`, 26 late blocks and maximum callback 249780 µs. The
+  second failure occurred without concurrent screenshot jobs. These outcomes
+  do not constitute a consistently green JACK release qualification. No guard,
+  timeout, buffer assertion or engine code was relaxed for this UI pass.
+
+The screenshot manifest records the actual engine build revision and that UI
+source had uncommitted changes during capture. The native binary is unchanged
+by this second pass. Real REAPER GUI, Zynthian V4, Helix touch/pedal performance
+and hardware JACK load/interrupt qualification remain pending. Reproduce the
+clock-gap condition and diagnose it independently before a live release.

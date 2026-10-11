@@ -79,6 +79,7 @@ struct ChainMode {
     *captureActive=0;
   }
   bool command(int action, int selected) {
+    if(selected<0 || selected>=16 || action<0 || action>3)return false;
     // Native HOLD release ownership is not implemented by this transport adapter.
     if(action==1 && *NSEEL_VM_getramptr(fx->vm.get(),
         unsigned(*ysfx_find_var(fx,"MODE_BASE"))+selected,nullptr)>=1.5) return false;

@@ -102,7 +102,9 @@ with tempfile.TemporaryDirectory(prefix='mbh-chains-') as temp:
                 page.get_by_text('CONNECTED · Engine running',exact=True).wait_for()
                 page.locator('details').filter(has=page.locator('#metrics')).locator('summary').click()
                 page.get_by_text('Zynthian · two bars',exact=False).wait_for()
-                action(i,'stop')
+                page.get_by_role('button',name='STOP',exact=True).click()
+                page.get_by_text('NATIVE · STOPPED',exact=False).wait_for()
+                assert not state(i)['chainRunning']
                 mode=page.get_by_label('Play mode Phrase 6',exact=True)
                 assert not mode.is_disabled()
                 assert mode.locator('option[value="2"]').is_disabled()

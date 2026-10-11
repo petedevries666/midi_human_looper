@@ -32,7 +32,9 @@ CONDUCTOR remain explicit; the appearance does not claim arbitrary chain order.
 | HOLD | Legacy attack sustain until STOP / next phrase | Unavailable from web/API playback pending reliable held-release ownership |
 | ONCE / NO RETRIGGER, PRESS / RELEASE | PR #45 work, not included here | Not included here |
 
-Mode controls are enabled in native mode for LOOP and ONCE. Mode edits use the
+The compact native transport strip displays PLAYING/RECORDING/ARMED/STOPPED and
+provides a real STOP command using the existing opcode 40 dispatcher. It is hidden
+for standalone hosts. Mode controls are enabled in native mode for LOOP and ONCE. Mode edits use the
 existing deferred parameter mechanism: STOP the processor to apply safely; edits
 queued during playback are identified in the UI. Recording still uses the existing
 synchronized two-bar LOOP capture, and sets its recorded phrase to LOOP. Select

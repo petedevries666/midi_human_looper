@@ -363,6 +363,8 @@ class Handler(BaseHTTPRequestHandler):
                 channel,number,value=data.get('channel'),data.get('number'),data.get('value')
                 if any(type(v) is not int for v in (channel,number,value)) or not 1<=channel<=16 or not 0<=number<=127 or not 0<=value<=127:raise ValueError()
                 args=dict(op=19,ch=channel-1,note=number,value=value)
+            elif action == 'chain_stop':
+                args=dict(op=40,target=0,arg=0)
             elif action == 'panic':
                 args = dict(op=2)
             elif action in ('phrase_rename','instrument_rename'):

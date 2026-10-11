@@ -92,6 +92,7 @@ struct Instrument {
   bool serialPitch = false;
 };
 struct Phrase {
+  char name[17]{};
   int events = 0, mode = 0;
   double time = 1, velocityDecay = .8, baseVelocity = 1;
   int mute = 0, solo = 0, triggerNote = -1, triggerChannel = 0;
@@ -172,6 +173,7 @@ struct Model {
   std::array<std::array<double *, 26>, 16> sw;
   std::array<std::array<double *, 22>, 8> inst;
   std::array<std::array<double *, 10>, 16> phrase;
+  std::array<std::array<double *, 16>, 16> phraseNames;
   std::array<double *, 8> tfCount, levelAssignment, levelPending;
   std::array<std::array<double *, 6>, 8> tfCodes;
   std::array<std::array<double *, 12>, 8> tfIds, tfTypes;
@@ -285,6 +287,8 @@ struct Model {
                           : unsigned(variable(fx, "DS_RT_BASE")) + (i - 4) * 32;
       sw[i][24] = cell(fx, rt + 7);
       sw[i][25] = cell(fx, rt + 12);
+      for (unsigned j=0;j<16;++j)
+        phraseNames[i][j]=cell(fx,unsigned(variable(fx,"PHRASE_NAME_BASE"))+i*16+j);
       phrase[i][8] = cell(fx, unsigned(variable(fx, "PHRASE_NOTE_BASE")) + i);
       phrase[i][9] = cell(fx, unsigned(variable(fx, "SW_CFG_BASE")) + 1 + (i / 4) * 128 + 27 + i % 4);
       phrase[i][3] = cell(fx, unsigned(variable(fx, "DECAY_BASE")) + i);
@@ -467,6 +471,7 @@ struct Model {
       v.step = int(*sw[i][24]) + 1;
       for (unsigned j = 0; j < 16; ++j)
         v.name[j] = char(*sw[i][8 + j]);
+      for (unsigned j=0;j<16;++j) s.phrases[i].name[j]=char(*phraseNames[i][j]);
       s.phrases[i].events = int(*phrase[i][0]);
       s.phrases[i].mode = int(*phrase[i][1]);
       s.phrases[i].time = *phrase[i][2];
@@ -597,6 +602,7 @@ static std::string json(const Reply &r) {
     if (i)
       o << ',';
     o << "{\"id\":" << i + 1 << ",\"events\":" << s.phrases[i].events
+      << ",\"name\":" << quote(s.phrases[i].name)
       << ",\"mode\":" << s.phrases[i].mode
       << ",\"timeDecay\":" << s.phrases[i].time
       << ",\"velocityDecay\":" << s.phrases[i].velocityDecay
@@ -863,7 +869,7 @@ static void control(int listener, Queue<Request, 64> &commands,
                       request.arg >> request.revision >> request.ch >>
                       request.note >> request.value) &&
                  request.id > 0 && request.id <= 9007199254740991ULL &&
-                 request.op >= 0 && (request.op <= 35 || request.op == 40) && request.arg >= 0 &&
+                 request.op >= 0 && (request.op <= 36 || request.op == 40) && request.arg >= 0 &&
                  request.arg <= (request.op == 13   ? 5
                                  : request.op == 15 || request.op == 34 || request.op == 40 ? 3
                                  : request.op == 32 ? 24
@@ -878,7 +884,21 @@ static void control(int listener, Queue<Request, 64> &commands,
       valid = bool(input >> marker >> request.session) && marker == "session" &&
               request.session > 0 && request.session <= 9007199254740991ULL;
     }
-    if (valid && request.op == 35) {
+    if (valid && request.op == 36) {
+      std::string hex;
+      valid=bool(input>>hex) && request.arg<=1 && request.target>0 &&
+            request.target<=(request.arg?16777215:16);
+      if (hex!="-") {
+        valid=valid && !hex.empty() && hex.size()<=32 && hex.size()%2==0;
+        for (unsigned j=0;valid && j<hex.size()/2;++j) {
+          auto digit=[](char c){return c>='0'&&c<='9'?c-'0':c>='a'&&c<='f'?c-'a'+10:-1;};
+          int a=digit(hex[j*2]),b=digit(hex[j*2+1]),v=a*16+b;
+          valid=a>=0 && b>=0 && v>=32 && v<127;
+          if(valid) request.snapshotName[j]=char(v);
+        }
+      }
+      if(input>>extra)valid=false;
+    } else if (valid && request.op == 35) {
       valid = request.target >= 0 && request.target < 16 && request.arg <= 1;
       if (valid && request.arg == 1) {
         double duration=0; unsigned count=0;
@@ -1958,12 +1978,21 @@ int main(int argc, char **argv) {
               controllers.panic();
               NSEEL_code_execute(panic_bridge);
             }
-            if (request.arg == 1 || request.arg == 2) {
-              if (jack)
-                jack_transport_start(jack);
-            }
-            if (!chain.command(request.arg, request.target))
-              reply.status = 3;
+            if (!chain.command(request.arg, request.target)) reply.status = 3;
+            else if (jack && (request.arg == 1 || request.arg == 2))
+              jack_transport_start(jack);
+          }
+        } else if (request.op == 36) {
+          int selected=-1;
+          if (!request.arg) selected=request.target-1;
+          else for(unsigned i=0;i<8;++i)
+            if(*model.inst[i][0] && int(*model.inst[i][1])==request.target) selected=i;
+          if(selected<0) reply.status=2;
+          else {
+            for(unsigned j=0;j<16;++j)
+              *(request.arg?model.inst[selected][6+j]:model.phraseNames[selected][j])=
+                  static_cast<unsigned char>(request.snapshotName[j]);
+            ++state.revision;
           }
         } else if (request.op >= 20) {
           bool valid = false;
@@ -2386,13 +2415,12 @@ int main(int argc, char **argv) {
           }
         } else if (request.op >= 6) {
           if (chainMode) {
-            if (jack && request.op != 8)
-              jack_transport_start(jack);
             if (!chain.command(request.op == 6   ? 1
                                : request.op == 7 ? 2
                                                  : 3,
                                request.target))
               reply.status = 3;
+            else if (jack && request.op != 8) jack_transport_start(jack);
           } else {
             *phraseTarget = request.target;
             NSEEL_code_execute(request.op == 6   ? phrasePlay

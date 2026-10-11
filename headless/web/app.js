@@ -8,7 +8,7 @@ async function request(path,body){const response=await fetch(path,{method:body?'
 function button(label,action){const b=node('button',label);b.addEventListener('click',action);return b;}
 function descriptor(type){return catalog?.modules.find(m=>m.engineType===type);}
 function parameter(kind){return catalog?.parameters.find(p=>p.engineKind===kind);}
-async function loadDescriptors(){try{catalog=await request('/api/v1/descriptors');renderedModel='';if(latest)render(latest);}catch(e){$('error').textContent=e.message;}}
+async function loadDescriptors(){try{catalog=await request('/api/v1/descriptors');$('app-version').textContent=`V ${catalog.applicationVersion||'UNKNOWN'}`;renderedModel='';if(latest)render(latest);}catch(e){$('error').textContent=e.message;}}
 function editInstrument(i){const d=descriptor(0);if(!d)return;edit(d,i,d.parameters.map(id=>{const p=catalog.parameters.find(p=>p.id===id);return {descriptor:p,value:i[p.engineField],assignment:0};}),null);}
 function editModule(i,tf){const d=descriptor(tf.type);if(!d)return;edit(d,i,tf.parameters.map(p=>({descriptor:parameter(p.kind),...p})),tf);}
 function edit(module,instrument,values,instance){
@@ -184,6 +184,7 @@ function render(s){
   }
   renderAB(s);
   renderControllers(s);
+  if(document.activeElement?.classList.contains('name-input'))return;
   const model=JSON.stringify([s.controllerLearn,s.phrases,s.instruments,s.switches.map(v=>({...v,step:0})),s.snapshotActions]);if(model===renderedModel)return;renderedModel=model;
   compactPhrases(s);
   $('instruments').replaceChildren(...s.instruments.map(compactInstrument));
@@ -307,12 +308,41 @@ function liveParameter(targetId,kind,value,moduleId=0){return command({action:'p
 function inlineNumber(label,value,min,max,step,onchange){
   const wrap=node('label',label,'inline-control'),input=node('input');input.type='number';input.min=min;input.max=max;input.step=step;input.value=value;input.setAttribute('aria-label',label);input.onchange=()=>onchange(Number(input.value));wrap.append(input);return wrap;
 }
+function editableName(domain,id,value,fallback){
+  const control=button(value||fallback,()=>{
+    if(pending)return;
+    const input=node('input');input.value=value||'';input.maxLength=16;
+    input.className='name-input';input.setAttribute('aria-label',`${domain} ${id} name`);
+    const capturedSession=engineSession,capturedRevision=revision;
+    control.replaceWith(input);input.focus();input.select();
+    let finished=false;
+    const cancel=()=>{if(finished)return;finished=true;input.replaceWith(control);control.focus();};
+    input.onkeydown=async event=>{
+      if(event.key==='Escape'){event.preventDefault();cancel();}
+      if(event.key==='Enter'){
+        event.preventDefault();if(finished)return;
+        if([...input.value].some(c=>c.charCodeAt(0)<32||c.charCodeAt(0)>126)){
+          $('error').textContent='Names use up to 16 printable ASCII characters, matching REAPER.';return;
+        }
+        finished=true;input.disabled=true;input.blur();
+        const ok=await command({action:domain==='Phrase'?'phrase_rename':'instrument_rename',
+          [domain==='Phrase'?'phraseId':'instrumentId']:id,name:input.value,
+          expectedRevision:capturedRevision,expectedEngineSessionId:capturedSession});
+        if(!ok){finished=false;input.disabled=false;input.focus();}
+        else document.querySelector(`[data-${domain.toLowerCase()}-id="${id}"] .editable-name`)?.focus();
+      }
+    };
+    input.onblur=()=>{if(!finished)cancel();};
+  });
+  control.className='editable-name';control.setAttribute('aria-label',`Edit ${domain} ${id} name`);
+  control.title='Click to rename · Enter saves · Escape cancels · 16 characters';return control;
+}
 function compactPhrases(s){
   const pages=Math.ceil(s.phrases.length/6);phrasePage=Math.min(phrasePage,pages-1);
   $('phrase-pagination').replaceChildren(button('←',()=>{phrasePage=Math.max(0,phrasePage-1);renderedModel='';render(latest);}),node('span',`${phrasePage+1} / ${pages}`),button('→',()=>{phrasePage=Math.min(pages-1,phrasePage+1);renderedModel='';render(latest);}));
   $('phrases').replaceChildren(...s.phrases.slice(phrasePage*6,phrasePage*6+6).map(p=>{
     const row=node('div',undefined,'phrase');row.dataset.phraseId=p.id;
-    row.append(button('REC / OVERDUB',()=>command({action:'phrase_record',phraseId:p.id})),button('TRIGGER',()=>command({action:'phrase_play',phraseId:p.id})),node('strong',`PHRASE ${p.id}`));
+    row.append(button('REC / OVERDUB',()=>command({action:'phrase_record',phraseId:p.id})),button('TRIGGER',()=>command({action:'phrase_play',phraseId:p.id})),editableName('Phrase',p.id,p.name,`PHRASE ${p.id}`));
     const learning=s.controllerLearn?.domain==='phrase'&&s.controllerLearn.target===p.id;
     const learn=button(learning?'CANCEL LEARN':p.triggerNote>=0?`LEARN · CH${p.triggerChannel||'ANY'} N${p.triggerNote}`:'TRIGGER LEARN',()=>command({action:learning?'phrase_learn_cancel':'phrase_learn',phraseId:p.id}));
     learn.title=p.triggerNote>=0?`NOTE ${p.triggerNote} · CH ${p.triggerChannel||'ANY'}`:'Unassigned phrase trigger';row.append(learn);
@@ -320,7 +350,7 @@ function compactPhrases(s){
       if(s.controllerLearn.conflict>0)row.append(button('REASSIGN',()=>command({action:'phrase_learn_confirm',phraseId:p.id})));}
     row.append(button(p.solo?'SOLO ON':'SOLO',()=>liveParameter(p.id,19,p.solo?0:1)),button(p.mute?'MUTE ON':'MUTE',()=>liveParameter(p.id,18,p.mute?0:1)));
     const mode=node('select');mode.setAttribute('aria-label',`Play mode Phrase ${p.id}`);
-    for(const [value,label] of [[1,'ONCE'],[0,'LOOP'],[2,'HOLD']]){const option=node('option',label);option.value=value;mode.append(option);}mode.value=p.mode;mode.disabled=!!s.chainMode;mode.title=s.chainMode?'Native chain prototype uses synchronized two-bar LOOP playback':'';mode.onchange=()=>liveParameter(p.id,20,Number(mode.value));row.append(mode);
+    for(const [value,label] of [[1,'ONCE'],[0,'LOOP'],[2,'HOLD']]){const option=node('option',label);option.value=value;option.disabled=!!s.chainMode&&value===2;if(option.disabled)option.textContent='HOLD (UNAVAILABLE)';if(option.disabled)option.title='Native held-trigger release is not supported yet';mode.append(option);}mode.value=p.mode;mode.title=s.chainMode?'LOOP: shared two-bar timeline · ONCE: immediate one-shot · STOP to apply mode edits safely · HOLD: native release ownership unavailable':'REAPER legacy HOLD sustains notes until STOP / next phrase';mode.onchange=async()=>{if(await liveParameter(p.id,20,Number(mode.value))&&latest.chainMode&&latest.chainRunning)$('error').textContent='Mode change queued. STOP this processor to apply safely.';};row.append(mode);
     row.append(inlineNumber('BASE VEL',p.baseVelocity,.2,3,.01,value=>liveParameter(p.id,17,value)));
     if(p.mode===1)row.append(inlineNumber('VEL DECAY',p.velocityDecay,.2,1,.01,value=>liveParameter(p.id,15,value)),inlineNumber('TIME DECAY',p.timeDecay,.5,2,.01,value=>liveParameter(p.id,14,value)));
     const finish=button('FINISH REC',()=>command({action:'phrase_finish',phraseId:p.id}));finish.title='Finish record / overdub without discarding the take';row.append(finish,node('small',`${p.events} events`),button('PHRASE OPTIONS',()=>phraseOptions(p.id)));
@@ -330,7 +360,7 @@ function compactPhrases(s){
 function compactInstrument(i){
   const n=node('article',undefined,'instrument');n.dataset.instrumentId=i.id;
   const main=node('div',undefined,'instrument-main');
-  main.append(button(i.enabled?'ON':'OFF',()=>liveParameter(i.id,21,i.enabled?0:1)),node('strong',`${i.name||'INSTRUMENT'} · ${i.id}`));
+  main.append(button(i.enabled?'ON':'OFF',()=>liveParameter(i.id,21,i.enabled?0:1)),editableName('Instrument',i.id,i.name,`INSTRUMENT ${i.id}`));
   for(const [label,kind,current,zero] of [['MIDI IN',22,i.input,'ALL'],['MIDI OUT',23,i.output,'ORIGINAL']]){
     const wrap=node('label',label,'inline-control'),select=node('select');select.setAttribute('aria-label',`${label} Instrument ${i.id}`);
     for(let channel=0;channel<=16;channel++){const option=node('option',channel?String(channel):zero);option.value=channel;select.append(option);}select.value=current;select.onchange=()=>liveParameter(i.id,kind,Number(select.value));wrap.append(select);main.append(wrap);

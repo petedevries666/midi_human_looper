@@ -36,7 +36,9 @@ struct ChainMode {
     align = compile(
         "loop_len_samples=chain_duration;slider6=chain_bpm;play_sample_pos="
         "chain_phase;state=chain_running?STATE_PLAYING:STATE_STOPPED;");
-    play = compile("mem[TRIG_BASE+chain_target]=layer_count(chain_target)>0;");
+    play = compile("layer_count(chain_target)>0?(mem[MODE_BASE+chain_target]<.5?"
+        "mem[TRIG_BASE+chain_target]=1:mem[MODE_BASE+chain_target]<1.5?"
+        "(trigger_request=chain_target;process_phrase_trigger(0,1);));");
     begin = compile(
         "mem[MODE_BASE+chain_target]=0;mem[LEN_BASE+chain_target]=chain_"
         "duration;mem[TRIG_BASE+chain_target]=layer_count(chain_target)>0;"
@@ -77,6 +79,9 @@ struct ChainMode {
     *captureActive=0;
   }
   bool command(int action, int selected) {
+    // Native HOLD release ownership is not implemented by this transport adapter.
+    if(action==1 && *NSEEL_VM_getramptr(fx->vm.get(),
+        unsigned(*ysfx_find_var(fx,"MODE_BASE"))+selected,nullptr)>=1.5) return false;
     if ((recording || armed) && selected != phrase && action != 0)
       return false;
     if (action == 2 && (recording || armed))

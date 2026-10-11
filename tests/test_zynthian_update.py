@@ -1,0 +1,92 @@
+#!/usr/bin/env python3
+"""Filesystem transactions with explicit mocked UI restart, never device access."""
+import importlib.util,json,tempfile,unittest,os,subprocess,time,threading,types
+from pathlib import Path
+from unittest.mock import patch
+ROOT=Path(__file__).resolve().parents[1]
+spec=importlib.util.spec_from_file_location('update',ROOT/'scripts/zynthian-update.py')
+u=importlib.util.module_from_spec(spec);spec.loader.exec_module(u)
+class Service:
+    def __init__(self,fail=False):self.calls=[];self.fail=fail
+    def service(self,action):self.calls.append(action)
+    def healthy(self,config,expected):
+        self.calls.append(config['binary'])
+        if self.fail and config['binary']=='new':raise ValueError('candidate failed')
+class Updates(unittest.TestCase):
+    def setUp(self):
+        self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup)
+        self.directory=Path(self.temp.name);self.config=self.directory/'install.json'
+        self.old={'version':1,'repository':'old','binary':'old','token_file':'kept','web_port_base':8765,'unknown':{'preserve':True}}
+        u.atomic(self.config,self.old);self.config.chmod(0o640)
+        self.new={**self.old,'repository':'new','binary':'new','runtime_revision':'a'*40}
+    def test_upgrade_atomic_preserves_configuration_and_file_mode(self):
+        service=Service();u.activate(self.config,self.new,service,{'processor-2':'fingerprint'})
+        self.assertEqual(json.loads(self.config.read_text()),self.new)
+        self.assertEqual(self.config.stat().st_mode&0o777,0o640)
+        self.assertEqual(service.calls,['stop','start','new'])
+        history=json.loads((self.directory/'runtime-update.json').read_text())
+        self.assertEqual(history['previous'],self.old);self.assertEqual(history['phase'],'active')
+    def test_failed_activation_restores_old_configuration(self):
+        service=Service(True)
+        with self.assertRaisesRegex(ValueError,'candidate failed'):u.activate(self.config,self.new,service,{})
+        self.assertEqual(json.loads(self.config.read_text()),self.old)
+        self.assertEqual(service.calls,['stop','start','new','stop','start','old'])
+        self.assertEqual(json.loads((self.directory/'runtime-update.json').read_text())['phase'],'rolled-back')
+    def test_rollback_keeps_new_project_content(self):
+        project=self.directory/'processor-2';project.mkdir();(project/'patch1.json').write_text('musical edits')
+        service=Service();u.activate(self.config,self.new,service,{})
+        prior=json.loads((self.directory/'runtime-update.json').read_text())['previous']
+        u.activate(self.config,prior,service,{})
+        self.assertEqual(json.loads(self.config.read_text()),self.old)
+        self.assertEqual((project/'patch1.json').read_text(),'musical edits')
+    def test_interruption_leaves_recoverable_journal_before_stop(self):
+        service=Service()
+        service.service=lambda action:(_ for _ in ()).throw(KeyboardInterrupt())
+        with self.assertRaisesRegex(RuntimeError,'rollback needs recovery'):u.activate(self.config,self.new,service,{})
+        journal=json.loads((self.directory/'runtime-update.json').read_text())
+        self.assertEqual(journal['phase'],'pending');self.assertEqual(journal['previous'],self.old)
+        self.assertEqual(json.loads(self.config.read_text()),self.old)
+    def test_repeated_activation_keeps_immediate_previous(self):
+        service=Service();u.activate(self.config,self.new,service,{})
+        newer={**self.new,'runtime_revision':'b'*40};u.activate(self.config,newer,service,{})
+        self.assertEqual(json.loads((self.directory/'runtime-update.json').read_text())['previous'],self.new)
+    def test_build_rejects_bad_revision_before_network(self):
+        with patch.object(u,'run') as run:
+            with self.assertRaises(ValueError):u.build(self.directory,'main;evil')
+            run.assert_not_called()
+    @unittest.skipUnless(os.environ.get('HEADLESS_BINARY'),'Actual engine not configured')
+    def test_real_native_preflight_engine(self):
+        runtime=u.Runtime(ROOT)
+        runtime.preflight({'binary':os.environ['HEADLESS_BINARY'],'repository':str(ROOT)},self.directory)
+    @unittest.skipUnless(os.environ.get('HEADLESS_BINARY'),'Actual engine not configured')
+    def test_authenticated_real_web_health_and_revision(self):
+        runtime=u.Runtime(ROOT);data=self.directory/'processor-1';data.mkdir()
+        socket=data/'control.sock';token=self.directory/'token';token.write_text('test-private-token')
+        process=subprocess.Popen([os.environ['HEADLESS_BINARY'],str(ROOT/'midi_human_looper.jsfx'),str(socket),'--demo'],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+        try:
+            deadline=time.monotonic()+5
+            while not socket.exists():
+                if process.poll() is not None or time.monotonic()>deadline:self.fail('native startup failed')
+                time.sleep(.01)
+            from server import make_server
+            server=make_server('127.0.0.1',0,str(socket),'test-private-token',str(data))
+            thread=threading.Thread(target=server.serve_forever,daemon=True);thread.start()
+            try:
+                capture=runtime.ProjectStore(data,runtime.Control(str(socket))).capture()
+                config={**self.old,'_directory':str(self.directory),'token_file':str(token),
+                        'runtime_revision':runtime.Control(str(socket)).request()['buildRevision'],
+                        'web_port_base':server.server_address[1]-1}
+                expected={'processor-1':{'fingerprint':capture['fingerprint'],'buildRevision':config['runtime_revision']}}
+                with patch.object(u.subprocess,'run',return_value=types.SimpleNamespace(returncode=0)):
+                    runtime.healthy(config,expected,timeout=2)
+                    with self.assertRaisesRegex(ValueError,'health/state'):
+                        runtime.healthy({**config,'runtime_revision':'wrong'},expected,timeout=.1)
+            finally:server.shutdown();server.server_close();thread.join(timeout=2)
+        finally:process.terminate();process.wait(timeout=5)
+    def test_arm64_signed_char_applies_to_library_and_host(self):
+        source=(ROOT/'scripts/zynthian-update.py').read_text()
+        self.assertIn('-DCMAKE_C_FLAGS=-fsigned-char',source)
+        self.assertIn('-DCMAKE_CXX_FLAGS=-fsigned-char',source)
+        self.assertIn('-fsigned-char',(ROOT/'scripts/headless-build.sh').read_text())
+        self.assertNotIn('apt-get',source)
+if __name__=='__main__':unittest.main()

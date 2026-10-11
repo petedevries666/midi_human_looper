@@ -1,3 +1,6 @@
+> Discovery-only Oram upgrades: follow [the focused fix procedure](zynthian-oram-discovery.md).
+> It preserves the installed runtime and does not require rollback or rebuilding.
+
 # V4 studio/live candidate: installation and physical acceptance
 
 Candidate branch: `integration/studio-live-rc`. This contains the implementation

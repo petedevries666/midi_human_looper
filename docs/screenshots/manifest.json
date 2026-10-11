@@ -1,0 +1,632 @@
+{
+  "browser": "151.0.7922.173",
+  "sourceRevision": "7851d8b6b991906a9e9033b6aad856f3eb0be629",
+  "application": "MIDI BAD MOTHER FUCKER",
+  "data": "Native --demo; PANIC; one controller source; no playback",
+  "artifacts": [
+    {
+      "view": "patch",
+      "viewport": [
+        320,
+        240
+      ],
+      "file": "patch-320x240.png",
+      "checks": []
+    },
+    {
+      "view": "snapshots",
+      "viewport": [
+        320,
+        240
+      ],
+      "file": "snapshots-320x240.png",
+      "checks": []
+    },
+    {
+      "view": "smart-switches",
+      "viewport": [
+        320,
+        240
+      ],
+      "file": "smart-switches-320x240.png",
+      "checks": []
+    },
+    {
+      "view": "smart-switch-editor",
+      "viewport": [
+        320,
+        240
+      ],
+      "file": "smart-switch-editor-320x240.png",
+      "checks": []
+    },
+    {
+      "view": "smart-switch-editor-bottom",
+      "viewport": [
+        320,
+        240
+      ],
+      "file": "smart-switch-editor-bottom-320x240.png",
+      "checks": []
+    },
+    {
+      "view": "phrases",
+      "viewport": [
+        320,
+        240
+      ],
+      "file": "phrases-320x240.png",
+      "checks": []
+    },
+    {
+      "view": "phrase-editor",
+      "viewport": [
+        320,
+        240
+      ],
+      "file": "phrase-editor-320x240.png",
+      "checks": []
+    },
+    {
+      "view": "phrase-editor-bottom",
+      "viewport": [
+        320,
+        240
+      ],
+      "file": "phrase-editor-bottom-320x240.png",
+      "checks": []
+    },
+    {
+      "view": "instruments",
+      "viewport": [
+        320,
+        240
+      ],
+      "file": "instruments-320x240.png",
+      "checks": []
+    },
+    {
+      "view": "instrument-editor",
+      "viewport": [
+        320,
+        240
+      ],
+      "file": "instrument-editor-320x240.png",
+      "checks": []
+    },
+    {
+      "view": "instrument-editor-bottom",
+      "viewport": [
+        320,
+        240
+      ],
+      "file": "instrument-editor-bottom-320x240.png",
+      "checks": []
+    },
+    {
+      "view": "controllers",
+      "viewport": [
+        320,
+        240
+      ],
+      "file": "controllers-320x240.png",
+      "checks": []
+    },
+    {
+      "view": "controller-editor",
+      "viewport": [
+        320,
+        240
+      ],
+      "file": "controller-editor-320x240.png",
+      "checks": []
+    },
+    {
+      "view": "controller-editor-bottom",
+      "viewport": [
+        320,
+        240
+      ],
+      "file": "controller-editor-bottom-320x240.png",
+      "checks": []
+    },
+    {
+      "view": "controller-advanced",
+      "viewport": [
+        320,
+        240
+      ],
+      "file": "controller-advanced-320x240.png",
+      "checks": []
+    },
+    {
+      "view": "controller-advanced-bottom",
+      "viewport": [
+        320,
+        240
+      ],
+      "file": "controller-advanced-bottom-320x240.png",
+      "checks": []
+    },
+    {
+      "view": "snapshot-manager",
+      "viewport": [
+        320,
+        240
+      ],
+      "file": "snapshot-manager-320x240.png",
+      "checks": []
+    },
+    {
+      "view": "snapshot-menu",
+      "viewport": [
+        320,
+        240
+      ],
+      "file": "snapshot-menu-320x240.png",
+      "checks": []
+    },
+    {
+      "view": "snapshot-editor",
+      "viewport": [
+        320,
+        240
+      ],
+      "file": "snapshot-editor-320x240.png",
+      "checks": []
+    },
+    {
+      "view": "snapshot-editor-bottom",
+      "viewport": [
+        320,
+        240
+      ],
+      "file": "snapshot-editor-bottom-320x240.png",
+      "checks": []
+    },
+    {
+      "view": "snapshot-ab-editor",
+      "viewport": [
+        320,
+        240
+      ],
+      "file": "snapshot-ab-editor-320x240.png",
+      "checks": []
+    },
+    {
+      "view": "snapshot-ab-editor-bottom",
+      "viewport": [
+        320,
+        240
+      ],
+      "file": "snapshot-ab-editor-bottom-320x240.png",
+      "checks": []
+    },
+    {
+      "view": "snapshot-ab",
+      "viewport": [
+        320,
+        240
+      ],
+      "file": "snapshot-ab-320x240.png",
+      "checks": []
+    },
+    {
+      "view": "transformer-chain",
+      "viewport": [
+        320,
+        240
+      ],
+      "file": "transformer-chain-320x240.png",
+      "checks": []
+    },
+    {
+      "view": "transformer-editor",
+      "viewport": [
+        320,
+        240
+      ],
+      "file": "transformer-editor-320x240.png",
+      "checks": []
+    },
+    {
+      "view": "transformer-editor-bottom",
+      "viewport": [
+        320,
+        240
+      ],
+      "file": "transformer-editor-bottom-320x240.png",
+      "checks": []
+    },
+    {
+      "view": "diagnostics",
+      "viewport": [
+        320,
+        240
+      ],
+      "file": "diagnostics-320x240.png",
+      "checks": []
+    },
+    {
+      "view": "patch",
+      "viewport": [
+        800,
+        480
+      ],
+      "file": "patch-800x480.png",
+      "checks": []
+    },
+    {
+      "view": "snapshots",
+      "viewport": [
+        800,
+        480
+      ],
+      "file": "snapshots-800x480.png",
+      "checks": []
+    },
+    {
+      "view": "smart-switches",
+      "viewport": [
+        800,
+        480
+      ],
+      "file": "smart-switches-800x480.png",
+      "checks": []
+    },
+    {
+      "view": "smart-switch-editor",
+      "viewport": [
+        800,
+        480
+      ],
+      "file": "smart-switch-editor-800x480.png",
+      "checks": []
+    },
+    {
+      "view": "phrases",
+      "viewport": [
+        800,
+        480
+      ],
+      "file": "phrases-800x480.png",
+      "checks": []
+    },
+    {
+      "view": "phrase-editor",
+      "viewport": [
+        800,
+        480
+      ],
+      "file": "phrase-editor-800x480.png",
+      "checks": []
+    },
+    {
+      "view": "instruments",
+      "viewport": [
+        800,
+        480
+      ],
+      "file": "instruments-800x480.png",
+      "checks": []
+    },
+    {
+      "view": "instrument-editor",
+      "viewport": [
+        800,
+        480
+      ],
+      "file": "instrument-editor-800x480.png",
+      "checks": []
+    },
+    {
+      "view": "instrument-editor-bottom",
+      "viewport": [
+        800,
+        480
+      ],
+      "file": "instrument-editor-bottom-800x480.png",
+      "checks": []
+    },
+    {
+      "view": "controllers",
+      "viewport": [
+        800,
+        480
+      ],
+      "file": "controllers-800x480.png",
+      "checks": []
+    },
+    {
+      "view": "controller-editor",
+      "viewport": [
+        800,
+        480
+      ],
+      "file": "controller-editor-800x480.png",
+      "checks": []
+    },
+    {
+      "view": "controller-editor-bottom",
+      "viewport": [
+        800,
+        480
+      ],
+      "file": "controller-editor-bottom-800x480.png",
+      "checks": []
+    },
+    {
+      "view": "controller-advanced",
+      "viewport": [
+        800,
+        480
+      ],
+      "file": "controller-advanced-800x480.png",
+      "checks": []
+    },
+    {
+      "view": "controller-advanced-bottom",
+      "viewport": [
+        800,
+        480
+      ],
+      "file": "controller-advanced-bottom-800x480.png",
+      "checks": []
+    },
+    {
+      "view": "snapshot-manager",
+      "viewport": [
+        800,
+        480
+      ],
+      "file": "snapshot-manager-800x480.png",
+      "checks": []
+    },
+    {
+      "view": "snapshot-menu",
+      "viewport": [
+        800,
+        480
+      ],
+      "file": "snapshot-menu-800x480.png",
+      "checks": []
+    },
+    {
+      "view": "snapshot-editor",
+      "viewport": [
+        800,
+        480
+      ],
+      "file": "snapshot-editor-800x480.png",
+      "checks": []
+    },
+    {
+      "view": "snapshot-ab-editor",
+      "viewport": [
+        800,
+        480
+      ],
+      "file": "snapshot-ab-editor-800x480.png",
+      "checks": []
+    },
+    {
+      "view": "snapshot-ab",
+      "viewport": [
+        800,
+        480
+      ],
+      "file": "snapshot-ab-800x480.png",
+      "checks": []
+    },
+    {
+      "view": "transformer-chain",
+      "viewport": [
+        800,
+        480
+      ],
+      "file": "transformer-chain-800x480.png",
+      "checks": []
+    },
+    {
+      "view": "transformer-editor",
+      "viewport": [
+        800,
+        480
+      ],
+      "file": "transformer-editor-800x480.png",
+      "checks": []
+    },
+    {
+      "view": "diagnostics",
+      "viewport": [
+        800,
+        480
+      ],
+      "file": "diagnostics-800x480.png",
+      "checks": []
+    },
+    {
+      "view": "patch",
+      "viewport": [
+        1440,
+        900
+      ],
+      "file": "patch-1440x900.png",
+      "checks": []
+    },
+    {
+      "view": "snapshots",
+      "viewport": [
+        1440,
+        900
+      ],
+      "file": "snapshots-1440x900.png",
+      "checks": []
+    },
+    {
+      "view": "smart-switches",
+      "viewport": [
+        1440,
+        900
+      ],
+      "file": "smart-switches-1440x900.png",
+      "checks": []
+    },
+    {
+      "view": "smart-switch-editor",
+      "viewport": [
+        1440,
+        900
+      ],
+      "file": "smart-switch-editor-1440x900.png",
+      "checks": []
+    },
+    {
+      "view": "phrases",
+      "viewport": [
+        1440,
+        900
+      ],
+      "file": "phrases-1440x900.png",
+      "checks": []
+    },
+    {
+      "view": "phrase-editor",
+      "viewport": [
+        1440,
+        900
+      ],
+      "file": "phrase-editor-1440x900.png",
+      "checks": []
+    },
+    {
+      "view": "instruments",
+      "viewport": [
+        1440,
+        900
+      ],
+      "file": "instruments-1440x900.png",
+      "checks": []
+    },
+    {
+      "view": "instrument-editor",
+      "viewport": [
+        1440,
+        900
+      ],
+      "file": "instrument-editor-1440x900.png",
+      "checks": []
+    },
+    {
+      "view": "controllers",
+      "viewport": [
+        1440,
+        900
+      ],
+      "file": "controllers-1440x900.png",
+      "checks": []
+    },
+    {
+      "view": "controller-editor",
+      "viewport": [
+        1440,
+        900
+      ],
+      "file": "controller-editor-1440x900.png",
+      "checks": []
+    },
+    {
+      "view": "controller-advanced",
+      "viewport": [
+        1440,
+        900
+      ],
+      "file": "controller-advanced-1440x900.png",
+      "checks": []
+    },
+    {
+      "view": "controller-advanced-bottom",
+      "viewport": [
+        1440,
+        900
+      ],
+      "file": "controller-advanced-bottom-1440x900.png",
+      "checks": []
+    },
+    {
+      "view": "snapshot-manager",
+      "viewport": [
+        1440,
+        900
+      ],
+      "file": "snapshot-manager-1440x900.png",
+      "checks": []
+    },
+    {
+      "view": "snapshot-menu",
+      "viewport": [
+        1440,
+        900
+      ],
+      "file": "snapshot-menu-1440x900.png",
+      "checks": []
+    },
+    {
+      "view": "snapshot-editor",
+      "viewport": [
+        1440,
+        900
+      ],
+      "file": "snapshot-editor-1440x900.png",
+      "checks": []
+    },
+    {
+      "view": "snapshot-ab-editor",
+      "viewport": [
+        1440,
+        900
+      ],
+      "file": "snapshot-ab-editor-1440x900.png",
+      "checks": []
+    },
+    {
+      "view": "snapshot-ab",
+      "viewport": [
+        1440,
+        900
+      ],
+      "file": "snapshot-ab-1440x900.png",
+      "checks": []
+    },
+    {
+      "view": "transformer-chain",
+      "viewport": [
+        1440,
+        900
+      ],
+      "file": "transformer-chain-1440x900.png",
+      "checks": []
+    },
+    {
+      "view": "transformer-editor",
+      "viewport": [
+        1440,
+        900
+      ],
+      "file": "transformer-editor-1440x900.png",
+      "checks": []
+    },
+    {
+      "view": "diagnostics",
+      "viewport": [
+        1440,
+        900
+      ],
+      "file": "diagnostics-1440x900.png",
+      "checks": []
+    }
+  ],
+  "unsupported": {
+    "CONDUCTOR": "No implemented CONDUCTOR editor on the integration candidate; no mock screenshot supplied."
+  }
+}

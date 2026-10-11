@@ -10,7 +10,7 @@ function descriptor(type){return catalog?.modules.find(m=>m.engineType===type);}
 function parameter(kind){return catalog?.parameters.find(p=>p.engineKind===kind);}
 async function loadDescriptors(){try{catalog=await request('/api/v1/descriptors');$('app-version').textContent=`V ${catalog.applicationVersion||'UNKNOWN'}`;renderedModel='';if(latest)render(latest);}catch(e){$('error').textContent=e.message;}}
 function editInstrument(i){const d=descriptor(0);if(!d)return;edit(d,i,d.parameters.map(id=>{const p=catalog.parameters.find(p=>p.id===id);return {descriptor:p,value:i[p.engineField],assignment:0};}),null);}
-function editModule(i,tf){const d=descriptor(tf.type);if(!d)return;edit(d,i,tf.parameters.map(p=>({descriptor:parameter(p.kind),...p})),tf);}
+function editModule(i,tf){for(const element of document.querySelectorAll('.module'))element.classList.toggle('selected',Number(element.dataset.moduleId)===tf.id);const d=descriptor(tf.type);if(!d)return;edit(d,i,tf.parameters.map(p=>({descriptor:parameter(p.kind),...p})),tf);}
 function edit(module,instrument,values,instance){
   const dialog=$('editor'),content=$('editor-content');if(dialog.open)return;
   const capturedRevision=revision,capturedSession=engineSession;

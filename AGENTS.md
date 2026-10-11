@@ -6,13 +6,13 @@ note ownership, engine timing and existing project compatibility.
 ## Required web UI evidence
 
 Every PR changing `headless/web/` must run `scripts/screenshots.sh`, visually inspect
-**every generated view at all three viewport sizes**, and commit the updated real
+**every generated view at all four viewport sizes**, and commit the updated real
 PNG artifacts and `docs/screenshots/manifest.json`. Report layout failures and
 unsupported views explicitly. Passing automated checks does not replace visual
 inspection. Never substitute generated artwork, mocked APIs or fabricated views.
 
 The single command starts a private native engine with deterministic `--demo` data
-and the actual HTTP editor, captures 320×240, 800×480 and 1440×900 viewport PNGs,
+and the actual HTTP editor, captures 320×240, 800×480, 1366×768 and 1440×900 viewport PNGs,
 checks overflow/clipping/keyboard reachability, validates PNG dimensions, and stops
 its own processes. It does not use JACK, hardware, saved user patches or a running
 performance engine. Vertical scrolling is allowed; hidden controls are not.

@@ -67,3 +67,18 @@ not a release candidate or an instruction to deploy unreviewed code.
    checklist. No automatic deployment or merge.
 
 CLEAR, native HOLD and the one-command updater are not implemented by this slice.
+
+## Physical recording acceptance after review
+
+Back up the current project first. On the reviewed runtime, choose an empty
+phrase and ONCE. With transport already running, arm REC at an arbitrary point,
+wait for the synchronized capture window, wait about half a second, then play a
+chord and a second note after a deliberate rest. Finish recording. Verify ONCE
+is still selected. Export that phrase and import it at project start in REAPER:
+the first chord must start at item-relative tick zero, with its original note
+lengths and the rest before the second note intact. Repeat with LOOP and different
+arming phases. Then overdub an existing phrase and confirm its original notes do
+not move. Repeat with multiple MIDI channels and notes held across capture end;
+STOP/PANIC must release all audible notes. Record the actual running revision,
+sample rate, JACK period and any reported capture discontinuity with the result.
+Do not suppress discontinuity errors or relax safety guards to complete a take.

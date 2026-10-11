@@ -14,6 +14,7 @@ struct ChainMode {
   EEL_F *phase, *duration, *target, *tempoVar, *runVar, *bad, *overdub,
       *overdubPos, *captureActive, *captureStart, *captureEnd;
   NSEEL_CODEHANDLE align, begin, finish, play;
+  EEL_F* phraseModes[16]{};
   ysfx_t *fx;
   ChainMode(ysfx_t *f, bool active, unsigned version=1)
       : enabled(active), timingVersion(version), fx(f) {
@@ -21,6 +22,9 @@ struct ChainMode {
     if (active)
       for (unsigned i = 0; i < 4096; ++i)
         *NSEEL_VM_getramptr(f->vm.get(), 3000000 + i, nullptr) = 0;
+    const auto modeBase=unsigned(*ysfx_find_var(f,"MODE_BASE"));
+    for(unsigned i=0;i<16;++i)
+      phraseModes[i]=NSEEL_VM_getramptr(f->vm.get(),modeBase+i,nullptr);
     captureActive = NSEEL_VM_regvar(f->vm.get(), "chain_capture_active");
     captureStart = NSEEL_VM_regvar(f->vm.get(), "chain_capture_start");
     captureEnd = NSEEL_VM_regvar(f->vm.get(), "chain_capture_end");
@@ -81,8 +85,7 @@ struct ChainMode {
   bool command(int action, int selected) {
     if(selected<0 || selected>=16 || action<0 || action>3)return false;
     // Native HOLD release ownership is not implemented by this transport adapter.
-    if(action==1 && *NSEEL_VM_getramptr(fx->vm.get(),
-        unsigned(*ysfx_find_var(fx,"MODE_BASE"))+selected,nullptr)>=1.5) return false;
+    if(action==1 && *phraseModes[selected]>=1.5) return false;
     if ((recording || armed) && selected != phrase && action != 0)
       return false;
     if (action == 2 && (recording || armed))

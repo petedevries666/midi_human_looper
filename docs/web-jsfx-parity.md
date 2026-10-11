@@ -101,3 +101,102 @@ clipping and access; every captured view must also be visually inspected. Hardwa
 V4/Helix/amsynth and stock Firefox, long performances/XRUNs, actual channel filtering,
 and real REAPER UI acceptance remain physical validation gates. No hardware parity
 claim follows from passing desktop dummy-JACK or Chromium tests.
+
+### Reviewed-update commands (standard existing installation)
+
+Run on the Pi only **after PR review**, with saved work and stopped/PANICed MB
+processors. This assumes the working checkout retains its pinned `.build/ysfx`
+cache; if the cache check fails, use the existing dependency location instead of
+installing OS packages. Keep the printed backup path for rollback.
+
+```sh
+config=/zynthian/zynthian-my-data/midi-human-looper/install.json
+old_repo=$(python3 -c 'import json; print(json.load(open("/zynthian/zynthian-my-data/midi-human-looper/install.json"))["repository"])')
+backup_dir="/zynthian/zynthian-my-data/mbmf-before-web-ui-$(date -u +%Y%m%dT%H%M%SZ)"
+cp -a /zynthian/zynthian-my-data/midi-human-looper "$backup_dir"
+echo "$backup_dir"
+git clone --single-branch --branch feat/web-jsfx-parity https://github.com/petedevries666/midi_human_looper.git /zynthian/zynthian-plugins/mbmf-web-ui
+cd /zynthian/zynthian-plugins/mbmf-web-ui
+export YSFX_SOURCE="$old_repo/.build/ysfx"
+export YSFX_BUILD="$YSFX_SOURCE/build"
+test -f "$YSFX_BUILD/libysfx.a" && scripts/headless-build.sh
+python3 zynthian/install.py --check --binary "$PWD/.build/midi-headless-engine"
+```
+
+Stop if build or preflight fails. If they succeed, switch only the owned runtime
+paths while the UI is stopped (verify the standard UI service name first):
+
+```sh
+systemctl stop zynthian
+python3 - <<'PY'
+import json, os, tempfile
+from pathlib import Path
+path=Path('/zynthian/zynthian-my-data/midi-human-looper/install.json')
+root=Path('/zynthian/zynthian-plugins/mbmf-web-ui')
+data=json.loads(path.read_text())
+data.update(repository=str(root),binary=str(root/'.build/midi-headless-engine'))
+fd,name=tempfile.mkstemp(dir=path.parent,prefix='install.json.')
+try:
+    with os.fdopen(fd,'w') as stream:
+        json.dump(data,stream,indent=2);stream.flush();os.fsync(stream.fileno())
+    os.chmod(name,path.stat().st_mode & 0o777);os.replace(name,path)
+finally:
+    if os.path.exists(name):os.unlink(name)
+PY
+systemctl start zynthian
+journalctl -u zynthian -n 40 --no-pager
+git rev-parse HEAD
+```
+
+Open the existing editor URL/token and Ctrl+Shift+R. Confirm diagnostics identifies
+the newly built revision. Reinstalling registration is unnecessary when PR #47 is
+already installed. Snapshot/patch/runtime paths and token/port settings are retained.
+For an existing `mbmf-web-ui` checkout, back up first, then `git pull --ff-only` and
+rebuild only while stopped. Retain the previous executable/checkout for rollback;
+prefer a fresh reviewed checkout rather than overwriting a running binary.
+
+Rollback: stop/PANIC, stop the UI, restore **only** `install.json` from the backup
+path printed above, and start the UI. For example (set `backup_dir` to your actual
+backup, not the example placeholder):
+
+```sh
+systemctl stop zynthian
+python3 - "$backup_dir/install.json" <<'PY'
+import os, sys, tempfile
+from pathlib import Path
+source=Path(sys.argv[1]);destination=Path('/zynthian/zynthian-my-data/midi-human-looper/install.json')
+fd,name=tempfile.mkstemp(dir=destination.parent,prefix='install.json.rollback.')
+try:
+    with os.fdopen(fd,'wb') as stream:
+        stream.write(source.read_bytes());stream.flush();os.fsync(stream.fileno())
+    os.chmod(name,source.stat().st_mode & 0o777);os.replace(name,destination)
+finally:
+    if os.path.exists(name):os.unlink(name)
+PY
+systemctl start zynthian
+```
+
+Do not run the service-start step if a preceding restoration fails. Leave Zynthian
+UI stopped, retain the backups, and inspect the error. No command here restarts JACK,
+changes routing, upgrades the OS or touches LUMAZ.
+
+### Executed cloud validation (2026-10-11)
+
+- `scripts/combined-test.py --native --jack --browser chromium --timeout 240`: PASS,
+  with the existing ysfx/JACK dependency paths configured. Includes 5,796 EEL2/GUI/
+  MIDI checks, portable parity, real dummy-JACK three-chain operation and one-shot
+  cleanup, timestamp ordering, bounded overflow, Controller sanitizer checks,
+  snapshots, project authority/synchronization, import/export and browser suites.
+- `tests/test_web_names.py`: three actual-engine tests PASS (patch-slot switching,
+  portable memory roundtrip, stale/deleted IDs, isolation and sounding-note ownership).
+- `tests/test_web_parity_browser.py`: PASS. Generic editor and Controller browser
+  tests were rerun after the final narrow-dialog style correction and passed.
+- `scripts/screenshots.sh`: 93 real PNG artifacts, all four viewports; PNG dimensions
+  and overflow/clipping/access checks PASS. Every captured view was visually
+  inspected, including scrolling dialog bottoms. No CONDUCTOR mockup supplied.
+- `tests/test_screenshot_audit.py`: seven detector tests PASS.
+
+Runtime and source build revisions are recorded separately in the screenshot
+manifest. The captures use the real engine's mock clock (no JACK input or physical
+hardware), while the separate JACK integration tests use a real private dummy
+server and virtual receivers. Neither is a physical Raspberry Pi/Helix/amsynth test.

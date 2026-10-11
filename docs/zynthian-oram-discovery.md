@@ -144,3 +144,14 @@ JACK-server tests on a performing Zynthian. Dependency/environment variables fol
 `scripts/headless-setup.sh` and the existing test documentation. Physical Oram
 catalog behavior, synth channel filtering/CC7 response, MIDI hardware, sustained
 performance load and XRUN recovery remain hardware acceptance gates.
+
+### Cloud validation result
+
+The combined native/JACK/Chromium suite above passed in Codex Cloud on 2026-10-11,
+using ysfx `8077347ccf4115567aed81400281dca57acbb0cc`, Chromium 151, and a private
+48 kHz dummy JACK server (chain buffer 8192). It includes portable execution parity,
+project transfer/persistence, Controller sanitizer tests, 5,796 EEL2/GUI/MIDI checks,
+JACK event ordering/overload and browser regression suites. The final installer
+suite separately passed all 9 cases, including disabled cached entries after
+rollback; the native routing suite passed 4 cases. These results do not qualify a
+physical V4, actual instrument channel filtering or performance at small buffers.

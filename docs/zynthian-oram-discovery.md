@@ -129,3 +129,18 @@ On your V4 after review:
    refresh/UI restart. Check engine logs, CPU and XRUNs at your actual buffer size.
 6. Exercise rollback and confirm original engines, instrument configuration and
    snapshots remain usable. No physical Raspberry Pi or Helix results are claimed.
+
+Reproduce the focused tests on a development machine:
+
+```sh
+python3 tests/test_zynthian_install.py
+python3 tests/test_zynthian_routing.py
+# After normal headless setup/build, on a desktop with a private dummy JACK server:
+python3 scripts/combined-test.py --native --jack --browser chromium --timeout 240
+```
+
+The combined runner includes the dedicated-chain JACK test; do not run its dummy
+JACK-server tests on a performing Zynthian. Dependency/environment variables follow
+`scripts/headless-setup.sh` and the existing test documentation. Physical Oram
+catalog behavior, synth channel filtering/CC7 response, MIDI hardware, sustained
+performance load and XRUN recovery remain hardware acceptance gates.

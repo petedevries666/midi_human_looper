@@ -50,6 +50,11 @@ snapshot first. Stop/disarm before updating; the updater restarts the existing
 Zynthian UI and its MBMF child processes, interrupting performance, without
 restarting JACK. See `zynthian-runtime-update.md` for backup and rollback.
 
+Cross-version rollback after creating new free-time data is not qualified: the
+old mandatory-grid runtime may explicitly reject that project duration. Preserve
+the pre-update revision and export new takes; do not truncate or overwrite them
+to make rollback activate. This remains a deployment blocker.
+
 Physical test: choose an empty phrase in each mode; arm at arbitrary transport
 positions; wait >4 seconds; play a chord, staggered releases, rests and further
 notes; FINISH; export and inspect the first actual attack at tick zero in REAPER.
@@ -57,3 +62,5 @@ Repeat with no external clock and a tempo change, then save/restart/restore.
 STOP/PANIC must release all notes. Test ARP only after the separate enable-control
 repair is reviewed. Pi ARM64, live JACK, sustain, Helix and real REAPER remain
 hardware acceptance requirements, not results of the cloud tests.
+
+Actual validation and continuation: [recovery checkpoint](audits/free-time-recovery-validation.md).

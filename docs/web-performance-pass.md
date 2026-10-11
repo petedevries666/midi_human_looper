@@ -76,3 +76,18 @@ requalify the previously reported intermittent dummy-JACK clock-gap failures.
 Native HOLD and per-phrase playing/recording telemetry remain limitations. Full
 REAPER GUI, real Firefox/touchscreen and Zynthian/Helix hardware validation remain
 pending. Nothing was merged or deployed.
+
+## Actual files changed
+
+- `headless/web/app.js`, `index.html`, `style.css`: performance matrix, compact
+  actions/help, parameter presentation, adaptive layout and truthful state cues.
+- `scripts/screenshots.py`: focused `--performance` mode; default full workflow
+  remains available. `scripts/combined-test.py`: includes the new UI audit.
+- Browser tests: `test_headless_browser.py`, `test_product_browser.py`,
+  `test_snapshot_browser.py`, `test_tactile_browser.py`, plus new
+  `test_performance_density.py`. Tests cover expanded tools, unchanged bindings,
+  touch, toggles/enums, armed Learn visibility, maximum-length names and stable
+  action identities. The density test waits for externally edited state before
+  issuing revision-checked UI commands.
+- This report, `performance-text-audit.json`, screenshot index and the six
+  focused PNGs/manifest under `docs/screenshots/performance/`.

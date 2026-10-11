@@ -1,0 +1,67 @@
+{
+  "browser": "151.0.7922.173",
+  "sourceRevision": "77b62ab8f024507c8159ed8a9359fc63b8e78451",
+  "sourceDirty": true,
+  "runtimeBuildRevision": "d9eee44a068cce4c5c4abe08cffcc9a4ede5374c",
+  "application": "MIDI BAD MOTHERFUCKER",
+  "data": "Native --demo; PANIC; one controller source; no playback",
+  "artifacts": [
+    {
+      "view": "phrases",
+      "viewport": [
+        800,
+        480
+      ],
+      "file": "phrases-800x480.png",
+      "checks": []
+    },
+    {
+      "view": "instruments",
+      "viewport": [
+        800,
+        480
+      ],
+      "file": "instruments-800x480.png",
+      "checks": []
+    },
+    {
+      "view": "transformer-editor",
+      "viewport": [
+        800,
+        480
+      ],
+      "file": "transformer-editor-800x480.png",
+      "checks": []
+    },
+    {
+      "view": "phrases",
+      "viewport": [
+        1366,
+        768
+      ],
+      "file": "phrases-1366x768.png",
+      "checks": []
+    },
+    {
+      "view": "instruments",
+      "viewport": [
+        1366,
+        768
+      ],
+      "file": "instruments-1366x768.png",
+      "checks": []
+    },
+    {
+      "view": "transformer-editor",
+      "viewport": [
+        1366,
+        768
+      ],
+      "file": "transformer-editor-1366x768.png",
+      "checks": []
+    }
+  ],
+  "unsupported": {
+    "CONDUCTOR": "No implemented CONDUCTOR editor on the integration candidate; no mock screenshot supplied."
+  }
+}

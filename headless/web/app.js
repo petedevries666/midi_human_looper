@@ -14,9 +14,9 @@ function decorateButton(b,label){
 }
 function button(label,action){const b=node('button',label);b.setAttribute('aria-label',label);b.title=label;decorateButton(b,label);compactAction(b,label);b.addEventListener('click',action);return b;}
 function compactAction(b,label){
-  const short={'SOLO':'S','SOLO ON':'S','MUTE':'M','MUTE ON':'M','FINISH REC':'END','MIDI LEARN':'LEARN','TRIGGER LEARN':'','CANCEL LEARN':'CANCEL','ADD TRANSFORMER':'','ADD INSTRUMENT':'INST','ADD CONTROLLER SOURCE':'SOURCE','ADD MAPPING':'MAP','+ CAPTURE SNAPSHOT':'CAPTURE','CAPTURE STATE':'STATE','SIMULATE FOOTSWITCH':'MIDI','CONFIGURE A/B':'A/B','SAVE PATCH':'','LOAD PATCH':'','STOP':'','EDIT':'','PHRASE OPTIONS':'','OPTIONS':'','DELETE':'','FORGET':'','×':'','TRIGGER':'','REC / OVERDUB':'','RECALL':'','←':'','→':''};
+  const short={'SOLO':'S','SOLO ON':'S','MUTE':'M','MUTE ON':'M','FINISH REC':'END','MIDI LEARN':'LEARN','TRIGGER LEARN':'','CANCEL LEARN':'','ADD TRANSFORMER':'','ADD INSTRUMENT':'INST','ADD CONTROLLER SOURCE':'SOURCE','ADD MAPPING':'MAP','+ CAPTURE SNAPSHOT':'CAPTURE','CAPTURE STATE':'STATE','SIMULATE FOOTSWITCH':'MIDI','CONFIGURE A/B':'A/B','SAVE PATCH':'','LOAD PATCH':'','STOP':'','EDIT':'','PHRASE OPTIONS':'','OPTIONS':'','DELETE':'','FORGET':'','×':'','TRIGGER':'','REC / OVERDUB':'','RECALL':'','←':'','→':''};
   const text=Object.hasOwn(short,label)?short[label]:label.startsWith('TEST ')?label.slice(5):label.startsWith('LEARN ·')?'':null;
-  if(text===null)return;if(label==='FINISH REC')b.querySelector('svg')?.remove();for(const child of [...b.childNodes])if(child.nodeType===Node.TEXT_NODE)child.remove();if(text)b.append(document.createTextNode(text));b.classList.toggle('icon-only',!text);}
+  if(text===null)return;if(label==='CANCEL LEARN')b.setAttribute('aria-pressed','true');if(label==='FINISH REC')b.querySelector('svg')?.remove();for(const child of [...b.childNodes])if(child.nodeType===Node.TEXT_NODE)child.remove();if(text)b.append(document.createTextNode(text));b.classList.toggle('icon-only',!text);}
 const shortParameter=label=>({'BASE VEL':'VEL','VEL DECAY':'V.DEC','TIME DECAY':'T.DEC','VOLUME':'VOL','SEMITONES':'ST','LOW NOTE':'LOW','HIGH NOTE':'HIGH'}[label]||label);
 function contextualHelp(text){const help=node('details',undefined,'context-help');help.append(node('summary','HELP'),node('p',text));return help;}
 // Native range inputs provide pointer/touch capture and standard keyboard semantics.
@@ -383,7 +383,7 @@ function compactPhrases(s){
     row.append(button('REC / OVERDUB',()=>command({action:'phrase_record',phraseId:p.id})),trigger,editableName('Phrase',p.id,p.name,`PHRASE ${p.id}`));
     const learning=s.controllerLearn?.domain==='phrase'&&s.controllerLearn.target===p.id;
     const learn=button(learning?'CANCEL LEARN':p.triggerNote>=0?`LEARN · CH${p.triggerChannel||'ANY'} N${p.triggerNote}`:'TRIGGER LEARN',()=>command({action:learning?'phrase_learn_cancel':'phrase_learn',phraseId:p.id}));
-    learn.title=p.triggerNote>=0?`NOTE ${p.triggerNote} · CH ${p.triggerChannel||'ANY'}`:'Unassigned phrase trigger';row.append(learn);
+    learn.title=learning?'Cancel Learn · waiting for MIDI note':p.triggerNote>=0?`NOTE ${p.triggerNote} · CH ${p.triggerChannel||'ANY'}`:'Unassigned phrase trigger';row.append(learn);
     if(learning&&s.controllerLearn.conflict){row.append(node('small',s.controllerLearn.conflict<0?'Already assigned to a phrase/switch. Cancel or choose a different note.':'Already assigned to a Controller source.'));
       if(s.controllerLearn.conflict>0)row.append(button('REASSIGN',()=>command({action:'phrase_learn_confirm',phraseId:p.id})));}
     row.append(button(p.solo?'SOLO ON':'SOLO',()=>liveParameter(p.id,19,p.solo?0:1)),button(p.mute?'MUTE ON':'MUTE',()=>liveParameter(p.id,18,p.mute?0:1)));
@@ -397,7 +397,7 @@ function compactPhrases(s){
     const empty=()=>{const n=node('span','—','decay-empty');n.title='Decay controls are available in ONCE mode';return n;};
     const cells=[row.querySelector('.phrase-number'),row.querySelector('.editable-name'),trigger,find('REC / OVERDUB'),buttons.find(b=>/^MUTE/.test(b.getAttribute('aria-label'))),buttons.find(b=>/^SOLO/.test(b.getAttribute('aria-label'))),mode,rails[0],rails[1]||empty(),rails[2]||empty(),learn,finish,find('PHRASE OPTIONS')];
     const notices=[...row.children].filter(n=>!cells.includes(n)&&n.tagName==='SMALL'&&!n.textContent.endsWith(' events'));
-    row.replaceChildren(...cells);row.querySelector('.phrase-number').title=`Phrase ${p.id} · ${p.events} source events`;for(const notice of notices){notice.classList.add('phrase-alert');row.append(notice);}const reassign=find('REASSIGN');if(reassign)row.append(reassign);
+    row.replaceChildren(...cells);row.querySelector('.phrase-number').title=`Phrase ${p.id} · ${p.events} source events`;row.querySelector('.phrase-number').setAttribute('aria-label',row.querySelector('.phrase-number').title);for(const notice of notices){notice.classList.add('phrase-alert');row.append(notice);}const reassign=find('REASSIGN');if(reassign){reassign.classList.add('phrase-alert');row.append(reassign);}
     return row;
   }));
 }

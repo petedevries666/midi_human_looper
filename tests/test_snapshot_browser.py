@@ -51,7 +51,10 @@ try:
         page.get_by_label('Snapshot action',exact=True).select_option('6')
         page.get_by_role('button',name='DONE',exact=True).click()
         case.wait_for(lambda:len(case.call()['snapshotActions'])==1,'switch popup commit')
-        page.locator('[data-switch-id="1"] .switch-test').evaluate('(e)=>e.open=true')
+        # Native commit can be observed before the popup HTTP reply is rendered.
+        # Wait for the completed UI transaction, then use the real disclosure.
+        page.locator("#editor").wait_for(state="hidden")
+        page.locator('[data-switch-id="1"] .switch-test summary').click()
         page.locator('[data-switch-id="1"]').get_by_role('button',name='TEST TAP',exact=True).click()
         case.wait_for(lambda:case.call()['selectedSnapshotId']==case.call()['snapshots'][0]['id'],'snapshot navigation TEST')
         case.wait_for(lambda:case.call()['targetSnapshotId']==0,'switch morph finished')

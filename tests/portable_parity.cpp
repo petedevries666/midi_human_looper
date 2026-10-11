@@ -42,7 +42,7 @@ int main(int argc,char**argv) {
   bridge.run("state=STATE_STOPPED;panic_pending=1;");bridge.block();bridge.events();
   bridge.run("gmem[19]=1;gmem[20]=12;");bridge.block();
   bridge.eq("gmem[22]",1,"REAPER bridge captures stopped patch");
-  bridge.eq("gmem[3]",171649,"shared portable schema dimensions");
+  bridge.eq("gmem[3]",171666,"shared portable schema dimensions");
   const unsigned markers[]={164892,165316,165829,166494,166828,168366};unsigned markerIndex=0;
   for(const char* name : {"WORK_MEM_SIZE","SW_LEGACY_PAYLOAD","CC_LEGACY_PAYLOAD","TF_LEGACY_PAYLOAD","DS_LEGACY_PAYLOAD","I_LEGACY_PAYLOAD"}) check(bridge.val(name)==markers[markerIndex++],"portable layout agrees with actual JSFX schema");
   bridge.eq("gmem[17]",48000,"source adapter rate advertised");

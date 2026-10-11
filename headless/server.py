@@ -26,7 +26,7 @@ PATCH_KEYS={'format','schema','work_mem_size','globals','memory','controllerEngi
 def validate_patch_extensions(patch):
     if not isinstance(patch,dict) or set(patch)-PATCH_KEYS:
         raise ValueError('Unsupported patch fields preserved; refusing to discard configuration.')
-    if patch.get('format')!='MIDI_HUMAN_LOOPER_PATCH' or type(patch.get('schema')) is not int or not 1<=patch['schema']<=7:
+    if patch.get('format')!='MIDI_HUMAN_LOOPER_PATCH' or type(patch.get('schema')) is not int or not 1<=patch['schema']<=8:
         raise ValueError('Unsupported patch format/schema preserved; refusing overwrite or load.')
     for name,versions in (('controllerEngine',(1,)),('globalSnapshots',(1,2,3,4))):
         if name in patch and (not isinstance(patch[name],dict) or type(patch[name].get('version')) is not int or patch[name]['version'] not in versions):
@@ -322,7 +322,7 @@ class Handler(BaseHTTPRequestHandler):
                         masks=data['inclusions']
                         if not isinstance(masks,list) or len(masks)>512:raise ValueError()
                         for a in masks:
-                            if not isinstance(a,dict) or any(type(a.get(k)) is not int for k in ('instrumentId','moduleId','kind')) or not 1<=a['instrumentId']<=16777215 or not 0<=a['moduleId']<=16777215 or (not 0<=a['kind']<=24 or a['kind']==16) or type(a.get('included')) is not bool:raise ValueError()
+                            if not isinstance(a,dict) or any(type(a.get(k)) is not int for k in ('instrumentId','moduleId','kind')) or not 1<=a['instrumentId']<=16777215 or not 0<=a['moduleId']<=16777215 or (not 0<=a['kind']<=25 or a['kind']==16) or type(a.get('included')) is not bool:raise ValueError()
                         args['inclusions']=masks
             elif action=='snapshot_ab_configure':
                 a,b,ease,position=data.get('a'),data.get('b'),data.get('ease',0),data.get('position',0)
@@ -402,10 +402,10 @@ class Handler(BaseHTTPRequestHandler):
                 target=data.get('instrumentId');field=data.get('field','enabled');value=data.get('value')
                 if type(target) is not int or not 1<=target<=16777215 or field not in ('input','output','level','enabled') or type(value) is not int or not 0<=value<=(127 if field=='level' else 1 if field=='enabled' else 16):raise ValueError()
                 args=dict(op=10 if field=='enabled' else 9,target=target,arg=('input','output','level').index(field) if field!='enabled' else 0,value=value)
-            elif action in ('phrase_play','phrase_record','phrase_finish'):
+            elif action in ('phrase_play','phrase_release','phrase_record','phrase_finish'):
                 target=data.get('phraseId')
                 if type(target) is not int or not 1<=target<=16:raise ValueError('invalid phrase')
-                args=dict(op={'phrase_play':6,'phrase_record':7,'phrase_finish':8}[action],target=target-1)
+                args=dict(op={'phrase_play':6,'phrase_release':6,'phrase_record':7,'phrase_finish':8}[action],target=target-1,arg=1 if action=='phrase_release' else 0)
             elif action == 'midi':
                 channel, note, value = data.get('channel'), data.get('note'), data.get('value')
                 if any(type(v) is not int for v in (channel, note, value)) or not (1 <= channel <= 16 and 0 <= note <= 127 and 0 <= value <= 127):
@@ -455,7 +455,7 @@ class Handler(BaseHTTPRequestHandler):
                 except ValueError as error:
                     self.respond(422,{'error':str(error)});return
                 schema=patch.get('schema');memory=patch.get('memory');globals_=patch.get('globals')
-                if patch.get('format')!='MIDI_HUMAN_LOOPER_PATCH' or type(schema) is not int or not 1<=schema<=7 or not isinstance(memory,list) or patch.get('work_mem_size')!=len(memory) or not 0<len(memory)<=200000 or not isinstance(globals_,list) or len(globals_)!=9:raise ValueError()
+                if patch.get('format')!='MIDI_HUMAN_LOOPER_PATCH' or type(schema) is not int or not 1<=schema<=8 or not isinstance(memory,list) or patch.get('work_mem_size')!=len(memory) or not 0<len(memory)<=200000 or not isinstance(globals_,list) or len(globals_)!=9:raise ValueError()
                 if any(type(x) not in (int,float) or not math.isfinite(x) for x in globals_+memory):raise ValueError()
                 result=self.server.control.request(op=5,target=schema,revision=rev,session=session,patch=patch)
                 if result.get('status')!='ok':self.respond(409 if result.get('status')=='conflict' else 400,result);return

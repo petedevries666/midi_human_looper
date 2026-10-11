@@ -32,6 +32,7 @@ try:
     run([sys.executable,'tests/test_controller_integration.py'])
     run([sys.executable,'tests/test_snapshots.py'])
     run([sys.executable,'tests/test_product_integration.py'])
+    run([sys.executable,'tests/test_phrase_gestures.py'])
     run([sys.executable,'tests/test_phrase_midi.py'])
     run([sys.executable,'tests/test_portable_project.py'])
     run([sys.executable,'tests/test_portable_engine.py'])
@@ -55,6 +56,7 @@ try:
             run([sys.executable,'tests/test_snapshot_browser.py'])
             run([sys.executable,'tests/test_product_browser.py'])
             run([sys.executable,'tests/test_phrase_midi_browser.py'])
+            run([sys.executable,'tests/test_phrase_gesture_browser.py'])
     print('PASS selected combined regression suite',flush=True)
 except (RuntimeError,subprocess.TimeoutExpired,KeyboardInterrupt) as error:
     print(f'FAILED: {error}',file=sys.stderr);sys.exit(1)

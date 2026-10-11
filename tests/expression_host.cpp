@@ -670,6 +670,7 @@ static void stress(Host &h, bool historical, bool cc_instances = false, bool dyn
 #include "project_state_cases.hpp"
 #include "popup_integration_cases.hpp"
 #include "phrase_play_cases.hpp"
+#include "phrase_gesture_cases.hpp"
 #include "smart_switch_cases.hpp"
 #include "time_decay_cases.hpp"
 #include "transform_stack_cases.hpp"
@@ -681,12 +682,14 @@ int main(int argc, char **argv) {
   if (argc>2 && std::string(argv[2])=="--instruments") {Host instruments(argv[1]);dynamic_instrument_tests(instruments);printf("PASS: %d instrument checks\n",checks);return 0;}
   if (argc>2 && std::string(argv[2])=="--instrument-voices") {Host instrument_voices(argv[1]);instrument_voice_tests(instrument_voices);printf("PASS: %d voice checks\n",checks);return 0;}
   if (argc>2 && std::string(argv[2])=="--project") {project_state_tests(argv[1]);printf("PASS: %d project checks\n",checks);return 0;}
+  if (argc>2 && std::string(argv[2])=="--phrase-gestures") {phrase_gesture_tests(argv[1]);printf("PASS: %d gesture checks\n",checks);return 0;}
   Host h(argv[1]);
   if (argc > 2 && (std::string(argv[2]) == "--historical" ||
                    std::string(argv[2]) == "--isolated")) {
     stress(h, std::string(argv[2]) == "--historical");
     return 0;
   }
+  phrase_gesture_tests(argv[1]);
   chain_mode_tests(argv[1]);
   chain_exact_timing_tests(argv[1]);
   chain_exact_playback_tests(argv[1]);

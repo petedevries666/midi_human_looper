@@ -36,10 +36,11 @@ def validate_patch(patch):
     # Import lazily: server imports this module for bridge endpoints.
     from server import validate_patch_extensions
     validate_patch_extensions(patch)
-    if patch['schema'] != 7 or patch.get('work_mem_size') != SIZE:
+    size=SIZE if patch['schema']==7 else SIZE+17
+    if patch['schema'] not in (7,8) or patch.get('work_mem_size') != size:
         raise ValueError('Portable v1 requires migrated schema-7 patch; load older patches in the engine first')
     memory, globals_ = patch.get('memory'), patch.get('globals')
-    if not isinstance(memory, list) or len(memory) != SIZE or not isinstance(globals_, list) or len(globals_) != 9:
+    if not isinstance(memory, list) or len(memory) != size or not isinstance(globals_, list) or len(globals_) != 9:
         raise ValueError('Invalid patch dimensions')
     if any(type(x) not in (int, float) or not math.isfinite(x) for x in memory + globals_):
         raise ValueError('Invalid numeric patch data')
@@ -47,6 +48,8 @@ def validate_patch(patch):
         raise ValueError('Invalid loop length')
     if any(memory[index]!=version for version,index in enumerate(MARKERS,2)):
         raise ValueError('Invalid schema-7 extension markers')
+    if patch['schema']==8 and (memory[SIZE]!=8 or any(x not in (0,1,2) for x in memory[SIZE+1:])):
+        raise ValueError('Invalid phrase playback policy section')
     if int(globals_[8])!=globals_[8] or not 0<=globals_[8]<LAYERS:
         raise ValueError('Invalid phrase identity')
     from registry import REGISTRY
@@ -87,6 +90,13 @@ def validate_patch(patch):
 
 def timing(patch, scale):
     result = copy.deepcopy(patch)
+    # A neutral policy extension has exactly the legacy musical meaning.
+    # Canonicalize only this known section; leave unknown data and extensions intact.
+    if (result.get('schema') == 8 and len(result['memory']) == SIZE + 17
+            and result['memory'][SIZE] == 8 and not any(result['memory'][SIZE+1:])):
+        result['schema'] = 7
+        result['work_mem_size'] = SIZE
+        result['memory'] = result['memory'][:SIZE]
     memory = result['memory']
     result['globals'][0] *= scale
     for p in range(LAYERS):
@@ -106,7 +116,7 @@ def capture(patch, sample_rate, project_id=None, parent=None, name='Untitled'):
     payload = {'name': str(name)[:128], 'timeUnit': 'seconds',
                'patch': timing(patch, 1/rate(sample_rate))}
     project_id = project_id or str(uuid.uuid4())
-    envelope = dict(format=FORMAT, version=1, projectId=project_id,
+    envelope = dict(format=FORMAT, version=1 if payload['patch']['schema']==7 else 2, projectId=project_id,
                     parentRevisionId=parent, payload=payload)
     envelope['revisionId'] = digest(envelope)
     envelope['contentHash'] = digest(envelope)
@@ -117,7 +127,7 @@ def capture(patch, sample_rate, project_id=None, parent=None, name='Untitled'):
 def validate(project):
     if not isinstance(project, dict) or set(project) != {'format','version','projectId','revisionId','parentRevisionId','payload','contentHash'}:
         raise ValueError('Unknown portable fields; refusing destructive migration')
-    if project['format'] != FORMAT or type(project['version']) is not int or project['version'] != 1:
+    if project['format'] != FORMAT or type(project['version']) is not int or project['version'] not in (1,2):
         raise ValueError('Unsupported portable project version')
     try:
         uuid.UUID(project['projectId'])
@@ -133,6 +143,7 @@ def validate(project):
     if not isinstance(payload,dict) or set(payload) != {'name','timeUnit','patch'} or payload['timeUnit'] != 'seconds' or not isinstance(payload['name'],str) or len(payload['name'])>128:
         raise ValueError('Unsupported portable payload')
     validate_patch(payload['patch'])
+    if payload['patch']['schema']==8 and project['version']!=2:raise ValueError('Schema-8 requires portable version 2')
     if len(canonical(project)) > MAX_BYTES:
         raise ValueError('Project exceeds bounded control capacity')
     return project

@@ -26,6 +26,9 @@ class SyncTests(HeadlessTests):
         local=control.request(op=4,arg=1,revision=state['revision'],session=state['engineSessionId'])
         # A REAPER-compatible base has no native-only extensions.
         local.pop('controllerEngine');local.pop('globalSnapshots')
+        # A non-neutral policy requires portable v2/schema 8 throughout PUSH,
+        # PULL, failed activation rollback and autonomous restoration.
+        local['memory'][portable.SIZE+1]=2;local['memory'][164048]=1
         push=dict(version=1,action='push',patch=local,sampleRate=state['sampleRate'],confirmInitialReplace=True,reaperProjectId=str(uuid.uuid4()))
         applied=bridge.execute(push);self.assertEqual(applied['status'],'active')
         again=bridge.execute(push);self.assertEqual(again['status'],'active')
@@ -34,6 +37,8 @@ class SyncTests(HeadlessTests):
         with self.assertRaises(Conflict):bridge.execute(push)
         pulled=bridge.execute(dict(version=1,action='pull',patch=local,sampleRate=state['sampleRate'],reaperProjectId=push['reaperProjectId'],confirmLocalReplace=True))
         self.assertIn('memory',pulled['patch'])
+        self.assertEqual(pulled['patch']['schema'],8)
+        self.assertEqual(pulled['patch']['memory'][portable.SIZE+1],2)
         bridge.execute(dict(version=1,action='pull_commit',pendingId=pulled['pendingId']))
         # Dirty local state is refused unless deliberately replaced.
         dirty=copy.deepcopy(local);dirty['globals'][7]=.5
@@ -81,6 +86,7 @@ class SyncTests(HeadlessTests):
         recovered=control.request(op=35,target=3,revision=-1)['phraseData']
         self.assertEqual(recovered['events'],phrase['events'])
         self.start_web()
+        self.assertEqual(self.call()['phrases'][0]['playbackPolicy'],2)
         # Exercise asynchronous spool through real HTTP instead of direct calls.
         from project_sync import atomic_json
         id=str(uuid.uuid4());atomic_json(bridge.spool/(id+'.job.json'),dict(version=1,action='get',phraseId=4))

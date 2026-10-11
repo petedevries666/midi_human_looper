@@ -40,6 +40,8 @@ def executable(project,state):
     patch=portable.materialize(project,state['sampleRate'])
     adopted=False
     if state.get('chainMode'):
+        if patch['schema']==8 and any(patch['memory'][portable.SIZE+1+i] and patch['memory'][164048+i]==1 for i in range(portable.LAYERS)):
+            raise Conflict('Native chain adapter cannot execute gesture playback policies yet; portable original retained')
         # Empty studio patches have no loop duration yet. The existing native
         # transport owns that grid; adopting it cannot move or truncate notes.
         if patch['globals'][0]==0 and not any(patch['memory'][portable.COUNT:portable.COUNT+portable.LAYERS]):
@@ -116,14 +118,14 @@ class ProjectStore:
             if data.get('expectedFingerprint')!=fingerprint:
                 raise Conflict('Live configuration changed; PULL before PUSH')
             patch,adopted=executable(project,state)
-            result=self.control.request(op=5,arg=1,target=7,patch=patch,revision=state['revision'],session=state['engineSessionId'])
+            result=self.control.request(op=5,arg=1,target=patch['schema'],patch=patch,revision=state['revision'],session=state['engineSessionId'])
             if result.get('status')!='ok':raise Conflict('Engine rejected activation; previous revision remains active')
             try:
                 after,applied,baseline=self.current()
                 atomic_json(self.directory/'active.json',dict(version=1,projectId=project['projectId'],revisionId=revision,fingerprint=baseline))
             except BaseException:
                 now,_,_=self.current()
-                rollback=self.control.request(op=5,arg=1,target=7,patch=previous,revision=now['revision'],session=now['engineSessionId'])
+                rollback=self.control.request(op=5,arg=1,target=previous['schema'],patch=previous,revision=now['revision'],session=now['engineSessionId'])
                 if rollback.get('status')!='ok':raise RuntimeError('Activation persistence failed and rollback rejected; STOP and reload prior revision')
                 # A directory fsync may fail after rename. Restore the previous
                 # pointer too, rather than leaving restart on the rejected state.
@@ -186,6 +188,6 @@ class ProjectStore:
             if project['revisionId']!=manifest['revisionId'] or project['projectId']!=manifest['projectId']:raise ValueError('Active manifest/content mismatch')
             state,_,_=self.current()
             patch,_=executable(project,state)
-            result=self.control.request(op=5,arg=1,target=7,patch=patch,revision=state['revision'],session=state['engineSessionId'])
+            result=self.control.request(op=5,arg=1,target=patch['schema'],patch=patch,revision=state['revision'],session=state['engineSessionId'])
             if result.get('status')!='ok':raise Conflict('Persisted project restoration rejected')
             return manifest

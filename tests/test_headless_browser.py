@@ -31,12 +31,15 @@ try:
         assert page.locator('[data-switch-id="3"] .tests button').first.is_disabled()
         before=api.call()
         assert page.locator('#metrics').text_content().find('Build '+before['buildRevision'])>=0
+        page.locator('[data-switch-id="1"] .switch-test').evaluate('(e)=>e.open=true')
         page.locator('[data-switch-id="1"]').get_by_role('button',name='TEST TAP',exact=True).click()
         page.wait_for_timeout(600)
+        assert page.locator('[data-switch-id="1"] .switch-test').evaluate('(e)=>e.open'), 'TEST panel must survive live state changes'
         assert api.call()['midiCount']>before['midiCount']
         page.get_by_role('button',name='PANIC',exact=True).click()
         page.wait_for_timeout(100)
         assert api.call()['activeNotes']==0
+        page.locator('[data-switch-id="2"] .switch-test').evaluate('(e)=>e.open=true')
         page.locator('[data-switch-id="2"]').get_by_role('button',name='SIMULATE FOOTSWITCH',exact=True).click()
         page.wait_for_timeout(80)
         assert api.call()['lastEvent'][2]==64
@@ -51,6 +54,7 @@ try:
         page.screenshot(path=os.environ.get('BROWSER_SCREENSHOT','/tmp/midi-headless-browser.png'),full_page=True)
         # Browser remains open while the independent web worker disappears/restarts.
         page.get_by_role('button',name='PANIC',exact=True).click()
+        page.locator('[data-switch-id="1"] .switch-test').evaluate('(e)=>e.open=true')
         page.locator('[data-switch-id="1"]').get_by_role('button',name='TEST TAP',exact=True).click()
         deadline=time.monotonic()+3
         before=api.call()

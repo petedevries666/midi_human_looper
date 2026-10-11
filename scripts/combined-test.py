@@ -57,6 +57,7 @@ try:
             run([sys.executable,'tests/test_product_browser.py'])
             run([sys.executable,'tests/test_web_parity_browser.py'])
             run([sys.executable,'tests/test_tactile_browser.py'])
+            run([sys.executable,'tests/test_performance_density.py'])
             run([sys.executable,'tests/test_phrase_midi_browser.py'])
     print('PASS selected combined regression suite',flush=True)
 except (RuntimeError,subprocess.TimeoutExpired,KeyboardInterrupt) as error:

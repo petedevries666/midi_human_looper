@@ -114,3 +114,5 @@ button.icon-only{width:28px;min-width:28px;padding:3px;display:inline-grid;place
 .phrase .editable-name{height:auto;line-height:12px;overflow-wrap:anywhere}
 
 .phrase button.phrase-alert{width:max-content;max-width:100%}
+/* END must not shrink into the narrow phrase-number column on small screens. */
+@media(max-width:700px){.phrase button[aria-label="FINISH REC"]{grid-column:span 2;width:32px}}

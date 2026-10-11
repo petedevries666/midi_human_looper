@@ -50,11 +50,12 @@ not a release candidate or an instruction to deploy unreviewed code.
 
 ## Exact next implementation steps
 
-1. Add a dedicated content-only CLEAR operation. Do not call `clear_layer`, which
-   also resets mute, solo and base velocity. Use selective phrase note ownership
-   for live clearing; otherwise reject while playing/recording with an explicit
-   finish/stop requirement. Add confirmation in phrase options, persistence and
-   exported-empty-SMF tests, and the required real browser screenshots.
+1. CLEAR is implemented as a content-only, revision-checked maintenance operation
+   with confirmation in phrase options. It preserves names, parameters and other
+   phrases. Playback, held notes, recording and armed recording reject CLEAR;
+   explicitly STOP/PANIC and FINISH recording first. Live selective clearing
+   remains deferred until phrase-selective loop ownership is proven. API/browser
+   tests cover rejection, cancellation, empty export and SAVE/LOAD restoration.
 2. Adapt shared HOLD press/release to native ChainMode and its command mailbox.
    Validate phrase-selective cleanup for both loop and voice-pool ownership,
    including sustain and repeated pitches. Then enable browser pointer/keyboard
@@ -66,7 +67,8 @@ not a release candidate or an instruction to deploy unreviewed code.
 4. Run the complete combined suite on the finished stack and physical acceptance
    checklist. No automatic deployment or merge.
 
-CLEAR, native HOLD and the one-command updater are not implemented by this slice.
+Native HOLD and the one-command updater are not implemented by this slice.
+CLEAR is available in phrase options and requires a stopped, disarmed processor.
 
 ## Physical recording acceptance after review
 

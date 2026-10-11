@@ -320,6 +320,12 @@ function phraseOptions(phraseId){
       const url=URL.createObjectURL(await response.blob()),link=node('a');link.href=url;link.download=`mbmf-phrase-${String(phraseId).padStart(2,'0')}.mid`;link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
     }catch(e){error.textContent=e.message;}
   }));
+  content.append(button('CLEAR MIDI',async()=>{
+    if(committing||!confirm(`Clear MIDI content of Phrase ${phraseId}? Settings are preserved. STOP playback and finish recording first.`))return;
+    committing=true;
+    try{if(await command({action:'phrase_clear',phraseId}))dialog.close();else error.textContent='Stop playback and finish recording before clearing MIDI.';}
+    finally{committing=false;}
+  }));
   const preview=node('div');content.append(preview,error,button('CANCEL',dismiss));
   file.onchange=async()=>{
     preview.replaceChildren();error.textContent='';

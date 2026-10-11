@@ -899,7 +899,7 @@ static void control(int listener, Queue<Request, 64> &commands,
       }
       if(input>>extra)valid=false;
     } else if (valid && request.op == 35) {
-      valid = request.target >= 0 && request.target < 16 && request.arg <= 1;
+      valid = request.target >= 0 && request.target < 16 && request.arg >= 0 && request.arg <= 2;
       if (valid && request.arg == 1) {
         double duration=0; unsigned count=0;
         valid = bool(input >> duration >> count) && std::isfinite(duration) &&
@@ -1060,7 +1060,15 @@ static void control(int listener, Queue<Request, 64> &commands,
           const unsigned countBase=unsigned(variable(patch.fx,"COUNT_BASE"));
           const unsigned lengthBase=unsigned(variable(patch.fx,"LEN_BASE"));
           const double rate=reply.state.sampleRate;
-          if (request.arg == 1) {
+          if (request.arg == 2) {
+            // Content only: keep phrase identity, mode, names and all parameters.
+            *patch.memory[countBase+selected]=0;
+            *patch.memory[lengthBase+selected]=0;
+            for(const char* name : {"TRIG_BASE","HOLD_ACTIVE_BASE","ONCEPOS_BASE"})
+              *NSEEL_VM_getramptr(patch.fx->vm.get(),unsigned(variable(patch.fx,name))+selected,nullptr)=0;
+            paused.store(false,std::memory_order_release);
+            send_line(fd,json(reply),shutdown);
+          } else if (request.arg == 1) {
             double duration=std::max(std::ceil(patchValues[0]*rate),std::round(patchValues[patchValues.size()-4]*rate)+1);
             if (reply.state.chain && (duration>reply.state.chainLength ||
                 std::round(patchValues[patchValues.size()-4]*rate)>=reply.state.chainLength)) reply.status=3;
@@ -1391,7 +1399,8 @@ int main(int argc, char **argv) {
       importLiveSustain[j]=cell(fx,unsigned(variable(fx,"SW_LIVE_SUSTAIN_BASE"))+j);
     }
     for(unsigned j=0;j<12;++j) importVoices[j]=cell(fx,unsigned(variable(fx,"VOICE_ACTIVE_BASE"))+j);
-    const double importRecording=variable(fx,"STATE_RECORDING"), importPlaying=variable(fx,"STATE_PLAYING");
+    const double importRecording=variable(fx,"STATE_RECORDING"), importPlaying=variable(fx,"STATE_PLAYING"), importReady=variable(fx,"STATE_READY");
+    auto importArmed=ysfx_find_var(fx,"overdub_armed");
     controller::Host controllers;
     const double phraseLearnBase = variable(fx, "SW_COUNT") + variable(fx, "CONTROLLERS");
     auto matchesLegacy = [&](int kind, int ch, int num, double skip) {
@@ -1928,11 +1937,12 @@ int main(int argc, char **argv) {
           // Transactional interchange: stopped processor only. No parsing, copying
           // event vectors or filesystem work occurs in the real-time callback.
           if (chain.recording || chain.armed || *importOverdub>.5 ||
+              (request.arg==2 && (*importState==importReady || *importArmed>.5)) ||
               *importState==importRecording ||
-              (request.arg==1 && (chain.run ||
+              (request.arg!=0 && (state.active>0 || chain.run ||
                *importState==importPlaying ||
                std::any_of(importVoices.begin(),importVoices.end(),[](double* p){return *p>.5;})))) reply.status=3;
-          else { maintenance=true; if(request.arg==1) ++state.revision; }
+          else { maintenance=true; if(request.arg!=0) ++state.revision; }
         }
         else if (request.op == 4 || request.op == 5) {
           // Portable activation/capture must never stop a running performance.

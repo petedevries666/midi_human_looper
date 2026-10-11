@@ -101,7 +101,10 @@ physical sustain pedal separately because sustain affects the whole channel.
 
 ## Verification recorded for this slice
 
-- Combined native/software/Chromium suite passed: 5,969 shared EEL/GUI/MIDI
+- Full combined suite passed on implementation commit `1d460c4`:
+  `python3 scripts/combined-test.py --native --jack --browser chromium --timeout 240`.
+  The desktop JACK tests used `CHAIN_JACK_BLOCK=8192`; this is a functional
+  cloud test, not a qualification of low-latency hardware performance. Results: 5,969 shared EEL/GUI/MIDI
   checks, 41 portable MIDI parity checks, Controller core and sanitized host
   checks, project rollback/restart, SMF interchange and browser workflows.
 - Focused gesture harness: 153 checks, including rate/buffer combinations.

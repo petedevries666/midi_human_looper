@@ -2931,7 +2931,10 @@ while (
       // Only a truly empty phrase can enter destructive first-take recording.
       clear_layer(record_layer);
       state=STATE_RECORDING;
-      record_sample_pos=0;
+      // One capture origin for the entire take, including the rest of this
+      // block. The first event is stored at zero; later events retain their
+      // distance from it rather than their distance from the block boundary.
+      record_sample_pos=-offset;
       store_event(record_layer,0,msg1,d1,d2,offset);
     ) :
     state==STATE_READY && layer_count(record_layer)>0 ? (

@@ -1,5 +1,9 @@
 # Native chain timing v2
 
+This describes the optional two-bar adapter. The recovery draft defaults native
+recording to the shared first-note/free-time path; see
+[free-time recovery](free-time-recording-recovery.md). Existing saved data is preserved.
+
 Dependency: #30 → #34 → #37 → #38 → this correction. No prerequisite merge is
 required to review the stacked implementation.
 

@@ -102,7 +102,7 @@ struct Snapshot {
   int revision = 1;
   unsigned pendingOutput = 0;
   unsigned chainTimingVersion=1;
-  bool chain = false, chainRun = false, chainArmed = false, chainRecord = false,
+  bool chain = false, chainGridCapture = false, chainRun = false, chainArmed = false, chainRecord = false,
        chainError = false;
   uint64_t chainFrame = 0, chainLength = 0;
   double chainBpm = 120;
@@ -543,6 +543,7 @@ static std::string json(const Reply &r) {
     << ",\"buildRevision\":" << quote(MBMF_BUILD_REVISION)
     << ",\"chainFrameGap\":" << s.chainFrameGap << ",\"chainClockGap\":" << s.chainClockGap
     << ",\"chainTimingVersion\":" << s.chainTimingVersion
+    << ",\"chainCaptureMode\":" << quote(s.chainGridCapture?"two-bar-grid":"free-time")
     << ",\"chainMode\":" << s.chain << ",\"chainRunning\":" << s.chainRun
     << ",\"chainArmed\":" << s.chainArmed
     << ",\"chainRecording\":" << s.chainRecord
@@ -1071,9 +1072,9 @@ static void control(int listener, Queue<Request, 64> &commands,
             send_line(fd,json(reply),shutdown);
           } else if (request.arg == 1) {
             double duration=std::max(std::ceil(patchValues[0]*rate),std::round(patchValues[patchValues.size()-4]*rate)+1);
-            if (reply.state.chain && (duration>reply.state.chainLength ||
+            if (reply.state.chainGridCapture && (duration>reply.state.chainLength ||
                 std::round(patchValues[patchValues.size()-4]*rate)>=reply.state.chainLength)) reply.status=3;
-            if (!reply.state.chain && *patch.memory[unsigned(variable(patch.fx,"MODE_BASE"))+selected]<.5 &&
+            if (!reply.state.chainGridCapture && *patch.memory[unsigned(variable(patch.fx,"MODE_BASE"))+selected]<.5 &&
                 *patch.globals[0]>0 && duration>*patch.globals[0]) reply.status=3;
             if (!reply.status) {
               for (unsigned j=0;j<(patchValues.size()-1)/4;++j) {
@@ -1082,8 +1083,8 @@ static void control(int listener, Queue<Request, 64> &commands,
                 *patch.memory[base+j*5+4]=0;
               }
               *patch.memory[countBase+selected]=(patchValues.size()-1)/4;
-              *patch.memory[lengthBase+selected]=reply.state.chain?reply.state.chainLength:duration;
-              if(reply.state.chain) *patch.memory[unsigned(variable(patch.fx,"MODE_BASE"))+selected]=0;
+              *patch.memory[lengthBase+selected]=reply.state.chainGridCapture?reply.state.chainLength:duration;
+              if(reply.state.chainGridCapture) *patch.memory[unsigned(variable(patch.fx,"MODE_BASE"))+selected]=0;
               if (*patch.globals[0]<=0) { *patch.globals[0]=duration; *patch.globals[1]=1; }
             }
             paused.store(false,std::memory_order_release);
@@ -1132,7 +1133,7 @@ static void control(int listener, Queue<Request, 64> &commands,
           paused.store(false, std::memory_order_release);
           send_line(fd, document, shutdown);
         } else {
-          if (reply.status == 0 && request.op == 5 && reply.state.chain &&
+          if (reply.status == 0 && request.op == 5 && reply.state.chainGridCapture &&
               patchValues[0] != double(reply.state.chainLength))
             reply.status = 3;
           if (reply.status == 0 && request.op == 5) {
@@ -1198,7 +1199,7 @@ int main(int argc, char **argv) {
                  "[--demo] [--input JACK_PORT] [--output JACK_PORT]\n";
     return 2;
   }
-  bool useJack = false, demo = false, chainMode = false;
+  bool useJack = false, demo = false, chainMode = false, chainGridCapture = false;
   unsigned chainTimingVersion=1;
   std::string clientName = "midi_human_looper";
   std::string inputPort, outputPort;
@@ -1210,6 +1211,8 @@ int main(int argc, char **argv) {
       chainTimingVersion=std::stoul(argv[++i]);
     else if (a == "--chain")
       chainMode = true;
+    else if (a == "--chain-grid-capture")
+      chainGridCapture = true;
     else if (a == "--client" && i + 1 < argc) {
       clientName = argv[++i];
       if (clientName.empty() || clientName.size() > 48 ||
@@ -1273,7 +1276,7 @@ int main(int argc, char **argv) {
                   "mem[engine_addr(INST_ENABLED_BASE,remote_ci)]=remote_ci==0;"
                   "remote_ci+=1;);mem[engine_addr(INST_IN_BASE,0)]=0;mem["
                   "engine_addr(INST_OUT_BASE,0)]=0;");
-    ChainMode chain(fx, chainMode, chainTimingVersion);
+    ChainMode chain(fx, chainMode, chainTimingVersion, chainGridCapture);
     if (demo)
       execute(
           fx,
@@ -2517,6 +2520,7 @@ int main(int argc, char **argv) {
             NSEEL_code_execute(panic_bridge);
         }
         state.chain = true;
+        state.chainGridCapture=chainGridCapture;
         state.chainTimingVersion=chainTimingVersion;
         state.chainRun = chain.run;
         state.chainArmed = chain.armed;
@@ -2572,6 +2576,12 @@ int main(int argc, char **argv) {
       if (chainMode && outBuffer && *panicPending > .5)
         cleanupChain();
       ysfx_process_float(fx, nullptr, nullptr, 0, 0, frames);
+      if(chainMode && !chain.gridCapture) {
+        chain.observe();
+        state.chainRun=chain.run;state.chainArmed=chain.armed;
+        state.chainRecord=chain.recording;state.chainError=chain.error;
+        state.chainLength=chain.length;
+      }
       for (unsigned j = 0; j < performanceTargetCount; ++j) {
         auto &p = (*performanceTargets)[j];
         if (p.legacyCurve >= 0 && p.legacyCurve < 232 &&

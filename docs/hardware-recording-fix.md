@@ -1,5 +1,9 @@
 # Hardware recording follow-up
 
+This describes the optional two-bar adapter. The recovery draft defaults native
+recording to the shared first-note/free-time path; see
+[free-time recovery](free-time-recording-recovery.md). Existing saved data is preserved.
+
 Branch `fix/native-recording-origin` is stacked on PR #48 (`92a3416`), which
 requires #47 and #44. It does not merge PR #45: that PR explicitly rejects
 native-chain gesture playback and introduces schema-8 policies. Reusing its

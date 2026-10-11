@@ -39,7 +39,7 @@ def read(path):
 def executable(project,state):
     patch=portable.materialize(project,state['sampleRate'])
     adopted=False
-    if state.get('chainMode'):
+    if state.get('chainMode') and state.get('chainCaptureMode','two-bar-grid')=='two-bar-grid':
         # Empty studio patches have no loop duration yet. The existing native
         # transport owns that grid; adopting it cannot move or truncate notes.
         if patch['globals'][0]==0 and not any(patch['memory'][portable.COUNT:portable.COUNT+portable.LAYERS]):

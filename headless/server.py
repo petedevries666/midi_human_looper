@@ -260,8 +260,9 @@ class Handler(BaseHTTPRequestHandler):
             raw=base64.b64decode(data['file'],validate=True)
             parsed=read_smf(raw)
             state=self.server.control.request()
-            capacity=state.get('chainLength',0)/state['sampleRate'] if state.get('chainMode') else 3600
-            if parsed['lengthSeconds']>capacity or (state.get('chainMode') and max(e[0] for e in parsed['events'])>=capacity):
+            grid=state.get('chainMode') and state.get('chainCaptureMode','two-bar-grid')=='two-bar-grid'
+            capacity=state.get('chainLength',0)/state['sampleRate'] if grid else 3600
+            if parsed['lengthSeconds']>capacity or (grid and max(e[0] for e in parsed['events'])>=capacity):
                 raise ValueError('File exceeds phrase capacity; replacement cancelled. Shorten the source MIDI explicitly.')
             if mode=='preview':
                 self.respond(200,{k:v for k,v in parsed.items() if k!='events'});return

@@ -52,13 +52,22 @@ with tempfile.TemporaryDirectory(prefix='mbh-dedicated-') as temp:
             state=control.request()
             response=control.request(op=40,target=0,arg=action,revision=state['revision'],session=state['engineSessionId'])
             assert response['status']=='ok',response
+        def mode(value):
+            state=control.request()
+            response=control.request(op=32,target=1,arg=20,macro=[0,value],revision=state['revision'],session=state['engineSessionId'])
+            assert response['status']=='ok',response
+            wait(lambda:control.request()['phrases'][0]['mode']==value,'mode update was not applied')
         probe=subprocess.Popen([os.environ.get('CHAIN_JACK_PROBE','/tmp/mbh-chain-probe')],
             stdin=subprocess.PIPE,stdout=subprocess.PIPE,text=True,env={**os.environ,'CHAIN_FANOUT':'1'})
         assert probe.stdout.readline().strip()=='READY','fanout probe failed to connect'
         def send(value):probe.stdin.write(str(value)+'\n');probe.stdin.flush()
-        send(7);command(2)
+        assert control.request()['chainCaptureMode']=='free-time'
+        mode(0);send(7);command(2)
         wait(lambda:control.request()['chainRecording']==1,'shared recording did not start')
-        wait(lambda:control.request()['chainRecording']==0,'shared recording did not finish')
+        # The source releases at 512 ms; FINISH is an explicit performance edge,
+        # never automatic expiration of the former two-bar recording window.
+        time.sleep(1);command(3)
+        wait(lambda:control.request()['chainRecording']==0,'manual free recording did not finish')
         send(0)
         state=control.request()
         assert state['chainError']==0,state
@@ -66,13 +75,10 @@ with tempfile.TemporaryDirectory(prefix='mbh-dedicated-') as temp:
         # Existing source-phrase export API, not transformed MIDI output.
         notes=control.request(op=35,target=0,arg=0,revision=state['revision'],session=state['engineSessionId'])['phraseData']
         assert {event[1]&15 for event in notes['events']}=={0,1,2},notes
+        assert notes['events'][0][0]==0 and notes['lengthSeconds']<2,notes
+        command(1)
         time.sleep(4.2) # One full recorded playback cycle without physical input.
         command(0) # Bounded chain STOP cleanup to every connected receiver.
-        def mode(value):
-            state=control.request()
-            response=control.request(op=32,target=1,arg=20,macro=[0,value],revision=state['revision'],session=state['engineSessionId'])
-            assert response['status']=='ok',response
-            wait(lambda:control.request()['phrases'][0]['mode']==value,'mode update was not applied')
         mode(1)
         before=control.request()['midiCount'];command(1);time.sleep(4.4)
         once=control.request()

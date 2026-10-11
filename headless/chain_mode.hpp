@@ -1,5 +1,5 @@
-// Opt-in Zynthian chain transport. Existing free-time REAPER/standalone
-// behavior is untouched.
+// Native chain lifecycle. Free-time shared capture is the default; the legacy
+// synchronized two-bar adapter remains an explicit opt-in.
 #pragma once
 #include "ysfx.hpp"
 #include <cmath>
@@ -8,17 +8,21 @@ struct ChainMode {
   bool enabled, run = false, armed = false, recording = false, error = false;
   int phrase = 0;
   const unsigned timingVersion;
+  const bool gridCapture;
   uint64_t length = 0, end = 0, previous = 0, previousClock = 0;
   double bpm = 120;
   int64_t lastFrameGap = 0, lastClockGap = 0;
   EEL_F *phase, *duration, *target, *tempoVar, *runVar, *bad, *overdub,
       *overdubPos, *captureActive, *captureStart, *captureEnd;
   NSEEL_CODEHANDLE align, begin, finish, play, holdPress, holdRelease;
+  NSEEL_CODEHANDLE freeArm, freeFinish, freePlay;
+  EEL_F *musicalState, *recordPosition, *overdubArmed, *captureNormalize, *loopLength;
+  EEL_F* voiceActive[24]{};
   EEL_F* holdAccepted;
   EEL_F* phraseModes[16]{};
   ysfx_t *fx;
-  ChainMode(ysfx_t *f, bool active, unsigned version=1)
-      : enabled(active), timingVersion(version), fx(f) {
+  ChainMode(ysfx_t *f, bool active, unsigned version=1, bool grid=false)
+      : enabled(active), timingVersion(version), gridCapture(grid), fx(f) {
     if (version!=1 && version!=2) throw std::runtime_error("unsupported chain timing version");
     if (active)
       for (unsigned i = 0; i < 4096; ++i)
@@ -40,6 +44,18 @@ struct ChainMode {
     bad = NSEEL_VM_regvar(f->vm.get(), "chain_bad");
     overdub = ysfx_find_var(f, "overdub_active");
     overdubPos = ysfx_find_var(f, "overdub_pos");
+    musicalState=ysfx_find_var(f,"state");
+    recordPosition=ysfx_find_var(f,"record_sample_pos");
+    overdubArmed=ysfx_find_var(f,"overdub_armed");
+    captureNormalize=NSEEL_VM_regvar(f->vm.get(),"chain_capture_normalize");
+    loopLength=ysfx_find_var(f,"loop_len_samples");
+    const unsigned voiceBase=unsigned(*ysfx_find_var(f,"VOICE_ACTIVE_BASE"));
+    for(unsigned i=0;i<24;++i)voiceActive[i]=NSEEL_VM_getramptr(f->vm.get(),voiceBase+i,nullptr);
+    freeArm=compile("select_phrase_record(chain_target);");
+    freeFinish=compile("finish_phrase_record();overdub_active=0;overdub_armed=0;overdub_wait_note=0;");
+    freePlay=compile("mem[MODE_BASE+chain_target]<.5?"
+        "(layer_count(chain_target)>0?(mem[TRIG_BASE+chain_target]=1;state=STATE_PLAYING;play_sample_pos=0;);):"
+        "(trigger_request=chain_target;process_phrase_trigger(0,1););");
     align = compile(
         "loop_len_samples=chain_duration;slider6=chain_bpm;play_sample_pos="
         "chain_phase;state=chain_running?STATE_PLAYING:STATE_STOPPED;");
@@ -80,8 +96,35 @@ struct ChainMode {
     NSEEL_code_free(begin);
     NSEEL_code_free(finish);
     NSEEL_code_free(play);NSEEL_code_free(holdPress);NSEEL_code_free(holdRelease);
+    NSEEL_code_free(freeArm);NSEEL_code_free(freeFinish);NSEEL_code_free(freePlay);
+  }
+  void observe() {
+    if(gridCapture)return;
+    recording=*musicalState==2 || *overdub>.5;
+    armed=*musicalState==1 || *overdubArmed>.5;
+    run=*musicalState==3;
+    for(unsigned i=0;i<24;++i)run=run || *voiceActive[i]>.5;
+    length=uint64_t(std::max(0.,*loopLength));
+  }
+  void finishFree() {
+    // Reuse the bounded native pairing check only for a new take. Existing
+    // overdubs keep the shared JSFX lifecycle and their original source data.
+    if(*musicalState==2) {
+      *duration=std::max(1.,*recordPosition);
+      *captureNormalize=0;
+      NSEEL_code_execute(finish);
+      error=*bad>.5;
+    }
+    NSEEL_code_execute(freeFinish);
+    observe();
   }
   void cancel() {
+    if(!gridCapture) {
+      finishFree();
+      *musicalState=4; // STATE_STOPPED: caller performs existing owned-note PANIC
+      armed=recording=run=false;
+      return;
+    }
     if (recording)
       NSEEL_code_execute(finish);
     armed = recording = run = false;
@@ -89,6 +132,27 @@ struct ChainMode {
   }
   bool command(int action, int selected) {
     if(selected<0 || selected>=16 || action<0 || action>4)return false;
+    if(!gridCapture) {
+      observe();
+      if((recording || armed) && selected!=phrase && action!=0 && action!=4)return false;
+      if(action!=4){phrase=selected;*target=selected;}
+      if(action==0)cancel();
+      if(action==2){error=false;NSEEL_code_execute(freeArm);}
+      if(action==3)finishFree();
+      if(action==1){
+        if(recording || armed)finishFree();
+        if(*phraseModes[selected]>=1.5){
+          NSEEL_code_execute(holdPress);
+          if(*holdAccepted<.5)return false;
+        }else NSEEL_code_execute(freePlay);
+      }
+      if(action==4){
+        *target=selected;NSEEL_code_execute(holdRelease);*target=phrase;
+        if(*holdAccepted<.5)return false;
+      }
+      observe();
+      return true;
+    }
     if ((recording || armed) && selected != phrase && action != 0 && action != 4) return false;
     if(action==4 || (action==1 && *phraseModes[selected]>=1.5)) {
       if(action==1){if(recording)NSEEL_code_execute(finish);recording=armed=false;phrase=selected;}
@@ -134,6 +198,25 @@ struct ChainMode {
             double tempo, uint64_t clock = 0) {
     if (!enabled)
       return false;
+    if(!gridCapture) {
+      observe();
+      // Free takes use the shared sample counter, never the transport phase
+      // or BPM. Preserve the interruption guard; do not conceal missing blocks.
+      bpm=tempo; // ARP may follow host tempo; recorded source time never does.
+      const bool gap=previous && frame!=previous;
+      const bool missed=gap && clock && frame-previous==clock-previousClock;
+      const bool interrupted=previous && (!rolling || (gap && (!missed || recording || run)));
+      if(interrupted) {
+        lastFrameGap=int64_t(frame)-int64_t(previous);
+        lastClockGap=int64_t(clock)-int64_t(previousClock);
+        const bool wasRecording=recording;
+        cancel();
+        error=missed && wasRecording;
+      }
+      previous=rolling?frame+frames:0;
+      previousClock=clock?clock+frames:0;
+      return interrupted;
+    }
     bool failed = false;
     uint64_t proposed = timingVersion==1
         ? uint64_t(std::llround(rate * 480.0 / tempo / frames))*frames

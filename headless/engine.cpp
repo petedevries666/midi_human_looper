@@ -92,6 +92,8 @@ struct Instrument {
   bool serialPitch = false;
 };
 struct Phrase {
+  bool noRetrigger=false;
+  int playbackPolicy=0, playbackError=0;
   int events = 0, mode = 0;
   double time = 1, velocityDecay = .8, baseVelocity = 1;
   int mute = 0, solo = 0, triggerNote = -1, triggerChannel = 0;
@@ -171,7 +173,7 @@ struct Model {
   mutable std::atomic<bool> abRestorePending{false};
   std::array<std::array<double *, 26>, 16> sw;
   std::array<std::array<double *, 22>, 8> inst;
-  std::array<std::array<double *, 10>, 16> phrase;
+  std::array<std::array<double *, 12>, 16> phrase;
   std::array<double *, 8> tfCount, levelAssignment, levelPending;
   std::array<std::array<double *, 6>, 8> tfCodes;
   std::array<std::array<double *, 12>, 8> tfIds, tfTypes;
@@ -286,6 +288,8 @@ struct Model {
       sw[i][24] = cell(fx, rt + 7);
       sw[i][25] = cell(fx, rt + 12);
       phrase[i][8] = cell(fx, unsigned(variable(fx, "PHRASE_NOTE_BASE")) + i);
+      phrase[i][10]=cell(fx,unsigned(variable(fx,"PH_POLICY_BASE"))+i);
+      phrase[i][11]=cell(fx,unsigned(variable(fx,"PH_ERROR_BASE"))+i);
       phrase[i][9] = cell(fx, unsigned(variable(fx, "SW_CFG_BASE")) + 1 + (i / 4) * 128 + 27 + i % 4);
       phrase[i][3] = cell(fx, unsigned(variable(fx, "DECAY_BASE")) + i);
       const char *extra[] = {"VEL_BASE", "MUTE_BASE", "SOLO_BASE", "MODE_BASE"};
@@ -370,6 +374,7 @@ struct Model {
     for (unsigned i = 0; i < 16; ++i) {
       add(i + 1, 0, 14, *phrase[i][2], false);
       add(i + 1, 0, 15, *phrase[i][3], false);
+      add(i + 1, 0, 25, *phrase[i][10], false);
       for (unsigned j = 0; j < 4; ++j)
         add(i + 1, 0, 17 + j, *phrase[i][4 + j], false);
     }
@@ -380,7 +385,7 @@ struct Model {
     if (performance::phraseKind(b.kind)) {
       i = b.instrument - 1;
       code = -1;
-      row = b.kind == 14 ? 2 : b.kind == 15 ? 3 : b.kind - 13;
+      row = b.kind == 25 ? 10 : b.kind == 14 ? 2 : b.kind == 15 ? 3 : b.kind - 13;
       return i < 16 && !b.module;
     }
     for (i = 0; i < 8; ++i)
@@ -469,6 +474,9 @@ struct Model {
         v.name[j] = char(*sw[i][8 + j]);
       s.phrases[i].events = int(*phrase[i][0]);
       s.phrases[i].mode = int(*phrase[i][1]);
+      s.phrases[i].playbackPolicy=int(*phrase[i][10]);
+      s.phrases[i].noRetrigger=*phrase[i][10]==1;
+      s.phrases[i].playbackError=int(*phrase[i][11]);
       s.phrases[i].time = *phrase[i][2];
       s.phrases[i].velocityDecay = *phrase[i][3];
       s.phrases[i].baseVelocity = *phrase[i][4];
@@ -529,7 +537,7 @@ static std::string json(const Reply &r) {
   auto &s = r.state;
   std::ostringstream o;
   const char *status[] = {"ok", "conflict", "unknown_target", "invalid"};
-  o << "{\"protocolVersion\":1,\"schemaVersion\":7,\"revision\":" << s.revision
+  o << "{\"protocolVersion\":1,\"schemaVersion\":8,\"revision\":" << s.revision
     << ","
        "\"requestId\":"
     << r.id << ",\"engineSessionId\":" << engineSession
@@ -598,6 +606,9 @@ static std::string json(const Reply &r) {
       o << ',';
     o << "{\"id\":" << i + 1 << ",\"events\":" << s.phrases[i].events
       << ",\"mode\":" << s.phrases[i].mode
+      << ",\"noRetrigger\":" << (s.phrases[i].noRetrigger?"true":"false")
+      << ",\"playbackPolicy\":" << s.phrases[i].playbackPolicy
+      << ",\"playbackError\":" << s.phrases[i].playbackError
       << ",\"timeDecay\":" << s.phrases[i].time
       << ",\"velocityDecay\":" << s.phrases[i].velocityDecay
       << ",\"baseVelocity\":" << s.phrases[i].baseVelocity
@@ -694,8 +705,8 @@ static bool send_line(int fd, const std::string &s,
 struct PatchModel {
   std::vector<double *> memory;
   std::array<double *, 9> globals;
-  std::array<unsigned, 8> sizes{};
-  std::array<unsigned, 6> markers{};
+  std::array<unsigned, 9> sizes{};
+  std::array<unsigned, 7> markers{};
   std::vector<double> snapshot, guardedSnapshot;
   bool guardedReady = false;
   ysfx_t *fx;
@@ -703,13 +714,13 @@ struct PatchModel {
     const char *sizeNames[] = {"WORK_MEM_SIZE",     "SW_LEGACY_PAYLOAD",
                                "CC_LEGACY_PAYLOAD", "TF_LEGACY_PAYLOAD",
                                "DS_LEGACY_PAYLOAD", "I_LEGACY_PAYLOAD",
-                               "PATCH_PAYLOAD_SIZE"};
-    for (unsigned i = 0; i < 7; ++i)
+                               "PH_LEGACY_PAYLOAD", "PATCH_PAYLOAD_SIZE"};
+    for (unsigned i = 0; i < 8; ++i)
       sizes[i + 1] = unsigned(variable(f, sizeNames[i]));
     const char *markerNames[] = {"WORK_MEM_SIZE",     "SW_LEGACY_PAYLOAD",
                                  "CC_LEGACY_PAYLOAD", "TF_LEGACY_PAYLOAD",
-                                 "DS_LEGACY_PAYLOAD", "I_LEGACY_PAYLOAD"};
-    for (unsigned i = 0; i < 6; ++i)
+                                 "DS_LEGACY_PAYLOAD", "I_LEGACY_PAYLOAD", "PH_LEGACY_PAYLOAD"};
+    for (unsigned i = 0; i < 7; ++i)
       markers[i] = unsigned(variable(f, markerNames[i]));
     auto j = NSEEL_VM_regvar(f->vm.get(), "remote_j"),
          addr = NSEEL_VM_regvar(f->vm.get(), "remote_address");
@@ -717,10 +728,10 @@ struct PatchModel {
                                    "remote_address=payload_addr(remote_j);", 0);
     if (!code)
       throw std::runtime_error("patch bridge");
-    memory.reserve(sizes[7]);
-    snapshot.resize(sizes[7] + 9);
-    guardedSnapshot.resize(sizes[7] + 9);
-    for (unsigned i = 0; i < sizes[7]; ++i) {
+    memory.reserve(sizes[8]);
+    snapshot.resize(sizes[8] + 9);
+    guardedSnapshot.resize(sizes[8] + 9);
+    for (unsigned i = 0; i < sizes[8]; ++i) {
       *j = i;
       NSEEL_code_execute(code);
       memory.push_back(cell(f, unsigned(*addr)));
@@ -733,7 +744,7 @@ struct PatchModel {
       globals[i] = ysfx_find_var(f, names[i]);
   }
   bool validate(unsigned schema, const std::vector<double> &v) const {
-    if (schema < 1 || schema > 7 || v.size() < 10)
+    if (schema < 1 || schema > 8 || v.size() < 10)
       return false;
     unsigned n = unsigned(v.size() - 9);
     if (schema == 1 ? (n == 0 || n > sizes[1]) : n != sizes[schema])
@@ -744,6 +755,10 @@ struct PatchModel {
     for (unsigned i = 0; i + 1 < schema; ++i)
       if (v[9 + markers[i]] != double(i + 2))
         return false;
+    if (schema == 8)
+      for (unsigned i = 1; i <= 16; ++i)
+        if (v[9 + markers[6] + i] < 0 || v[9 + markers[6] + i] > 2 || v[9 + markers[6] + i] != std::floor(v[9 + markers[6] + i]))
+          return false;
     return v[0] >= 0 && v[0] <= 48000.0 * 3600 && v[8] >= 0 && v[8] < 16;
   }
   bool unchanged() const {
@@ -784,7 +799,7 @@ struct PatchModel {
     paused.store(false, std::memory_order_release);
     std::ostringstream o;
     o << std::setprecision(17)
-      << "{\"format\":\"MIDI_HUMAN_LOOPER_PATCH\",\"schema\":7,\"work_mem_"
+      << "{\"format\":\"MIDI_HUMAN_LOOPER_PATCH\",\"schema\":8,\"work_mem_"
          "size\":"
       << memory.size() << ",\"globals\":[";
     for (unsigned i = 0; i < 9; ++i) {
@@ -803,7 +818,7 @@ struct PatchModel {
     return o.str();
   }
   void load(unsigned schema, const std::vector<double> &v) {
-    execute(fx, "reset_note_runtime();cancel_patch_editors();i_defaults();"
+    execute(fx, "reset_note_runtime();cancel_patch_editors();ph_defaults();i_defaults();"
                 "param_extension_reset();param_runtime_reset();sw_defaults();"
                 "sw_runtime_reset();cc_defaults();cc_runtime_reset();tf_"
                 "defaults();tf_runtime_reset();");
@@ -866,7 +881,7 @@ static void control(int listener, Queue<Request, 64> &commands,
                  request.op >= 0 && (request.op <= 35 || request.op == 40) && request.arg >= 0 &&
                  request.arg <= (request.op == 13   ? 5
                                  : request.op == 15 || request.op == 34 || request.op == 40 ? 3
-                                 : request.op == 32 ? 24
+                                 : request.op == 32 ? 25
                                                     : 2) &&
                  request.ch >= 0 &&
                  (request.op == 11 ? request.ch <= 16 : request.ch < 16) &&
@@ -972,7 +987,7 @@ static void control(int listener, Queue<Request, 64> &commands,
           unsigned kind = 0, included = 0;
           valid = performance::integer(input, v.key.instrument, 16777215) &&
                   performance::integer(input, v.key.module, 16777215) &&
-                  performance::integer(input, kind, 24) &&
+                  performance::integer(input, kind, 25) &&
                   performance::integer(input, included, 1);
           v.key.kind = kind;
           v.included = included;
@@ -1237,10 +1252,10 @@ int main(int argc, char **argv) {
     ysfx_set_block_size(fx, blockSize);
     ysfx_set_midi_capacity(fx, 65536, false);
     ysfx_init(fx);
-    if (variable(fx, "IO_SCHEMA") != 7)
-      throw std::runtime_error("spike requires audited schema 7");
+    if (variable(fx, "IO_SCHEMA") != 8)
+      throw std::runtime_error("host requires audited schema 8");
     if (chainMode)
-      execute(fx, "ext_noinit=1;gmem[0]=0;slider9=1;remote_ci=0;loop(INST_CAP,"
+      execute(fx, "ext_noinit=1;gmem[0]=0;slider9=1;phrase_policy_supported=0;remote_ci=0;loop(INST_CAP,"
                   "mem[engine_addr(INST_ENABLED_BASE,remote_ci)]=remote_ci==0;"
                   "remote_ci+=1;);mem[engine_addr(INST_IN_BASE,0)]=0;mem["
                   "engine_addr(INST_OUT_BASE,0)]=0;");
@@ -1296,13 +1311,15 @@ int main(int argc, char **argv) {
     auto phraseTarget = NSEEL_VM_regvar(fx->vm.get(), "remote_phrase");
     auto phrasePlay = NSEEL_code_compile(
         fx->vm.get(),
-        "trigger_request=remote_phrase;process_phrase_trigger(0,0);", 0);
+        "trigger_request=remote_phrase;", 0);
+    auto phraseRelease = NSEEL_code_compile(fx->vm.get(),
+        "mem[MODE_BASE+remote_phrase]==1 && mem[PH_POLICY_BASE+remote_phrase]==2?hold_stop_request=remote_phrase;",0);
     auto phraseRecord = NSEEL_code_compile(
         fx->vm.get(), "select_phrase_record(remote_phrase);", 0);
     auto phraseStop = NSEEL_code_compile(
         fx->vm.get(),
         "finish_phrase_record();overdub_armed=0;overdub_active=0;", 0);
-    if (!phrasePlay || !phraseRecord || !phraseStop)
+    if (!phrasePlay || !phraseRelease || !phraseRecord || !phraseStop)
       throw std::runtime_error("phrase bridge compilation");
     auto editI = NSEEL_VM_regvar(fx->vm.get(), "remote_edit_i"),
          editCode = NSEEL_VM_regvar(fx->vm.get(), "remote_edit_code"),
@@ -2385,17 +2402,20 @@ int main(int argc, char **argv) {
             ++state.revision;
           }
         } else if (request.op >= 6) {
-          if (chainMode) {
-            if (jack && request.op != 8)
+          if (chainMode && request.op==6 &&
+              ((*model.phrase[request.target][1]==1 && *model.phrase[request.target][10]>0) || request.arg==1)) {
+            *model.phrase[request.target][11]=3;reply.status=3;
+          } else if (chainMode) {
+            if (jack && request.op != 8 && !(request.op==6 && request.arg==1))
               jack_transport_start(jack);
-            if (!chain.command(request.op == 6   ? 1
+            if ((request.op==6 && request.arg==1) || !chain.command(request.op == 6   ? 1
                                : request.op == 7 ? 2
                                                  : 3,
                                request.target))
               reply.status = 3;
           } else {
             *phraseTarget = request.target;
-            NSEEL_code_execute(request.op == 6   ? phrasePlay
+            NSEEL_code_execute(request.op == 6   ? (request.arg==1?phraseRelease:phrasePlay)
                                : request.op == 7 ? phraseRecord
                                                  : phraseStop);
           }
@@ -2736,6 +2756,7 @@ int main(int argc, char **argv) {
     NSEEL_code_free(panic_bridge);
     NSEEL_code_free(chainRecovery);
     NSEEL_code_free(phrasePlay);
+    NSEEL_code_free(phraseRelease);
     NSEEL_code_free(phraseRecord);
     NSEEL_code_free(phraseStop);
     NSEEL_code_free(edit);

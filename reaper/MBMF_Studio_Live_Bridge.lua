@@ -89,11 +89,11 @@ local function mailbox(command,done)
 end
 local function capture_patch(done)
   mailbox(1,function()
-    local n=r.gmem_read(3);assert(n==171649 and r.gmem_read(2)==7,'Schema-7 JSFX required')
+    local n=r.gmem_read(3);assert(((n==171649 and r.gmem_read(2)==7) or (n==171666 and r.gmem_read(2)==8)),'Compatible schema-7/8 JSFX required')
     local globals,memory={},{}
     for i=1,9 do globals[i]=r.gmem_read(3+i) end
     for i=1,n do memory[i]=r.gmem_read(31+i) end
-    done({format='MIDI_HUMAN_LOOPER_PATCH',schema=7,work_mem_size=n,globals=globals,memory=memory},r.gmem_read(17))
+    done({format='MIDI_HUMAN_LOOPER_PATCH',schema=r.gmem_read(2),work_mem_size=n,globals=globals,memory=memory},r.gmem_read(17))
   end)
 end
 local function start()

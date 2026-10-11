@@ -30,7 +30,7 @@ class RegistryTests(unittest.TestCase):
   root=Path(__file__).resolve().parents[1];statements=[]
   for p in REGISTRY.parameters.values():
    k=p['engineKind']
-   if not 0<=k<=24:continue
+   if not 0<=k<=25:continue
    for x in (-.1,0,.001,.003,.127,.249999,.25,.499999,.5,.500001,.75,.999,1,1.1):
     expected=REGISTRY.scale(p['id'],x)
     statements.append(f'if(std::abs(performance::physical({k},{x})-({expected:.17g}))>1e-8) return {k+1};')

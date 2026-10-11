@@ -21,7 +21,7 @@ struct Binding {
   double base = 0; // normalized committed value; runtime never serialized
   bool valid() const {
     return policy.valid() && instrument && instrument <= 16777215 &&
-           module <= 16777215 && kind >= 0 && kind <= 24 &&
+           module <= 16777215 && kind >= 0 && kind <= 25 &&
            (performance::phraseKind(kind) ? instrument <= 16 && !module
             : kind == 16                  ? instrument == 1 && !module
             : kind >= 21 && kind <= 23    ? !module

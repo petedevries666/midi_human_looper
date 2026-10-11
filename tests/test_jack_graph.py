@@ -63,6 +63,35 @@ with tempfile.TemporaryDirectory(prefix='midi-jack-') as temp:
         assert state['activeNotes']==0 and state['outputOverflow']==0,state
         print('PASS actual JACK timestamp ordering: nonmonotonic generation sorted in one block; equal-time Note On/Off stable')
 
+        engine.terminate();engine.communicate(timeout=10);engine=None
+        init="""!remote_gesture_fixture ? (
+          remote_gesture_fixture=1;panic_pending=0;state=STATE_STOPPED;
+          mem[INST_ENABLED_BASE]=1;mem[INST_ENABLED_BASE+1]=0;mem[INST_ENABLED_BASE+2]=0;
+          mem[INST_TRANSFORM_COUNT_BASE]=0;mem[COUNT_BASE]=0;
+          store_event(0,0,144,60,100,0);store_event(0,700,128,60,0,0);
+          mem[LEN_BASE]=1024;mem[MODE_BASE]=1;mem[PH_POLICY_BASE]=2;
+          mem[PHRASE_NOTE_BASE]=70;mem[learn_phrase_channel(0)]=1;
+        );
+"""
+        switch="""
+msg1==176 && d1==119 && d2==127 ? (
+          mem[PH_POLICY_BASE]=1;mem[LEN_BASE]=8192;mem[COUNT_BASE]=0;
+          store_event(0,0,144,60,100,0);store_event(0,7000,128,60,0,0);
+        );
+"""
+        fixture=Path(temp)/'gestures.jsfx'
+        fixture.write_text(source.replace('@block\n','@block\n'+init,1).replace('    !sw_input(msg1,d1,d2,offset)',switch+'    !sw_input(msg1,d1,d2,offset)',1))
+        engine=subprocess.Popen([binary,str(fixture),path,'--jack','--demo'],env=env,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+        deadline=time.monotonic()+15
+        while not Path(path).exists() and time.monotonic()<deadline:
+            if engine.poll() is not None:raise RuntimeError(engine.stderr.read().decode())
+            time.sleep(.02)
+        observer=subprocess.Popen([probe,'--gestures'],env=env)
+        assert observer.wait(timeout=10)==0,'gesture lifecycle / timestamp ordering failed'
+        state=command(0,0,0,0,1)
+        assert state['activeNotes']==0 and state['outputOverflow']==0,state
+        print('PASS actual JACK gesture playback: short tap, held loops, RELEASE and second-PRESS STOP, ordered paired notes')
+
 
     finally:
         if engine is not None:engine.terminate();engine.communicate(timeout=10)

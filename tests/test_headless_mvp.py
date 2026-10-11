@@ -91,7 +91,7 @@ class HeadlessTests(unittest.TestCase):
         self.assertIn('PASS bounded FIFO',result.stdout)
         state=self.call()
         self.assertRegex(state["buildRevision"],r"^[0-9a-f]{40}(?:\.dirty)?$")
-        self.assertEqual(state['schemaVersion'],7)
+        self.assertEqual(state['schemaVersion'],8)
         self.assertEqual(len(state['phrases']),16)
         self.assertEqual([s['id'] for s in state['switches']],[1,2,3,4])
         self.assertEqual([i['id'] for i in state['instruments']],[1,2,3])

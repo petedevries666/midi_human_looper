@@ -15,6 +15,21 @@ def fixture():
                 memory=m,globals=[44100,0,0,0,120,0,0,1,0])
 
 class PortableTests(unittest.TestCase):
+    def test_policy_migration_preserves_legacy_revision_and_effective_fingerprint(self):
+        old=fixture();extended=copy.deepcopy(old)
+        extended.update(schema=8,work_mem_size=p.SIZE+17)
+        extended['memory'] += [8]+[0]*16
+        identity='d15858f8-0b72-4cbc-bd4c-1d8bce726498'
+        self.assertEqual(p.capture(old,44100,identity),p.capture(extended,44100,identity))
+        self.assertEqual(p.timing(old,1/44100),p.timing(extended,1/44100))
+        extended['memory'][p.SIZE+1]=1
+        project=p.capture(extended,44100,identity)
+        self.assertEqual(project['version'],2)
+        self.assertEqual(p.materialize(project,48000)['memory'][p.SIZE+1],1)
+        for invalid in (-1,.5,3):
+            extended['memory'][p.SIZE+1]=invalid
+            with self.assertRaises(ValueError):p.capture(extended,44100)
+
     def test_samples_are_not_portable_seconds_are(self):
         original=fixture();project=p.capture(original,44100)
         restored=p.materialize(project,48000)

@@ -25,7 +25,7 @@ static void parameter_contract_tests(const char *source) {
     check(gain(pitch)<=gain(pitch+1),"pitch-bias response is continuously monotonic");
     check(gain(pitch)>=0 && gain(pitch)<=1,"pitch-bias gain cannot amplify or become negative");
   }
-  for (int kind=0;kind<25;++kind) {
+  for (int kind=0;kind<26;++kind) {
     for (double x : {0.,.001,.127,.25,.499999,.5,.500001,.75,.999,1.}) {
       const auto expression="param_scale("+std::to_string(kind)+","+std::to_string(x)+")";
       check(std::abs(h.eval(expression)-performance::physical(kind,x))<1e-7,

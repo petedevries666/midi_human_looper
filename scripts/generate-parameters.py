@@ -6,8 +6,8 @@ ROOT=Path(__file__).resolve().parents[1]
 
 def generated():
     catalog=json.loads((ROOT/'modules/catalog.json').read_text())
-    params={p['engineKind']:p for p in catalog['parameters'] if 0<=p['engineKind']<=24}
-    if set(params)!=set(range(25)):raise ValueError('native parameter identities must be complete and unique')
+    params={p['engineKind']:p for p in catalog['parameters'] if 0<=p['engineKind']<=25}
+    if set(params)!=set(range(26)):raise ValueError('native parameter identities must be complete and unique')
     modules=[m for m in catalog['modules'] if 1<=m['engineType']<=6]
     by_id={p['id']:p for p in catalog['parameters']}
     def cpp_expr(items,default):return ''.join(f'{condition} ? {value} : ' for condition,value in items)+str(default)
@@ -30,7 +30,7 @@ namespace performance {
         cpp+=f'  {{{p["min"]},{p["max"]},{p["step"]},{conv}}}, // {k}: {p["id"]}\n'
     cpp+='''};
 inline double physical(int kind,double x) {
-  if(kind<0 || kind>=25) return 0;
+  if(kind<0 || kind>=26) return 0;
   const auto &p=parameters[kind]; x=std::max(0.,std::min(1.,x));
   if(p.conversion==2) return std::pow(2.,2*x-1);
   if(p.conversion==3) return p.low+(p.high-p.low)*x;
@@ -38,7 +38,7 @@ inline double physical(int kind,double x) {
   return std::max(p.low,std::min(p.high,std::floor((p.low+(p.high-p.low)*x)/p.step+.5)*p.step));
 }
 inline double normalized(int kind,double v) {
-  if(kind<0 || kind>=25) return 0;
+  if(kind<0 || kind>=26) return 0;
   const auto &p=parameters[kind];
   const double n=p.conversion==2 ? (std::log2(v<=0?1:v)+1)/2
       : p.conversion==1 ? (v+.5)/(p.high+1) : (v-p.low)/(p.high-p.low);

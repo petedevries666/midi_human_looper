@@ -585,6 +585,26 @@
       "assignmentEligible": true,
       "curveSupport": true,
       "serializationVersion": 1
+    },
+    {
+      "id": "phrase_playback_policy",
+      "engineKind": 25,
+      "label": "PLAY POLICY",
+      "valueType": "enum",
+      "min": 0,
+      "max": 2,
+      "default": 0,
+      "step": 1,
+      "unit": "",
+      "normalizedConversion": "equal_bins",
+      "assignmentEligible": true,
+      "curveSupport": false,
+      "serializationVersion": 1,
+      "choices": [
+        "LEGACY",
+        "NO RETRIGGER",
+        "PRESS / RELEASE"
+      ]
     }
   ],
   "modules": [
@@ -768,7 +788,8 @@
         "phrase_base_velocity",
         "phrase_mute",
         "phrase_solo",
-        "phrase_play_mode"
+        "phrase_play_mode",
+        "phrase_playback_policy"
       ],
       "serializationVersion": 1,
       "migration": "legacy_schema_1_to_7",

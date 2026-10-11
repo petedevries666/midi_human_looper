@@ -80,7 +80,7 @@ class ProductTests(SnapshotTests):
         detail=json.load(urllib.request.urlopen(self.base+'/api/v1/snapshot/'+str(snapshot['id'])))
         own=[p for p in detail['parameters'] if p['instrumentId']==1]
         self.assertTrue(own)
-        self.assertTrue(all(p['kind'] in (14,15,17,18,19,20) for p in own))
+        self.assertTrue(all(p['kind'] in (14,15,17,18,19,20,25) for p in own))
         self.command('instrument_add')
         added=next(i for i in self.call()['instruments'] if i['id'] not in (2,3))
         self.assertGreater(added['id'],3)

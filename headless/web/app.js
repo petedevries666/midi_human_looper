@@ -5,7 +5,25 @@ const $=id=>document.getElementById(id);
 const node=(tag,text,cls)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;if(cls)n.className=cls;return n;};
 function headers(){return {'Content-Type':'application/json','X-Engine-Token':$('token').value};}
 async function request(path,body){const response=await fetch(path,{method:body?'POST':'GET',headers:headers(),body:body?JSON.stringify(body):undefined});const data=await response.json();if(!response.ok)throw new Error(data.error||data.status||'Request failed');return data;}
-function button(label,action){const b=node('button',label);b.addEventListener('click',action);return b;}
+const iconPaths={play:'M6 3l12 9-12 9z',stop:'M5 5h14v14H5z',record:'M12 4a8 8 0 1 0 0 16a8 8 0 1 0 0-16',mute:'M4 9h4l5-4v14l-5-4H4z M17 8l5 8m0-8-5 8',solo:'M12 3l3 6 7 1-5 5 1 7-6-3-6 3 1-7-5-5 7-1z',edit:'M4 20l1-6L17 2l5 5L10 19z',add:'M12 4v16M4 12h16',remove:'M5 5l14 14M19 5L5 19',prev:'M16 4l-8 8 8 8',next:'M8 4l8 8-8 8',save:'M4 3h14l3 3v15H3V3z M7 3v7h10V3 M7 21v-7h10v7',load:'M3 8h7l2 3h9l-3 10H3z M12 2v7m-3-3 3 3 3-3',midi:'M4 4h16v16H4z M8 4v9m4-9v9m4-9v9'};
+function decorateButton(b,label){
+  const key=/LEARN|MIDI/.test(label)?'midi':/^REC(?: |$)|FINISH/.test(label)?'record':/TRIGGER|TEST|RECALL/.test(label)?'play':/STOP/.test(label)?'stop':/MUTE/.test(label)?'mute':/SOLO/.test(label)?'solo':/LEARN|MIDI/.test(label)?'midi':/EDIT|OPTIONS|CONFIGURE/.test(label)?'edit':/ADD|CAPTURE/.test(label)?'add':/DELETE|FORGET|^×$/.test(label)?'remove':/SAVE/.test(label)?'save':/LOAD/.test(label)?'load':label==='←'?'prev':label==='→'?'next':null;
+  if(!key)return;b.setAttribute('aria-label',label);b.title=label;if(/^(MUTE|SOLO)/.test(label))b.setAttribute('aria-pressed',String(label.endsWith(' ON')));
+  const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');svg.setAttribute('viewBox','0 0 24 24');svg.setAttribute('aria-hidden','true');svg.classList.add('action-icon');
+  const path=document.createElementNS(svg.namespaceURI,'path');path.setAttribute('d',iconPaths[key]);svg.append(path);b.prepend(svg);
+}
+function button(label,action){const b=node('button',label);decorateButton(b,label);b.addEventListener('click',action);return b;}
+// Native range inputs provide pointer/touch capture and standard keyboard semantics.
+function tactileSlider(label,value,min,max,step,oncommit,defaultValue=1,logarithmic=false){
+  const root=node('label',undefined,'tactile-slider'),caption=node('span',label.replace(/ (Phrase|Instrument) \d+$/,''),'slider-caption'),rail=node('input'),readout=node('output');
+  rail.type='range';rail.min=logarithmic?-1:min;rail.max=logarithmic?1:max;rail.step=logarithmic?.001:step;rail.value=logarithmic?Math.log2(value):value;rail.setAttribute('aria-label',label);
+  const decode=()=>logarithmic?Math.pow(2,Number(rail.value)):Number(rail.value);
+  const paint=()=>{const v=decode();root.style.setProperty('--position',`${100*(Number(rail.value)-Number(rail.min))/(Number(rail.max)-Number(rail.min))}%`);readout.value=step===1?String(Math.round(v)):label.startsWith('VEL DECAY')?`${Math.round(v*100)}%`:`×${v.toFixed(2)}`;rail.setAttribute('aria-valuetext',readout.value);};
+  let accepted=Number(value),desired=null,sending=false;
+  async function commit(){desired=decode();if(sending)return;sending=true;try{while(desired!==null){const next=desired;desired=null;const ok=await oncommit(next);if(ok===false&&desired===null){rail.value=logarithmic?Math.log2(accepted):accepted;paint();}else if(ok!==false)accepted=next;}}finally{sending=false;}}
+  rail.oninput=paint;rail.onchange=commit;rail.ondblclick=()=>{rail.value=logarithmic?Math.log2(defaultValue):defaultValue;paint();commit();};
+  root.append(caption,rail,readout);paint();return root;
+}
 function descriptor(type){return catalog?.modules.find(m=>m.engineType===type);}
 function parameter(kind){return catalog?.parameters.find(p=>p.engineKind===kind);}
 async function loadDescriptors(){try{catalog=await request('/api/v1/descriptors');$('app-version').textContent=`V ${catalog.applicationVersion||'UNKNOWN'}`;renderedModel='';if(latest)render(latest);}catch(e){$('error').textContent=e.message;}}
@@ -27,7 +45,7 @@ function edit(module,instrument,values,instance){
     rail.disabled=number.disabled=!!draft.assignment;
     function update(value){draft.value=Number(value);number.value=draft.value;rail.value=draft.value;}
     number.addEventListener('input',()=>update(number.value));rail.addEventListener('input',()=>update(rail.value));rail.addEventListener('dblclick',()=>update(p.default));
-    label.append(number,node('span',p.unit),rail);
+    const paintRail=()=>rail.style.setProperty('--position',`${100*(Number(rail.value)-p.min)/(p.max-p.min||1)}%`);rail.addEventListener('input',paintRail);number.addEventListener('input',paintRail);rail.addEventListener('dblclick',paintRail);paintRail();rail.setAttribute('aria-label',p.label);label.append(number,node('span',p.unit),rail);
     if(draft.assignment)label.append(node('small',`EXPRESSION ${draft.assignment} owns this target`));
     content.append(label);
   }
@@ -186,7 +204,7 @@ function render(s){
   }
   renderAB(s);
   renderControllers(s);
-  if(document.activeElement?.classList.contains('name-input'))return;
+  if(document.activeElement?.classList.contains('name-input')||document.activeElement?.type==='range')return;
   const model=JSON.stringify([s.controllerLearn,s.phrases,s.instruments,s.switches.map(v=>({...v,step:0})),s.snapshotActions]);if(model===renderedModel)return;renderedModel=model;
   compactPhrases(s);
   $('instruments').replaceChildren(...s.instruments.map(compactInstrument));
@@ -240,8 +258,11 @@ function renderControllers(s){
 function curveEditor(points){
   const root=node('div'),canvas=node('canvas');canvas.width=400;canvas.height=120;canvas.className='curve-preview';root.append(canvas);
   const controls=node('div');root.append(controls);
-  function draw(){const c=canvas.getContext('2d');c.clearRect(0,0,400,120);c.strokeStyle='#ddd';c.beginPath();for(let pixel=0;pixel<=400;pixel++){const x=pixel/400;let y=points[points.length-1][1];for(let i=1;i<points.length;i++)if(x<=points[i][0]){const a=points[i-1],b=points[i];let t=(x-a[0])/(b[0]-a[0]),power=1+5*Math.abs(a[2]);t=a[2]>0?Math.pow(t,power):a[2]<0?1-Math.pow(1-t,power):t;y=a[1]+(b[1]-a[1])*t;break;}const sy=120*(1-y);if(pixel)c.lineTo(pixel,sy);else c.moveTo(pixel,sy);}c.stroke();}
+  function draw(){const c=canvas.getContext('2d');c.clearRect(0,0,400,120);c.strokeStyle='#ffe34d';c.beginPath();for(let pixel=0;pixel<=400;pixel++){const x=pixel/400;let y=points[points.length-1][1];for(let i=1;i<points.length;i++)if(x<=points[i][0]){const a=points[i-1],b=points[i];let t=(x-a[0])/(b[0]-a[0]),power=1+5*Math.abs(a[2]);t=a[2]>0?Math.pow(t,power):a[2]<0?1-Math.pow(1-t,power):t;y=a[1]+(b[1]-a[1])*t;break;}const sy=120*(1-y);if(pixel)c.lineTo(pixel,sy);else c.moveTo(pixel,sy);}c.stroke();c.fillStyle='#ffe34d';for(const p of points){c.beginPath();c.arc(p[0]*400,(1-p[1])*120,4,0,Math.PI*2);c.fill();}}
   function rows(){controls.replaceChildren();points.forEach((p,index)=>{const row=node('div',undefined,'curve-point');['X','Y','BEND'].forEach((name,k)=>{const label=node('label',name),input=node('input');input.type='number';input.min=k===2?-.98:0;input.max=k===2?.98:1;input.step=.01;input.value=p[k];input.disabled=k===0&&(index===0||index===points.length-1);input.setAttribute('aria-label',`${name} point ${index+1}`);input.addEventListener('input',()=>{p[k]=Number(input.value);draw();});label.append(input);row.append(label);});if(index&&index<points.length-1)row.append(button('REMOVE POINT',()=>{points.splice(index,1);rows();draw();}));controls.append(row);});draw();}
+  let dragged=-1;canvas.setAttribute('aria-label','Drag curve points; numeric controls below provide keyboard editing');canvas.style.touchAction='none';
+  canvas.onpointerdown=e=>{const r=canvas.getBoundingClientRect(),x=(e.clientX-r.left)/r.width,y=1-(e.clientY-r.top)/r.height;dragged=points.reduce((best,p,i)=>Math.hypot(p[0]-x,p[1]-y)<Math.hypot(points[best][0]-x,points[best][1]-y)?i:best,0);canvas.setPointerCapture(e.pointerId);};
+  canvas.onpointermove=e=>{if(dragged<0)return;const r=canvas.getBoundingClientRect(),p=points[dragged];p[1]=Math.max(0,Math.min(1,1-(e.clientY-r.top)/r.height));if(dragged>0&&dragged<points.length-1)p[0]=Math.max(points[dragged-1][0]+.001,Math.min(points[dragged+1][0]-.001,(e.clientX-r.left)/r.width));rows();};canvas.onpointerup=canvas.onpointercancel=()=>dragged=-1;
   root.append(button('ADD POINT',()=>{if(points.length>=16)return;let at=1;for(let i=2;i<points.length;i++)if(points[i][0]-points[i-1][0]>points[at][0]-points[at-1][0])at=i;points.splice(at,0,[(points[at-1][0]+points[at][0])/2,(points[at-1][1]+points[at][1])/2,0]);rows();}));rows();return root;
 }
 function editMapping(existing){
@@ -307,9 +328,6 @@ function phraseOptions(phraseId){
 }
 let phrasePage=0;
 function liveParameter(targetId,kind,value,moduleId=0){return command({action:'parameter_set',targetId,moduleId,kind,value});}
-function inlineNumber(label,value,min,max,step,onchange){
-  const wrap=node('label',label,'inline-control'),input=node('input');input.type='number';input.min=min;input.max=max;input.step=step;input.value=value;input.setAttribute('aria-label',label);input.onchange=()=>onchange(Number(input.value));wrap.append(input);return wrap;
-}
 function editableName(domain,id,value,fallback){
   const control=button(value||fallback,()=>{
     if(pending)return;
@@ -343,7 +361,7 @@ function compactPhrases(s){
   const pages=Math.ceil(s.phrases.length/6);phrasePage=Math.min(phrasePage,pages-1);
   $('phrase-pagination').replaceChildren(button('←',()=>{phrasePage=Math.max(0,phrasePage-1);renderedModel='';render(latest);}),node('span',`${phrasePage+1} / ${pages}`),button('→',()=>{phrasePage=Math.min(pages-1,phrasePage+1);renderedModel='';render(latest);}));
   $('phrases').replaceChildren(...s.phrases.slice(phrasePage*6,phrasePage*6+6).map(p=>{
-    const row=node('div',undefined,'phrase');row.dataset.phraseId=p.id;
+    const row=node('div',undefined,'phrase');row.dataset.phraseId=p.id;row.classList.toggle('muted',!!p.mute);row.classList.toggle('soloed',!!p.solo);row.append(node('span',String(p.id).padStart(2,'0'),'phrase-number'));
     const trigger=button('TRIGGER',()=>command({action:'phrase_play',phraseId:p.id}));
     trigger.disabled=!!s.chainMode&&p.mode===2;
     if(trigger.disabled)trigger.title='Legacy HOLD data is preserved. STOP and choose LOOP or ONCE; native held release is not implemented.';
@@ -356,8 +374,8 @@ function compactPhrases(s){
     row.append(button(p.solo?'SOLO ON':'SOLO',()=>liveParameter(p.id,19,p.solo?0:1)),button(p.mute?'MUTE ON':'MUTE',()=>liveParameter(p.id,18,p.mute?0:1)));
     const mode=node('select');mode.setAttribute('aria-label',`Play mode Phrase ${p.id}`);
     for(const [value,label] of [[1,'ONCE'],[0,'LOOP'],[2,'HOLD']]){const option=node('option',label);option.value=value;option.disabled=!!s.chainMode&&value===2;if(option.disabled)option.textContent='HOLD (UNAVAILABLE)';if(option.disabled)option.title='Native held-trigger release is not supported yet';mode.append(option);}mode.value=p.mode;mode.title=s.chainMode?'LOOP: shared two-bar timeline · ONCE: immediate one-shot · STOP to apply mode edits safely · HOLD: native release ownership unavailable':'REAPER legacy HOLD sustains notes until STOP / next phrase';mode.onchange=async()=>{if(await liveParameter(p.id,20,Number(mode.value))&&latest.chainMode&&latest.chainRunning)$('error').textContent='Mode change queued. STOP this processor to apply safely.';};row.append(mode);
-    row.append(inlineNumber('BASE VEL',p.baseVelocity,.2,3,.01,value=>liveParameter(p.id,17,value)));
-    if(p.mode===1)row.append(inlineNumber('VEL DECAY',p.velocityDecay,.2,1,.01,value=>liveParameter(p.id,15,value)),inlineNumber('TIME DECAY',p.timeDecay,.5,2,.01,value=>liveParameter(p.id,14,value)));
+    row.append(tactileSlider(`BASE VEL Phrase ${p.id}`,p.baseVelocity,.2,3,.01,value=>liveParameter(p.id,17,value)));
+    if(p.mode===1)row.append(tactileSlider(`VEL DECAY Phrase ${p.id}`,p.velocityDecay,.2,1,.01,value=>liveParameter(p.id,15,value)),tactileSlider(`TIME DECAY Phrase ${p.id}`,p.timeDecay,.5,2,.01,value=>liveParameter(p.id,14,value),1,true));
     const finish=button('FINISH REC',()=>command({action:'phrase_finish',phraseId:p.id}));finish.title='Finish record / overdub without discarding the take';row.append(finish,node('small',`${p.events} events`),button('PHRASE OPTIONS',()=>phraseOptions(p.id)));
     return row;
   }));
@@ -365,16 +383,17 @@ function compactPhrases(s){
 function compactInstrument(i){
   const n=node('article',undefined,'instrument');n.dataset.instrumentId=i.id;
   const main=node('div',undefined,'instrument-main');
-  main.append(button(i.enabled?'ON':'OFF',()=>liveParameter(i.id,21,i.enabled?0:1)),editableName('Instrument',i.id,i.name,`INSTRUMENT ${i.id}`));
+  const enable=button(i.enabled?'ON':'OFF',()=>liveParameter(i.id,21,i.enabled?0:1));enable.setAttribute('aria-pressed',String(!!i.enabled));main.append(enable,editableName('Instrument',i.id,i.name,`INSTRUMENT ${i.id}`));
   for(const [label,kind,current,zero] of [['MIDI IN',22,i.input,'ALL'],['MIDI OUT',23,i.output,'ORIGINAL']]){
     const wrap=node('label',label,'inline-control'),select=node('select');select.setAttribute('aria-label',`${label} Instrument ${i.id}`);
     for(let channel=0;channel<=16;channel++){const option=node('option',channel?String(channel):zero);option.value=channel;select.append(option);}select.value=current;select.onchange=()=>liveParameter(i.id,kind,Number(select.value));wrap.append(select);main.append(wrap);
   }
-  main.append(inlineNumber('VOLUME',i.level,0,127,1,value=>liveParameter(i.id,1,value)),button('×',()=>{if(confirm(`Delete Instrument ${i.id} and its complete Transformer chain?`))command({action:'instrument_delete',instrumentId:i.id});}));n.append(main);
+  main.append(tactileSlider(`VOLUME Instrument ${i.id}`,i.level,0,127,1,value=>liveParameter(i.id,1,value),parameter(1)?.default??127),button('×',()=>{if(confirm(`Delete Instrument ${i.id} and its complete Transformer chain?`))command({action:'instrument_delete',instrumentId:i.id});}));n.append(main);
   const chain=node('div',undefined,'transformers');
   for(const tf of i.transformers||[]){
-    const card=node('article',undefined,'module');card.dataset.moduleId=tf.id;
+    const card=node('article',undefined,'module');card.dataset.moduleId=tf.id;card.classList.toggle('bypassed',!tf.enabled);
     card.append(node('strong',`${descriptor(tf.type)?.label||'MODULE'} · ${tf.id}`),node('small',tf.enabled?'ON':'BYPASS'),button('EDIT',()=>editModule(i,tf)));
+    for(const p of tf.parameters||[]){const d=parameter(p.kind);if(!d)continue;const meter=node('meter');meter.min=d.min;meter.max=d.max;meter.value=p.value;meter.title=`${d.label}: ${p.value}${p.assignment?' · EXPRESSION '+p.assignment:''}`;meter.setAttribute('aria-label',meter.title);const feedback=node('div',undefined,'module-feedback');feedback.append(node('small',d.label),meter,node('output',`${Number(p.value).toFixed(d.step>=1?0:2)} ${d.unit||''}`));card.append(feedback);}
     for(const [label,operation] of [['BYPASS','bypass'],['↑','up'],['↓','down'],['DELETE','delete']]){
       if(operation==='up'||operation==='down'){
         const index=i.transformers.indexOf(tf),other=i.transformers[index+(operation==='up'?-1:1)];
@@ -411,3 +430,5 @@ $('commit-project').onclick=async()=>{
 };
 
 $('stop-native').onclick=()=>command({action:'chain_stop'});
+
+for(const id of ['stop-native','save-patch','load-patch','add-instrument','add-controller','add-mapping'])decorateButton($(id),$(id).textContent);

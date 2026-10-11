@@ -13,7 +13,9 @@ try:
         assert page.locator('.phrase').count()==6
         assert not page.locator('#controller-section').evaluate('(e)=>e.open')
         row=page.locator('[data-instrument-id="1"]')
-        row.get_by_label('VOLUME',exact=True).fill('68');row.get_by_label('VOLUME',exact=True).press('Tab')
+        slider=row.get_by_role('slider',name='VOLUME Instrument 1',exact=True);slider.focus();slider.press('Home')
+        for _ in range(68):slider.press('ArrowRight')
+        slider.press('Tab')
         deadline=time.monotonic()+5
         while api.call()['instruments'][0]['level']!=68:
             assert time.monotonic()<deadline, 'inline volume did not reach engine'

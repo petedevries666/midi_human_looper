@@ -13,7 +13,8 @@ struct ChainMode {
   int64_t lastFrameGap = 0, lastClockGap = 0;
   EEL_F *phase, *duration, *target, *tempoVar, *runVar, *bad, *overdub,
       *overdubPos, *captureActive, *captureStart, *captureEnd;
-  NSEEL_CODEHANDLE align, begin, finish, play;
+  NSEEL_CODEHANDLE align, begin, finish, play, holdPress, holdRelease;
+  EEL_F* holdAccepted;
   EEL_F* phraseModes[16]{};
   ysfx_t *fx;
   ChainMode(ysfx_t *f, bool active, unsigned version=1)
@@ -28,6 +29,8 @@ struct ChainMode {
     captureActive = NSEEL_VM_regvar(f->vm.get(), "chain_capture_active");
     captureStart = NSEEL_VM_regvar(f->vm.get(), "chain_capture_start");
     captureEnd = NSEEL_VM_regvar(f->vm.get(), "chain_capture_end");
+    *NSEEL_VM_regvar(f->vm.get(),"native_hold_enabled")=active?1:0;
+    holdAccepted=NSEEL_VM_regvar(f->vm.get(),"chain_hold_accepted");
     *captureActive=0;
     phase = NSEEL_VM_regvar(f->vm.get(), "chain_phase");
     duration = NSEEL_VM_regvar(f->vm.get(), "chain_duration");
@@ -43,6 +46,8 @@ struct ChainMode {
     play = compile("layer_count(chain_target)>0?(mem[MODE_BASE+chain_target]<.5?"
         "mem[TRIG_BASE+chain_target]=1:mem[MODE_BASE+chain_target]<1.5?"
         "(trigger_request=chain_target;process_phrase_trigger(0,1);));");
+    holdPress=compile("chain_hold_accepted=native_hold_can_play(chain_target)?native_hold_enqueue(chain_target,1):0;");
+    holdRelease=compile("chain_hold_accepted=native_hold_enqueue(chain_target,0);");
     begin = compile(
         "chain_capture_origin=-1;chain_capture_normalize=layer_count(chain_target)==0;mem[LEN_BASE+chain_target]=chain_"
         "duration;mem[TRIG_BASE+chain_target]=layer_count(chain_target)>0;"
@@ -74,7 +79,7 @@ struct ChainMode {
     NSEEL_code_free(align);
     NSEEL_code_free(begin);
     NSEEL_code_free(finish);
-    NSEEL_code_free(play);
+    NSEEL_code_free(play);NSEEL_code_free(holdPress);NSEEL_code_free(holdRelease);
   }
   void cancel() {
     if (recording)
@@ -83,11 +88,17 @@ struct ChainMode {
     *captureActive=0;
   }
   bool command(int action, int selected) {
-    if(selected<0 || selected>=16 || action<0 || action>3)return false;
-    // Native HOLD release ownership is not implemented by this transport adapter.
-    if(action==1 && *phraseModes[selected]>=1.5) return false;
-    if ((recording || armed) && selected != phrase && action != 0)
-      return false;
+    if(selected<0 || selected>=16 || action<0 || action>4)return false;
+    if ((recording || armed) && selected != phrase && action != 0 && action != 4) return false;
+    if(action==4 || (action==1 && *phraseModes[selected]>=1.5)) {
+      if(action==1){if(recording)NSEEL_code_execute(finish);recording=armed=false;phrase=selected;}
+      *target=selected;
+      NSEEL_code_execute(action==4?holdRelease:holdPress);
+      *target=phrase;
+      if(*holdAccepted<.5)return false;
+      if(action==1)run=true;
+      return true;
+    }
     if (action == 2 && (recording || armed))
       return false;
     if (!recording && !armed)

@@ -84,8 +84,17 @@ with tempfile.TemporaryDirectory(prefix='mbh-dedicated-') as temp:
         command(0)
         mode(2)
         state=control.request()
-        unsupported=control.request(op=40,target=0,arg=1,revision=state['revision'],session=state['engineSessionId'])
-        assert unsupported['status']=='invalid' and not control.request()['chainRunning'],unsupported
+        assert state['nativeHeldRelease']
+        before=state['midiCount'];command(1);time.sleep(4.4)
+        held=control.request();assert held['midiCount']>before and held['chainRunning'],held
+        command(4);time.sleep(.4)
+        released=control.request();assert released['activeNotes']==0,released
+        time.sleep(.4)
+        assert control.request()['midiCount']==released['midiCount'],'HOLD emitted notes after release'
+        # A very short tap queues both edges without losing the release.
+        command(1);command(4);time.sleep(.4)
+        assert control.request()['activeNotes']==0
+        command(0)
         mode(0)
         send(8);time.sleep(.4)
         assert not control.request()['chainRunning']
@@ -118,7 +127,7 @@ with tempfile.TemporaryDirectory(prefix='mbh-dedicated-') as temp:
             # does not protect an omni synth. This is an intentional guardrail.
             assert {status&15 for _,_,status,_,value in stream if status&240==144 and value}=={0,1,2}
         print('PASS one actual MBMF instance: 3-channel source capture/playback, native-style fanout, '
-              'identical ordered output streams, explicit receiver channel isolation, LOOP/ONCE/retrigger/unavailable-HOLD, STOP/transport/restart/removal cleanup')
+              'identical ordered output streams, explicit receiver channel isolation, LOOP/ONCE/retrigger/HOLD/release/short-tap, STOP/transport/restart/removal cleanup')
     finally:
         if probe and probe.poll() is None:
             probe.terminate();probe.communicate(timeout=5)

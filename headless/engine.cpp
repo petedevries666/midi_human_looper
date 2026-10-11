@@ -597,7 +597,7 @@ static std::string json(const Reply &r) {
       }
       o << "]}";
     }
-  o << "],\"phrases\":[";
+  o << "],\"nativeHeldRelease\":" << (s.chain?"true":"false") << ",\"phrases\":[";
   for (unsigned i = 0; i < 16; ++i) {
     if (i)
       o << ',';
@@ -871,7 +871,8 @@ static void control(int listener, Queue<Request, 64> &commands,
                  request.id > 0 && request.id <= 9007199254740991ULL &&
                  request.op >= 0 && (request.op <= 36 || request.op == 40) && request.arg >= 0 &&
                  request.arg <= (request.op == 13   ? 5
-                                 : request.op == 15 || request.op == 34 || request.op == 40 ? 3
+                                 : request.op == 40 ? 4
+                                 : request.op == 15 || request.op == 34 ? 3
                                  : request.op == 32 ? 24
                                                     : 2) &&
                  request.ch >= 0 &&

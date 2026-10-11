@@ -109,7 +109,7 @@ with tempfile.TemporaryDirectory(prefix='mbh-chains-') as temp:
                 assert not state(i)['chainRunning']
                 mode=page.get_by_label('Play mode Phrase 6',exact=True)
                 assert not mode.is_disabled()
-                assert mode.locator('option[value="2"]').is_disabled()
+                assert not mode.locator('option[value="2"]').is_disabled()
                 initial=mode.input_value();mode.select_option('0')
                 deadline=time.monotonic()+3
                 while state(i)['phrases'][5]['mode']!=0 and time.monotonic()<deadline:time.sleep(.05)

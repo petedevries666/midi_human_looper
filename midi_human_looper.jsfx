@@ -314,6 +314,11 @@ VOICE_INST_IN_BASE=VOICE_INST_IDS_BASE+MAX_ONCE_VOICES*INST_CAP;
 I_QUARANTINE_BASE=VOICE_INST_IN_BASE+MAX_ONCE_VOICES*INST_CAP;
 I_QUARANTINE_DEADLINE_BASE=I_QUARANTINE_BASE+INST_CAP*2048;
 I_RUNTIME_END=I_QUARANTINE_DEADLINE_BASE+INST_CAP;
+// Native HOLD runtime only; leave the schema-7 persistent payload unchanged.
+VOICE_CURSOR_BASE=I_RUNTIME_END+1024;VOICE_FIRST_BASE=VOICE_CURSOR_BASE+MAX_ONCE_VOICES;
+NATIVE_HOLD_QUEUE_BASE=VOICE_FIRST_BASE+MAX_ONCE_VOICES;
+native_hold_enabled=0;native_hold_read=0;native_hold_write=0;native_hold_release_mask=0;
+native_hold_init=0;loop(MAX_ONCE_VOICES*2+32,mem[VOICE_CURSOR_BASE+native_hold_init]=0;native_hold_init+=1;);
 once_route_voice=-1;i_release_mask=0;i_init_q=0;loop(INST_CAP*2048+INST_CAP,mem[I_QUARANTINE_BASE+i_init_q]=0;i_init_q+=1;);
 I_NEW_PRIMARY_TI=87;I_NEW_EXTRA_TI=157;UI_PARAM_TOTAL=232;
 PATCH_PAYLOAD_SIZE=I_LEGACY_PAYLOAD+I_CFG_SIZE;
@@ -642,7 +647,7 @@ local(j,idx)
 
 function reset_note_runtime()
 local(pv_i)
-(pv_i=0;loop(MAX_ONCE_VOICES,mem[VOICE_ACTIVE_BASE+pv_i]=0;pv_i+=1;);once_route_voice=-1;last_trigger_layer=-1;trigger_request=-1;hold_stop_request=-1;
+(native_hold_read=native_hold_write;native_hold_release_mask=0;pv_i=0;loop(MAX_ONCE_VOICES,mem[VOICE_ACTIVE_BASE+pv_i]=0;pv_i+=1;);once_route_voice=-1;last_trigger_layer=-1;trigger_request=-1;hold_stop_request=-1;
  pv_i=0;loop(NOTE_REF_SIZE,mem[NOTE_REF_BASE+pv_i]=0;pv_i+=1;);pv_i=0;loop(16,mem[SUSTAIN_REF_BASE+pv_i]=0;pv_i+=1;);
  pv_i=0;loop(INST_CAP,i_clear_runtime(pv_i);pv_i+=1;);
 );
@@ -1930,8 +1935,8 @@ local(ch,note)
   );
 );
 
-function release_phrase_notes()
-local(ch,note,key,mi,mn)
+function release_phrase_notes_at(offs,selective)
+local(ch,note,key,mi,mn,idx,owned)
 (
 
   param_release_owned();
@@ -1943,20 +1948,32 @@ local(ch,note,key,mi,mn)
     loop(128,
       key=NOTE_REF_BASE + ch*128 + note;
       mem[key]>0 ? (
-        midisend(0,128|ch,note,0);
-        mi=0;loop(INST_CAP,mem[engine_addr(SW_PHRASE_OUT_BASE,(mi*16+ch)*128+note)]=0;mem[I_ONCE_OUT_BASE+(mi*16+ch)*128+note]=0;mi+=1;);
+        selective ? (
+          owned=mem[key];mi=0;loop(INST_CAP,idx=(mi*16+ch)*128+note;mem[engine_addr(SW_PHRASE_OUT_BASE,idx)]=max(0,mem[engine_addr(SW_PHRASE_OUT_BASE,idx)]-mem[I_ONCE_OUT_BASE+idx]);mem[I_ONCE_OUT_BASE+idx]=0;mi+=1;);
+          idx=I_FALLBACK_BASE+2048+ch*128+note;mem[idx]=max(0,mem[idx]-owned);
+          instrument_output_owners(ch,note,-1)<=0?midisend(offs,128|ch,note,0);
+        ) : (
+          midisend(offs,128|ch,note,0);
+          mi=0;loop(INST_CAP,mem[engine_addr(SW_PHRASE_OUT_BASE,(mi*16+ch)*128+note)]=0;mem[I_ONCE_OUT_BASE+(mi*16+ch)*128+note]=0;mi+=1;);
+        );
         mem[key]=0;
       );
       note+=1;
     );
     mem[SUSTAIN_REF_BASE+ch]>0 ? (
-      midisend(0,176|ch,64,0);
-      mem[SUSTAIN_REF_BASE+ch]=0;
+      (!selective || mem[SW_LIVE_SUSTAIN_BASE+ch]<64)?midisend(offs,176|ch,64,0);
+      selective ? (
+        mem[SW_PHRASE_SUSTAIN_BASE+ch]=0;
+        mem[SW_LIVE_SUSTAIN_BASE+ch]<64 ? (
+          mi=0;loop(INST_CAP,mem[I_SUSTAIN_BASE+mi*16+ch]=0;mi+=1;);
+          mem[I_FALLBACK_SUSTAIN_BASE+ch]=0;
+        );
+      );mem[SUSTAIN_REF_BASE+ch]=0;
     );
     ch+=1;
   );
   // A phrase choke / HOLD stop also forgets mono source ownership.
-  mi=0;
+  !selective ? (mi=0;
   loop(INST_CAP,
     mem[engine_addr(MONO_ACTIVE_NOTE_BASE,mi)]=-1;
     mn=0;
@@ -1968,8 +1985,10 @@ local(ch,note,key,mi,mn)
       mn+=1;
     );
     mi+=1;
-  );
+  ););
 );
+
+function release_phrase_notes() (release_phrase_notes_at(0,0););
 
 function any_solo()
 local(li,res)
@@ -2027,12 +2046,77 @@ local(grid,q,target)
   );
 );
 
+function phrase_render_span(vi,until,instant,cycle)
+local(once_layer,once_start,once_end,once_time,phrase_end,count,i,base,evt_t,out_offs,out_status,out_chan,out_d1,out_d2,velmul,is_recorded_noteoff,relative_t)
+(
+  once_layer=mem[VOICE_LAYER_BASE+vi];once_start=mem[VOICE_CURSOR_BASE+vi];once_end=until;
+  once_time=mem[VOICE_TIME_BASE+vi];phrase_end=max(1,mem[LEN_BASE+once_layer]*once_time);
+  count=layer_count(once_layer);i=0;loop(count,
+    base=layer_base(once_layer,i);relative_t=mem[base]*once_time;evt_t=relative_t+cycle*phrase_end;
+    (instant?evt_t==0:(evt_t>=once_start && evt_t<once_end && !(evt_t==0 && mem[VOICE_FIRST_BASE+vi]))) && (relative_t<phrase_end || (native_hold_enabled && mem[MODE_BASE+once_layer]==2 && relative_t==phrase_end && ((mem[base+1]&240)==128 || ((mem[base+1]&240)==144 && mem[base+3]==0)))) ? (
+      out_offs=evt_t-mem[VOICE_POS_BASE+vi];
+      slider8==0?out_status=mem[base+1]&255:(out_chan=max(1,min(16,slider8))-1;out_status=(mem[base+1]&240)|out_chan;);
+      out_d1=mem[base+2]&127;out_d2=mem[base+3]&127;
+      velmul=slider9*mem[VEL_BASE+once_layer]*mem[VOICE_GAIN_BASE+vi];
+      is_recorded_noteoff=((out_status&240)==128)||((out_status&240)==144 && out_d2==0);
+      once_route_voice=vi;!(mem[MODE_BASE+once_layer]==2 && !native_hold_enabled && is_recorded_noteoff)?send_once_to_instruments(out_offs,out_status,out_d1,out_d2,velmul);once_route_voice=-1;
+    );i+=1;
+  );
+);
+// Absolute voice time uses the existing sample clock. At most eight source
+// cycles fit a block (validated at admission), plus one boundary-Off cycle.
+function phrase_render_voice(vi,until,instant)
+local(period,cycle,last)
+(
+  period=max(1,mem[LEN_BASE+mem[VOICE_LAYER_BASE+vi]]*mem[VOICE_TIME_BASE+vi]);
+  native_hold_enabled && mem[MODE_BASE+mem[VOICE_LAYER_BASE+vi]]==2 && !instant ? (
+    cycle=max(0,floor(mem[VOICE_CURSOR_BASE+vi]/period)-1);last=floor(until/period);
+    loop(min(10,max(0,last-cycle+1)),phrase_render_span(vi,until,0,cycle);cycle+=1;);
+  ) : phrase_render_span(vi,until,instant,0);
+  instant?mem[VOICE_FIRST_BASE+vi]=1:mem[VOICE_CURSOR_BASE+vi]=until;
+);
+function phrase_playing(layer) local(j,active) (j=0;active=0;loop(MAX_ONCE_VOICES,mem[VOICE_ACTIVE_BASE+j]==1 && mem[VOICE_LAYER_BASE+j]==layer?active=1;j+=1;);active;);
+function phrase_toggle_stop(layer,offs) local(j)
+(
+  j=0;loop(MAX_ONCE_VOICES,mem[VOICE_ACTIVE_BASE+j] && mem[VOICE_LAYER_BASE+j]==layer?(
+    phrase_render_voice(j,mem[VOICE_POS_BASE+j]+offs,0);mem[VOICE_ACTIVE_BASE+j]=0;
+  );j+=1;);
+  release_phrase_notes_at(offs,1);mem[HOLD_ACTIVE_BASE+layer]=0;
+  layer==last_trigger_layer?last_trigger_layer=-1;
+);
+
+// Backported PR #45 admission safety. Legacy host HOLD remains latched.
+function native_hold_can_play(layer)
+local(j,unsupported)
+(
+  unsupported=layer_count(layer)<=0 || mem[LEN_BASE+layer]*phrase_time_factor(layer)<max(128,samplesblock/8);
+  j=0;loop(INST_CAP,
+    mem[I_EXISTS_BASE+j] && mem[engine_addr(INST_ENABLED_BASE,j)]>.5 &&
+      ((transformer_on(j,3) && mem[engine_addr(INST_NOTE_MODE_BASE,j)]>0) ||
+       (transformer_on(j,5) && mem[engine_addr(INST_ARP_ENABLED_BASE,j)]>.5))?unsupported=1;
+    j+=1;
+  );!unsupported;
+);
+function native_hold_enqueue(layer,press)
+local(address,accepted)
+(
+  accepted=native_hold_write-native_hold_read<16;
+  !accepted && !press ? (native_hold_release_mask|=1<<layer;accepted=2;);
+  accepted==1?(address=NATIVE_HOLD_QUEUE_BASE+(native_hold_write%16)*2;mem[address]=layer;mem[address+1]=press;native_hold_write+=1;);
+  accepted;
+);
+function native_hold_release(layer,offs)
+(
+  native_hold_enabled && mem[MODE_BASE+layer]==2 && mem[HOLD_ACTIVE_BASE+layer]>.5?phrase_toggle_stop(layer,offs);
+);
 function process_phrase_trigger(start_offset,play_only)
-local(requested_layer,voice_slot,vi,vgi)
+local(requested_layer,voice_slot,vi,vgi,held)
 (
 trigger_request>=0 ? (
   requested_layer=trigger_request;
   trigger_request=-1;
+  held=native_hold_enabled && mem[MODE_BASE+requested_layer]==2;
+  !(held && (!native_hold_can_play(requested_layer) || phrase_playing(requested_layer))) ? (
   !play_only && overdub_wait_note && overdub_armed && overdub_layer==requested_layer ? (
     // ONCE/HOLD: record from this trigger, not from the looping transport.
     overdub_wait_note=0;overdub_armed=0;overdub_active=1;
@@ -2041,7 +2125,7 @@ trigger_request>=0 ? (
 
   requested_layer!=last_trigger_layer ? (
     last_trigger_layer>=0 ? (
-      release_phrase_notes();
+      native_hold_enabled && (held || mem[MODE_BASE+last_trigger_layer]==2)?release_phrase_notes_at(start_offset,1):release_phrase_notes();
       arp_flush_nonhold_sources();
       vi=0;
       loop(MAX_ONCE_VOICES,
@@ -2080,11 +2164,13 @@ trigger_request>=0 ? (
     mem[VOICE_INST_IN_BASE+voice_slot*INST_CAP+vgi]=mem[engine_addr(INST_IN_BASE,vgi)];vgi+=1;
   );
   mem[VOICE_ACTIVE_BASE+voice_slot]=1;
-  mem[VOICE_LAYER_BASE+voice_slot]=requested_layer;
+  mem[VOICE_LAYER_BASE+voice_slot]=requested_layer;mem[VOICE_CURSOR_BASE+voice_slot]=-max(0,min(samplesblock-1,start_offset));mem[VOICE_FIRST_BASE+voice_slot]=0;
   mem[VOICE_POS_BASE+voice_slot]=-max(0,min(samplesblock-1,start_offset));
   mem[VOICE_TIME_BASE+voice_slot]=phrase_time_factor(requested_layer);
   mem[VOICE_GAIN_BASE+voice_slot]=pow(mem[DECAY_BASE+requested_layer],mem[REPEAT_BASE+requested_layer]);
   mem[MODE_BASE+requested_layer]>=1.5 ? mem[HOLD_ACTIVE_BASE+requested_layer]=1;
+  held?phrase_render_voice(voice_slot,0,1);
+  );
 );
 
 );
@@ -2761,6 +2847,21 @@ panic_pending ? (
   panic_pending=0;
 );
 
+// Host PRESS/RELEASE enters after ysfx opens the block; preserve FIFO for short taps.
+native_hold_enabled?loop(min(16,native_hold_write-native_hold_read),
+  native_hold_address=NATIVE_HOLD_QUEUE_BASE+(native_hold_read%16)*2;
+  native_hold_layer=mem[native_hold_address];
+  mem[native_hold_address+1]? (trigger_request=native_hold_layer;process_phrase_trigger(0,1);):native_hold_release(native_hold_layer,0);
+  native_hold_read+=1;
+);
+// RELEASE cannot be dropped when the bounded host-edge mailbox is saturated.
+// Later presses are rejected until drain; emergency release wins this block.
+native_hold_enabled && native_hold_release_mask ? (
+  native_hold_layer=0;loop(LAYERS,
+    native_hold_release_mask&(1<<native_hold_layer)?native_hold_release(native_hold_layer,0);
+    native_hold_layer+=1;
+  );native_hold_release_mask=0;
+);
 // HOLD STOP: release the currently latched phrase and clear its runtime ownership.
 hold_stop_request>=0 ? (
   stopped_layer=hold_stop_request;
@@ -2806,6 +2907,7 @@ while (
         loop(LAYERS,
           learn_matches(SW_COUNT+CONTROLLERS+ti,1,msg1&15,d1) ? (
             is_trigger_command=1;
+            !is_note_on && native_hold_enabled?native_hold_release(ti,offset);
             is_note_on && layer_count(ti)>0 ? (
               mem[MODE_BASE+ti]<.5 ? (
                 loop_len_samples>0 ? (mem[TRIG_BASE+ti]=1;state=STATE_PLAYING;);
@@ -2946,45 +3048,14 @@ state==STATE_PLAYING && loop_len_samples>0 ? (
 
 
 
-// polyphonic ONCE / HOLD attack voice pool
-vi=0;
-loop(MAX_ONCE_VOICES,
-  mem[VOICE_ACTIVE_BASE+vi]>0.5 ? (
-    once_layer=mem[VOICE_LAYER_BASE+vi];
-    once_start=mem[VOICE_POS_BASE+vi];
-    once_end=once_start+samplesblock;
-    once_time=mem[VOICE_TIME_BASE+vi];
-    phrase_end=max(1,mem[LEN_BASE+once_layer]*once_time);
-    count=layer_count(once_layer);
-    i=0;
-    loop(count,
-      base=layer_base(once_layer,i);
-      evt_t=mem[base]*once_time;
-      evt_t>=once_start && evt_t<once_end && evt_t<phrase_end ? (
-        out_offs=evt_t-once_start;
-        slider8==0 ? out_status=mem[base+1]&255 : (
-          out_chan=max(1,min(16,slider8))-1;
-          out_status=(mem[base+1]&240)|out_chan;
-        );
-        out_d1=mem[base+2]&127;
-        out_d2=mem[base+3]&127;
-        velmul=slider9*mem[VEL_BASE+once_layer]*mem[VOICE_GAIN_BASE+vi];
-        // HOLD replays the human attack exactly, but recorded Note Offs do not terminate it.
-        // STOP / next phrase performs the release.
-        is_recorded_noteoff=((out_status&240)==128) || ((out_status&240)==144 && out_d2==0);
-        once_route_voice=vi;!(mem[MODE_BASE+once_layer]>=1.5 && is_recorded_noteoff) ? send_once_to_instruments(out_offs,out_status,out_d1,out_d2,velmul);once_route_voice=-1;
-      );
-      i+=1;
-    );
-    mem[VOICE_POS_BASE+vi]=once_end;
-    mem[VOICE_POS_BASE+vi]>=phrase_end ? (
-      mem[VOICE_ACTIVE_BASE+vi]=0;
-      mem[VOICE_POS_BASE+vi]=0;
-      // Do not global-release here: another overlapping voice of the same phrase may still be sounding.
-    );
+// Shared PR #45 bounded voice renderer: native HOLD repeats; legacy modes retain their lifecycle.
+vi=0;loop(MAX_ONCE_VOICES,mem[VOICE_ACTIVE_BASE+vi]>.5?(
+  phrase_render_voice(vi,mem[VOICE_POS_BASE+vi]+samplesblock,0);
+  mem[VOICE_POS_BASE+vi]+=samplesblock;mem[VOICE_CURSOR_BASE+vi]=mem[VOICE_POS_BASE+vi];
+  !(native_hold_enabled && mem[MODE_BASE+mem[VOICE_LAYER_BASE+vi]]==2) && mem[VOICE_POS_BASE+vi]>=max(1,mem[LEN_BASE+mem[VOICE_LAYER_BASE+vi]]*mem[VOICE_TIME_BASE+vi])?(
+    mem[VOICE_ACTIVE_BASE+vi]=0;mem[VOICE_POS_BASE+vi]=0;
   );
-  vi+=1;
-);
+);vi+=1;);
 
 // ONE SHOT phrases can end without a final matching Note Off after aggressive retrigger/choke.
 // Once no ONE SHOT voice remains, a non-HOLD arp must not retain those orphaned notes.

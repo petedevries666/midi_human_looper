@@ -9,7 +9,7 @@ static void chain_mode_tests(const char *source) {
   check(chain.armed, "record pending until transport rolls");
   chain.tick(0, 128, 48000, true, 120);
   check(chain.recording && !chain.armed, "take begins at common grid origin");
-  h.eq("mem[MODE_BASE]", 0, "chain records LOOP mode");
+  h.eq("mem[MODE_BASE]", 1, "recording preserves default ONCE mode");
   h.midi(144, 60, 100);
   chain.tick(128, 128, 48000, true, 120);
   h.midi(128, 60, 0);
@@ -148,5 +148,42 @@ static void chain_exact_playback_tests(const char *source) {
         }
       }
       check(on&&off,"actual EEL playback crosses nonaligned grid with paired notes");
+    }
+}
+
+// Reproduce hardware failure: delayed first attack, arbitrary arming phase,
+// selected ONCE or LOOP. Assert authoritative source storage, not export repair.
+static void chain_capture_origin_tests(const char *source) {
+  for (unsigned version : {1u,2u}) for(int mode : {0,1})
+    for(unsigned phase : {128u,8192u,100000u}) {
+      Host h(source);
+      h.run("ext_noinit=1;gmem[0]=0;panic_pending=0;slider9=1;clear_layer(4);");
+      *NSEEL_VM_getramptr(h.f->vm.get(),unsigned(*ysfx_find_var(h.f,"MODE_BASE"))+4,nullptr)=mode;
+      ChainMode c(h.f,true,version);
+      c.tick(phase,128,48000,true,120);c.command(2,4);
+      c.previous=0;c.tick(192000,128,48000,true,120);
+      c.tick(192128,128,48000,true,120);
+      h.midi(146,65,97);
+      c.tick(192256,128,48000,true,120);h.midi(130,65,31);
+      c.command(3,4);
+      h.eq("mem[MODE_BASE+4]",mode,"REC preserves selected playback mode");
+      h.eq("mem[layer_base(4,0)]",0,"delayed first recorded attack has authoritative T=0");
+      h.eq("mem[layer_base(4,1)]",128,"common shift preserves note duration");
+      h.eq("mem[layer_base(4,0)+1]",146,"capture preserves channel");
+      h.eq("mem[layer_base(4,0)+3]",97,"capture preserves velocity");
+      if(const char* path=std::getenv("CAPTURE_SOURCE_FIXTURE")) {
+        std::ofstream out(path,std::ios::app);
+        out << "{\"lengthSeconds\":4,\"bpm\":120,\"events\":[";
+        for(int i=0;i<2;++i) {
+          // layer_base includes layout stride; query through EEL, outside RT.
+          h.run(i==0?"capture_test_addr=layer_base(4,0);":"capture_test_addr=layer_base(4,1);");
+          unsigned addr=unsigned(*ysfx_find_var(h.f,"capture_test_addr"));
+          if(i)out << ',';
+          out << '[' << *NSEEL_VM_getramptr(h.f->vm.get(),addr,nullptr)/48000.;
+          for(unsigned k=1;k<4;++k)out << ',' << int(*NSEEL_VM_getramptr(h.f->vm.get(),addr+k,nullptr));
+          out << ']';
+        }
+        out << "]}\n";
+      }
     }
 }

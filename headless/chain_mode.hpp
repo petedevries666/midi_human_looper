@@ -44,7 +44,7 @@ struct ChainMode {
         "mem[TRIG_BASE+chain_target]=1:mem[MODE_BASE+chain_target]<1.5?"
         "(trigger_request=chain_target;process_phrase_trigger(0,1);));");
     begin = compile(
-        "mem[MODE_BASE+chain_target]=0;mem[LEN_BASE+chain_target]=chain_"
+        "chain_capture_origin=-1;chain_capture_normalize=layer_count(chain_target)==0;mem[LEN_BASE+chain_target]=chain_"
         "duration;mem[TRIG_BASE+chain_target]=layer_count(chain_target)>0;"
         "record_layer=chain_target;overdub_layer=chain_target;overdub_active=1;"
         "overdub_armed=0;overdub_wait_note=0;overdub_pos=chain_phase;"
@@ -60,7 +60,7 @@ struct ChainMode {
         "chain_v==0))?mem[3000000+chain_k]=max(0,mem[3000000+chain_k]-1);chain_"
         "j+=1;);chain_j=0;loop(2048,chain_c=mem[3000000+chain_j];loop(chain_c,"
         "layer_count(chain_target)<MAX_EVENTS_PER_LAYER?store_event(chain_"
-        "target,chain_duration-1,128|(chain_j/"
+        "target,max(0,chain_duration-1-(chain_capture_normalize?max(0,chain_capture_origin):0)),128|(chain_j/"
         "128|0),chain_j%128,0,0):chain_bad=1;);chain_j+=1;);mem[TRIG_BASE+"
         "chain_target]=!chain_bad;mem[LEN_BASE+chain_target]=chain_duration;");
   }
@@ -169,7 +169,7 @@ struct ChainMode {
     if (recording) {
       *overdub = 1;
       *overdubPos = timingVersion==1?*phase:double(frame)-double(end-length);
-      *captureActive=timingVersion==2;
+      *captureActive=1;
       *captureStart=timingVersion==2?std::max(0.,double(end-length)-double(frame)):0;
       *captureEnd=timingVersion==2?std::min(double(frames),double(end)-double(frame)):frames;
     }

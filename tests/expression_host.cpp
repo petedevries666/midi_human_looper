@@ -688,6 +688,7 @@ int main(int argc, char **argv) {
     return 0;
   }
   chain_mode_tests(argv[1]);
+  chain_capture_origin_tests(argv[1]);
   chain_exact_timing_tests(argv[1]);
   chain_exact_playback_tests(argv[1]);
   parameter_contract_tests(argv[1]);

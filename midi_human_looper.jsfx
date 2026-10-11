@@ -2840,7 +2840,17 @@ while (
       store_event(record_layer,record_sample_pos+offset,msg1,d1,d2,offset);
     ) :
     overdub_active && (mem[MODE_BASE+overdub_layer]<0.5 || overdub_pos+offset<mem[LEN_BASE+overdub_layer]) && chain_capture_accept(msg1,d1,d2,offset) ? (
-      store_event(overdub_layer,overdub_pos+offset,msg1,d1,d2,offset);
+      // Native first takes use one common origin, never per-note quantization.
+      // Leading controller events are retained at zero once the first attack arrives.
+      chain_capture_active && chain_capture_normalize && chain_capture_origin<0 && is_note_on ? (
+        chain_capture_origin=overdub_pos+offset;
+        chain_capture_shift_i=0;
+        loop(layer_count(overdub_layer),
+          mem[layer_base(overdub_layer,chain_capture_shift_i)]=0;
+          chain_capture_shift_i+=1;
+        );
+      );
+      store_event(overdub_layer,overdub_pos+offset-(chain_capture_active && chain_capture_normalize?max(0,chain_capture_origin):0),msg1,d1,d2,offset);
     );
 
     );
@@ -2995,8 +3005,9 @@ state==STATE_RECORDING ? record_sample_pos+=samplesblock;
 overdub_active ? (
   overdub_pos+=samplesblock;
   mem[MODE_BASE+overdub_layer]>=0.5 ? (
+    // Native capture has its own fixed window, independent of playback mode.
     // One-shot overdub ends at the recorded phrase length, independently of LOOP.
-    overdub_pos>=max(1,mem[LEN_BASE+overdub_layer]) ? (
+    !chain_capture_active && overdub_pos>=max(1,mem[LEN_BASE+overdub_layer]) ? (
       overdub_active=0;
       overdub_pos=0;
     );

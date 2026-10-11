@@ -26,6 +26,17 @@ try:
         result=downloaded.value;assert result.suggested_filename=='mbmf-phrase-04.mid'
         from pathlib import Path
         assert read_smf(Path(result.path()).read_bytes())['noteCount']==3
-        page.keyboard.press('Escape');assert not errors,errors
-        browser.close();print('PASS browser MIDI preview/CANCEL/replace and actual standard MIDI download')
+        page.keyboard.press('Escape')
+        row.get_by_role('button',name='PHRASE OPTIONS',exact=True).click()
+        page.once('dialog',lambda d:d.dismiss())
+        page.get_by_role('button',name='CLEAR MIDI',exact=True).click()
+        assert api.call()['phrases'][3]['events']==6
+        page.once('dialog',lambda d:d.accept())
+        page.get_by_role('button',name='CLEAR MIDI',exact=True).click()
+        page.locator('#editor').wait_for(state='hidden')
+        assert api.call()['phrases'][3]['events']==0
+        page.reload();page.get_by_text('CONNECTED · Engine running',exact=True).wait_for()
+        assert api.call()['phrases'][3]['events']==0
+        assert not errors,errors
+        browser.close();print('PASS browser MIDI preview/CANCEL/replace actual standard MIDI download and confirmed content-only CLEAR')
 finally:HeadlessTests.tearDownClass()

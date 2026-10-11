@@ -81,6 +81,8 @@ with tempfile.TemporaryDirectory(prefix='mbh-chains-') as temp:
                 time.sleep(.02)
             raise AssertionError((key,value,state(i)))
         for i in range(1,4):
+            # This workflow tests synchronized looping; REC must not choose its mode.
+            guarded(engines[i-1].instances[i]['control'],op=32,target=1,arg=20,macro=[0,0])
             source(1<<(i-1));action(i,'record')
             wait(i,'chainRecording',True);wait(i,'chainRecording',False)
             source(0)
@@ -107,7 +109,7 @@ with tempfile.TemporaryDirectory(prefix='mbh-chains-') as temp:
                 assert not state(i)['chainRunning']
                 mode=page.get_by_label('Play mode Phrase 6',exact=True)
                 assert not mode.is_disabled()
-                assert mode.locator('option[value="2"]').is_disabled()
+                assert not mode.locator('option[value="2"]').is_disabled()
                 initial=mode.input_value();mode.select_option('0')
                 deadline=time.monotonic()+3
                 while state(i)['phrases'][5]['mode']!=0 and time.monotonic()<deadline:time.sleep(.05)
@@ -149,7 +151,9 @@ with tempfile.TemporaryDirectory(prefix='mbh-chains-') as temp:
         from phrase_midi import write_smf,read_smf
         recorded=guarded(c,op=35,target=0,arg=0)['phraseData']
         original_other=engines[1].instances[2]['control'].request(op=35,target=0,arg=0,revision=-1)['phraseData']
+        assert next(e[0] for e in recorded['events'] if e[1]&240==144 and e[3])==0
         exported=write_smf(recorded); imported=read_smf(exported)
+        assert next(e[0] for e in imported['events'] if e[1]&240==144 and e[3])==0
         canonical=[]
         for event in sorted(recorded['events'],key=lambda e:e[0]):
             t,st,n,v=event

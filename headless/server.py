@@ -198,7 +198,7 @@ class Handler(BaseHTTPRequestHandler):
             import re
             match=re.search(r'^desc:.* v(\d+\.\d+\.\d+)',(Path(__file__).resolve().parents[1]/'midi_human_looper.jsfx').read_text(),re.M)
             document['applicationVersion']=match.group(1) if match else 'unknown'
-            document['runtimeCapabilities']={'transformerTypes':[1,2,3,4,5,6], 'humanizer':False, 'echocity':False, 'nativePhrasePlayModes':[0,1], 'nativeHeldRelease':False, 'phraseTransformers':False, 'snapshots':True, 'reaperSnapshots':False, 'ordering':'legacy-stages-or-serial-pitch'}
+            document['runtimeCapabilities']={'transformerTypes':[1,2,3,4,5,6], 'humanizer':False, 'echocity':False, 'nativePhrasePlayModes':[0,1,2], 'nativeHeldRelease':True, 'phraseTransformers':False, 'snapshots':True, 'reaperSnapshots':False, 'ordering':'legacy-stages-or-serial-pitch'}
             self.respond(200,document);return
         if path.startswith('/api/v1/snapshot/'):
             try:
@@ -412,10 +412,10 @@ class Handler(BaseHTTPRequestHandler):
                 target=data.get('instrumentId');field=data.get('field','enabled');value=data.get('value')
                 if type(target) is not int or not 1<=target<=16777215 or field not in ('input','output','level','enabled') or type(value) is not int or not 0<=value<=(127 if field=='level' else 1 if field=='enabled' else 16):raise ValueError()
                 args=dict(op=10 if field=='enabled' else 9,target=target,arg=('input','output','level').index(field) if field!='enabled' else 0,value=value)
-            elif action in ('phrase_play','phrase_record','phrase_finish'):
+            elif action in ('phrase_play','phrase_record','phrase_finish','phrase_clear','phrase_release'):
                 target=data.get('phraseId')
                 if type(target) is not int or not 1<=target<=16:raise ValueError('invalid phrase')
-                args=dict(op={'phrase_play':6,'phrase_record':7,'phrase_finish':8}[action],target=target-1)
+                args=dict(op=40,target=target-1,arg=4) if action=='phrase_release' else dict(op=35,target=target-1,arg=2) if action=='phrase_clear' else dict(op={'phrase_play':6,'phrase_record':7,'phrase_finish':8}[action],target=target-1)
             elif action == 'midi':
                 channel, note, value = data.get('channel'), data.get('note'), data.get('value')
                 if any(type(v) is not int for v in (channel, note, value)) or not (1 <= channel <= 16 and 0 <= note <= 127 and 0 <= value <= 127):

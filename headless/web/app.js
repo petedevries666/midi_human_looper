@@ -217,7 +217,7 @@ function render(s){
   }
   renderAB(s);
   renderControllers(s);
-  if(document.activeElement?.classList.contains('name-input')||document.activeElement?.type==='range')return;
+  if(document.activeElement?.classList.contains('name-input')||document.activeElement?.type==='range'||document.querySelector('[data-live-release=held]'))return;
   const model=JSON.stringify([s.controllerLearn,s.phrases,s.instruments,s.switches.map(v=>({...v,step:0})),s.snapshotActions]);if(model===renderedModel)return;renderedModel=model;
   compactPhrases(s);
   $('instruments').replaceChildren(...s.instruments.map(compactInstrument));
@@ -229,7 +229,7 @@ function render(s){
   }));
 }
 async function refresh(){try{render(await request('/api/v1/state'));}catch(e){$('connection').textContent='DISCONNECTED · Engine continues independently';$('error').textContent=e.message;}}
-function setPending(value){pending=value;for(const b of document.querySelectorAll('main button')){if(value){b.dataset.pendingDisabled=b.disabled?'1':'0';b.disabled=true;}else if(b.dataset.pendingDisabled!==undefined){b.disabled=b.dataset.pendingDisabled==='1';delete b.dataset.pendingDisabled;}}}
+function setPending(value){pending=value;for(const b of document.querySelectorAll('main button:not([data-live-release=held])')){if(value){b.dataset.pendingDisabled=b.disabled?'1':'0';b.disabled=true;}else if(b.dataset.pendingDisabled!==undefined){b.disabled=b.dataset.pendingDisabled==='1';delete b.dataset.pendingDisabled;}}}
 async function command(value){if(pending)return false;setPending(true);try{render(await request('/api/v1/command',{protocolVersion:1,expectedRevision:revision,expectedEngineSessionId:engineSession,...value}));$('error').textContent='';return true;}catch(e){$('error').textContent=value.action?.startsWith('snapshot_')&&e.message==='unknown_target'?'Recall was not applied: a target is missing or has a legacy expression assignment.':e.message;await refresh();return false;}finally{setPending(false);}}
 function connectStream(){
   if(ws){ws.onclose=null;ws.close();}
@@ -243,6 +243,8 @@ $('panic').addEventListener('click',()=>command({action:'panic'}));
 $('connect').addEventListener('click',()=>{clearTimeout(reconnect);loadDescriptors();refresh();connectStream();});
 $('save-patch').addEventListener('click',()=>patch('save'));$('load-patch').addEventListener('click',()=>patch('load'));
 loadDescriptors();refresh();connectStream();setInterval(()=>{if(!pending&&(!ws||ws.readyState!==WebSocket.OPEN))refresh();},1000);
+window.addEventListener('blur',()=>window.mbmfHeldRelease?.());
+document.addEventListener('visibilitychange',()=>{if(document.hidden)window.mbmfHeldRelease?.();});
 // Browser timers only refresh telemetry; they never schedule MIDI.
 
 function controllerConfiguration(s=latest){
@@ -320,6 +322,12 @@ function phraseOptions(phraseId){
       const url=URL.createObjectURL(await response.blob()),link=node('a');link.href=url;link.download=`mbmf-phrase-${String(phraseId).padStart(2,'0')}.mid`;link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
     }catch(e){error.textContent=e.message;}
   }));
+  content.append(button('CLEAR MIDI',async()=>{
+    if(committing||!confirm(`Clear MIDI content of Phrase ${phraseId}? Settings are preserved. STOP playback and finish recording first.`))return;
+    committing=true;
+    try{if(await command({action:'phrase_clear',phraseId}))dialog.close();else error.textContent='Stop playback and finish recording before clearing MIDI.';}
+    finally{committing=false;}
+  }));
   const preview=node('div');content.append(preview,error,button('CANCEL',dismiss));
   file.onchange=async()=>{
     preview.replaceChildren();error.textContent='';
@@ -377,8 +385,20 @@ function compactPhrases(s){
   if(!$('phrase-columns')){const head=node('div',undefined,'phrase-columns');head.id='phrase-columns';for(const text of ['#','NAME','PLAY','REC','M','S','MODE','VEL','V.DEC','T.DEC','MIDI','END','EDIT'])head.append(node('span',text));$('phrases').before(head);}
   $('phrases').replaceChildren(...s.phrases.slice(phrasePage*6,phrasePage*6+6).map(p=>{
     const row=node('div',undefined,'phrase');row.dataset.phraseId=p.id;row.classList.toggle('empty',!p.events);row.classList.toggle('muted',!!p.mute);row.classList.toggle('soloed',!!p.solo);row.append(node('span',String(p.id).padStart(2,'0'),'phrase-number'));
-    const trigger=button('TRIGGER',()=>command({action:'phrase_play',phraseId:p.id}));
-    trigger.disabled=!!s.chainMode&&p.mode===2;
+    const heldMode=!!s.chainMode&&!!s.nativeHeldRelease&&p.mode===2;
+    const trigger=button('TRIGGER',()=>{if(!heldMode)command({action:'phrase_play',phraseId:p.id});});
+    if(heldMode){
+      let held=false,edge=Promise.resolve();
+      const send=action=>{edge=edge.then(async()=>{while(pending)await new Promise(resolve=>setTimeout(resolve,10));return command({action,phraseId:p.id});});};
+      const press=()=>{if(!held){held=true;trigger.dataset.liveRelease='held';window.mbmfHeldRelease=release;send('phrase_play');}};
+      const release=()=>{if(held){held=false;if(window.mbmfHeldRelease===release)window.mbmfHeldRelease=null;delete trigger.dataset.liveRelease;send('phrase_release');}};
+      trigger.onpointerdown=e=>{if(e.button!==0)return;e.preventDefault();trigger.setPointerCapture(e.pointerId);press();};
+      trigger.onpointerup=release;trigger.onpointercancel=release;trigger.onlostpointercapture=release;
+      trigger.onkeydown=e=>{if([' ','Enter'].includes(e.key)){e.preventDefault();press();}};
+      trigger.onkeyup=e=>{if([' ','Enter'].includes(e.key)){e.preventDefault();release();}};trigger.onblur=release;
+      trigger.title='HOLD: repeat while pressed; release stops owned phrase notes';
+    }
+    trigger.disabled=!!s.chainMode&&!s.nativeHeldRelease&&p.mode===2;
     if(trigger.disabled)trigger.title='Legacy HOLD data is preserved. STOP and choose LOOP or ONCE; native held release is not implemented.';
     row.append(button('REC / OVERDUB',()=>command({action:'phrase_record',phraseId:p.id})),trigger,editableName('Phrase',p.id,p.name,`PHRASE ${p.id}`));
     const learning=s.controllerLearn?.domain==='phrase'&&s.controllerLearn.target===p.id;
@@ -388,7 +408,7 @@ function compactPhrases(s){
       if(s.controllerLearn.conflict>0)row.append(button('REASSIGN',()=>command({action:'phrase_learn_confirm',phraseId:p.id})));}
     row.append(button(p.solo?'SOLO ON':'SOLO',()=>liveParameter(p.id,19,p.solo?0:1)),button(p.mute?'MUTE ON':'MUTE',()=>liveParameter(p.id,18,p.mute?0:1)));
     const mode=node('select');mode.setAttribute('aria-label',`Play mode Phrase ${p.id}`);
-    for(const [value,label] of [[1,'ONCE'],[0,'LOOP'],[2,'HOLD']]){const option=node('option',label);option.value=value;option.disabled=!!s.chainMode&&value===2;if(option.disabled)option.textContent='HOLD (UNAVAILABLE)';if(option.disabled)option.title='Native held-trigger release is not supported yet';mode.append(option);}mode.value=p.mode;mode.title=s.chainMode?'LOOP: shared two-bar timeline · ONCE: immediate one-shot · STOP to apply mode edits safely · HOLD: native release ownership unavailable':'REAPER legacy HOLD sustains notes until STOP / next phrase';mode.onchange=async()=>{if(await liveParameter(p.id,20,Number(mode.value))&&latest.chainMode&&latest.chainRunning)$('error').textContent='Mode change queued. STOP this processor to apply safely.';};row.append(mode);
+    for(const [value,label] of [[1,'ONCE'],[0,'LOOP'],[2,'HOLD']]){const option=node('option',label);option.value=value;option.disabled=!!s.chainMode&&!s.nativeHeldRelease&&value===2;if(option.disabled)option.textContent='HOLD (UNAVAILABLE)';if(option.disabled)option.title='Native held-trigger release is not supported yet';mode.append(option);}mode.value=p.mode;mode.title=s.chainMode?'LOOP: shared two-bar timeline · ONCE: immediate one-shot · STOP to apply mode edits safely · HOLD: repeat while pressed; release stops owned notes (polyphonic, no ARP)':'REAPER legacy HOLD sustains notes until STOP / next phrase';mode.onchange=async()=>{if(await liveParameter(p.id,20,Number(mode.value))&&latest.chainMode&&latest.chainRunning)$('error').textContent='Mode change queued. STOP this processor to apply safely.';};row.append(mode);
     row.append(tactileSlider(`BASE VEL Phrase ${p.id}`,p.baseVelocity,.2,3,.01,value=>liveParameter(p.id,17,value)));
     if(p.mode===1)row.append(tactileSlider(`VEL DECAY Phrase ${p.id}`,p.velocityDecay,.2,1,.01,value=>liveParameter(p.id,15,value)),tactileSlider(`TIME DECAY Phrase ${p.id}`,p.timeDecay,.5,2,.01,value=>liveParameter(p.id,14,value),1,true));
     const finish=button('FINISH REC',()=>command({action:'phrase_finish',phraseId:p.id}));finish.title='Finish record / overdub without discarding the take';row.append(finish,node('small',`${p.events} events`),button('PHRASE OPTIONS',()=>phraseOptions(p.id)));

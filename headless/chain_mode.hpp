@@ -13,7 +13,8 @@ struct ChainMode {
   int64_t lastFrameGap = 0, lastClockGap = 0;
   EEL_F *phase, *duration, *target, *tempoVar, *runVar, *bad, *overdub,
       *overdubPos, *captureActive, *captureStart, *captureEnd;
-  NSEEL_CODEHANDLE align, begin, finish, play;
+  NSEEL_CODEHANDLE align, begin, finish, play, holdPress, holdRelease;
+  EEL_F* holdAccepted;
   EEL_F* phraseModes[16]{};
   ysfx_t *fx;
   ChainMode(ysfx_t *f, bool active, unsigned version=1)
@@ -28,6 +29,8 @@ struct ChainMode {
     captureActive = NSEEL_VM_regvar(f->vm.get(), "chain_capture_active");
     captureStart = NSEEL_VM_regvar(f->vm.get(), "chain_capture_start");
     captureEnd = NSEEL_VM_regvar(f->vm.get(), "chain_capture_end");
+    *NSEEL_VM_regvar(f->vm.get(),"native_hold_enabled")=active?1:0;
+    holdAccepted=NSEEL_VM_regvar(f->vm.get(),"chain_hold_accepted");
     *captureActive=0;
     phase = NSEEL_VM_regvar(f->vm.get(), "chain_phase");
     duration = NSEEL_VM_regvar(f->vm.get(), "chain_duration");
@@ -43,8 +46,10 @@ struct ChainMode {
     play = compile("layer_count(chain_target)>0?(mem[MODE_BASE+chain_target]<.5?"
         "mem[TRIG_BASE+chain_target]=1:mem[MODE_BASE+chain_target]<1.5?"
         "(trigger_request=chain_target;process_phrase_trigger(0,1);));");
+    holdPress=compile("chain_hold_accepted=native_hold_can_play(chain_target)?native_hold_enqueue(chain_target,1):0;");
+    holdRelease=compile("chain_hold_accepted=native_hold_enqueue(chain_target,0);");
     begin = compile(
-        "mem[MODE_BASE+chain_target]=0;mem[LEN_BASE+chain_target]=chain_"
+        "chain_capture_origin=-1;chain_capture_normalize=layer_count(chain_target)==0;mem[LEN_BASE+chain_target]=chain_"
         "duration;mem[TRIG_BASE+chain_target]=layer_count(chain_target)>0;"
         "record_layer=chain_target;overdub_layer=chain_target;overdub_active=1;"
         "overdub_armed=0;overdub_wait_note=0;overdub_pos=chain_phase;"
@@ -60,7 +65,7 @@ struct ChainMode {
         "chain_v==0))?mem[3000000+chain_k]=max(0,mem[3000000+chain_k]-1);chain_"
         "j+=1;);chain_j=0;loop(2048,chain_c=mem[3000000+chain_j];loop(chain_c,"
         "layer_count(chain_target)<MAX_EVENTS_PER_LAYER?store_event(chain_"
-        "target,chain_duration-1,128|(chain_j/"
+        "target,max(0,chain_duration-1-(chain_capture_normalize?max(0,chain_capture_origin):0)),128|(chain_j/"
         "128|0),chain_j%128,0,0):chain_bad=1;);chain_j+=1;);mem[TRIG_BASE+"
         "chain_target]=!chain_bad;mem[LEN_BASE+chain_target]=chain_duration;");
   }
@@ -74,7 +79,7 @@ struct ChainMode {
     NSEEL_code_free(align);
     NSEEL_code_free(begin);
     NSEEL_code_free(finish);
-    NSEEL_code_free(play);
+    NSEEL_code_free(play);NSEEL_code_free(holdPress);NSEEL_code_free(holdRelease);
   }
   void cancel() {
     if (recording)
@@ -83,11 +88,17 @@ struct ChainMode {
     *captureActive=0;
   }
   bool command(int action, int selected) {
-    if(selected<0 || selected>=16 || action<0 || action>3)return false;
-    // Native HOLD release ownership is not implemented by this transport adapter.
-    if(action==1 && *phraseModes[selected]>=1.5) return false;
-    if ((recording || armed) && selected != phrase && action != 0)
-      return false;
+    if(selected<0 || selected>=16 || action<0 || action>4)return false;
+    if ((recording || armed) && selected != phrase && action != 0 && action != 4) return false;
+    if(action==4 || (action==1 && *phraseModes[selected]>=1.5)) {
+      if(action==1){if(recording)NSEEL_code_execute(finish);recording=armed=false;phrase=selected;}
+      *target=selected;
+      NSEEL_code_execute(action==4?holdRelease:holdPress);
+      *target=phrase;
+      if(*holdAccepted<.5)return false;
+      if(action==1)run=true;
+      return true;
+    }
     if (action == 2 && (recording || armed))
       return false;
     if (!recording && !armed)
@@ -169,7 +180,7 @@ struct ChainMode {
     if (recording) {
       *overdub = 1;
       *overdubPos = timingVersion==1?*phase:double(frame)-double(end-length);
-      *captureActive=timingVersion==2;
+      *captureActive=1;
       *captureStart=timingVersion==2?std::max(0.,double(end-length)-double(frame)):0;
       *captureEnd=timingVersion==2?std::min(double(frames),double(end)-double(frame)):frames;
     }

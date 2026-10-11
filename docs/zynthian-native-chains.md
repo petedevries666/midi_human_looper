@@ -1,3 +1,7 @@
+> For the Oram discovery fix and the preferred dedicated-chain workflow, use
+> [Oram discovery and routing qualification](zynthian-oram-discovery.md).
+> Direct chain routing requires explicit receiver channel filtering.
+
 # Native Zynthian chain prototype: issue #26
 
 This adds **MIDI Bad Mother Fucker** to Zynthian's **MIDI Tool** selection, before
@@ -244,8 +248,10 @@ PR, after cloning use `git fetch origin feat/product-integration` and
 `git switch --track origin/feat/product-integration`, then rebuild with
 `scripts/headless-setup.sh`. Do not run an old native binary against the new server
 or adapter: the integrated native action opcode is 40 and Snapshot capture remains
-20. If already registered, STOP/remove processors and run installer rollback before
-installing the updated adapter; the installer refuses conflicting old adapter files.
+20. The current discovery installer preserves an existing managed adapter. A full
+runtime/adapter upgrade remains separate: stop processors, back up and validate the
+matching binary, JSFX and adapter before changing them. For a catalog-only upgrade,
+follow the Oram guide above without uninstalling.
 
 1. Run `scripts/headless-check.sh`, then `python3 zynthian/install.py --lan`.
 2. Save existing Zynthian work and restart only the UI when ready. Add MBH as a

@@ -16,6 +16,7 @@ jack_client_t *client, *sourceClient;
 std::array<jack_port_t *, 3> inputs, outputs;
 std::array<bool, 3> held{};
 unsigned loopLength=192512;
+bool fanout = false;
 int sourceProcess(jack_nframes_t n, void *) {
   jack_position_t p{};
   auto transport = jack_transport_query(sourceClient, &p);
@@ -52,7 +53,7 @@ int process(jack_nframes_t n, void *) {
           (((e.buffer[0] & 240) != 176 && e.buffer[1] >= 60 && e.buffer[1] <= 62) ||
            ((e.buffer[0] & 240) == 176 && (e.buffer[1] == 64 || e.buffer[1] >= 120)))) {
         auto index = count.load();
-        events[index] = {i,           p.frame,     e.time,
+        events[index] = {i,           fanout ? jack_last_frame_time(client) : p.frame,     e.time,
                          e.buffer[0], e.buffer[1], e.buffer[2]};
         count.store(index + 1);
       }
@@ -61,6 +62,7 @@ int process(jack_nframes_t n, void *) {
   return 0;
 }
 int main() {
+  fanout = std::getenv("CHAIN_FANOUT") != nullptr;
   jack_status_t s;
   client = jack_client_open("mbh_three_chain_probe", JackNoStartServer, &s);
   sourceClient = jack_client_open("mbh_three_chain_source", JackNoStartServer, &s);
@@ -80,7 +82,7 @@ int main() {
   if (jack_activate(sourceClient) || jack_activate(client))
     return 3;
   for (unsigned i = 0; i < 3; ++i) {
-    auto name = "mbh_" + std::to_string(i + 1);
+    auto name = "mbh_" + std::to_string(fanout ? 1 : i + 1);
     if (jack_connect(client, jack_port_name(outputs[i]),
                      (name + ":midi_in").c_str()) ||
         jack_connect(client, (name + ":midi_out").c_str(),
@@ -89,8 +91,11 @@ int main() {
   }
   std::cout << "READY\n" << std::flush;
   unsigned value;
-  while (std::cin >> value)
-    mask = value;
+  while (std::cin >> value) {
+    if (fanout && value == 8) jack_transport_stop(client);
+    else if (fanout && value == 9) jack_transport_start(client);
+    else mask = value;
+  }
   jack_deactivate(sourceClient);
   jack_deactivate(client);
   jack_client_close(sourceClient);

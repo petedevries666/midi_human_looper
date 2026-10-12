@@ -163,3 +163,7 @@ dialog[data-contextual][open]{position:relative;inset:auto;width:100%;max-width:
 #editor[data-contextual][data-kind=module] .parameter>.tactile-slider{grid-template-columns:minmax(0,1fr) 42px;min-width:0}
 #editor[data-contextual][data-kind=module] .parameter>.tactile-slider input[type=range]{grid-column:1;grid-row:1}
 #editor[data-contextual][data-kind=module] .parameter>.tactile-slider output{grid-column:2;grid-row:1}
+@media(min-width:701px){.phrase-columns>span{grid-column:auto!important;grid-row:1!important}}
+
+.phrase-rails{display:contents}
+@media(max-width:700px){.phrase-rails{display:grid;grid-column:1/-1;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px}.phrase-rails .tactile-slider{height:34px;min-width:0;padding:2px}.phrase-rails .tactile-slider::before{content:attr(data-short-label);grid-column:1/-1;color:#aaa;font-size:7px}.phrase-rails .tactile-slider input{width:100%}.phrase-rails .decay-empty{display:block}}

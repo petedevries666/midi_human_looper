@@ -18,7 +18,7 @@ try:
    if selector:page.locator(selector).first.evaluate("e=>e.scrollIntoView({block:'start'})")
    errors=page.evaluate(AUDIT);assert not errors,errors
    output=Path(os.environ['SCREENSHOT_RECOVERY_DIR']);output.mkdir(parents=True,exist_ok=True)
-   path=output/f'{name}-1904x1032.png';page.evaluate('() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');page.screenshot(path=str(path),animations='disabled');verify_png(path,1904,1032)
+   path=output/f'{name}-1904x1032.png';page.evaluate('() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');page.evaluate('document.fonts.ready');page.screenshot(animations='disabled');page.wait_for_timeout(80);page.screenshot(path=str(path),animations='disabled');verify_png(path,1904,1032)
    evidence.append(dict(view=name,viewport=[1904,1032],file=path.name,checks=[]))
   panel=page.locator('[data-instrument-id="1"]');panel.get_by_label('Transformer type for Instrument 1',exact=True).select_option('5');panel.get_by_role('button',name='ADD TRANSFORMER',exact=True).click()
   panel.locator('.module').last.get_by_role('button',name='EDIT',exact=True).click()

@@ -84,12 +84,16 @@ def run(output, performance=False):
                 page.locator('[data-source-id]').wait_for(state='attached')
                 page.evaluate('document.fonts.ready')
                 def capture(name,selector=None):
+                    if 'editor' in name and 'name-editor' not in name:page.locator('#editor').wait_for(state='visible')
                     if performance and name not in ('phrases','instruments','transformer-editor'): return
                     if selector:
                         page.locator(selector).first.evaluate("e=>e.scrollIntoView({block:'start'})")
                     findings=page.evaluate(AUDIT)
                     path=output/f'{name}-{width}x{height}.png'
                     page.evaluate('() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))')
+                    # Prime Chromium's software raster before persisting the frame.
+                    page.screenshot(animations='disabled')
+                    page.wait_for_timeout(80)
                     page.screenshot(path=str(path),animations='disabled')
                     verify_png(path,width,height)
                     artifacts.append(dict(view=name,viewport=[width,height],file=path.name,checks=findings))

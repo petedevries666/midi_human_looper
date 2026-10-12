@@ -36,6 +36,7 @@ try:
     results[key][view]=page.evaluate(MEASURE,selector)
    inventories[key]=page.locator('#phrases button:not(.modulation-access), #instruments button:not(.modulation-access)').evaluate_all('(nodes)=>nodes.map(e=>e.getAttribute("aria-label")||e.textContent).sort()')
    page.locator('[data-instrument-id="1"]').get_by_role('button',name='ADD TRANSFORMER',exact=True).click();page.locator('.transformers .module').first.get_by_role('button',name='EDIT',exact=True).click()
+   page.locator('#editor').wait_for(state='visible')
    results[key]['transformer-editor']=page.evaluate(MEASURE,'#editor-content');page.keyboard.press('Escape')
    tf=api.call()['instruments'][0]['transformers'][0];api.command('module_structure',instrumentId=1,moduleId=tf['id'],operation='delete');page.locator('.transformers .module').wait_for(state='detached')
    if not old:

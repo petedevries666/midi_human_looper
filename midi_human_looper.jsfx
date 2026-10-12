@@ -2283,6 +2283,7 @@ local(gi,ch,n,key,live,mi,idx,remain,old,desired,mode,src)
   param_release_owned();gi=0;loop(MAX_ONCE_VOICES,mem[VOICE_ACTIVE_BASE+gi]=0;gi+=1;);
   gi=0;loop(LAYERS,mem[TRIG_BASE+gi]=0;mem[HOLD_ACTIVE_BASE+gi]=0;gi+=1;);
   trigger_request=-1;hold_stop_request=-1;last_trigger_layer=-1;
+  native_free_time?(gi=0;loop(33024,mem[3008000+gi]=0;gi+=1;););
   state==STATE_PLAYING ? state=STATE_STOPPED;
 );
 // Optional native performance bridge. Config/runtime live beyond serialized memory;
@@ -2313,7 +2314,7 @@ local(b,r,step,phrase,gi,kind,k,c,found)
     step=sw_traverse(si);step>=0 ? (
       phrase=mem[b+SW_LIST+step];
       phrase>=0 && phrase<LAYERS && layer_count(phrase)>0 ? (
-        mem[MODE_BASE+phrase]<.5 ? (loop_len_samples>0 ? (mem[TRIG_BASE+phrase]=1;state=STATE_PLAYING;) : mem[r+17]=2;) : (
+        mem[MODE_BASE+phrase]<.5 ? (loop_len_samples>0 ? (native_free_time?(mem[FREE_LOOP_ANCHOR_BASE+phrase]=play_sample_pos;mem[FREE_FINISHED_BASE+phrase]=0;);mem[TRIG_BASE+phrase]=1;state=STATE_PLAYING;) : mem[r+17]=2;) : (
           trigger_request=phrase;process_phrase_trigger(offs,0);
         );
       ) : mem[r+17]=2;

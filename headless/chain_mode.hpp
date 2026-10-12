@@ -17,7 +17,7 @@ struct ChainMode {
   NSEEL_CODEHANDLE align, begin, finish, play, holdPress, holdRelease;
   NSEEL_CODEHANDLE freeArm, freeFinish, freePlay, freeStop;
   EEL_F *musicalState, *recordPosition, *overdubArmed, *captureNormalize, *loopLength;
-  EEL_F* voiceActive[24]{};
+  EEL_F* voiceActive[12]{};
   EEL_F *freeReady,*freeActive,*overflow,*freeOldCount,*freeOldLength,*freeOldTrigger;
   NSEEL_CODEHANDLE rollbackCapture;
   bool freeCaptureSession=false;
@@ -56,8 +56,9 @@ struct ChainMode {
     overdubArmed=ysfx_find_var(f,"overdub_armed");
     captureNormalize=NSEEL_VM_regvar(f->vm.get(),"chain_capture_normalize");
     loopLength=ysfx_find_var(f,"loop_len_samples");
+    if(*ysfx_find_var(f,"MAX_ONCE_VOICES")!=12)throw std::runtime_error("unsupported shared phrase voice capacity");
     const unsigned voiceBase=unsigned(*ysfx_find_var(f,"VOICE_ACTIVE_BASE"));
-    for(unsigned i=0;i<24;++i)voiceActive[i]=NSEEL_VM_getramptr(f->vm.get(),voiceBase+i,nullptr);
+    for(unsigned i=0;i<12;++i)voiceActive[i]=NSEEL_VM_getramptr(f->vm.get(),voiceBase+i,nullptr);
     *NSEEL_VM_regvar(f->vm.get(),"native_free_time")=active && !grid?1:0;
     freeReady=NSEEL_VM_regvar(f->vm.get(),"free_record_ready");freeActive=NSEEL_VM_regvar(f->vm.get(),"free_record_active");
     overflow=NSEEL_VM_regvar(f->vm.get(),"record_overflow");
@@ -118,7 +119,7 @@ struct ChainMode {
     run=false;
     for(unsigned i=0;i<16;++i)
       run=run || (*musicalState==3 && *phraseModes[i]<.5 && *phraseTriggers[i]>.5);
-    for(unsigned i=0;i<24;++i)run=run || *voiceActive[i]>.5;
+    for(unsigned i=0;i<12;++i)run=run || *voiceActive[i]>.5;
     length=uint64_t(std::max(0.,*loopLength));
   }
   void finishFree() {

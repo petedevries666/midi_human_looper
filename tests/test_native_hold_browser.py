@@ -20,7 +20,7 @@ try:
         browser=playwright.chromium.launch(headless=True,executable_path=os.environ.get('CHROMIUM_PATH','/usr/bin/chromium'),args=['--no-sandbox'])
         page=browser.new_page(viewport={'width':1366,'height':768});page.goto(api.base)
         page.get_by_text('CONNECTED · Engine running',exact=True).wait_for()
-        trigger=page.locator('[data-phrase-id="1"]').get_by_role('button',name='TRIGGER',exact=True)
+        trigger=page.locator('[data-phrase-id="1"] [data-phrase-play]')
         trigger.wait_for();assert not trigger.is_disabled()
         before=api.call()['midiCount'];box=trigger.bounding_box()
         page.mouse.move(box['x']+box['width']/2,box['y']+box['height']/2);page.mouse.down()

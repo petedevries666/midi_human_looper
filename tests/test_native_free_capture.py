@@ -174,25 +174,40 @@ class FreeCapture(SnapshotTests):
         self.assertIn(402,[s['id'] for s in config['sources']])
         self.assertFalse(config['mappings'])
         self.assertEqual(self.call()['controllerLearn']['target'],0)
-        for phrase,channel,pitch in ((11,1,48),(12,2,64)):
+        for instrument in (1,2,3):
+            self.command('instrument_route',instrumentId=instrument,field='enabled',value=1)
+            self.command('instrument_route',instrumentId=instrument,field='input',value=instrument)
+            self.command('instrument_route',instrumentId=instrument,field='output',value=instrument)
+        for phrase,channel,pitch in ((11,1,48),(12,2,64),(13,3,67)):
             self.command('phrase_clear',phraseId=phrase)
             self.command('phrase_record',phraseId=phrase)
             self.command('midi',channel=channel,note=pitch,value=90)
             time.sleep(.07)
             self.command('phrase_finish',phraseId=phrase);self.command('panic')
         sw=self.call()['switches'][0];settings=sw['settings'];settings[0]=1;settings[1]=1;settings[2]=3;settings[3]=99;settings[12]=1
-        for mode,steps in ((0,[1,2,1]),(1,[2,1,2]),(2,[1,2,1,2])):
+        for mode,steps in ((0,[1,2,3,1]),(1,[3,2,1,3]),(2,[1,2,3,2,1])):
             settings[9]=mode;settings[10]=0
-            self.command('switch_commit',switchId=sw['id'],settings=settings,sequence=[11,12],name='SEQUENCER')
+            self.command('switch_commit',switchId=sw['id'],settings=settings,sequence=[11,12,13],name='SEQUENCER')
             for step in steps:
                 state=self.command('test',switchId=sw['id'],gesture='tap')
                 self.assertEqual(state['switches'][0]['step'],step)
-                self.assertEqual(state['lastEvent'][2],48 if step==1 else 64)
+                self.assertEqual(state['lastEvent'][2],{1:48,2:64,3:67}[step]);self.assertEqual(state['lastEvent'][1]&15,step-1)
         settings[9]=3
-        self.command('switch_commit',switchId=sw['id'],settings=settings,sequence=[11,12],name='SEQUENCER')
-        steps=[self.command('test',switchId=sw['id'],gesture='tap')['switches'][0]['step'] for _ in range(2)]
-        self.assertEqual(sorted(steps),[1,2])
-        self.command('panic');self.capture();self.patch('save')
+        self.command('switch_commit',switchId=sw['id'],settings=settings,sequence=[11,12,13],name='SEQUENCER')
+        steps=[self.command('test',switchId=sw['id'],gesture='tap')['switches'][0]['step'] for _ in range(3)]
+        self.assertEqual(sorted(steps),[1,2,3])
+        settings[9]=0;settings[10]=1
+        self.command('switch_commit',switchId=sw['id'],settings=settings,sequence=[11,12,13],name='SEQUENCER')
+        state=self.command('midi',channel=4,note=99,value=100)
+        self.assertEqual(state['switches'][0]['step'],1);self.assertEqual(state['lastEvent'][1:3],[144,48])
+        self.command('midi',channel=4,note=99,value=0)
+        other=self.call()['switches'][1];other_settings=other['settings'];other_settings[0]=1;other_settings[12]=1
+        self.command('switch_commit',switchId=other['id'],settings=other_settings,sequence=[12],name='OTHER SEQUENCE')
+        self.command('test',switchId=other['id'],gesture='tap')
+        state=self.command('midi',channel=4,note=99,value=100)
+        self.assertEqual(state['switches'][0]['step'],1,'RESET ON RE-ENTRY restarts the first switch')
+        self.command('midi',channel=4,note=99,value=0)
+        self.command('panic');state=self.call();self.assertFalse(state['chainRunning']);self.assertFalse(any(p['state']=='PLAYING' for p in state['phrases']));self.capture();self.patch('save')
         self.command('patch_clear',confirm=False,expected=400)
         self.command('patch_clear',confirm=True)
         state=self.call()

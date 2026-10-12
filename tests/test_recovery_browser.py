@@ -58,6 +58,7 @@ try:
   page.get_by_role('menuitem',name='EXP 1 CODIE',exact=True).click()
   page.get_by_label('Controller source',exact=True).wait_for()
   page.get_by_role('button',name='ADD POINT',exact=True).click()
+  page.locator('.curve-precision summary').click()
   page.get_by_label('Y point 2',exact=True).fill('0.25')
   page.get_by_label('BEND point 1',exact=True).fill('0.6')
   page.get_by_role('button',name='STORE CUSTOM 1',exact=True).click();page.wait_for_timeout(200)

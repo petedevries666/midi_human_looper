@@ -43,11 +43,11 @@ try:
         page.get_by_label('Include 1:0:1',exact=True).uncheck()
         page.get_by_role('button',name='DONE',exact=True).click()
         case.wait_for(lambda:not json.load(urllib.request.urlopen(case.base+'/api/v1/snapshot/'+str(case.call()['snapshots'][0]['id'])))['parameters'][0]['included'],'inclusion commit')
-        page.locator('[data-switch-id="1"]').get_by_role('button',name='OPTIONS',exact=True).click()
+        page.locator('[data-switch-id="1"]').get_by_role('button',name='SNAPSHOTS',exact=True).click()
         page.get_by_label('Snapshot action',exact=True).select_option('6')
         page.get_by_role('button',name='CANCEL',exact=True).click()
         assert case.call()['snapshotActions']==[]
-        page.locator('[data-switch-id="1"]').get_by_role('button',name='OPTIONS',exact=True).click()
+        page.locator('[data-switch-id="1"]').get_by_role('button',name='SNAPSHOTS',exact=True).click()
         page.get_by_label('Snapshot action',exact=True).select_option('6')
         page.get_by_role('button',name='DONE',exact=True).click()
         case.wait_for(lambda:len(case.call()['snapshotActions'])==1,'switch popup commit')

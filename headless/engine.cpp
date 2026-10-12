@@ -86,7 +86,7 @@ struct Instrument {
   int id = 0, on = 0, input = 0, output = 0, level = 0;
   char name[17]{};
   std::array<int, 6> transformerIds{}, transformerTypes{}, transformerOn{};
-  std::array<std::array<double, 5>, 6> transformerValues{};
+  std::array<std::array<double, 5>, 6> transformerValues{},transformerPending{};
   std::array<std::array<int, 5>, 6> transformerKinds{},
       transformerAssignments{};
   std::array<int, 6> parameterCounts{};
@@ -175,7 +175,7 @@ static void execute(ysfx_t *fx, const char *text) {
 struct Model {
   std::array<std::array<EEL_F*,128>,16> switchFields;
   EEL_F *musicalState,*recordLayer,*odLayer,*odActive,*odArmed,*freeActive,*freeReady,*freeError;
-  std::array<EEL_F*,24> voiceActive,voiceLayer;
+  std::array<EEL_F*,12> voiceActive,voiceLayer;
   std::array<EEL_F*,16> phraseTriggers,phraseFinished;
   struct CurvePointers{double *count=nullptr;std::array<std::array<double*,3>,16> points{};};
   std::array<std::array<std::array<CurvePointers,5>,12>,8> legacyCurves;
@@ -255,8 +255,9 @@ struct Model {
     NSEEL_code_free(level);NSEEL_code_free(geometry);
   }
   explicit Model(ysfx_t *fx) {
+    if(variable(fx,"MAX_ONCE_VOICES")!=voiceActive.size())throw std::runtime_error("shared voice capacity mismatch");
     musicalState=ysfx_find_var(fx,"state");recordLayer=ysfx_find_var(fx,"record_layer");odLayer=ysfx_find_var(fx,"overdub_layer");odActive=ysfx_find_var(fx,"overdub_active");odArmed=ysfx_find_var(fx,"overdub_armed");freeActive=ysfx_find_var(fx,"free_record_active");freeReady=ysfx_find_var(fx,"free_record_ready");freeError=ysfx_find_var(fx,"free_play_error");
-    for(unsigned j=0;j<24;++j){voiceActive[j]=cell(fx,unsigned(variable(fx,"VOICE_ACTIVE_BASE"))+j);voiceLayer[j]=cell(fx,unsigned(variable(fx,"VOICE_LAYER_BASE"))+j);}
+    for(unsigned j=0;j<12;++j){voiceActive[j]=cell(fx,unsigned(variable(fx,"VOICE_ACTIVE_BASE"))+j);voiceLayer[j]=cell(fx,unsigned(variable(fx,"VOICE_LAYER_BASE"))+j);}
     for(unsigned j=0;j<16;++j){phraseTriggers[j]=cell(fx,unsigned(variable(fx,"TRIG_BASE"))+j);phraseFinished[j]=cell(fx,unsigned(variable(fx,"FREE_FINISHED_BASE"))+j);}
 
     auto gi = NSEEL_VM_regvar(fx->vm.get(), "remote_model_i"),
@@ -502,7 +503,7 @@ struct Model {
       for (unsigned j=0;j<16;++j) s.phrases[i].name[j]=char(*phraseNames[i][j]);
       s.phrases[i].events = int(*phrase[i][0]);
       bool playing=*musicalState==3 && *phrase[i][1]<.5 && *phraseTriggers[i]>.5;
-      for(unsigned j=0;j<24;++j)playing|=*voiceActive[j]>.5 && *voiceLayer[j]==i;
+      for(unsigned j=0;j<12;++j)playing|=*voiceActive[j]>.5 && *voiceLayer[j]==i;
       auto &p=s.phrases[i];p.state=!p.events?0:*phraseFinished[i]>.5?3:7;
       if(playing)p.state=4;
       if(*odLayer==i && *odArmed>.5)p.state=5;
@@ -545,6 +546,7 @@ struct Model {
         v.parameterCounts[j] = performance::parameterCount(type);
         for (int r = 0; r < v.parameterCounts[j]; ++r) {
           v.transformerValues[j][r] = *values[i][k][r];
+          v.transformerPending[j][r]=pendingValues[i][k][r]?*pendingValues[i][k][r]:-999;
           v.transformerAssignments[j][r] = int(*assignments[i][k][r]);
           v.transformerKinds[j][r] = performance::parameterKind(type, r);
         }
@@ -631,7 +633,9 @@ static std::string json(const Reply &r) {
             o << ',';
           o << "{\"kind\":" << v.transformerKinds[j][r]
             << ",\"value\":" << v.transformerValues[j][r]
-            << ",\"assignment\":" << v.transformerAssignments[j][r] << '}';
+            << ",\"assignment\":" << v.transformerAssignments[j][r];
+          if(v.transformerPending[j][r]!=-999)o<<",\"pendingValue\":"<<v.transformerPending[j][r];
+          o<<'}';
         }
         o << "]}";
       }
@@ -1452,13 +1456,13 @@ int main(int argc, char **argv) {
       throw std::runtime_error("controller bridge");
     Model model(fx);
     auto importState=ysfx_find_var(fx,"state"), importOverdub=ysfx_find_var(fx,"overdub_active");
-    std::array<double*,24> importVoices{};
+    std::array<double*,12> importVoices{};
     std::array<double*,16> importSustain{}, importLiveSustain{};
     for(unsigned j=0;j<16;++j) {
       importSustain[j]=cell(fx,unsigned(variable(fx,"SUSTAIN_REF_BASE"))+j);
       importLiveSustain[j]=cell(fx,unsigned(variable(fx,"SW_LIVE_SUSTAIN_BASE"))+j);
     }
-    for(unsigned j=0;j<24;++j) importVoices[j]=cell(fx,unsigned(variable(fx,"VOICE_ACTIVE_BASE"))+j);
+    for(unsigned j=0;j<12;++j) importVoices[j]=cell(fx,unsigned(variable(fx,"VOICE_ACTIVE_BASE"))+j);
     const double importRecording=variable(fx,"STATE_RECORDING"), importPlaying=variable(fx,"STATE_PLAYING"), importReady=variable(fx,"STATE_READY");
     auto importArmed=ysfx_find_var(fx,"overdub_armed");
     controller::Host controllers;
@@ -2003,7 +2007,7 @@ int main(int argc, char **argv) {
                *importState==importPlaying ||
                std::any_of(importVoices.begin(),importVoices.end(),[](double* p){return *p>.5;}))) ||
               (request.arg==2 && ((*model.musicalState==3 && *model.phraseTriggers[request.target]>.5 && *model.phrase[request.target][1]<.5) ||
-               [&](){for(unsigned j=0;j<24;++j)if(*model.voiceActive[j]>.5 && *model.voiceLayer[j]==request.target)return true;return false;}()))) reply.status=3;
+               [&](){for(unsigned j=0;j<12;++j)if(*model.voiceActive[j]>.5 && *model.voiceLayer[j]==request.target)return true;return false;}()))) reply.status=3;
           else { maintenance=true; if(request.arg!=0) ++state.revision; }
         }
         else if (request.op == 4 || request.op == 5) {

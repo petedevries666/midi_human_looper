@@ -14,10 +14,10 @@ try:
   panel.get_by_role('button',name='EDIT',exact=True).first.click();page.mouse.click(2,2);assert not editor.is_visible()
   panel.get_by_role('button',name='EDIT',exact=True).first.click();editor.locator('input[type=number]').last.fill('64');editor.get_by_role('button',name='DONE',exact=True).click();editor.wait_for(state='hidden');assert api.call()['instruments'][0]['level']==64
   panel.get_by_label('Transformer type for Instrument 1',exact=True).select_option('1');panel.get_by_role('button',name='ADD TRANSFORMER',exact=True).click();panel.locator('.module').wait_for()
-  module=panel.locator('.module').first;module.get_by_role('button',name='EDIT',exact=True).click();editor.locator('input[type=number]').fill('12');editor.get_by_role('button',name='DONE',exact=True).click();editor.wait_for(state='hidden')
+  module=panel.locator('.module').first;module.get_by_role('button',name='EDIT',exact=True).click();editor.get_by_role('slider',name='SEMITONES',exact=True).fill('12');api.wait_for(lambda:api.call()['instruments'][0]['transformers'][0]['parameters'][0]['value']==12,'live transpose');editor.get_by_role('button',name='DONE',exact=True).click();editor.wait_for(state='hidden')
   assert api.command('midi',channel=1,note=60,value=90)['lastEvent'][2]==72;api.command('midi',channel=1,note=60,value=0)
-  module.get_by_role('button',name='EDIT',exact=True).click();editor.locator('input[type=number]').fill('5');api.command('instrument_route',instrumentId=1,field='level',value=70);editor.get_by_role('button',name='DONE',exact=True).click();editor.get_by_text('Configuration changed. CANCEL and reopen this editor.',exact=True).wait_for();editor.get_by_role('button',name='CANCEL',exact=True).click()
-  assert api.call()['instruments'][0]['transformers'][0]['parameters'][0]['value']==12
+  module.get_by_role('button',name='EDIT',exact=True).click();editor.get_by_role('slider',name='SEMITONES',exact=True).fill('5');api.wait_for(lambda:api.call()['instruments'][0]['transformers'][0]['parameters'][0]['value']==5,'live preview');api.command('instrument_route',instrumentId=1,field='level',value=70);editor.get_by_role('button',name='CANCEL',exact=True).click();editor.wait_for(state='hidden')
+  assert api.call()['instruments'][0]['transformers'][0]['parameters'][0]['value']==12,api.call()['instruments'][0];assert api.call()['instruments'][0]['level']==70
   page.set_viewport_size({'width':420,'height':900});assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
   assert not errors,errors;browser.close();print('PASS generic browser editor: descriptor rendering, draft DONE/CANCEL/ESC/outside, atomic commit, Transformer output, stale conflict and responsive layout')
 finally:HeadlessTests.tearDownClass()

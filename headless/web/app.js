@@ -15,7 +15,7 @@ function decorateButton(b,label){
 }
 function button(label,action){const b=node('button',label);b.setAttribute('aria-label',label);b.title=label;decorateButton(b,label);compactAction(b,label);b.addEventListener('click',action);return b;}
 function compactAction(b,label){
-  const short={'BYPASS':'','ENABLE':'','SOLO':'S','SOLO ON':'S','MUTE':'M','MUTE ON':'M','FINISH REC':'END','MIDI LEARN':'LEARN','TRIGGER LEARN':'','CANCEL LEARN':'','ADD TRANSFORMER':'','ADD INSTRUMENT':'INST','ADD CONTROLLER SOURCE':'SOURCE','ADD MAPPING':'MAP','+ CAPTURE SNAPSHOT':'CAPTURE','CAPTURE STATE':'STATE','SIMULATE FOOTSWITCH':'MIDI','CONFIGURE A/B':'A/B','SAVE PATCH':'','LOAD PATCH':'','STOP':'','EDIT':'','PHRASE OPTIONS':'','OPTIONS':'','DELETE':'','FORGET':'','×':'','TRIGGER':'','REC / OVERDUB':'','RECALL':'','←':'','→':''};
+  const short={'BYPASS':'','ENABLE':'','SOLO':'S','SOLO ON':'S','MUTE':'M','MUTE ON':'M','FINISH REC':'END','MIDI LEARN':'LEARN','TRIGGER LEARN':'','CANCEL LEARN':'','ADD TRANSFORMER':'','ADD INSTRUMENT':'INST','ADD CONTROLLER SOURCE':'SOURCE','ADD MAPPING':'MAP','+ CAPTURE SNAPSHOT':'CAPTURE','CAPTURE STATE':'STATE','SIMULATE FOOTSWITCH':'MIDI','CONFIGURE A/B':'A/B','SAVE PATCH':'','LOAD PATCH':'','STOP':'','EDIT':'','PHRASE OPTIONS':'','OPTIONS':'','SNAPSHOTS':'SNAP','DELETE':'','FORGET':'','×':'','TRIGGER':'','REC / OVERDUB':'','RECALL':'','←':'','→':''};
   const text=Object.hasOwn(short,label)?short[label]:label.startsWith('TEST ')?label.slice(5):label.startsWith('LEARN ·')?'':null;
   if(text===null)return;if(label==='CANCEL LEARN')b.setAttribute('aria-pressed','true');if(label==='FINISH REC')b.querySelector('svg')?.remove();for(const child of [...b.childNodes])if(child.nodeType===Node.TEXT_NODE)child.remove();if(text)b.append(document.createTextNode(text));b.classList.toggle('icon-only',!text);}
 const shortParameter=label=>({'BASE VEL':'VEL','VEL DECAY':'V.DEC','TIME DECAY':'T.DEC','VOLUME':'VOL','SEMITONES':'ST','LOW NOTE':'LOW','HIGH NOTE':'HIGH'}[label]||label);
@@ -25,7 +25,7 @@ function tactileSlider(label,value,min,max,step,oncommit,defaultValue=1,logarith
   const root=node('label',undefined,'tactile-slider'),caption=node('span',shortParameter(label.replace(/ (Phrase|Instrument) \d+$/,'')),'slider-caption'),rail=node('input'),readout=node('output');
   rail.type='range';rail.min=logarithmic?-1:min;rail.max=logarithmic?1:max;rail.step=logarithmic?.001:step;rail.value=logarithmic?Math.log2(value):value;rail.setAttribute('aria-label',label);
   const decode=()=>logarithmic?Math.pow(2,Number(rail.value)):Number(rail.value);
-  const paint=()=>{const v=decode();root.style.setProperty('--position',`${100*(Number(rail.value)-Number(rail.min))/(Number(rail.max)-Number(rail.min))}%`);readout.value=step===1?String(Math.round(v)):label.startsWith('VEL DECAY')?`${Math.round(v*100)}%`:`×${v.toFixed(2)}`;rail.setAttribute('aria-valuetext',readout.value);};
+  const paint=()=>{const v=decode();root.style.setProperty('--position',`${100*(Number(rail.value)-Number(rail.min))/(Number(rail.max)-Number(rail.min))}%`);readout.value=step===1?String(Math.round(v)):label.startsWith('VEL DECAY')?`${Math.round(v*100)}%`:`×${v.toFixed(label.startsWith('BASE VEL')?1:2)}`;rail.setAttribute('aria-valuetext',readout.value);};
   let accepted=Number(value),desired=null,sending=false,dragging=false;
   rail.addEventListener('pointerdown',()=>dragging=true);for(const edge of ['pointerup','pointercancel','lostpointercapture'])rail.addEventListener(edge,()=>dragging=false);
   rail.setEffective=v=>{if(dragging||sending||desired!==null||rail.dataset.assignmentGesture)return;accepted=Number(v);rail.value=logarithmic?Math.log2(accepted):accepted;paint();};
@@ -71,6 +71,7 @@ function createNamedSource(binding){
  content.append(button('DONE',async()=>{try{const sourceId=freshId(controllerConfiguration().sources.map(s=>s.id));const state=await request('/api/v1/command',{protocolVersion:1,expectedRevision:revision,expectedEngineSessionId:engineSession,action:'controller_rename',sourceId,name:input.value,create:true});render(state);dialog.close();await assignModulator(binding,controllerConfiguration().sources.find(s=>s.id===sourceId));}catch(e){error.textContent=e.message;}}),button('CANCEL',()=>dialog.close()));showEditor(dialog);input.focus();
 }
 async function assignModulator(binding,source){
+ if($('editor').dataset.kind==='module')await window.mbmfModuleFlush?.();
  const {mappings}=controllerConfiguration();const existing=mappingFor(binding);let points=existing?.points||[[0,0,0],[1,1,0]],legacy=0;
  if(binding.kind<14){const state=await request('/api/v1/command',{protocolVersion:1,expectedRevision:revision,expectedEngineSessionId:engineSession,action:'parameter_curve',targetId:binding.instrumentId,moduleId:binding.moduleId,kind:binding.kind});legacy=state.legacyCurve.source;if(legacy){if(!confirm('Replace this legacy expression assignment with native Controller ownership? Other legacy targets remain unchanged.'))return;points=state.legacyCurve.points;}}
  const same=mappings.find(m=>m.instrumentId===binding.instrumentId&&m.moduleId===binding.moduleId&&m.kind===binding.kind);
@@ -80,10 +81,38 @@ async function assignModulator(binding,source){
 }
 document.addEventListener('pointerdown',e=>{const menu=$('assignment-menu');if(menu&&!menu.contains(e.target)){e.preventDefault();e.stopImmediatePropagation();closeAssignment();}},true);
 document.addEventListener('keydown',e=>{if(e.key==='Escape'){if(document.querySelector('.assignment-menu')){closeAssignment();e.preventDefault();return;}const dialog=document.querySelector('dialog[data-contextual][open]');if(dialog){const cancel=new Event('cancel',{cancelable:true});if(dialog.dispatchEvent(cancel))dialog.close();e.preventDefault();}}});
-function showEditor(dialog,docked=false){if(docked){dialog.dataset.contextual='true';dialog.show();dialog.scrollIntoView({block:'nearest'});}else{delete dialog.dataset.contextual;dialog.showModal();}}
+function showEditor(dialog,docked=false,kind=''){if(kind)dialog.dataset.kind=kind;else delete dialog.dataset.kind;if(docked){dialog.dataset.contextual='true';dialog.show();dialog.scrollIntoView({block:'nearest'});}else{delete dialog.dataset.contextual;dialog.showModal();}}
 document.addEventListener('pointerdown',e=>{const d=$('editor');if(d.open&&d.dataset.contextual&&!d.contains(e.target)&&!e.target.closest('.module')&&!e.target.closest('#assignment-menu'))d.close();});
 function editInstrument(i){const d=descriptor(0);if(!d)return;edit(d,i,d.parameters.map(id=>{const p=catalog.parameters.find(p=>p.id===id),canonical=parameter({enabled:21,input:22,output:23}[id]);const display=canonical?{...p,valueType:canonical.valueType,choices:canonical.choices}:p;return {descriptor:display,value:i[p.engineField],assignment:0};}),null);}
-function editModule(i,tf){selectedModule={instrumentId:i.id,moduleId:tf.id};for(const element of document.querySelectorAll('.module'))element.classList.toggle('selected',Number(element.dataset.moduleId)===tf.id);const d=descriptor(tf.type);if(!d)return;edit(d,i,tf.parameters.map(p=>({descriptor:parameter(p.kind),...p})),tf);}
+async function editModule(i,tf){
+ if($('editor').open){if($('editor').dataset.kind!=='module')return;await window.mbmfModuleFlush?.();$('editor').close();}
+ try{render(await request('/api/v1/state'));}catch(e){$('error').textContent=e.message;return;}
+ const fresh=latest.instruments.find(v=>v.id===i.id),current=fresh?.transformers.find(v=>v.id===tf.id);if(!fresh||!current)return;i=fresh;tf=current;
+ selectedModule={instrumentId:i.id,moduleId:tf.id};for(const element of document.querySelectorAll('.module'))element.classList.toggle('selected',Number(element.dataset.moduleId)===tf.id);
+ const dialog=$('editor'),content=$('editor-content'),session=engineSession;
+ dialog.dataset.kind='module';content.replaceChildren(node('h2',`${i.name||'INSTRUMENT '+i.id} / ${descriptor(tf.type)?.label}`));
+ const before=new Map(),applied=new Map(),desired=new Map();let queue=Promise.resolve(),scheduled=false,cancelled=false;
+ const error=node('p');error.setAttribute('role','alert');
+ const flush=()=>{scheduled=false;const changes=[...desired];desired.clear();queue=queue.then(async()=>{for(const [kind,value] of changes){if(cancelled||session!==engineSession)return;while(pending)await new Promise(r=>setTimeout(r,10));if(await command({action:'parameter_set',targetId:i.id,moduleId:tf.id,kind,value})){applied.set(kind,value);}else error.textContent=$('error').textContent;}});return queue;};
+ const change=(kind,value)=>{desired.set(kind,value);if(!scheduled){scheduled=true;setTimeout(flush,40);}};
+ window.mbmfModuleFlush=async()=>{await flush();await queue;};
+ for(const item of tf.parameters){const p=parameter(item.kind);if(!p)continue;before.set(item.kind,item.pendingValue??item.value);const binding={instrumentId:i.id,moduleId:tf.id,kind:item.kind};
+  const row=node('label',shortParameter(p.label),'parameter');
+  if(p.valueType==='toggle'){let value=item.value;const control=button(p.label,()=>{value=value?0:1;control.textContent=value?'ON':'OFF';control.setAttribute('aria-pressed',String(!!value));change(item.kind,value);});control.textContent=value?'ON':'OFF';control.setAttribute('aria-pressed',String(!!value));control.disabled=!!item.assignment;row.append(control);bindModulation(control,binding);}
+  else if(p.valueType==='enum'){const control=node('select');control.setAttribute('aria-label',p.label);for(let v=p.min;v<=p.max;v+=p.step){const o=node('option',p.choices?.[v]??String(v));o.value=v;control.append(o);}control.value=item.value;control.disabled=!!item.assignment;control.onchange=()=>change(item.kind,Number(control.value));row.append(control);bindModulation(control,binding);}
+  else{const slider=tactileSlider(p.label,item.value,p.min,p.max,p.step,value=>{change(item.kind,value);return true;},p.default,false,binding);slider.querySelector('input').disabled=!!item.assignment;row.append(slider);}
+  content.append(row);
+ }
+ content.append(error,button('DONE',async()=>{await window.mbmfModuleFlush();dialog.close();renderedModel='';render(latest);}),button('CANCEL',async()=>{
+  await window.mbmfModuleFlush();cancelled=true;
+  try{render(await request('/api/v1/state'));}catch(e){error.textContent=e.message;return;}
+  if(session===engineSession)for(const [kind,value] of applied){const item=latest.instruments.find(v=>v.id===i.id)?.transformers.find(v=>v.id===tf.id)?.parameters.find(p=>p.kind===kind),current=item?.pendingValue??item?.value;
+   if(Math.abs(current-value)<1e-8){while(pending)await new Promise(r=>setTimeout(r,10));await command({action:'parameter_set',targetId:i.id,moduleId:tf.id,kind,value:before.get(kind)});}}
+  dialog.close();
+ }));
+ dialog.oncancel=e=>{e.preventDefault();content.querySelector('[aria-label="CANCEL"]').click();};showEditor(dialog,true,'module');
+}
+
 function edit(module,instrument,values,instance){
   const dialog=$('editor'),content=$('editor-content');if(dialog.open)return;
   const capturedRevision=revision,capturedSession=engineSession;
@@ -161,6 +190,30 @@ async function editSnapshot(record){
   dialog.oncancel=e=>{if(committing)e.preventDefault();};
   dialog.onclick=e=>{const r=dialog.getBoundingClientRect();if(e.target===dialog&&(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom))dismiss();};
   showEditor(dialog);
+}
+function editSwitchSequence(sw){
+ const dialog=$('editor');if(dialog.open)return;const content=$('editor-content');content.replaceChildren(node('h2','SMART SWITCH / SEQUENCE'));
+ const settings=[...sw.settings],sequence=[...sw.sequence],session=engineSession,rev=revision;
+ const name=node('input');name.value=sw.name;name.maxLength=16;name.setAttribute('aria-label','Smart Switch name');content.append(name);
+ const choice=(label,index,options)=>{const row=node('label',label,'parameter'),select=node('select');select.setAttribute('aria-label',label);for(const [value,text] of options){const o=node('option',text);o.value=value;select.append(o);}select.value=settings[index];select.onchange=()=>settings[index]=Number(select.value);row.append(select);content.append(row);return select;};
+ choice('ENABLED',0,[[0,'OFF'],[1,'ON']]);choice('TRAVERSAL',9,[[0,'FORWARD'],[1,'REVERSE'],[2,'PING-PONG'],[3,'RANDOM']]);choice('RESET ON RE-ENTRY',10,[[0,'CONTINUE'],[1,'RESTART']]);
+ const list=node('div',undefined,'sequence-list');content.append(list);
+ const paint=()=>{list.replaceChildren(...sequence.map((id,index)=>{const row=node('div',undefined,'sequence-step');row.append(node('span',`${index+1} → ${latest.phrases.find(p=>p.id===id)?.name||'PHRASE '+id}`));for(const [text,delta] of [['←',-1],['→',1]]){const b=button(text,()=>{const other=index+delta;[sequence[index],sequence[other]]=[sequence[other],sequence[index]];paint();});b.disabled=index+delta<0||index+delta>=sequence.length;row.append(b);}row.append(button('DELETE',()=>{sequence.splice(index,1);paint();}));return row;}));};paint();
+ const phrase=node('select');phrase.setAttribute('aria-label','Sequence phrase');for(const p of latest.phrases){const o=node('option',`${p.id} · ${p.name||'PHRASE '+p.id}${p.events?'':' · EMPTY'}`);o.value=p.id;phrase.append(o);}content.append(phrase,button('ADD STEP',()=>{if(sequence.length<64){sequence.push(Number(phrase.value));paint();}}));
+ const actions=[[0,'NONE'],[1,'NEXT PHRASE'],[2,'STOP PHRASES'],[3,'RESET SEQUENCE'],[4,'RESET ALL'],[5,'STOP + RESET'],[6,'PANIC']];
+ for(const [index,label] of [[12,'TAP ACTION'],[13,'DOUBLE ACTION'],[14,'HOLD ACTION']]){
+   // Preserve existing module actions without silently translating them.
+   const override=(latest.snapshotActions||[]).find(a=>a.switchId===sw.id && a.gesture===index-12 && a.action>0);
+   const select=choice(label,index,override?[[settings[index],'SNAPSHOT ACTION · SNAP EDIT']]:settings[index]>6?[...actions,[settings[index],'EXISTING MODULE ACTION']]:actions);
+   if(override){select.disabled=true;select.title='Configured Snapshot action takes precedence. Use SNAP to change or remove it.';}
+ }
+ choice('ADVANCE',6,[[0,'ON PRESS'],[1,'GESTURE CLASSIFIED']]);
+ const input=node('details');input.append(node('summary','MIDI / GESTURE TIMING'));content.append(input);
+ const midiType=choice('MIDI TYPE',1,[[0,'UNASSIGNED'],[1,'NOTE'],[2,'CC']]);input.append(midiType.parentElement);
+ for(const [label,index,min,max] of [['MIDI CHANNEL (1–16)',2,1,16],['NOTE / CC',3,0,127],['CC PRESS',4,0,127],['CC RELEASE',5,0,127],['DOUBLE MS',7,50,2000],['HOLD MS',8,100,5000]]){const row=node('label',label,'parameter'),n=node('input');n.type='number';n.min=min;n.max=max;n.value=settings[index]+(index===2?1:0);n.setAttribute('aria-label',label);n.onchange=()=>settings[index]=Number(n.value)-(index===2?1:0);row.append(n);input.append(row);}
+ content.append(contextualHelp('Each NEXT gesture advances one step. Authored MIDI channels route the phrase to matching Instruments. LOOP layers continue until STOP; ONCE/HOLD retain their established lifecycle. RANDOM uses the existing shuffle bag. Empty steps remain valid and generate no notes.'));
+ const error=node('p');error.setAttribute('role','alert');content.append(error);
+ content.append(button('DONE',async()=>{if(session!==engineSession){error.textContent='Engine restarted; reopen editor.';return;}if(await command({action:'switch_commit',switchId:sw.id,settings,sequence,name:name.value,expectedRevision:rev})){dialog.close();renderedModel='';render(latest);}else error.textContent=$('error').textContent;}),button('CANCEL',()=>dialog.close()));showEditor(dialog);
 }
 function editSwitchSnapshots(sw){
   const dialog=$('editor'),content=$('editor-content');if(dialog.open)return;
@@ -266,14 +319,15 @@ function render(s){
     if(feedback)feedback.textContent=`${r.id===s.selectedSnapshotId?'SELECTED · ':''}${r.dirty?'MODIFIED':''}${r.id===s.selectedSnapshotId&&s.snapshotSkippedTargets?` · PARTIAL (${s.snapshotSkippedTargets} missing)`:''}${r.id===s.targetSnapshotId?` · MORPH ${Math.round(s.morphProgress*100)}%`:''}`;
   }
   renderAB(s);
-  renderControllers(s);
+  if(!document.activeElement?.closest('#controllers .name-input'))renderControllers(s);
   if(document.activeElement?.classList.contains('name-input')||document.activeElement?.type==='range'||document.querySelector('[data-live-release=held]'))return;
   const model=JSON.stringify([s.controllerEngine,s.controllerLearn,s.phrases.map(p=>({...p,state:undefined,events:0})),s.instruments,s.switches.map(v=>({...v,step:0})),s.snapshotActions]);if(model===renderedModel)return;renderedModel=model;
   compactPhrases(s);
+  paintPhraseStates(s);
   $('instruments').replaceChildren(...s.instruments.map(compactInstrument));
   const openSwitchTests=new Set([...document.querySelectorAll('.switch-test[open]')].map(e=>e.closest('[data-switch-id]').dataset.switchId));
   $('switches').replaceChildren(...s.switches.map(sw=>{
-    const n=node('article',undefined,'switch');n.dataset.switchId=sw.id;n.append(node('strong',sw.name||`SWITCH ${sw.id}`),node('small',`${sw.kind===1?'NOTE':sw.kind===2?'CC':'UNASSIGNED'} ${sw.number} · CH ${sw.channel}`),node('small',`STEP ${sw.step} / ${sw.length}`,'step'),button('OPTIONS',()=>editSwitchSnapshots(sw)));
+    const n=node('article',undefined,'switch');n.dataset.switchId=sw.id;n.append(node('strong',sw.name||`SWITCH ${sw.id}`),node('small',`${sw.kind===1?'NOTE':sw.kind===2?'CC':'UNASSIGNED'} ${sw.number} · CH ${sw.channel}`),node('small',`STEP ${sw.step} / ${sw.length}`,'step'),button('OPTIONS',()=>editSwitchSequence(sw)),button('SNAPSHOTS',()=>editSwitchSnapshots(sw)));
     const tests=node('div',undefined,'tests');for(const gesture of ['tap','double','hold']){const b=button(`TEST ${gesture.toUpperCase()}`,()=>command({action:'test',switchId:sw.id,gesture}));b.dataset.valid=sw.enabled?'1':'0';b.disabled=!sw.enabled;tests.append(b);}
     const hardware=button('SIMULATE FOOTSWITCH',async()=>{if(await command({action:'midi',channel:sw.channel,note:sw.number,value:100}))await command({action:'midi',channel:sw.channel,note:sw.number,value:0});});hardware.className='hardware';hardware.dataset.valid=sw.kind===1?'1':'0';hardware.disabled=sw.kind!==1;const tools=node('details',undefined,'switch-test');tools.open=openSwitchTests.has(String(sw.id));tools.append(node('summary','TEST'),tests,hardware);n.append(tools);return n;
   }));
@@ -291,6 +345,7 @@ function connectStream(){
 async function patch(action){if(pending)return;setPending(true);try{const data=await request(`/api/v1/patch/${action}`,{slot:Number($('patch-slot').value),expectedRevision:revision,expectedEngineSessionId:engineSession});$('patch-status').textContent=action==='save'?'PATCH SAVED':action==='export'?`EXPORTED ${data.file}`:'PATCH LOADED';if(data.revision)render(data);}catch(e){$('error').textContent=e.message;}finally{setPending(false);refresh();}}
 $('panic').addEventListener('click',()=>command({action:'panic'}));
 $('connect').addEventListener('click',()=>{clearTimeout(reconnect);loadDescriptors();refresh();connectStream();});
+$('clear-patch').onclick=async()=>{if(confirm('Clear the current MBMF patch, including phrases, Controllers, Smart Switch configuration and MBMF snapshots? Saved files and other Zynthian chains stay unchanged.')){if(await command({action:'patch_clear',confirm:true})){renderedModel='';renderedSnapshots='';render(latest);$('patch-status').textContent='CLEARED · SAVE to keep this patch';}}};
 $('save-patch').addEventListener('click',()=>patch('save'));$('load-patch').addEventListener('click',()=>patch('load'));
 loadDescriptors();refresh();connectStream();setInterval(()=>{if(!pending&&(!ws||ws.readyState!==WebSocket.OPEN))refresh();},1000);
 window.addEventListener('blur',()=>window.mbmfHeldRelease?.());
@@ -308,12 +363,20 @@ function controllerConfiguration(s=latest){
   decodedControllerWire=wire;return decodedController={sources,mappings,presets};
 }
 function freshId(used){let id;do{id=crypto.getRandomValues(new Uint32Array(1))[0]&0xffffff;}while(!id||used.includes(id));return id;}
+function editControllerSource(source){
+ const dialog=$('editor');if(dialog.open)return;const content=$('editor-content');
+ content.replaceChildren(node('h2','CONTROLLER'));
+ const name=node('input');name.value=source.name||`SOURCE ${source.id}`;name.maxLength=16;name.setAttribute('aria-label','Controller name');content.append(name);
+ const error=node('p');error.setAttribute('role','alert');content.append(error);
+ content.append(button('DONE',async()=>{if(await command({action:'controller_rename',sourceId:source.id,name:name.value}))dialog.close();else error.textContent=$('error').textContent;}),button('CANCEL',()=>dialog.close()));
+ showEditor(dialog);name.focus();
+}
 function renderControllers(s){
   const {sources,mappings}=controllerConfiguration(s),learn=s.controllerLearn||{};
   $('controllers').replaceChildren(...sources.map(source=>{
     const card=node('article',undefined,'module');card.dataset.sourceId=source.id;
     card.append(editableName('Controller',source.id,source.name,`SOURCE ${source.id}`),node('p',source.kind?`${source.kind===1?'NOTE':'CC'} ${source.number} · CH ${source.channel}`:'UNASSIGNED'));
-    card.append(button('MIDI LEARN',()=>command({action:'controller_learn',sourceId:source.id})),button('FORGET',()=>command({action:'controller_forget',sourceId:source.id})));
+    card.append(button('EDIT',()=>editControllerSource(source)),button('REMOVE',()=>{if(confirm('Remove this Controller and only its mappings?'))command({action:'controller_remove',sourceId:source.id});}),button('MIDI LEARN',()=>command({action:'controller_learn',sourceId:source.id})),button('FORGET',()=>command({action:'controller_forget',sourceId:source.id})));
     if(learn.domain!=='phrase'&&learn.target===source.id){card.append(node('p',learn.conflict<0?'Already assigned to a legacy phrase/switch/controller. CANCEL and choose another input.':learn.conflict>0?`Already assigned to SOURCE ${learn.conflict}. Reassign deliberately?`:'Waiting for MIDI note or CC…'),button('CANCEL LEARN',()=>command({action:'controller_cancel',sourceId:source.id})));if(learn.conflict>0)card.append(button('REASSIGN',()=>command({action:'controller_confirm',sourceId:source.id})));}
     return card;
   }));
@@ -325,7 +388,7 @@ function renderControllers(s){
 }
 function curveEditor(points){
   const root=node('div'),canvas=node('canvas');canvas.width=400;canvas.height=120;canvas.className='curve-preview';root.append(canvas);
-  const controls=node('div');root.append(controls);
+  const precision=node('details');precision.className='curve-precision';precision.append(node('summary','POINTS / PRECISION'));const controls=node('div');precision.append(controls);root.append(precision);
   function draw(){const c=canvas.getContext('2d');c.clearRect(0,0,400,120);c.strokeStyle='#ffe34d';c.beginPath();for(let pixel=0;pixel<=400;pixel++){const x=pixel/400;let y=points[points.length-1][1];for(let i=1;i<points.length;i++)if(x<=points[i][0]){const a=points[i-1],b=points[i];let t=(x-a[0])/(b[0]-a[0]),power=1+5*Math.abs(a[2]);t=a[2]>0?Math.pow(t,power):a[2]<0?1-Math.pow(1-t,power):t;y=a[1]+(b[1]-a[1])*t;break;}const sy=120*(1-y);if(pixel)c.lineTo(pixel,sy);else c.moveTo(pixel,sy);}c.stroke();c.fillStyle='#ffe34d';for(const p of points){c.beginPath();c.arc(p[0]*400,(1-p[1])*120,4,0,Math.PI*2);c.fill();}}
   function rows(){controls.replaceChildren();points.forEach((p,index)=>{const row=node('div',undefined,'curve-point');['X','Y','BEND'].forEach((name,k)=>{const label=node('label',name),input=node('input');input.type='number';input.min=k===2?-.98:0;input.max=k===2?.98:1;input.step=.01;input.value=p[k];input.disabled=k===0&&(index===0||index===points.length-1);input.setAttribute('aria-label',`${name} point ${index+1}`);input.addEventListener('input',()=>{p[k]=Number(input.value);draw();});label.append(input);row.append(label);});if(index&&index<points.length-1)row.append(button('REMOVE POINT',()=>{points.splice(index,1);rows();draw();}));controls.append(row);});draw();}
   let dragged=-1;canvas.setAttribute('aria-label','Drag curve points; numeric controls below provide keyboard editing');canvas.style.touchAction='none';
@@ -455,7 +518,7 @@ function editableName(domain,id,value,fallback){
   control.className='editable-name';control.setAttribute('aria-label',`Edit ${domain} ${id} name`);
   control.title='Click to rename · Enter saves · Escape cancels · 16 characters';return control;
 }
-function paintPhraseStates(s){for(const p of s.phrases||[]){const row=document.querySelector(`[data-phrase-id="${p.id}"]`);if(!row)continue;row.dataset.state=p.state||'IDLE';const state=row.querySelector('.phrase-state');if(state)state.textContent=p.state||'IDLE';const rec=row.querySelector('[aria-label="REC / OVERDUB"]');if(rec){rec.dataset.state=p.state;rec.title=`REC / OVERDUB · ${p.state||'IDLE'}`;rec.setAttribute('aria-pressed',String(['ARMED','RECORDING','OVERDUB ARMED','OVERDUB ACTIVE'].includes(p.state)));}}}
+function paintPhraseStates(s){for(const p of s.phrases||[]){const row=document.querySelector(`[data-phrase-id="${p.id}"]`);if(!row)continue;row.dataset.state=p.state||'IDLE';const play=row.querySelector('[data-phrase-play]');if(play){const stop=p.state==='PLAYING' && p.mode!==1;play.dataset.running=String(stop);play.setAttribute('aria-label',stop?'STOP PHRASE':'TRIGGER');play.title=stop?'Stop this phrase':p.mode===2?'Hold to repeat; release stops':'Play phrase';const path=play.querySelector('path');if(path)path.setAttribute('d',iconPaths[stop?'stop':'play']);}const state=row.querySelector('.phrase-state');if(state)state.textContent=p.state||'IDLE';const rec=row.querySelector('[aria-label="REC / OVERDUB"]');if(rec){rec.dataset.state=p.state;rec.title=`REC / OVERDUB · ${p.state||'IDLE'}`;rec.setAttribute('aria-pressed',String(['ARMED','RECORDING','OVERDUB ARMED','OVERDUB ACTIVE'].includes(p.state)));}}}
 function compactPhrases(s){
   const pages=Math.ceil(s.phrases.length/6);phrasePage=Math.min(phrasePage,pages-1);
   $('phrase-pagination').replaceChildren(button('←',()=>{phrasePage=Math.max(0,phrasePage-1);renderedModel='';render(latest);}),node('span',`${phrasePage+1} / ${pages}`),button('→',()=>{phrasePage=Math.min(pages-1,phrasePage+1);renderedModel='';render(latest);}));
@@ -463,12 +526,12 @@ function compactPhrases(s){
   $('phrases').replaceChildren(...s.phrases.slice(phrasePage*6,phrasePage*6+6).map(p=>{
     const row=node('div',undefined,'phrase');row.dataset.phraseId=p.id;row.dataset.state=p.state||'IDLE';row.classList.toggle('empty',!p.events);row.classList.toggle('muted',!!p.mute);row.classList.toggle('soloed',!!p.solo);row.append(node('span',String(p.id).padStart(2,'0'),'phrase-number'));
     const heldMode=!!s.chainMode&&!!s.nativeHeldRelease&&p.mode===2;
-    const trigger=button('TRIGGER',()=>{if(!heldMode)command({action:'phrase_play',phraseId:p.id});});
+    const trigger=button('TRIGGER',()=>{if(!heldMode)command({action:latest.phrases.find(v=>v.id===p.id)?.state==='PLAYING'&&p.mode===0?'phrase_stop':'phrase_play',phraseId:p.id});});trigger.dataset.phrasePlay='true';
     if(heldMode){
       let held=false,edge=Promise.resolve();
       const send=action=>{edge=edge.then(async()=>{while(pending)await new Promise(resolve=>setTimeout(resolve,10));return command({action,phraseId:p.id});});};
-      const press=()=>{if(!held){held=true;trigger.dataset.liveRelease='held';window.mbmfHeldRelease=release;send('phrase_play');}};
-      const release=()=>{if(held){held=false;if(window.mbmfHeldRelease===release)window.mbmfHeldRelease=null;delete trigger.dataset.liveRelease;send('phrase_release');}};
+      let stopping=false;const press=()=>{if(latest.phrases.find(v=>v.id===p.id)?.state==='PLAYING'){stopping=true;send('phrase_stop');return;}stopping=false;if(!held){held=true;trigger.dataset.liveRelease='held';window.mbmfHeldRelease=release;send('phrase_play');}};
+      const release=()=>{if(stopping){stopping=false;return;}if(held){held=false;if(window.mbmfHeldRelease===release)window.mbmfHeldRelease=null;delete trigger.dataset.liveRelease;send('phrase_release');}};
       trigger.onpointerdown=e=>{if(e.button!==0)return;e.preventDefault();trigger.setPointerCapture(e.pointerId);press();};
       trigger.onpointerup=release;trigger.onpointercancel=release;trigger.onlostpointercapture=release;
       trigger.onkeydown=e=>{if([' ','Enter'].includes(e.key)){e.preventDefault();press();}};

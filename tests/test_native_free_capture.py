@@ -138,6 +138,73 @@ class FreeCapture(SnapshotTests):
         before=self.export(6);self.patch('save');self.patch('load');self.assertEqual(self.export(6),before)
         self.assertEqual(self.call()['activeNotes'],0)
 
+    def test_inactive_clear_and_targeted_loop_stop(self):
+        self.command('panic')
+        for phrase,pitch in ((9,48),(10,60)):
+            self.command('phrase_clear',phraseId=phrase)
+            self.command('parameter_set',targetId=phrase,kind=20,value=0)
+            self.command('phrase_record',phraseId=phrase)
+            self.command('midi',channel=1,note=pitch,value=91)
+            time.sleep(.12)
+            self.command('phrase_finish',phraseId=phrase)
+            self.command('panic')
+        self.command('phrase_play',phraseId=9)
+        self.wait_for(lambda:self.call()['phrases'][8]['state']=='PLAYING','first loop')
+        # The inactive target can be cleared without stopping the other loop.
+        self.command('phrase_clear',phraseId=10)
+        self.assertEqual(self.call()['phrases'][9]['events'],0)
+        self.assertEqual(self.call()['phrases'][8]['state'],'PLAYING')
+        self.command('phrase_stop',phraseId=9)
+        self.wait_for(lambda:self.call()['activeNotes']==0,'target loop releases held notes')
+        self.assertNotEqual(self.call()['phrases'][8]['state'],'PLAYING')
+        self.command('phrase_clear',phraseId=9)
+        self.assertEqual(self.call()['phrases'][8]['events'],0)
+
+    def test_controller_removal_sequence_and_clear_patch(self):
+        from controller_config import decode
+        self.command('panic')
+        self.command('controller_rename',sourceId=401,name='EXP TEST',create=True)
+        self.command('controller_rename',sourceId=402,name='OTHER',create=True)
+        self.command('controller_source',sourceId=401,kind=2,channel=3,number=31)
+        self.command('mapping_commit',mapping=dict(id=401,sourceId=401,targetId=401,instrumentId=1,kind=1,points=[[0,0,0],[1,1,0]]))
+        self.command('controller_learn',sourceId=401)
+        self.command('controller_remove',sourceId=401)
+        config=decode(self.call()['controllerEngine'])
+        self.assertNotIn(401,[s['id'] for s in config['sources']])
+        self.assertIn(402,[s['id'] for s in config['sources']])
+        self.assertFalse(config['mappings'])
+        self.assertEqual(self.call()['controllerLearn']['target'],0)
+        for phrase,channel,pitch in ((11,1,48),(12,2,64)):
+            self.command('phrase_clear',phraseId=phrase)
+            self.command('phrase_record',phraseId=phrase)
+            self.command('midi',channel=channel,note=pitch,value=90)
+            time.sleep(.07)
+            self.command('phrase_finish',phraseId=phrase);self.command('panic')
+        sw=self.call()['switches'][0];settings=sw['settings'];settings[0]=1;settings[1]=1;settings[2]=3;settings[3]=99;settings[12]=1
+        for mode,steps in ((0,[1,2,1]),(1,[2,1,2]),(2,[1,2,1,2])):
+            settings[9]=mode;settings[10]=0
+            self.command('switch_commit',switchId=sw['id'],settings=settings,sequence=[11,12],name='SEQUENCER')
+            for step in steps:
+                state=self.command('test',switchId=sw['id'],gesture='tap')
+                self.assertEqual(state['switches'][0]['step'],step)
+                self.assertEqual(state['lastEvent'][2],48 if step==1 else 64)
+        settings[9]=3
+        self.command('switch_commit',switchId=sw['id'],settings=settings,sequence=[11,12],name='SEQUENCER')
+        steps=[self.command('test',switchId=sw['id'],gesture='tap')['switches'][0]['step'] for _ in range(2)]
+        self.assertEqual(sorted(steps),[1,2])
+        self.command('panic');self.capture();self.patch('save')
+        self.command('patch_clear',confirm=False,expected=400)
+        self.command('patch_clear',confirm=True)
+        state=self.call()
+        self.assertTrue(all(p['events']==0 and p['mode']==1 for p in state['phrases']))
+        self.assertFalse(decode(state['controllerEngine'])['sources'])
+        self.assertFalse(state['snapshots'])
+        self.assertEqual(len(state['instruments']),3)
+        self.assertTrue(all(not i['transformers'] for i in state['instruments']))
+        self.assertEqual(state['activeNotes'],0)
+        self.patch('save');self.patch('load')
+        self.assertTrue(all(p['events']==0 for p in self.call()['phrases']))
+
 if __name__=='__main__':
-    result=unittest.TextTestRunner(verbosity=2).run(unittest.TestSuite([FreeCapture('test_hardware_stop_state_and_record_finalization'),FreeCapture('test_free_capture'),FreeCapture('test_overdub_cancel_and_independent_loop')]))
+    result=unittest.TextTestRunner(verbosity=2).run(unittest.TestSuite([FreeCapture(name) for name in ['test_hardware_stop_state_and_record_finalization','test_free_capture','test_overdub_cancel_and_independent_loop','test_inactive_clear_and_targeted_loop_stop','test_controller_removal_sequence_and_clear_patch']]))
     raise SystemExit(not result.wasSuccessful())

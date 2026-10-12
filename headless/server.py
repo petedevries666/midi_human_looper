@@ -343,6 +343,11 @@ class Handler(BaseHTTPRequestHandler):
                 target,gesture,kind,snapshot=data.get('switchId'),data.get('gesture'),data.get('snapshotAction'),data.get('snapshotId',0)
                 if any(type(v) is not int for v in (target,gesture,kind,snapshot)) or not 1<=target<=16777215 or not 0<=gesture<=2 or not 0<=kind<=7 or not 0<=snapshot<=16777215:raise ValueError()
                 args=dict(op=28,target=target,arg=gesture,ch=kind,module=snapshot)
+            elif action=='switch_commit':
+                target=data.get('switchId');settings=data.get('settings');sequence=data.get('sequence');name=data.get('name','')
+                if type(target) is not int or not 1<=target<=16777215 or not isinstance(settings,list) or len(settings)!=18 or any(type(v) is not int for v in settings) or not isinstance(sequence,list) or len(sequence)>64 or any(type(v) is not int or not 1<=v<=16 for v in sequence) or not isinstance(name,str) or len(name)>16 or any(not 32<=ord(c)<127 for c in name):raise ValueError()
+                settings=list(settings);settings[11]=len(sequence)
+                args=dict(op=41,target=target,settings=settings+[p-1 for p in sequence]+[0]*(64-len(sequence))+[ord(c) for c in name]+[0]*(16-len(name)))
             elif action == 'test':
                 target, gesture = data.get('switchId'), data.get('gesture', 'tap')
                 if type(target) is not int or not 1 <= target <= 16777215 or gesture not in ('tap', 'double', 'hold'):
@@ -358,6 +363,10 @@ class Handler(BaseHTTPRequestHandler):
                 elif action=='mapping_delete':args=dict(op=17,target=target)
                 elif action in ('controller_return','controller_capture'):args=dict(op=18,target=target,arg=int(action=='controller_capture'))
                 else:args=dict(op=15,target=target,arg={'controller_learn':0,'controller_cancel':1,'controller_confirm':2,'controller_forget':3}[action])
+            elif action=='controller_remove':
+                target=data.get('sourceId')
+                if type(target) is not int or not 1<=target<=16777215:raise ValueError()
+                args=dict(op=37,target=target,name='',arg=2)
             elif action=='controller_rename':
                 target=data.get('sourceId');name=data.get('name')
                 if type(target) is not int or not 1<=target<=16777215 or not isinstance(name,str) or not 1<=len(name)<=16 or any(not 32<=ord(c)<127 for c in name):raise ValueError('Controller name: 1–16 printable ASCII characters')
@@ -373,8 +382,15 @@ class Handler(BaseHTTPRequestHandler):
                 channel,number,value=data.get('channel'),data.get('number'),data.get('value')
                 if any(type(v) is not int for v in (channel,number,value)) or not 1<=channel<=16 or not 0<=number<=127 or not 0<=value<=127:raise ValueError()
                 args=dict(op=19,ch=channel-1,note=number,value=value)
+            elif action=='phrase_stop':
+                target=data.get('phraseId')
+                if type(target) is not int or not 1<=target<=16:raise ValueError()
+                args=dict(op=40,target=target-1,arg=6)
             elif action == 'chain_stop':
                 args=dict(op=40,target=0,arg=0)
+            elif action=='patch_clear':
+                if data.get('confirm') is not True:raise ValueError()
+                args=dict(op=42)
             elif action == 'panic':
                 args = dict(op=2)
             elif action in ('phrase_rename','instrument_rename'):

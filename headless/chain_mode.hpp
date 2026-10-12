@@ -15,7 +15,7 @@ struct ChainMode {
   EEL_F *phase, *duration, *target, *tempoVar, *runVar, *bad, *overdub,
       *overdubPos, *captureActive, *captureStart, *captureEnd;
   NSEEL_CODEHANDLE align, begin, finish, play, holdPress, holdRelease;
-  NSEEL_CODEHANDLE freeArm, freeFinish, freePlay;
+  NSEEL_CODEHANDLE freeArm, freeFinish, freePlay, freeStop;
   EEL_F *musicalState, *recordPosition, *overdubArmed, *captureNormalize, *loopLength;
   EEL_F* voiceActive[24]{};
   EEL_F *freeReady,*freeActive,*overflow,*freeOldCount,*freeOldLength,*freeOldTrigger;
@@ -36,6 +36,7 @@ struct ChainMode {
     for(unsigned i=0;i<16;++i)
       phraseModes[i]=NSEEL_VM_getramptr(f->vm.get(),modeBase+i,nullptr);
     for(unsigned i=0;i<16;++i)phraseTriggers[i]=NSEEL_VM_getramptr(f->vm.get(),unsigned(*ysfx_find_var(f,"TRIG_BASE"))+i,nullptr);
+    if(active && !grid)for(unsigned i=0;i<33024;++i)*NSEEL_VM_getramptr(f->vm.get(),3008000+i,nullptr)=0;
     captureActive = NSEEL_VM_regvar(f->vm.get(), "chain_capture_active");
     captureStart = NSEEL_VM_regvar(f->vm.get(), "chain_capture_start");
     captureEnd = NSEEL_VM_regvar(f->vm.get(), "chain_capture_end");
@@ -64,6 +65,7 @@ struct ChainMode {
     rollbackCapture=compile("set_layer_count(chain_target,free_old_count);mem[LEN_BASE+chain_target]=free_old_length;mem[TRIG_BASE+chain_target]=free_old_trigger;free_record_ready=0;free_record_active=0;overdub_active=0;overdub_armed=0;state=STATE_STOPPED;panic_pending=1;");
     freeArm=compile("free_old_count=layer_count(chain_target);free_old_length=mem[LEN_BASE+chain_target];free_old_trigger=mem[TRIG_BASE+chain_target];record_overflow=0;select_phrase_record(chain_target);");
     freeFinish=compile("finish_phrase_record();overdub_active=0;overdub_armed=0;overdub_wait_note=0;");
+    freeStop=compile("mem[MODE_BASE+chain_target]<.5?free_loop_stop_mask|=1<<chain_target:native_hold_enqueue(chain_target,0);");
     freePlay=compile("mem[MODE_BASE+chain_target]<.5?"
         "(layer_count(chain_target)>0 && mem[LEN_BASE+chain_target]>=max(128,samplesblock/8)?(state!=STATE_PLAYING?play_sample_pos=0;mem[FREE_FINISHED_BASE+chain_target]=0;mem[FREE_LOOP_ANCHOR_BASE+chain_target]=play_sample_pos;mem[TRIG_BASE+chain_target]=1;state=STATE_PLAYING;);):"
         "(trigger_request=chain_target;process_phrase_trigger(0,1););");
@@ -107,7 +109,7 @@ struct ChainMode {
     NSEEL_code_free(begin);
     NSEEL_code_free(finish);
     NSEEL_code_free(play);NSEEL_code_free(holdPress);NSEEL_code_free(holdRelease);
-    NSEEL_code_free(freeArm);NSEEL_code_free(freeFinish);NSEEL_code_free(freePlay);NSEEL_code_free(rollbackCapture);
+    NSEEL_code_free(freeArm);NSEEL_code_free(freeFinish);NSEEL_code_free(freePlay);NSEEL_code_free(freeStop);NSEEL_code_free(rollbackCapture);
   }
   void observe() {
     if(gridCapture)return;
@@ -148,7 +150,11 @@ struct ChainMode {
     *captureActive=0;
   }
   bool command(int action, int selected) {
-    if(selected<0 || selected>=16 || action<0 || action>5)return false;
+    if(selected<0 || selected>=16 || action<0 || action>6)return false;
+    if(action==6){
+      if(gridCapture || ((recording || armed) && selected==phrase))return false;
+      *target=selected;NSEEL_code_execute(freeStop);*target=phrase;observe();return true;
+    }
     if(!gridCapture) {
       observe();
       if((recording || armed) && selected!=phrase && action!=0 && action!=4)return false;

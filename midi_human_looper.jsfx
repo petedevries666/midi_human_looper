@@ -652,6 +652,7 @@ local(j,idx)
 function reset_note_runtime()
 local(pv_i)
 (
+  free_loop_stop_mask=0;native_free_time?(pv_i=0;loop(33024,mem[3008000+pv_i]=0;pv_i+=1;););
   free_record_ready=0;free_record_active=0;free_play_error=0;free_reset=0;loop(16,mem[FREE_FINISHED_BASE+free_reset]=0;mem[FREE_LOOP_ANCHOR_BASE+free_reset]=0;free_reset+=1;);native_hold_read=native_hold_write;native_hold_release_mask=0;pv_i=0;loop(MAX_ONCE_VOICES,mem[VOICE_ACTIVE_BASE+pv_i]=0;pv_i+=1;);once_route_voice=-1;last_trigger_layer=-1;trigger_request=-1;hold_stop_request=-1;
  pv_i=0;loop(NOTE_REF_SIZE,mem[NOTE_REF_BASE+pv_i]=0;pv_i+=1;);pv_i=0;loop(16,mem[SUSTAIN_REF_BASE+pv_i]=0;pv_i+=1;);
  pv_i=0;loop(INST_CAP,i_clear_runtime(pv_i);pv_i+=1;);
@@ -2068,6 +2069,23 @@ local(period,cycle,last)
   ) : phrase_render_span(vi,until,instant,0);
   instant?mem[VOICE_FIRST_BASE+vi]=1:mem[VOICE_CURSOR_BASE+vi]=until;
 );
+// Native free LOOP source ownership; reuses the existing routing release path.
+function free_loop_stop(layer)
+local(k,c,ch,n,other,pedal)
+(
+  mem[TRIG_BASE+layer]=0;
+  k=0;loop(2048,
+    c=mem[3008000+layer*2048+k];mem[3008000+layer*2048+k]=0;
+    loop(c,sw_playback_origin=1;send_to_instruments(0,128|floor(k/128),k%128,0,1);sw_playback_origin=0;);
+    k+=1;
+  );
+  ch=0;loop(16,
+    mem[3040768+layer*16+ch]>0?(
+      mem[3040768+layer*16+ch]=0;other=0;pedal=0;loop(LAYERS,pedal+=mem[3040768+other*16+ch];other+=1;);
+      pedal<=0 && mem[SW_LIVE_SUSTAIN_BASE+ch]<64?(sw_playback_origin=1;send_to_instruments(0,176|ch,64,0,1);sw_playback_origin=0;);
+    );ch+=1;
+  );
+);
 function phrase_playing(layer) local(j,active) (j=0;active=0;loop(MAX_ONCE_VOICES,mem[VOICE_ACTIVE_BASE+j]==1 && mem[VOICE_LAYER_BASE+j]==layer?active=1;j+=1;);active;);
 function phrase_toggle_stop(layer,offs) local(j)
 (
@@ -2872,6 +2890,9 @@ hold_stop_request>=0 ? (
   );
 );
 
+native_free_time && free_loop_stop_mask?(
+  free_stop_i=0;loop(LAYERS,free_loop_stop_mask&(1<<free_stop_i)?free_loop_stop(free_stop_i);free_stop_i+=1;);free_loop_stop_mask=0;
+);
 // Existing GUI/phrase requests execute at the block boundary.
 process_phrase_trigger(0,0);
 
@@ -2985,7 +3006,7 @@ sw_poll(sw_clock+samplesblock,samplesblock-1);sw_clock+=samplesblock;
 );
 
 function free_loop_render()
-local(fl,period,position,left,cursor,span,count,j,b,at,st,d1,d2)
+local(fl,period,position,left,cursor,span,count,j,b,at,st,d1,d2,countkey)
 (
   fl=0;loop(LAYERS,
     layer_audible(fl) && mem[MODE_BASE+fl]<.5 && mem[TRIG_BASE+fl]>.5 ? (
@@ -3000,6 +3021,9 @@ while(left>0)(span=min(left,period-position);count=layer_count(fl);
           loop(count,b=layer_base(fl,j);at=mem[b];
             at>=position && at<position+span?(
               st=mem[b+1];d1=mem[b+2];d2=mem[b+3];
+              countkey=3008000+fl*2048+(st&15)*128+d1;
+              (st&240)==144 && d2>0?mem[countkey]+=1:((st&240)==128 || ((st&240)==144 && d2==0))?mem[countkey]=max(0,mem[countkey]-1);
+              (st&240)==176 && d1==64?mem[3040768+fl*16+(st&15)]=d2>=64;
               (st&240)==144 && d2>0?d2=max(1,min(127,floor(d2*slider9*mem[VEL_BASE+fl]+.5)));
               sw_playback_origin=1;send_to_instruments(cursor+at-position,st,d1,d2,1);sw_playback_origin=0;
             );j+=1;);

@@ -147,6 +147,13 @@ public:
   }
   bool preset(unsigned slot,const Curve &curve){if(slot>=4 || !curve.valid())return false;config.presets[slot]=curve;config.presetEnabled[slot]=true;return true;}
   bool rename(uint32_t id,const char* name){for(auto &s:config.sources)if(s.id==id){for(unsigned j=0;j<17;++j)s.name[j]=name[j];return true;}return false;}
+  bool removeSource(uint32_t id) {
+    for(auto &s:config.sources)if(s.id==id){
+      for(auto &b:config.bindings)if(b.policy.id && b.policy.source==id)remove(b.policy.id);
+      if(learning==id || candidate.id==id || conflict==int(id))cancel();
+      s=Source{};return true;
+    }return false;
+  }
   bool forget(uint32_t id) {
     for (auto &s : config.sources)
       if (s.id == id) {

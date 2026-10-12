@@ -1,3 +1,8 @@
+# Historical first-slice checkpoint — superseded for current status
+
+See [current recovery implementation](../recovery-implementation.md). The evidence
+below describes the earlier slice, not the current feature status.
+
 # Recovery checkpoint — 2026-10-11
 
 Draft PR #50: https://github.com/petedevries666/midi_human_looper/pull/50

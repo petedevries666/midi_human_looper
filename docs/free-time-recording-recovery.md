@@ -19,16 +19,26 @@ Missing configuration defaults to free-time recording; `chain_timing_version`
 still selects grid V1/V2 **only when that grid is explicitly enabled**. Runtime
 state reports `chainCaptureMode`. Import and portable activation apply fixed-grid
 restrictions only to the explicit grid, retaining fallback for older runtimes
-that do not publish this field. No installer or updater is changed.
+that do not publish this field. Registration and installation are unchanged. The updater now checkpoints current stopped data before preflight and probes the candidate capture mode; incompatible grid rollback is rejected before restart, without truncation.
 
 This does not create a new scheduler or rewrite the shared phrase engine.
-Original LOOP/ONCE/HOLD source semantics and native held-release restrictions
-remain. Full free-time overdub, event-capacity exhaustion, varied-length LOOP
-layers and real transport-loss qualification are still required; see the audit.
-The browser still contains old grid-specific diagnostic text pending its separate
-UI repair. Do not treat this draft as a hardware-qualified release candidate.
+Native free-time LOOP layers now run their own source lengths on one sample clock.
+New takes and overdubs have a cancellation transaction: CANCEL REC restores the
+previous source; FINISH commits the take while unrelated playback continues.
+2048-event capacity or missed-callback capture failures reject the take, preserve
+the previous source, and expose ERROR. FINISH closes remaining held notes and
+recorded sustain state at the final sample. Leading pre-attack controls remain
+live-only. Native HOLD still rejects ARP/mono routes because those shared stages
+lack phrase-scoped ownership for reliable targeted release; this is not full
+HOLD parity. CLEAR remains STOP-only and preserves phrase settings.
 
-## Reproduce and validate
+Named controller sources and custom curve slots use optional Controller extension
+V2; ordinary unnamed configurations still write V1. Older runtimes must reject
+V2 rather than discard it. REAPER retains its existing explicit native-extension
+execution limitation; keep the portable original and do not use JSFX BASE as a
+lossless project export. Right-click assignment uses native Controller ownership;
+replacing a legacy target is explicit and clears only that target's old writer.
+Learning a MIDI input already claimed by another legacy target remains rejected.
 
 ```sh
 YSFX_SOURCE=/path/to/pinned/ysfx TEST_PYTHON=python3 tests/run_host_tests.sh
@@ -50,10 +60,10 @@ snapshot first. Stop/disarm before updating; the updater restarts the existing
 Zynthian UI and its MBMF child processes, interrupting performance, without
 restarting JACK. See `zynthian-runtime-update.md` for backup and rollback.
 
-Cross-version rollback after creating new free-time data is not qualified: the
-old mandatory-grid runtime may explicitly reject that project duration. Preserve
-the pre-update revision and export new takes; do not truncate or overwrite them
-to make rollback activate. This remains a deployment blocker.
+Cross-version rollback now rejects incompatible free-time data during preflight,
+before switching or restarting the runtime. Automated clock/grid rejection tests
+pass; physical update/recovery still needs qualification. Preserve the pre-update
+revision and export new takes; do not truncate them to force old-grid activation.
 
 Physical test: choose an empty phrase in each mode; arm at arbitrary transport
 positions; wait >4 seconds; play a chord, staggered releases, rests and further

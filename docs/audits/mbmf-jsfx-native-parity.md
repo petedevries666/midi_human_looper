@@ -1,3 +1,9 @@
+# Historical diagnosis — pre-implementation
+
+This audit records the defects before the current recovery. For implemented
+behavior, executed evidence and remaining restrictions see
+[the current recovery status](../recovery-implementation.md).
+
 # Musical recovery audit
 
 Baseline: PR #49, `2068877441e9a539b1a2d3cfc9a11f92ad69703f`.

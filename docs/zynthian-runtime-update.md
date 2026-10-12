@@ -12,7 +12,7 @@ abort before activation. Never run this during a performance.
 2. Save your current Zynthian snapshot. Oram owns the chains and restores its snapshot;
    an unsaved chain layout cannot be recovered by a runtime updater.
 3. Keep a second PuTTY terminal available. The updater validates the candidate in a
-   private engine without JACK, checkpoints stopped MBMF projects, and backs up
+   private engine without JACK after checkpointing stopped MBMF projects, and backs up
    MBMF project/patch data, configuration and the authentication token.
 4. Use the full **reviewed commit SHA**, not an unreviewed branch name.
 
@@ -39,6 +39,16 @@ The pinned ysfx/WDL library and application are built with `-fsigned-char` on
 ARM64. No third-party source editing or package installation occurs. Configuration
 replacement uses fsync and atomic rename. The token, network ports, timing version
 and unknown configuration keys are retained.
+
+## Free-time / controller extension rollback guard
+
+The updater probes the actual candidate's `--chain` capture mode before switching.
+A grid-only runtime must match the live processor clock and every populated LOOP
+period. Incompatible free-time durations are rejected before service restart;
+notes are never truncated to make a downgrade fit. Named native controller sources
+and custom curve presets use optional Controller extension V2; an older binary
+that cannot restore it also fails preflight. Retain a separate pre-update project
+revision for downgrade testing rather than overwriting new musical data.
 
 ## What restarts
 

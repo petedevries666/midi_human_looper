@@ -519,7 +519,7 @@ function compactInstrument(i){
         if(!i.serialPitchOrder||![1,2].includes(tf.type)||!other||![1,2].includes(other.type))continue;
       }
       card.append(button(label,()=>{if(operation==='delete'&&!confirm('Delete this Transformer?'))return;command({action:'module_structure',instrumentId:i.id,moduleId:tf.id,operation});}));
-    }chain.append(card);
+    }card.querySelector('[aria-label="BYPASS"]')?.setAttribute('aria-pressed',String(!tf.enabled));chain.append(card);
   }
   const select=node('select');select.setAttribute('aria-label',`Transformer type for Instrument ${i.id}`);
   for(const d of catalog?.modules.filter(m=>m.engineType>0&&(catalog.runtimeCapabilities?.transformerTypes||[1,2,3,4,5,6]).includes(m.engineType))||[]){const option=node('option',d.label);option.value=d.engineType;select.append(option);}

@@ -11,7 +11,7 @@ import shutil
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
-VIEWPORTS=[(320,240),(800,480),(1366,768),(1440,900)]
+VIEWPORTS=[(320,240),(800,480),(1366,768),(1440,900),(1904,1032)]
 sys.path.insert(0, str(ROOT / 'tests'))
 from test_headless_mvp import HeadlessTests
 from playwright.sync_api import sync_playwright
@@ -70,7 +70,7 @@ def run(output, performance=False):
         api.command('panic')
         api.command('controller_source',sourceId=101,kind=2,channel=2,number=21)
         with sync_playwright() as pw:
-            options=dict(headless=True,args=['--no-sandbox'])
+            options=dict(headless=True,args=['--no-sandbox','--disable-gpu'])
             if os.environ.get('CHROMIUM_PATH'): options['executable_path']=os.environ['CHROMIUM_PATH']
             browser=pw.chromium.launch(**options)
             viewports=[(800,480),(1366,768)] if performance else VIEWPORTS
@@ -89,6 +89,7 @@ def run(output, performance=False):
                         page.locator(selector).first.evaluate("e=>e.scrollIntoView({block:'start'})")
                     findings=page.evaluate(AUDIT)
                     path=output/f'{name}-{width}x{height}.png'
+                    page.evaluate('() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))')
                     page.screenshot(path=str(path),animations='disabled')
                     verify_png(path,width,height)
                     artifacts.append(dict(view=name,viewport=[width,height],file=path.name,checks=findings))
@@ -168,7 +169,14 @@ def run(output, performance=False):
                 if errors: raise AssertionError(errors)
                 context.close()
             browser.close()
-        manifest=dict(browser=browser.version,sourceRevision=subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip(),sourceDirty=bool(subprocess.check_output(['git','status','--porcelain','--untracked-files=no'],cwd=ROOT,text=True).strip()),runtimeBuildRevision=api.call()['buildRevision'],application='MIDI BAD MOTHERFUCKER',data='Native --demo; PANIC; one controller source; no playback',artifacts=artifacts,
+        # Additional native --chain evidence uses the production recovery test.
+        # It captures actual ARMED / RECORDING states, not mocked demo flags.
+        if not performance:
+            subprocess.run([sys.executable,str(ROOT/'tests/test_recovery_browser.py')],cwd=ROOT,env={**os.environ,'SCREENSHOT_RECOVERY_DIR':str(output)},check=True)
+            recovery=json.loads((output/'recovery-manifest.json').read_text())
+            artifacts.extend(recovery['artifacts'])
+            for artifact in recovery['artifacts']:artifact['runtimeBuildRevision']=recovery['runtimeBuildRevision'];artifact['data']=recovery['data']
+        manifest=dict(browser=browser.version,sourceRevision=subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip(),sourceDirty=bool(subprocess.check_output(['git','status','--porcelain','--untracked-files=no'],cwd=ROOT,text=True).strip()),runtimeBuildRevision=api.call()['buildRevision'],application='MIDI BAD MOTHERFUCKER',data='Native --demo views plus actual native --chain recovery: named CC source, real ARP MIDI, observed recording states and explicitly configured reference chains',artifacts=artifacts,
                       unsupported={'CONDUCTOR':'No implemented CONDUCTOR editor on the integration candidate; no mock screenshot supplied.'})
         (output/'manifest.json').write_text(json.dumps(manifest,indent=2)+'\n')
         failures=[a for a in artifacts if a['checks']]

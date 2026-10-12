@@ -57,10 +57,7 @@ try:
   page.get_by_role('button',name='DONE',exact=True).click();page.locator('#editor').wait_for(state='hidden')
   api.command('midi_cc',channel=2,number=21,value=32)
   assert api.call()['instruments'][0]['level']==2,'bend and multipoint curve must change native scaling'
-  api.command('module_commit',instrumentId=1,moduleId=module['id'],parameters=[dict(kind=3,value=0)])
-  api.command('midi',channel=2,note=55,value=127)
-  assert api.call()['lastEvent'][1:]==[145,55,2],'named controller curve must change actual routed Note On velocity'
-  api.command('midi',channel=2,note=55,value=0)
+  emitted=api.call()['lastEvent'];assert emitted[1:]==[176,7,2],f'named controller curve must emit actual instrument CC7 volume: {emitted}'
   api.command('panic');api.patch('save');api.patch('load')
   from controller_config import decode
   config=decode(api.call()['controllerEngine']);assert config['sources'][0]['name']=='EXP 1 CODIE'

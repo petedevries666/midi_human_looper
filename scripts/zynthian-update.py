@@ -197,6 +197,7 @@ def main():
     parser.add_argument('--config',type=Path,default=Path('/zynthian/zynthian-my-data/midi-human-looper/install.json'))
     group=parser.add_mutually_exclusive_group(required=True)
     group.add_argument('--revision');group.add_argument('--rollback',action='store_true')
+    parser.add_argument('--backup',action='store_true',help='Opt in to a full pre-update copy of processor data, install config and token (disabled by default)')
     args=parser.parse_args()
     if os.geteuid()!=0:raise ValueError('Run with sudo; only the existing zynthian UI service is restarted')
     directory=args.config.parent
@@ -225,14 +226,19 @@ def main():
         verified_revision=runtime.preflight(new,directory)
         if not args.rollback and verified_revision!=args.revision:raise ValueError('Candidate binary revision differs from reviewed commit')
         new={**new,'runtime_revision':verified_revision}
-        backup=directory/'backups'/str(time.time_ns())
-        backup.mkdir(parents=True,mode=0o700)
-        shutil.copy2(args.config,backup/'install.json')
-        for data in directory.glob('processor-*'):
-            if data.is_dir():shutil.copytree(data,backup/data.name,ignore=shutil.ignore_patterns('*.sock','*.log'))
-        if old.get('token_file'):shutil.copy2(old['token_file'],backup/'token')
+        # Full copies are optional. Runtime checkpoint, activation journal and
+        # automatic config rollback remain mandatory safety mechanisms.
+        backup=None
+        if args.backup:
+            backup=directory/'backups'/str(time.time_ns())
+            backup.mkdir(parents=True,mode=0o700)
+            shutil.copy2(args.config,backup/'install.json')
+            for data in directory.glob('processor-*'):
+                if data.is_dir():shutil.copytree(data,backup/data.name,ignore=shutil.ignore_patterns('*.sock','*.log'))
+            if old.get('token_file'):shutil.copy2(old['token_file'],backup/'token')
         activate(args.config,new,runtime,expected)
-        print('Runtime activated. Backup:',backup,'Revision:',new.get('runtime_revision','legacy'))
+        print('Runtime activated. Backup:',backup if backup else 'skipped (opt in with --backup)',
+              'Revision:',new.get('runtime_revision','legacy'))
 
 if __name__=='__main__':
     try:main()

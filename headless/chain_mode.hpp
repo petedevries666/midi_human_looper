@@ -18,6 +18,7 @@ struct ChainMode {
   NSEEL_CODEHANDLE freeArm, freeFinish, freePlay, freeStop;
   EEL_F *musicalState, *recordPosition, *overdubArmed, *captureNormalize, *loopLength;
   EEL_F* voiceActive[12]{};
+  EEL_F *switchStopPending,*switchStopPosition;
   EEL_F *freeReady,*freeActive,*overflow,*freeOldCount,*freeOldLength,*freeOldTrigger;
   NSEEL_CODEHANDLE rollbackCapture;
   bool freeCaptureSession=false;
@@ -62,6 +63,7 @@ struct ChainMode {
     const unsigned voiceBase=unsigned(*ysfx_find_var(f,"VOICE_ACTIVE_BASE"));
     for(unsigned i=0;i<12;++i)voiceActive[i]=NSEEL_VM_getramptr(f->vm.get(),voiceBase+i,nullptr);
     *NSEEL_VM_regvar(f->vm.get(),"native_free_time")=active && !grid?1:0;
+    switchStopPending=NSEEL_VM_regvar(f->vm.get(),"native_stop_pending");switchStopPosition=NSEEL_VM_regvar(f->vm.get(),"native_stop_capture_pos");*switchStopPending=0;
     freeReady=NSEEL_VM_regvar(f->vm.get(),"free_record_ready");freeActive=NSEEL_VM_regvar(f->vm.get(),"free_record_active");
     overflow=NSEEL_VM_regvar(f->vm.get(),"record_overflow");
     freeOldCount=NSEEL_VM_regvar(f->vm.get(),"free_old_count");freeOldLength=NSEEL_VM_regvar(f->vm.get(),"free_old_length");freeOldTrigger=NSEEL_VM_regvar(f->vm.get(),"free_old_trigger");
@@ -129,7 +131,7 @@ struct ChainMode {
     // Reuse the bounded native pairing check only for a new take. Existing
     // overdubs keep the shared JSFX lifecycle and their original source data.
     if(*overflow>.5){NSEEL_code_execute(rollbackCapture);error=true;errorPhrase=phrase;freeCaptureSession=false;observe();return;}
-    if(freeCaptureSession && (*musicalState==2 || *freeActive>.5 || *freeOldCount>0)) {
+    if(freeCaptureSession && (*musicalState==2 || *freeActive>.5 || *freeOldCount>0 || *phraseCounts[phrase]>0)) {
       *duration=*freeOldCount>0?*freeOldLength:std::max(1.,*recordPosition);
       *captureNormalize=0;
       NSEEL_code_execute(finish);
@@ -140,6 +142,12 @@ struct ChainMode {
     NSEEL_code_execute(freeFinish);
     freeCaptureSession=false;
     observe();
+  }
+  void finishSwitchStop(){
+    if(!gridCapture && *switchStopPending>.5){
+      if(freeCaptureSession)*recordPosition=*switchStopPosition;
+      cancel();*switchStopPending=0;
+    }
   }
   void cancel() {
     if(!gridCapture) {
@@ -155,6 +163,7 @@ struct ChainMode {
   }
   bool command(int action, int selected) {
     if(selected<0 || selected>=16 || action<0 || action>6)return false;
+    if(action==6 && gridCapture && *phraseModes[selected]>=1.5)return command(4,selected);
     if(action==6){
       if(gridCapture || ((recording || armed) && selected==phrase))return false;
       *target=selected;NSEEL_code_execute(freeStop);*target=phrase;observe();return true;

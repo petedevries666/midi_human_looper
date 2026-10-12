@@ -159,3 +159,7 @@ dialog[data-contextual][open]{position:relative;inset:auto;width:100%;max-width:
 .sequence-list{display:flex;flex-wrap:wrap;gap:5px;margin:8px 0}.sequence-step{display:flex;align-items:center;gap:4px;padding:4px;border:1px solid #555;color:#fff020}.sequence-step button{padding:2px;font-size:9px}.curve-precision{margin:4px 0}.curve-precision summary{font-size:9px;color:#888}dialog[data-kind=module] .parameter>.tactile-slider{grid-column:2/-1;grid-template-columns:minmax(90px,1fr) 42px;width:100%}dialog[data-kind=module] .parameter>.tactile-slider input{width:100%}dialog[data-kind=module] .parameter .slider-caption{display:none}
 
 @media(min-width:1000px){#switches .switch{grid-template-columns:minmax(0,1fr) 24px 32px 48px}#switches .switch>button[aria-label=OPTIONS]{grid-column:2}#switches .switch>button[aria-label=SNAPSHOTS]{grid-column:3;font-size:7px;padding:2px}#switches .switch>.switch-test{grid-column:4}#switches .switch>small:nth-child(2){grid-column:1/4}#switches .switch>small:nth-child(3){grid-column:4}}
+
+#editor[data-contextual][data-kind=module] .parameter>.tactile-slider{grid-template-columns:minmax(0,1fr) 42px;min-width:0}
+#editor[data-contextual][data-kind=module] .parameter>.tactile-slider input[type=range]{grid-column:1;grid-row:1}
+#editor[data-contextual][data-kind=module] .parameter>.tactile-slider output{grid-column:2;grid-row:1}

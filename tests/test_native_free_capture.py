@@ -220,6 +220,22 @@ class FreeCapture(SnapshotTests):
         self.patch('save');self.patch('load')
         self.assertTrue(all(p['events']==0 for p in self.call()['phrases']))
 
+    def test_switch_stop_capture_finalization(self):
+        self.command('panic')
+        for action in (2,6):
+            sw=self.call()['switches'][0];settings=sw['settings'];settings[0]=1;settings[1]=0;settings[12]=action
+            self.command('switch_commit',switchId=sw['id'],settings=settings,sequence=[],name='STOP REC')
+            self.command('phrase_clear',phraseId=14)
+            self.command('phrase_record',phraseId=14)
+            self.command('midi',channel=3,note=67,value=95);time.sleep(.07)
+            self.command('test',switchId=sw['id'],gesture='tap')
+            state=self.call();self.assertFalse(state['chainRecording']);self.assertFalse(state['chainArmed'])
+            source=read_smf(self.export(14))
+            self.assertEqual([e[1:] for e in source['events']],[[146,67,95],[130,67,0]])
+            self.assertEqual(source['events'][0][0],0)
+            self.assertGreater(source['events'][1][0],.04)
+            self.command('panic');self.assertEqual(self.call()['activeNotes'],0)
+
 if __name__=='__main__':
-    result=unittest.TextTestRunner(verbosity=2).run(unittest.TestSuite([FreeCapture(name) for name in ['test_hardware_stop_state_and_record_finalization','test_free_capture','test_overdub_cancel_and_independent_loop','test_inactive_clear_and_targeted_loop_stop','test_controller_removal_sequence_and_clear_patch']]))
+    result=unittest.TextTestRunner(verbosity=2).run(unittest.TestSuite([FreeCapture(name) for name in ['test_hardware_stop_state_and_record_finalization','test_free_capture','test_overdub_cancel_and_independent_loop','test_inactive_clear_and_targeted_loop_stop','test_controller_removal_sequence_and_clear_patch','test_switch_stop_capture_finalization']]))
     raise SystemExit(not result.wasSuccessful())

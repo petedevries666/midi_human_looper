@@ -85,25 +85,33 @@ function showEditor(dialog,docked=false,kind=''){if(kind)dialog.dataset.kind=kin
 document.addEventListener('pointerdown',e=>{const d=$('editor');if(d.open&&d.dataset.contextual&&!d.contains(e.target)&&!e.target.closest('.module')&&!e.target.closest('#assignment-menu'))d.close();});
 function editInstrument(i){const d=descriptor(0);if(!d)return;edit(d,i,d.parameters.map(id=>{const p=catalog.parameters.find(p=>p.id===id),canonical=parameter({enabled:21,input:22,output:23}[id]);const display=canonical?{...p,valueType:canonical.valueType,choices:canonical.choices}:p;return {descriptor:display,value:i[p.engineField],assignment:0};}),null);}
 async function editModule(i,tf){
- if($('editor').open){if($('editor').dataset.kind!=='module')return;await window.mbmfModuleFlush?.();$('editor').close();}
+ if($('editor').open){if($('editor').dataset.kind!=='module')return;if(await window.mbmfModuleFlush?.()===false)return;$('editor').close();}
  try{render(await request('/api/v1/state'));}catch(e){$('error').textContent=e.message;return;}
  const fresh=latest.instruments.find(v=>v.id===i.id),current=fresh?.transformers.find(v=>v.id===tf.id);if(!fresh||!current)return;i=fresh;tf=current;
  selectedModule={instrumentId:i.id,moduleId:tf.id};for(const element of document.querySelectorAll('.module'))element.classList.toggle('selected',Number(element.dataset.moduleId)===tf.id);
  const dialog=$('editor'),content=$('editor-content'),session=engineSession;
  dialog.dataset.kind='module';content.replaceChildren(node('h2',`${i.name||'INSTRUMENT '+i.id} / ${descriptor(tf.type)?.label}`));
- const before=new Map(),applied=new Map(),desired=new Map();let queue=Promise.resolve(),scheduled=false,cancelled=false;
+ const before=new Map(),applied=new Map(),desired=new Map();let queue=Promise.resolve(),draining=false,timer=null,cancelled=false,failed=false;const failures=new Set();
  const error=node('p');error.setAttribute('role','alert');
- const flush=()=>{scheduled=false;const changes=[...desired];desired.clear();queue=queue.then(async()=>{for(const [kind,value] of changes){if(cancelled||session!==engineSession)return;while(pending)await new Promise(r=>setTimeout(r,10));if(await command({action:'parameter_set',targetId:i.id,moduleId:tf.id,kind,value})){applied.set(kind,value);}else error.textContent=$('error').textContent;}});return queue;};
- const change=(kind,value)=>{desired.set(kind,value);if(!scheduled){scheduled=true;setTimeout(flush,40);}};
- window.mbmfModuleFlush=async()=>{await flush();await queue;};
+ const flush=()=>{
+  clearTimeout(timer);timer=null;if(draining)return queue;draining=true;
+  queue=(async()=>{while(desired.size){const changes=[...desired];desired.clear();
+   for(const [kind,value] of changes){if(cancelled||session!==engineSession){failed=true;error.textContent='Engine changed; reopen editor.';return;}
+    let ok=false;for(let attempt=0;attempt<3&&!ok;++attempt){while(pending)await new Promise(r=>setTimeout(r,10));try{render(await request('/api/v1/command',{protocolVersion:1,expectedRevision:revision,expectedEngineSessionId:session,action:'parameter_set',targetId:i.id,moduleId:tf.id,kind,value}));ok=true;}catch(e){$('error').textContent=e.message;if(e.message!=='conflict')break;await refresh();}}
+    if(ok){applied.set(kind,value);failures.delete(kind);}else{failures.add(kind);error.textContent=$('error').textContent;}failed=failures.size>0;if(!failed)error.textContent='';
+   }
+  }})().finally(()=>draining=false);return queue;
+ };
+ const change=(kind,value)=>{desired.set(kind,value);if(!draining&&!timer)timer=setTimeout(flush,40);};
+ window.mbmfModuleFlush=async()=>{await flush();return !failed;};
  for(const item of tf.parameters){const p=parameter(item.kind);if(!p)continue;before.set(item.kind,item.pendingValue??item.value);const binding={instrumentId:i.id,moduleId:tf.id,kind:item.kind};
   const row=node('label',shortParameter(p.label),'parameter');
   if(p.valueType==='toggle'){let value=item.value;const control=button(p.label,()=>{value=value?0:1;control.textContent=value?'ON':'OFF';control.setAttribute('aria-pressed',String(!!value));change(item.kind,value);});control.textContent=value?'ON':'OFF';control.setAttribute('aria-pressed',String(!!value));control.disabled=!!item.assignment;row.append(control);bindModulation(control,binding);}
   else if(p.valueType==='enum'){const control=node('select');control.setAttribute('aria-label',p.label);for(let v=p.min;v<=p.max;v+=p.step){const o=node('option',p.choices?.[v]??String(v));o.value=v;control.append(o);}control.value=item.value;control.disabled=!!item.assignment;control.onchange=()=>change(item.kind,Number(control.value));row.append(control);bindModulation(control,binding);}
-  else{const slider=tactileSlider(p.label,item.value,p.min,p.max,p.step,value=>{change(item.kind,value);return true;},p.default,false,binding);slider.querySelector('input').disabled=!!item.assignment;row.append(slider);}
+  else{const slider=tactileSlider(p.label,item.value,p.min,p.max,p.step,value=>{change(item.kind,value);return true;},p.default,false,binding);const rail=slider.querySelector('input');rail.disabled=!!item.assignment;let touch=false;rail.addEventListener('pointerdown',e=>touch=e.pointerType==='touch');for(const edge of ['pointerup','pointercancel'])rail.addEventListener(edge,()=>touch=false);rail.addEventListener('input',()=>{if(!touch&&!rail.dataset.assignmentGesture)change(item.kind,Number(rail.value));});row.append(slider);}
   content.append(row);
  }
- content.append(error,button('DONE',async()=>{await window.mbmfModuleFlush();dialog.close();renderedModel='';render(latest);}),button('CANCEL',async()=>{
+ content.append(error,button('DONE',async()=>{if(await window.mbmfModuleFlush()===false)return;dialog.close();renderedModel='';render(latest);}),button('CANCEL',async()=>{
   await window.mbmfModuleFlush();cancelled=true;
   try{render(await request('/api/v1/state'));}catch(e){error.textContent=e.message;return;}
   if(session===engineSession)for(const [kind,value] of applied){const item=latest.instruments.find(v=>v.id===i.id)?.transformers.find(v=>v.id===tf.id)?.parameters.find(p=>p.kind===kind),current=item?.pendingValue??item?.value;
@@ -371,7 +379,11 @@ function editControllerSource(source){
  content.append(button('DONE',async()=>{if(await command({action:'controller_rename',sourceId:source.id,name:name.value}))dialog.close();else error.textContent=$('error').textContent;}),button('CANCEL',()=>dialog.close()));
  showEditor(dialog);name.focus();
 }
+let renderedControllers='';
 function renderControllers(s){
+  const key=JSON.stringify([s.engineSessionId,s.controllerEngine,s.controllerLearn]);
+  if(key===renderedControllers){for(const m of controllerConfiguration(s).mappings){const feedback=document.querySelector(`[data-mapping-id="${m.id}"] .controller-feedback`),runtime=s.controllerRuntime[m.slot];if(feedback&&runtime)feedback.textContent=`${(runtime.effective*100).toFixed(1)}% · ${runtime.returning?'RETURNING':runtime.pickup?'PICKUP WAIT':runtime.owner?'CONTROLLED':'BASE'}`;}return;}
+  renderedControllers=key;
   const {sources,mappings}=controllerConfiguration(s),learn=s.controllerLearn||{};
   $('controllers').replaceChildren(...sources.map(source=>{
     const card=node('article',undefined,'module');card.dataset.sourceId=source.id;
@@ -382,7 +394,7 @@ function renderControllers(s){
   }));
   $('mappings').replaceChildren(...mappings.map(m=>{
     const runtime=s.controllerRuntime[m.slot],card=node('article',undefined,'module');card.dataset.mappingId=m.id;
-    card.append(node('h3',`SOURCE ${m.sourceId} → ${m.kind===16?'GLOBAL':[14,15,17,18,19,20].includes(m.kind)?'PHRASE':'I'}${m.instrumentId} / ${m.moduleId||parameter(m.kind)?.label||'PARAMETER'} / ${parameter(m.kind)?.label||m.kind}`),node('p',`${(runtime.effective*100).toFixed(1)}% · ${runtime.returning?'RETURNING':runtime.pickup?'PICKUP WAIT':runtime.owner?'CONTROLLED':'BASE'}`),button('EDIT',()=>editMapping(m)),button(m.enabled?'BYPASS':'ENABLE',()=>command({action:'mapping_commit',mapping:{...m,enabled:m.enabled?0:1}})),button('CAPTURE STATE',()=>command({action:'controller_capture',targetId:m.targetId})),button('RETURN',()=>command({action:'controller_return',targetId:m.targetId})),button('DELETE',()=>command({action:'mapping_delete',mappingId:m.id})));
+    card.append(node('h3',`SOURCE ${m.sourceId} → ${m.kind===16?'GLOBAL':[14,15,17,18,19,20].includes(m.kind)?'PHRASE':'I'}${m.instrumentId} / ${m.moduleId||parameter(m.kind)?.label||'PARAMETER'} / ${parameter(m.kind)?.label||m.kind}`),node('p',`${(runtime.effective*100).toFixed(1)}% · ${runtime.returning?'RETURNING':runtime.pickup?'PICKUP WAIT':runtime.owner?'CONTROLLED':'BASE'}`,'controller-feedback'),button('EDIT',()=>editMapping(m)),button(m.enabled?'BYPASS':'ENABLE',()=>command({action:'mapping_commit',mapping:{...m,enabled:m.enabled?0:1}})),button('CAPTURE STATE',()=>command({action:'controller_capture',targetId:m.targetId})),button('RETURN',()=>command({action:'controller_return',targetId:m.targetId})),button('DELETE',()=>command({action:'mapping_delete',mappingId:m.id})));
     return card;
   }));
 }
@@ -518,7 +530,7 @@ function editableName(domain,id,value,fallback){
   control.className='editable-name';control.setAttribute('aria-label',`Edit ${domain} ${id} name`);
   control.title='Click to rename · Enter saves · Escape cancels · 16 characters';return control;
 }
-function paintPhraseStates(s){for(const p of s.phrases||[]){const row=document.querySelector(`[data-phrase-id="${p.id}"]`);if(!row)continue;row.dataset.state=p.state||'IDLE';const play=row.querySelector('[data-phrase-play]');if(play){const stop=p.state==='PLAYING' && p.mode!==1;play.dataset.running=String(stop);play.setAttribute('aria-label',stop?'STOP PHRASE':'TRIGGER');play.title=stop?'Stop this phrase':p.mode===2?'Hold to repeat; release stops':'Play phrase';const path=play.querySelector('path');if(path)path.setAttribute('d',iconPaths[stop?'stop':'play']);}const state=row.querySelector('.phrase-state');if(state)state.textContent=p.state||'IDLE';const rec=row.querySelector('[aria-label="REC / OVERDUB"]');if(rec){rec.dataset.state=p.state;rec.title=`REC / OVERDUB · ${p.state||'IDLE'}`;rec.setAttribute('aria-pressed',String(['ARMED','RECORDING','OVERDUB ARMED','OVERDUB ACTIVE'].includes(p.state)));}}}
+function paintPhraseStates(s){for(const p of s.phrases||[]){const row=document.querySelector(`[data-phrase-id="${p.id}"]`);if(!row)continue;row.dataset.state=p.state||'IDLE';const play=row.querySelector('[data-phrase-play]');if(play){const stop=p.state==='PLAYING' && p.mode!==1;play.dataset.running=String(stop);const scoped=s.chainMode&&(p.mode===2||s.chainCaptureMode==='free-time');play.setAttribute('aria-label',stop?(scoped?'STOP PHRASE':'GLOBAL STOP'):'TRIGGER');play.title=stop?(scoped?'Stop this phrase':'Legacy grid: stop this processor'):p.mode===2?'Hold to repeat; release stops':'Play phrase';const path=play.querySelector('path');if(path)path.setAttribute('d',iconPaths[stop?'stop':'play']);}const state=row.querySelector('.phrase-state');if(state)state.textContent=p.state||'IDLE';const rec=row.querySelector('[aria-label="REC / OVERDUB"]');if(rec){rec.dataset.state=p.state;rec.title=`REC / OVERDUB · ${p.state||'IDLE'}`;rec.setAttribute('aria-pressed',String(['ARMED','RECORDING','OVERDUB ARMED','OVERDUB ACTIVE'].includes(p.state)));}}}
 function compactPhrases(s){
   const pages=Math.ceil(s.phrases.length/6);phrasePage=Math.min(phrasePage,pages-1);
   $('phrase-pagination').replaceChildren(button('←',()=>{phrasePage=Math.max(0,phrasePage-1);renderedModel='';render(latest);}),node('span',`${phrasePage+1} / ${pages}`),button('→',()=>{phrasePage=Math.min(pages-1,phrasePage+1);renderedModel='';render(latest);}));
@@ -526,7 +538,7 @@ function compactPhrases(s){
   $('phrases').replaceChildren(...s.phrases.slice(phrasePage*6,phrasePage*6+6).map(p=>{
     const row=node('div',undefined,'phrase');row.dataset.phraseId=p.id;row.dataset.state=p.state||'IDLE';row.classList.toggle('empty',!p.events);row.classList.toggle('muted',!!p.mute);row.classList.toggle('soloed',!!p.solo);row.append(node('span',String(p.id).padStart(2,'0'),'phrase-number'));
     const heldMode=!!s.chainMode&&!!s.nativeHeldRelease&&p.mode===2;
-    const trigger=button('TRIGGER',()=>{if(!heldMode)command({action:latest.phrases.find(v=>v.id===p.id)?.state==='PLAYING'&&p.mode===0?'phrase_stop':'phrase_play',phraseId:p.id});});trigger.dataset.phrasePlay='true';
+    const trigger=button('TRIGGER',()=>{if(!heldMode)command({action:latest.phrases.find(v=>v.id===p.id)?.state==='PLAYING'&&p.mode===0?(latest.chainMode&&latest.chainCaptureMode==='free-time'?'phrase_stop':latest.chainMode?'chain_stop':'panic'):'phrase_play',phraseId:p.id});});trigger.dataset.phrasePlay='true';
     if(heldMode){
       let held=false,edge=Promise.resolve();
       const send=action=>{edge=edge.then(async()=>{while(pending)await new Promise(resolve=>setTimeout(resolve,10));return command({action,phraseId:p.id});});};

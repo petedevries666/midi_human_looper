@@ -2674,7 +2674,9 @@ int main(int argc, char **argv) {
       }
       if (chainMode && outBuffer && *panicPending > .5)
         cleanupChain();
+      chain.finishSwitchStop();
       ysfx_process_float(fx, nullptr, nullptr, 0, 0, frames);
+      chain.finishSwitchStop();
       if(chainMode && !chain.gridCapture) {
         chain.observe();
         state.chainRun=chain.run;state.chainArmed=chain.armed;

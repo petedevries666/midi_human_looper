@@ -2307,6 +2307,10 @@ local(slot)
 function sw_action(si,action,target,offs)
 local(b,r,step,phrase,gi,kind,k,c,found)
 (
+  native_free_time && (action==SW_STOP || action==SW_STOP_RESET || action==SW_PANIC) ? (
+    native_stop_pending=1;native_stop_capture_pos=max(0,record_sample_pos+offs);
+    free_record_active=0;free_record_ready=0;overdub_active=0;overdub_armed=0;state=STATE_STOPPED;
+  );
   snap_host_enabled && (action==SW_STOP || action==SW_STOP_RESET || action==SW_PANIC) ? (snap_host_cancel=1;snap_parameter_cancel(););
   b=sw_cfg(si);r=sw_rt(si);mem[r+11]=action;mem[r+12]+=1;mem[r+17]=0;
   action>=101 && action<=107 ? (

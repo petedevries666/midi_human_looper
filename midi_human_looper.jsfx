@@ -2071,11 +2071,12 @@ local(period,cycle,last)
 );
 // Native free LOOP source ownership; reuses the existing routing release path.
 function free_loop_stop(layer)
-local(k,c,ch,n,other,pedal)
+local(k,c,ch,n,other,pedal,budget,failed,j)
 (
-  mem[TRIG_BASE+layer]=0;
+  mem[TRIG_BASE+layer]=0;budget=2048;failed=0;
   k=0;loop(2048,
-    c=mem[3008000+layer*2048+k];mem[3008000+layer*2048+k]=0;
+    c=max(0,mem[3008000+layer*2048+k]);mem[3008000+layer*2048+k]=0;
+    c>budget?failed=1;c=min(c,budget);budget-=c;
     loop(c,sw_playback_origin=1;send_to_instruments(0,128|floor(k/128),k%128,0,1);sw_playback_origin=0;);
     k+=1;
   );
@@ -2084,6 +2085,9 @@ local(k,c,ch,n,other,pedal)
       mem[3040768+layer*16+ch]=0;other=0;pedal=0;loop(LAYERS,pedal+=mem[3040768+other*16+ch];other+=1;);
       pedal<=0 && mem[SW_LIVE_SUSTAIN_BASE+ch]<64?(sw_playback_origin=1;send_to_instruments(0,176|ch,64,0,1);sw_playback_origin=0;);
     );ch+=1;
+  );
+  failed?(free_play_error=layer+1;state=STATE_STOPPED;panic_pending=1;
+    j=0;loop(LAYERS,mem[TRIG_BASE+j]=0;j+=1;);j=0;loop(MAX_ONCE_VOICES,mem[VOICE_ACTIVE_BASE+j]=0;j+=1;);
   );
 );
 function phrase_playing(layer) local(j,active) (j=0;active=0;loop(MAX_ONCE_VOICES,mem[VOICE_ACTIVE_BASE+j]==1 && mem[VOICE_LAYER_BASE+j]==layer?active=1;j+=1;);active;);

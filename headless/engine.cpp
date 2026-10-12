@@ -502,7 +502,7 @@ struct Model {
         v.name[j] = char(*sw[i][8 + j]);
       for (unsigned j=0;j<16;++j) s.phrases[i].name[j]=char(*phraseNames[i][j]);
       s.phrases[i].events = int(*phrase[i][0]);
-      bool playing=*musicalState==3 && *phrase[i][1]<.5 && *phraseTriggers[i]>.5;
+      bool playing=s.phrases[i].events>0 && *musicalState==3 && *phrase[i][1]<.5 && *phraseTriggers[i]>.5;
       for(unsigned j=0;j<12;++j)playing|=*voiceActive[j]>.5 && *voiceLayer[j]==i;
       auto &p=s.phrases[i];p.state=!p.events?0:*phraseFinished[i]>.5?3:7;
       if(playing)p.state=4;
@@ -1112,7 +1112,11 @@ static void control(int listener, Queue<Request, 64> &commands,
           std::this_thread::sleep_for(std::chrono::milliseconds(1));
       }
       if (received) {
-        if (reply.status == 0 && request.op == 35) {
+        if(reply.status==0 && request.op==35 && request.arg==2){
+          // Already cleared with bounded pointer writes in the callback. No pause,
+          // worker RAM mutation or skipped JACK callback for inactive content.
+          send_line(fd,json(reply),shutdown);
+        } else if (reply.status == 0 && request.op == 35) {
           const unsigned selected=unsigned(request.target), base=selected*unsigned(variable(patch.fx,"LAYER_STRIDE"));
           const unsigned countBase=unsigned(variable(patch.fx,"COUNT_BASE"));
           const unsigned lengthBase=unsigned(variable(patch.fx,"LEN_BASE"));
@@ -1392,6 +1396,8 @@ int main(int argc, char **argv) {
         "trigger_request=remote_phrase;process_phrase_trigger(0,0);", 0);
     auto phraseRecord = NSEEL_code_compile(
         fx->vm.get(), "select_phrase_record(remote_phrase);", 0);
+    auto phraseClear=NSEEL_code_compile(fx->vm.get(),"set_layer_count(remote_phrase,0);mem[LEN_BASE+remote_phrase]=0;mem[TRIG_BASE+remote_phrase]=0;mem[HOLD_ACTIVE_BASE+remote_phrase]=0;mem[ONCEPOS_BASE+remote_phrase]=0;mem[FREE_FINISHED_BASE+remote_phrase]=0;free_play_error==remote_phrase+1?free_play_error=0;",0);
+    if(!phraseClear)throw std::runtime_error("phrase content clear bridge");
     auto phraseStop = NSEEL_code_compile(
         fx->vm.get(),
         "finish_phrase_record();overdub_armed=0;overdub_active=0;", 0);
@@ -2006,8 +2012,9 @@ int main(int argc, char **argv) {
               (request.arg==1 && (state.active>0 || chain.run ||
                *importState==importPlaying ||
                std::any_of(importVoices.begin(),importVoices.end(),[](double* p){return *p>.5;}))) ||
-              (request.arg==2 && ((*model.musicalState==3 && *model.phraseTriggers[request.target]>.5 && *model.phrase[request.target][1]<.5) ||
+              (request.arg==2 && ((*model.musicalState==3 && *model.phraseTriggers[request.target]>.5 && *model.phrase[request.target][1]<.5 && *model.phrase[request.target][0]>0) ||
                [&](){for(unsigned j=0;j<12;++j)if(*model.voiceActive[j]>.5 && *model.voiceLayer[j]==request.target)return true;return false;}()))) reply.status=3;
+          else if(request.arg==2){*phraseTarget=request.target;NSEEL_code_execute(phraseClear);++state.revision;}
           else { maintenance=true; if(request.arg!=0) ++state.revision; }
         }
         else if (request.op == 4 || request.op == 5) {
@@ -2879,7 +2886,7 @@ int main(int argc, char **argv) {
     NSEEL_code_free(chainRecovery);
     NSEEL_code_free(phrasePlay);
     NSEEL_code_free(phraseRecord);
-    NSEEL_code_free(phraseStop);
+    NSEEL_code_free(phraseStop);NSEEL_code_free(phraseClear);
     NSEEL_code_free(edit);
     NSEEL_code_free(structure);
     NSEEL_code_free(instrumentLifecycle);

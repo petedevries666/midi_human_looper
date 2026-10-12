@@ -25,6 +25,7 @@ struct ChainMode {
   EEL_F* phraseTriggers[16]{};
   EEL_F* holdAccepted;
   EEL_F* phraseModes[16]{};
+  EEL_F* phraseCounts[16]{};
   ysfx_t *fx;
   ChainMode(ysfx_t *f, bool active, unsigned version=1, bool grid=false)
       : enabled(active), timingVersion(version), gridCapture(grid), fx(f) {
@@ -35,6 +36,7 @@ struct ChainMode {
     const auto modeBase=unsigned(*ysfx_find_var(f,"MODE_BASE"));
     for(unsigned i=0;i<16;++i)
       phraseModes[i]=NSEEL_VM_getramptr(f->vm.get(),modeBase+i,nullptr);
+    for(unsigned i=0;i<16;++i)phraseCounts[i]=NSEEL_VM_getramptr(f->vm.get(),unsigned(*ysfx_find_var(f,"COUNT_BASE"))+i,nullptr);
     for(unsigned i=0;i<16;++i)phraseTriggers[i]=NSEEL_VM_getramptr(f->vm.get(),unsigned(*ysfx_find_var(f,"TRIG_BASE"))+i,nullptr);
     if(active && !grid)for(unsigned i=0;i<33024;++i)*NSEEL_VM_getramptr(f->vm.get(),3008000+i,nullptr)=0;
     captureActive = NSEEL_VM_regvar(f->vm.get(), "chain_capture_active");
@@ -118,8 +120,9 @@ struct ChainMode {
     armed=*musicalState==1 || *freeReady>.5 || *overdubArmed>.5;
     run=false;
     for(unsigned i=0;i<16;++i)
-      run=run || (*musicalState==3 && *phraseModes[i]<.5 && *phraseTriggers[i]>.5);
+      run=run || (*musicalState==3 && *phraseModes[i]<.5 && *phraseTriggers[i]>.5 && *phraseCounts[i]>0);
     for(unsigned i=0;i<12;++i)run=run || *voiceActive[i]>.5;
+    if(!run && !recording && !armed && *musicalState==3)*musicalState=4;
     length=uint64_t(std::max(0.,*loopLength));
   }
   void finishFree() {

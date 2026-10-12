@@ -28,7 +28,7 @@ def validate_patch_extensions(patch):
         raise ValueError('Unsupported patch fields preserved; refusing to discard configuration.')
     if patch.get('format')!='MIDI_HUMAN_LOOPER_PATCH' or type(patch.get('schema')) is not int or not 1<=patch['schema']<=7:
         raise ValueError('Unsupported patch format/schema preserved; refusing overwrite or load.')
-    for name,versions in (('controllerEngine',(1,)),('globalSnapshots',(1,2,3,4))):
+    for name,versions in (('controllerEngine',(1,2)),('globalSnapshots',(1,2,3,4))):
         if name in patch and (not isinstance(patch[name],dict) or type(patch[name].get('version')) is not int or patch[name]['version'] not in versions):
             raise ValueError('Unsupported patch extension preserved; refusing to discard configuration.')
 
@@ -260,8 +260,9 @@ class Handler(BaseHTTPRequestHandler):
             raw=base64.b64decode(data['file'],validate=True)
             parsed=read_smf(raw)
             state=self.server.control.request()
-            capacity=state.get('chainLength',0)/state['sampleRate'] if state.get('chainMode') else 3600
-            if parsed['lengthSeconds']>capacity or (state.get('chainMode') and max(e[0] for e in parsed['events'])>=capacity):
+            grid=state.get('chainMode') and state.get('chainCaptureMode','two-bar-grid')=='two-bar-grid'
+            capacity=state.get('chainLength',0)/state['sampleRate'] if grid else 3600
+            if parsed['lengthSeconds']>capacity or (grid and max(e[0] for e in parsed['events'])>=capacity):
                 raise ValueError('File exceeds phrase capacity; replacement cancelled. Shorten the source MIDI explicitly.')
             if mode=='preview':
                 self.respond(200,{k:v for k,v in parsed.items() if k!='events'});return
@@ -342,6 +343,11 @@ class Handler(BaseHTTPRequestHandler):
                 target,gesture,kind,snapshot=data.get('switchId'),data.get('gesture'),data.get('snapshotAction'),data.get('snapshotId',0)
                 if any(type(v) is not int for v in (target,gesture,kind,snapshot)) or not 1<=target<=16777215 or not 0<=gesture<=2 or not 0<=kind<=7 or not 0<=snapshot<=16777215:raise ValueError()
                 args=dict(op=28,target=target,arg=gesture,ch=kind,module=snapshot)
+            elif action=='switch_commit':
+                target=data.get('switchId');settings=data.get('settings');sequence=data.get('sequence');name=data.get('name','')
+                if type(target) is not int or not 1<=target<=16777215 or not isinstance(settings,list) or len(settings)!=18 or any(type(v) is not int for v in settings) or not isinstance(sequence,list) or len(sequence)>64 or any(type(v) is not int or not 1<=v<=16 for v in sequence) or not isinstance(name,str) or len(name)>16 or any(not 32<=ord(c)<127 for c in name):raise ValueError()
+                settings=list(settings);settings[11]=len(sequence)
+                args=dict(op=41,target=target,settings=settings+[p-1 for p in sequence]+[0]*(64-len(sequence))+[ord(c) for c in name]+[0]*(16-len(name)))
             elif action == 'test':
                 target, gesture = data.get('switchId'), data.get('gesture', 'tap')
                 if type(target) is not int or not 1 <= target <= 16777215 or gesture not in ('tap', 'double', 'hold'):
@@ -357,20 +363,48 @@ class Handler(BaseHTTPRequestHandler):
                 elif action=='mapping_delete':args=dict(op=17,target=target)
                 elif action in ('controller_return','controller_capture'):args=dict(op=18,target=target,arg=int(action=='controller_capture'))
                 else:args=dict(op=15,target=target,arg={'controller_learn':0,'controller_cancel':1,'controller_confirm':2,'controller_forget':3}[action])
+            elif action=='controller_remove':
+                target=data.get('sourceId')
+                if type(target) is not int or not 1<=target<=16777215:raise ValueError()
+                args=dict(op=37,target=target,name='',arg=2)
+            elif action=='controller_rename':
+                target=data.get('sourceId');name=data.get('name')
+                if type(target) is not int or not 1<=target<=16777215 or not isinstance(name,str) or not 1<=len(name)<=16 or any(not 32<=ord(c)<127 for c in name):raise ValueError('Controller name: 1–16 printable ASCII characters')
+                args=dict(op=37,target=target,name=name,arg=int(data.get('create') is True))
+            elif action=='curve_preset_store':
+                slot=data.get('slot')
+                if type(slot) is not int or not 0<=slot<4:raise ValueError()
+                binding=binding_wire(dict(id=1,sourceId=1,targetId=1,instrumentId=1,points=data.get('points')))
+                args=dict(op=39,target=slot,binding=binding)
             elif action=='mapping_commit':
-                binding=binding_wire(data.get('mapping'));args=dict(op=16,target=binding[0],binding=binding)
+                binding=binding_wire(data.get('mapping'));args=dict(op=16,target=binding[0],binding=binding,arg=int(data.get('replaceLegacy') is True))
+            elif action=='controller_test':
+                target,value=data.get('sourceId'),data.get('value')
+                if type(target) is not int or not 1<=target<=16777215 or type(value) is not int or not 0<=value<=127:raise ValueError()
+                args=dict(op=43,target=target,value=value)
             elif action=='midi_cc':
                 channel,number,value=data.get('channel'),data.get('number'),data.get('value')
                 if any(type(v) is not int for v in (channel,number,value)) or not 1<=channel<=16 or not 0<=number<=127 or not 0<=value<=127:raise ValueError()
                 args=dict(op=19,ch=channel-1,note=number,value=value)
+            elif action=='phrase_stop':
+                target=data.get('phraseId')
+                if type(target) is not int or not 1<=target<=16:raise ValueError()
+                args=dict(op=40,target=target-1,arg=6)
             elif action == 'chain_stop':
                 args=dict(op=40,target=0,arg=0)
+            elif action=='patch_clear':
+                if data.get('confirm') is not True:raise ValueError()
+                args=dict(op=42)
             elif action == 'panic':
                 args = dict(op=2)
             elif action in ('phrase_rename','instrument_rename'):
                 target=data.get('phraseId' if action=='phrase_rename' else 'instrumentId');name=data.get('name')
                 if type(target) is not int or not 1<=target<=(16 if action=='phrase_rename' else 16777215) or not isinstance(name,str) or len(name)>16 or any(not 32<=ord(c)<127 for c in name):raise ValueError('Names support up to 16 printable ASCII characters, matching REAPER')
                 args=dict(op=36,target=target,arg=int(action=='instrument_rename'),name=name)
+            elif action in ('parameter_curve','parameter_unassign'):
+                target,module,kind=data.get('targetId'),data.get('moduleId',0),data.get('kind')
+                if any(type(v) is not int for v in (target,module,kind)) or not 1<=target<=16777215 or not 0<=module<=16777215 or not 0<=kind<14:raise ValueError()
+                args=dict(op=38,target=target,arg=kind,macro=[module,int(action=='parameter_unassign')])
             elif action=='parameter_set':
                 target,module,kind,value=data.get('targetId'),data.get('moduleId',0),data.get('kind'),data.get('value')
                 if any(type(v) is not int for v in (target,module,kind)) or not 1<=target<=16777215 or not 0<=module<=16777215 or kind==16 or type(value) not in (int,float) or not math.isfinite(value):raise ValueError()
@@ -396,7 +430,7 @@ class Handler(BaseHTTPRequestHandler):
                 args=dict(op=11,target=target,arg=values[0],ch=values[1],note=values[2],value=values[3])
             elif action=='module_commit':
                 target=data.get('instrumentId');module=data.get('moduleId');parameters=data.get('parameters')
-                if any(type(v) is not int or not 1<=v<=16777215 for v in (target,module)) or not isinstance(parameters,list) or not 1<=len(parameters)<=4:raise ValueError()
+                if any(type(v) is not int or not 1<=v<=16777215 for v in (target,module)) or not isinstance(parameters,list) or not 1<=len(parameters)<=5:raise ValueError()
                 seen=set()
                 for p in parameters:
                     if not isinstance(p,dict) or type(p.get('kind')) is not int or p['kind'] in seen or type(p.get('value')) not in (int,float) or not math.isfinite(p['value']):raise ValueError()
@@ -412,7 +446,11 @@ class Handler(BaseHTTPRequestHandler):
                 target=data.get('instrumentId');field=data.get('field','enabled');value=data.get('value')
                 if type(target) is not int or not 1<=target<=16777215 or field not in ('input','output','level','enabled') or type(value) is not int or not 0<=value<=(127 if field=='level' else 1 if field=='enabled' else 16):raise ValueError()
                 args=dict(op=10 if field=='enabled' else 9,target=target,arg=('input','output','level').index(field) if field!='enabled' else 0,value=value)
-            elif action in ('phrase_play','phrase_record','phrase_finish','phrase_clear','phrase_release'):
+            elif action=='phrase_cancel':
+                target=data.get('phraseId')
+                if type(target) is not int or not 1<=target<=16:raise ValueError()
+                args=dict(op=40,target=target-1,arg=5)
+            elif action in ('phrase_play','phrase_record','phrase_finish','phrase_clear','phrase_release','phrase_cancel'):
                 target=data.get('phraseId')
                 if type(target) is not int or not 1<=target<=16:raise ValueError('invalid phrase')
                 args=dict(op=40,target=target-1,arg=4) if action=='phrase_release' else dict(op=35,target=target-1,arg=2) if action=='phrase_clear' else dict(op={'phrase_play':6,'phrase_record':7,'phrase_finish':8}[action],target=target-1)

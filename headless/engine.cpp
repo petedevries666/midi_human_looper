@@ -71,21 +71,23 @@ struct Request {
   double macroPosition = 0;
   double snapshotSeconds = 2;
   int snapshotEase = 1, snapshotSwitch = 2;
-  std::array<ParameterChange, 4> parameters{};
+  std::array<ParameterChange, 5> parameters{};
+  std::array<int,98> switchSettings{};
   controller::Binding binding;
   controller::Configuration controllerConfig;
   performance::Configuration snapshotConfig;
 };
 struct Switch {
-  int id = 0, on = 0, type = 0, kind = 0, ch = 0, num = 0, length = 0, step = 0;
+  int id = 0, on = 0, type = 0, kind = 0, ch = 0, num = 0, length = 0, step = 0, actionCount = 0, lastAction = 0, result = 0;
   char name[17]{};
+  std::array<int,18> settings{};std::array<int,64> sequence{};
 };
 struct Instrument {
   int id = 0, on = 0, input = 0, output = 0, level = 0;
   char name[17]{};
   std::array<int, 6> transformerIds{}, transformerTypes{}, transformerOn{};
-  std::array<std::array<double, 4>, 6> transformerValues{};
-  std::array<std::array<int, 4>, 6> transformerKinds{},
+  std::array<std::array<double, 5>, 6> transformerValues{},transformerPending{};
+  std::array<std::array<int, 5>, 6> transformerKinds{},
       transformerAssignments{};
   std::array<int, 6> parameterCounts{};
   int transformerCount = 0;
@@ -93,7 +95,7 @@ struct Instrument {
 };
 struct Phrase {
   char name[17]{};
-  int events = 0, mode = 0;
+  int events = 0, mode = 0, state = 0;
   double time = 1, velocityDecay = .8, baseVelocity = 1;
   int mute = 0, solo = 0, triggerNote = -1, triggerChannel = 0;
 };
@@ -101,8 +103,9 @@ struct Snapshot {
   uint64_t samples = 0, blocks = 0, midi = 0, late = 0, last_sample = 0;
   int revision = 1;
   unsigned pendingOutput = 0;
+  int chainPhrase=0,chainErrorPhrase=-1;
   unsigned chainTimingVersion=1;
-  bool chain = false, chainRun = false, chainArmed = false, chainRecord = false,
+  bool chain = false, chainGridCapture = false, chainRun = false, chainArmed = false, chainRecord = false,
        chainError = false;
   uint64_t chainFrame = 0, chainLength = 0;
   double chainBpm = 120;
@@ -135,6 +138,8 @@ struct Snapshot {
   unsigned abSkipped = 0, abOverridden = 0;
 };
 struct Reply {
+  int legacySource=0,legacyCount=0;
+  std::array<std::array<double,3>,16> legacyPoints{};
   uint64_t id = 0;
   int status = 0;
   Snapshot state;
@@ -168,18 +173,25 @@ static void execute(ysfx_t *fx, const char *text) {
   NSEEL_code_free(p);
 }
 struct Model {
+  std::array<std::array<EEL_F*,128>,16> switchFields;
+  EEL_F *musicalState,*recordLayer,*odLayer,*odActive,*odArmed,*freeActive,*freeReady,*freeError;
+  std::array<EEL_F*,12> voiceActive,voiceLayer;
+  std::array<EEL_F*,16> phraseTriggers,phraseFinished;
+  struct CurvePointers{double *count=nullptr;std::array<std::array<double*,3>,16> points{};};
+  std::array<std::array<std::array<CurvePointers,5>,12>,8> legacyCurves;
+  std::array<CurvePointers,8> levelCurves;
   mutable double abPosition = 0;
   mutable std::atomic<bool> abRestorePending{false};
-  std::array<std::array<double *, 26>, 16> sw;
+  std::array<std::array<double *, 28>, 16> sw;
   std::array<std::array<double *, 22>, 8> inst;
   std::array<std::array<double *, 10>, 16> phrase;
   std::array<std::array<double *, 16>, 16> phraseNames;
   std::array<double *, 8> tfCount, levelAssignment, levelPending;
   std::array<std::array<double *, 6>, 8> tfCodes;
   std::array<std::array<double *, 12>, 8> tfIds, tfTypes;
-  std::array<std::array<std::array<double *, 4>, 12>, 8> values, assignments,
+  std::array<std::array<std::array<double *, 5>, 12>, 8> values, assignments,
       pendingValues;
-  std::array<std::array<std::array<int, 4>, 12>, 8> kinds, curveIndices;
+  std::array<std::array<std::array<int, 5>, 12>, 8> kinds, curveIndices;
   std::array<int, 8> levelCurveIndices;
   void initParameters(ysfx_t *fx) {
     auto i = NSEEL_VM_regvar(fx->vm.get(), "remote_pi"),
@@ -203,13 +215,19 @@ struct Model {
         0);
     if (!lookup)
       throw std::runtime_error("parameter descriptors");
+    auto gx=NSEEL_VM_regvar(fx->vm.get(),"remote_gx"),gy=NSEEL_VM_regvar(fx->vm.get(),"remote_gy"),gb=NSEEL_VM_regvar(fx->vm.get(),"remote_gb"),gc=NSEEL_VM_regvar(fx->vm.get(),"remote_gc");
+    auto geometry=NSEEL_code_compile(fx->vm.get(),"remote_gx=exp_x_addr(remote_pti);remote_gy=exp_y_addr(remote_pti);remote_gb=exp_bend_addr(remote_pti);remote_gc=exp_count_addr(remote_pti);",0);
+    if(!geometry)throw std::runtime_error("curve bridge");
+    auto cacheCurve=[&](CurvePointers &curve){NSEEL_code_execute(geometry);curve.count=cell(fx,unsigned(*gc));for(unsigned j=0;j<16;++j){curve.points[j][0]=cell(fx,unsigned(*gx)+j);curve.points[j][1]=cell(fx,unsigned(*gy)+j);curve.points[j][2]=cell(fx,unsigned(*gb)+j);}};
+
     for (unsigned gi = 0; gi < 8; ++gi)
       for (unsigned code = 1; code < 12; ++code)
-        for (unsigned row = 0; row < 4; ++row) {
+        for (unsigned row = 0; row < 5; ++row) {
           *i = gi;
           *c = code;
           *r = row;
           NSEEL_code_execute(lookup);
+          cacheCurve(legacyCurves[gi][code][row]);
           kinds[gi][code][row] = int(*k);
           curveIndices[gi][code][row] = int(*ti);
           values[gi][code][row] = cell(fx, unsigned(*a));
@@ -229,13 +247,19 @@ struct Model {
     for (unsigned gi = 0; gi < 8; ++gi) {
       *i = gi;
       NSEEL_code_execute(level);
+      cacheCurve(levelCurves[gi]);
       levelCurveIndices[gi] = int(*ti);
       levelAssignment[gi] = cell(fx, unsigned(*b));
       levelPending[gi] = cell(fx, unsigned(*pending));
     }
-    NSEEL_code_free(level);
+    NSEEL_code_free(level);NSEEL_code_free(geometry);
   }
   explicit Model(ysfx_t *fx) {
+    if(variable(fx,"MAX_ONCE_VOICES")!=voiceActive.size())throw std::runtime_error("shared voice capacity mismatch");
+    musicalState=ysfx_find_var(fx,"state");recordLayer=ysfx_find_var(fx,"record_layer");odLayer=ysfx_find_var(fx,"overdub_layer");odActive=ysfx_find_var(fx,"overdub_active");odArmed=ysfx_find_var(fx,"overdub_armed");freeActive=ysfx_find_var(fx,"free_record_active");freeReady=ysfx_find_var(fx,"free_record_ready");freeError=ysfx_find_var(fx,"free_play_error");
+    for(unsigned j=0;j<12;++j){voiceActive[j]=cell(fx,unsigned(variable(fx,"VOICE_ACTIVE_BASE"))+j);voiceLayer[j]=cell(fx,unsigned(variable(fx,"VOICE_LAYER_BASE"))+j);}
+    for(unsigned j=0;j<16;++j){phraseTriggers[j]=cell(fx,unsigned(variable(fx,"TRIG_BASE"))+j);phraseFinished[j]=cell(fx,unsigned(variable(fx,"FREE_FINISHED_BASE"))+j);}
+
     auto gi = NSEEL_VM_regvar(fx->vm.get(), "remote_model_i"),
          c = NSEEL_VM_regvar(fx->vm.get(), "remote_model_c"),
          a = NSEEL_VM_regvar(fx->vm.get(), "remote_model_a"),
@@ -285,8 +309,10 @@ struct Model {
         sw[i][8 + j] = cell(fx, b + 32 + j);
       unsigned rt = i < 4 ? unsigned(variable(fx, "SW_RT_BASE")) + i * 32
                           : unsigned(variable(fx, "DS_RT_BASE")) + (i - 4) * 32;
+      for(unsigned j=0;j<128;++j)switchFields[i][j]=cell(fx,b+j);
       sw[i][24] = cell(fx, rt + 7);
       sw[i][25] = cell(fx, rt + 12);
+      sw[i][26] = cell(fx, rt + 11);sw[i][27] = cell(fx, rt + 17);
       for (unsigned j=0;j<16;++j)
         phraseNames[i][j]=cell(fx,unsigned(variable(fx,"PHRASE_NAME_BASE"))+i*16+j);
       phrase[i][8] = cell(fx, unsigned(variable(fx, "PHRASE_NOTE_BASE")) + i);
@@ -421,6 +447,7 @@ struct Model {
     }
     return false;
   }
+  double* legacyAssignment(const controller::Binding &b) const{unsigned i;int c,r;if(b.kind>=14 || !resolve(b,i,c,r,true))return nullptr;return c?assignments[i][c][r]:levelAssignment[i];}
   double *bindingValue(const controller::Binding &b,
                        bool legacy = false) const {
     if (b.kind == 16)
@@ -469,10 +496,23 @@ struct Model {
       v.num = int(*sw[i][6]);
       v.length = int(*sw[i][7]);
       v.step = int(*sw[i][24]) + 1;
+      v.actionCount=int(*sw[i][25]);v.lastAction=int(*sw[i][26]);v.result=int(*sw[i][27]);
+      const unsigned fields[]={0,2,3,4,12,13,6,7,8,9,10,11,14,15,16,17,18,19};
+      for(unsigned j=0;j<18;++j)v.settings[j]=int(*switchFields[i][fields[j]]);
+      for(unsigned j=0;j<64;++j)v.sequence[j]=int(*switchFields[i][48+j])+1;
       for (unsigned j = 0; j < 16; ++j)
         v.name[j] = char(*sw[i][8 + j]);
       for (unsigned j=0;j<16;++j) s.phrases[i].name[j]=char(*phraseNames[i][j]);
       s.phrases[i].events = int(*phrase[i][0]);
+      bool playing=s.phrases[i].events>0 && *musicalState==3 && *phrase[i][1]<.5 && *phraseTriggers[i]>.5;
+      for(unsigned j=0;j<12;++j)playing|=*voiceActive[j]>.5 && *voiceLayer[j]==i;
+      auto &p=s.phrases[i];p.state=!p.events?0:*phraseFinished[i]>.5?3:7;
+      if(playing)p.state=4;
+      if(*odLayer==i && *odArmed>.5)p.state=5;
+      if(*odLayer==i && *odActive>.5)p.state=6;
+      if(*recordLayer==i && (*musicalState==1 || *freeReady>.5))p.state=1;
+      if(*recordLayer==i && (*musicalState==2 || *freeActive>.5))p.state=2;
+      if((s.chainError && s.chainErrorPhrase==int(i)) || *freeError==i+1)p.state=8;
       s.phrases[i].mode = int(*phrase[i][1]);
       s.phrases[i].time = *phrase[i][2];
       s.phrases[i].velocityDecay = *phrase[i][3];
@@ -508,6 +548,7 @@ struct Model {
         v.parameterCounts[j] = performance::parameterCount(type);
         for (int r = 0; r < v.parameterCounts[j]; ++r) {
           v.transformerValues[j][r] = *values[i][k][r];
+          v.transformerPending[j][r]=pendingValues[i][k][r]?*pendingValues[i][k][r]:-999;
           v.transformerAssignments[j][r] = int(*assignments[i][k][r]);
           v.transformerKinds[j][r] = performance::parameterKind(type, r);
         }
@@ -543,8 +584,10 @@ static std::string json(const Reply &r) {
     << ",\"buildRevision\":" << quote(MBMF_BUILD_REVISION)
     << ",\"chainFrameGap\":" << s.chainFrameGap << ",\"chainClockGap\":" << s.chainClockGap
     << ",\"chainTimingVersion\":" << s.chainTimingVersion
+    << ",\"chainCaptureMode\":" << quote(s.chainGridCapture?"two-bar-grid":"free-time")
     << ",\"chainMode\":" << s.chain << ",\"chainRunning\":" << s.chainRun
     << ",\"chainArmed\":" << s.chainArmed
+    << ",\"chainPhraseId\":" << s.chainPhrase+1
     << ",\"chainRecording\":" << s.chainRecord
     << ",\"chainError\":" << s.chainError << ",\"chainFrame\":" << s.chainFrame
     << ",\"chainLength\":" << s.chainLength << ",\"chainBpm\":" << s.chainBpm
@@ -566,7 +609,10 @@ static std::string json(const Reply &r) {
         << ",\"enabled\":" << v.on << ",\"type\":" << v.type
         << ",\"kind\":" << v.kind << ",\"channel\":" << v.ch
         << ",\"number\":" << v.num << ",\"length\":" << v.length
-        << ",\"step\":" << v.step << '}';
+        << ",\"step\":" << v.step << ",\"actionCount\":" << v.actionCount
+        << ",\"lastAction\":" << v.lastAction << ",\"result\":" << v.result << ",\"settings\":[";
+      for(unsigned j=0;j<18;++j){if(j)o<<',';o<<v.settings[j];}
+      o<<"],\"sequence\":[";for(int j=0;j<v.length;++j){if(j)o<<',';o<<v.sequence[j];}o<<"]}";
     }
   o << "],\"instruments\":[";
   comma = false;
@@ -591,7 +637,9 @@ static std::string json(const Reply &r) {
             o << ',';
           o << "{\"kind\":" << v.transformerKinds[j][r]
             << ",\"value\":" << v.transformerValues[j][r]
-            << ",\"assignment\":" << v.transformerAssignments[j][r] << '}';
+            << ",\"assignment\":" << v.transformerAssignments[j][r];
+          if(v.transformerPending[j][r]!=-999)o<<",\"pendingValue\":"<<v.transformerPending[j][r];
+          o<<'}';
         }
         o << "]}";
       }
@@ -603,6 +651,7 @@ static std::string json(const Reply &r) {
       o << ',';
     o << "{\"id\":" << i + 1 << ",\"events\":" << s.phrases[i].events
       << ",\"name\":" << quote(s.phrases[i].name)
+      << ",\"state\":" << quote(std::array<const char*,9>{{"IDLE","ARMED","RECORDING","FINISHED","PLAYING","OVERDUB ARMED","OVERDUB ACTIVE","STOPPED","ERROR"}}[s.phrases[i].state])
       << ",\"mode\":" << s.phrases[i].mode
       << ",\"timeDecay\":" << s.phrases[i].time
       << ",\"velocityDecay\":" << s.phrases[i].velocityDecay
@@ -611,7 +660,8 @@ static std::string json(const Reply &r) {
       << ",\"mute\":" << s.phrases[i].mute << ",\"solo\":" << s.phrases[i].solo
       << '}';
   }
-  o << "],\"controllerEngine\":"
+  o << "],\"legacyCurve\":{\"source\":"<<r.legacySource<<",\"points\":[";for(int j=0;j<r.legacyCount;++j){if(j)o<<',';o<<'['<<r.legacyPoints[j][0]<<','<<r.legacyPoints[j][1]<<','<<r.legacyPoints[j][2]<<']';}o<<"]}";
+  o << ",\"controllerEngine\":"
     << controller::configurationJson(s.controllerConfig)
     << ",\"controllerLearn\":{\"domain\":" << quote(s.learnCommand ? "phrase" : "source") << ",\"target\":" << s.learnTarget
     << ",\"conflict\":" << s.learnConflict
@@ -702,7 +752,7 @@ struct PatchModel {
   std::array<double *, 9> globals;
   std::array<unsigned, 8> sizes{};
   std::array<unsigned, 6> markers{};
-  std::vector<double> snapshot, guardedSnapshot;
+  std::vector<double> snapshot, guardedSnapshot, factory;
   bool guardedReady = false;
   ysfx_t *fx;
   explicit PatchModel(ysfx_t *f) : fx(f) {
@@ -737,6 +787,7 @@ struct PatchModel {
                            "slider8",          "slider9",       "record_layer"};
     for (unsigned i = 0; i < 9; ++i)
       globals[i] = ysfx_find_var(f, names[i]);
+    factory.resize(9+memory.size());for(unsigned i=0;i<9;++i)factory[i]=*globals[i];for(unsigned i=0;i<memory.size();++i)factory[9+i]=*memory[i];
   }
   bool validate(unsigned schema, const std::vector<double> &v) const {
     if (schema < 1 || schema > 7 || v.size() < 10)
@@ -869,11 +920,11 @@ static void control(int listener, Queue<Request, 64> &commands,
                       request.arg >> request.revision >> request.ch >>
                       request.note >> request.value) &&
                  request.id > 0 && request.id <= 9007199254740991ULL &&
-                 request.op >= 0 && (request.op <= 36 || request.op == 40) && request.arg >= 0 &&
+                 request.op >= 0 && (request.op <= 43) && request.arg >= 0 &&
                  request.arg <= (request.op == 13   ? 5
-                                 : request.op == 40 ? 4
+                                 : request.op == 40 ? 6
                                  : request.op == 15 || request.op == 34 ? 3
-                                 : request.op == 32 ? 24
+                                 : request.op == 32 || request.op == 38 ? 24
                                                     : 2) &&
                  request.ch >= 0 &&
                  (request.op == 11 ? request.ch <= 16 : request.ch < 16) &&
@@ -885,10 +936,10 @@ static void control(int listener, Queue<Request, 64> &commands,
       valid = bool(input >> marker >> request.session) && marker == "session" &&
               request.session > 0 && request.session <= 9007199254740991ULL;
     }
-    if (valid && request.op == 36) {
+    if (valid && (request.op == 36 || request.op == 37)) {
       std::string hex;
-      valid=bool(input>>hex) && request.arg<=1 && request.target>0 &&
-            request.target<=(request.arg?16777215:16);
+      valid=bool(input>>hex) && request.arg<=(request.op==37?2:1) && request.target>0 &&
+            request.target<=(request.op==37 || request.arg?16777215:16);
       if (hex!="-") {
         valid=valid && !hex.empty() && hex.size()<=32 && hex.size()%2==0;
         for (unsigned j=0;valid && j<hex.size()/2;++j) {
@@ -898,6 +949,15 @@ static void control(int listener, Queue<Request, 64> &commands,
           if(valid) request.snapshotName[j]=char(v);
         }
       }
+      if(input>>extra)valid=false;
+    } else if(valid && request.op==41){
+      for(unsigned j=0;j<98;++j){int v=0;valid=valid && bool(input>>v);request.switchSettings[j]=v;}
+      const auto &v=request.switchSettings;
+      valid=valid && request.target>0 && request.target<=16777215 && v[0]>=0 && v[0]<=1 && v[1]>=0 && v[1]<=2 && v[2]>=0 && v[2]<16 && v[3]>=0 && v[3]<128 && v[4]>=0 && v[4]<128 && v[5]>=0 && v[5]<128 && (v[1]!=2 || v[4]!=v[5]) && v[6]>=0 && v[6]<=1 && v[7]>=50 && v[7]<=2000 && v[8]>=100 && v[8]<=5000 && v[9]>=0 && v[9]<=3 && v[10]>=0 && v[10]<=1 && v[11]>=0 && v[11]<=64;
+      for(unsigned j=12;j<15;++j)valid=valid && v[j]>=0 && v[j]<=9;
+      for(unsigned j=15;j<18;++j)valid=valid && v[j]>=0 && v[j]<48;
+      for(unsigned j=18;j<82;++j)valid=valid && v[j]>=0 && v[j]<16;
+      for(unsigned j=82;j<98;++j)valid=valid && (v[j]==0 || (v[j]>=32 && v[j]<127));
       if(input>>extra)valid=false;
     } else if (valid && request.op == 35) {
       valid = request.target >= 0 && request.target < 16 && request.arg >= 0 && request.arg <= 2;
@@ -946,11 +1006,11 @@ static void control(int listener, Queue<Request, 64> &commands,
           valid = false;
       }
     } else if (valid &&
-               (request.op == 30 || request.op == 31 || request.op == 32)) {
+               (request.op == 30 || request.op == 31 || request.op == 32 || request.op == 38)) {
       valid = bool(input >> request.module >> request.macroPosition) &&
               request.module >= 0 && request.module <= 16777215 &&
               std::isfinite(request.macroPosition) &&
-              (request.op == 32 ||
+              (request.op == 32 || request.op == 38 ||
                (request.macroPosition >= 0 && request.macroPosition <= 1));
       if (input >> extra)
         valid = false;
@@ -1002,9 +1062,9 @@ static void control(int listener, Queue<Request, 64> &commands,
       }
       if (input >> extra)
         valid = false;
-    } else if (valid && request.op == 16) {
+    } else if (valid && (request.op == 16 || request.op == 39)) {
       valid = controller::readBinding(input, request.binding) &&
-              request.binding.policy.id == unsigned(request.target) &&
+              (request.op==39 ? request.target<4 : request.binding.policy.id == unsigned(request.target)) &&
               request.binding.valid();
       if (input >> extra)
         valid = false;
@@ -1016,7 +1076,7 @@ static void control(int listener, Queue<Request, 64> &commands,
     } else if (valid && request.op == 12) {
       valid = bool(input >> request.module >> request.count) &&
               request.module > 0 && request.module <= 16777215 &&
-              request.count > 0 && request.count <= 4;
+              request.count > 0 && request.count <= 5;
       for (int j = 0; valid && j < request.count; ++j)
         valid = bool(input >> request.parameters[j].kind >>
                      request.parameters[j].value) &&
@@ -1056,7 +1116,11 @@ static void control(int listener, Queue<Request, 64> &commands,
           std::this_thread::sleep_for(std::chrono::milliseconds(1));
       }
       if (received) {
-        if (reply.status == 0 && request.op == 35) {
+        if(reply.status==0 && request.op==35 && request.arg==2){
+          // Already cleared with bounded pointer writes in the callback. No pause,
+          // worker RAM mutation or skipped JACK callback for inactive content.
+          send_line(fd,json(reply),shutdown);
+        } else if (reply.status == 0 && request.op == 35) {
           const unsigned selected=unsigned(request.target), base=selected*unsigned(variable(patch.fx,"LAYER_STRIDE"));
           const unsigned countBase=unsigned(variable(patch.fx,"COUNT_BASE"));
           const unsigned lengthBase=unsigned(variable(patch.fx,"LEN_BASE"));
@@ -1071,7 +1135,7 @@ static void control(int listener, Queue<Request, 64> &commands,
             send_line(fd,json(reply),shutdown);
           } else if (request.arg == 1) {
             double duration=std::max(std::ceil(patchValues[0]*rate),std::round(patchValues[patchValues.size()-4]*rate)+1);
-            if (reply.state.chain && (duration>reply.state.chainLength ||
+            if (reply.state.chainGridCapture && (duration>reply.state.chainLength ||
                 std::round(patchValues[patchValues.size()-4]*rate)>=reply.state.chainLength)) reply.status=3;
             if (!reply.state.chain && *patch.memory[unsigned(variable(patch.fx,"MODE_BASE"))+selected]<.5 &&
                 *patch.globals[0]>0 && duration>*patch.globals[0]) reply.status=3;
@@ -1082,8 +1146,8 @@ static void control(int listener, Queue<Request, 64> &commands,
                 *patch.memory[base+j*5+4]=0;
               }
               *patch.memory[countBase+selected]=(patchValues.size()-1)/4;
-              *patch.memory[lengthBase+selected]=reply.state.chain?reply.state.chainLength:duration;
-              if(reply.state.chain) *patch.memory[unsigned(variable(patch.fx,"MODE_BASE"))+selected]=0;
+              *patch.memory[lengthBase+selected]=reply.state.chainGridCapture?reply.state.chainLength:duration;
+              if(reply.state.chainGridCapture) *patch.memory[unsigned(variable(patch.fx,"MODE_BASE"))+selected]=0;
               if (*patch.globals[0]<=0) { *patch.globals[0]=duration; *patch.globals[1]=1; }
             }
             paused.store(false,std::memory_order_release);
@@ -1120,6 +1184,9 @@ static void control(int listener, Queue<Request, 64> &commands,
             }
           }
           paused.store(false,std::memory_order_release);
+        } else if(reply.status==0 && request.op==42){
+          patch.load(7,patch.factory);patch.guardedReady=false;
+          send_line(fd,json(reply),shutdown);
         } else if (reply.status == 0 && request.op == 4) {
           auto document =
               patch.save(paused, reply.state.controllerConfig, model, request.arg == 1);
@@ -1132,7 +1199,7 @@ static void control(int listener, Queue<Request, 64> &commands,
           paused.store(false, std::memory_order_release);
           send_line(fd, document, shutdown);
         } else {
-          if (reply.status == 0 && request.op == 5 && reply.state.chain &&
+          if (reply.status == 0 && request.op == 5 && reply.state.chainGridCapture &&
               patchValues[0] != double(reply.state.chainLength))
             reply.status = 3;
           if (reply.status == 0 && request.op == 5) {
@@ -1166,7 +1233,7 @@ static void control(int listener, Queue<Request, 64> &commands,
           send_line(fd, json(reply), shutdown);
         }
       }
-      if (request.op == 4 || request.op == 5 || request.op == 35) {
+      if (request.op == 4 || request.op == 5 || request.op == 35 || request.op==42) {
         loading.store(false, std::memory_order_release);
         paused.store(false, std::memory_order_release);
       }
@@ -1198,7 +1265,7 @@ int main(int argc, char **argv) {
                  "[--demo] [--input JACK_PORT] [--output JACK_PORT]\n";
     return 2;
   }
-  bool useJack = false, demo = false, chainMode = false;
+  bool useJack = false, demo = false, chainMode = false, chainGridCapture = false;
   unsigned chainTimingVersion=1;
   std::string clientName = "midi_human_looper";
   std::string inputPort, outputPort;
@@ -1210,6 +1277,8 @@ int main(int argc, char **argv) {
       chainTimingVersion=std::stoul(argv[++i]);
     else if (a == "--chain")
       chainMode = true;
+    else if (a == "--chain-grid-capture")
+      chainGridCapture = true;
     else if (a == "--client" && i + 1 < argc) {
       clientName = argv[++i];
       if (clientName.empty() || clientName.size() > 48 ||
@@ -1273,7 +1342,8 @@ int main(int argc, char **argv) {
                   "mem[engine_addr(INST_ENABLED_BASE,remote_ci)]=remote_ci==0;"
                   "remote_ci+=1;);mem[engine_addr(INST_IN_BASE,0)]=0;mem["
                   "engine_addr(INST_OUT_BASE,0)]=0;");
-    ChainMode chain(fx, chainMode, chainTimingVersion);
+    PatchModel patch(fx); // Capture clean factory data before demo or restored user data.
+    ChainMode chain(fx, chainMode, chainTimingVersion, chainGridCapture);
     if (demo)
       execute(
           fx,
@@ -1309,6 +1379,8 @@ int main(int argc, char **argv) {
         0);
     if (!bridge)
       throw std::runtime_error("command bridge compilation");
+    auto switchReset = NSEEL_code_compile(fx->vm.get(),"sw_reset(remote_target);",0);
+    if(!switchReset)throw std::runtime_error("switch reset bridge");
     auto panic_bridge =
         NSEEL_code_compile(fx->vm.get(),
                            "sw_stop_phrases();reset_note_runtime();snap_"
@@ -1328,6 +1400,8 @@ int main(int argc, char **argv) {
         "trigger_request=remote_phrase;process_phrase_trigger(0,0);", 0);
     auto phraseRecord = NSEEL_code_compile(
         fx->vm.get(), "select_phrase_record(remote_phrase);", 0);
+    auto phraseClear=NSEEL_code_compile(fx->vm.get(),"set_layer_count(remote_phrase,0);mem[LEN_BASE+remote_phrase]=0;mem[TRIG_BASE+remote_phrase]=0;mem[HOLD_ACTIVE_BASE+remote_phrase]=0;mem[ONCEPOS_BASE+remote_phrase]=0;mem[FREE_FINISHED_BASE+remote_phrase]=0;free_play_error==remote_phrase+1?free_play_error=0;",0);
+    if(!phraseClear)throw std::runtime_error("phrase content clear bridge");
     auto phraseStop = NSEEL_code_compile(
         fx->vm.get(),
         "finish_phrase_record();overdub_armed=0;overdub_active=0;", 0);
@@ -1391,7 +1465,6 @@ int main(int argc, char **argv) {
     if (!controllerApply || !legacyConflict || !cancelLearn)
       throw std::runtime_error("controller bridge");
     Model model(fx);
-    PatchModel patch(fx);
     auto importState=ysfx_find_var(fx,"state"), importOverdub=ysfx_find_var(fx,"overdub_active");
     std::array<double*,12> importVoices{};
     std::array<double*,16> importSustain{}, importLiveSustain{};
@@ -1940,9 +2013,12 @@ int main(int argc, char **argv) {
           if (chain.recording || chain.armed || *importOverdub>.5 ||
               (request.arg==2 && (*importState==importReady || *importArmed>.5)) ||
               *importState==importRecording ||
-              (request.arg!=0 && (state.active>0 || chain.run ||
+              (request.arg==1 && (state.active>0 || chain.run ||
                *importState==importPlaying ||
-               std::any_of(importVoices.begin(),importVoices.end(),[](double* p){return *p>.5;})))) reply.status=3;
+               std::any_of(importVoices.begin(),importVoices.end(),[](double* p){return *p>.5;}))) ||
+              (request.arg==2 && ((*model.musicalState==3 && *model.phraseTriggers[request.target]>.5 && *model.phrase[request.target][1]<.5 && *model.phrase[request.target][0]>0) ||
+               [&](){for(unsigned j=0;j<12;++j)if(*model.voiceActive[j]>.5 && *model.voiceLayer[j]==request.target)return true;return false;}()))) reply.status=3;
+          else if(request.arg==2){*phraseTarget=request.target;NSEEL_code_execute(phraseClear);++state.revision;}
           else { maintenance=true; if(request.arg!=0) ++state.revision; }
         }
         else if (request.op == 4 || request.op == 5) {
@@ -1983,6 +2059,8 @@ int main(int argc, char **argv) {
             reply.status = 3;
           else {
             if (request.arg == 0) {
+              // Finalize the capture before PANIC clears its authoritative flags.
+              chain.cancel();
               *snapHostRead = *snapHostWrite;
               performanceMorphSeconds = 0;
               cancelAB();
@@ -1993,6 +2071,40 @@ int main(int argc, char **argv) {
             else if (jack && (request.arg == 1 || request.arg == 2))
               jack_transport_start(jack);
           }
+        } else if(request.op==42){
+          chain.cancel();chain.error=false;chain.errorPhrase=-1;
+          cancelAB();performanceTargetCount=0;performanceSkipped=0;performanceMorphSeconds=0;performanceTargetSnapshot=0;
+          *snapHostRead=*snapHostWrite;controllers.replace(request.controllerConfig,resolveBinding);
+          performanceSnapshots->restore(request.snapshotConfig);
+          NSEEL_code_execute(panic_bridge);++state.revision;
+          loading.store(true,std::memory_order_release);maintenance=true;
+        } else if(request.op==41){
+          int si=-1;for(unsigned j=0;j<16;++j)if(*model.sw[j][0] && *model.sw[j][1]==request.target)si=j;
+          const auto &v=request.switchSettings;bool collision=false;
+          for(const auto &source:controllers.configuration().sources)collision|=v[1] && source.id && source.kind==v[1] && source.channel==v[2] && source.number==v[3];
+          if(si>=0 && v[1])collision|=matchesLegacy(v[1],v[2],v[3],si);
+          if(si<0)reply.status=2;
+          else if(collision)reply.status=3;
+          else{
+            const unsigned fields[]={0,2,3,4,12,13,6,7,8,9,10,11,14,15,16,17,18,19};
+            for(unsigned j=0;j<18;++j)*model.switchFields[si][fields[j]]=v[j];
+            for(unsigned j=0;j<64;++j)*model.switchFields[si][48+j]=v[18+j];
+            for(unsigned j=0;j<16;++j)*model.switchFields[si][32+j]=v[82+j];
+            *target=si;NSEEL_code_execute(switchReset);++state.revision;
+          }
+        } else if(request.op==38){
+          controller::Binding b;b.instrument=request.target;b.module=request.module;b.kind=request.arg;unsigned i;int code,row;
+          auto assignment=model.legacyAssignment(b);
+          if(!assignment || !model.resolve(b,i,code,row,true))reply.status=2;
+          else{if(request.macroPosition==1){*assignment=0;for(unsigned j=0;j<performanceTargetCount;++j){auto &p=(*performanceTargets)[j];if(p.key.instrument==b.instrument && p.key.module==b.module && p.key.kind==b.kind){cancelPerformance(p,p.token);p.active=false;}}++state.revision;}const auto &curve=code?model.legacyCurves[i][code][row]:model.levelCurves[i];reply.legacySource=int(*assignment);reply.legacyCount=std::max(2,std::min(16,int(*curve.count)));for(int j=0;j<reply.legacyCount;++j)for(unsigned k=0;k<3;++k)reply.legacyPoints[j][k]=*curve.points[j][k];}
+        } else if(request.op==39){
+          if(!controllers.preset(request.target,request.binding.policy.curve))reply.status=3;else ++state.revision;
+        } else if(request.op==37){
+          bool success=false;
+          if(request.arg==2){success=controllers.removeSource(request.target);}
+          else if(request.arg){bool exists=false;for(const auto &s:controllers.configuration().sources)exists|=s.id==unsigned(request.target);if(!exists){controller::Source s;s.id=request.target;for(unsigned j=0;j<17;++j)s.name[j]=request.snapshotName[j];success=controllers.source(s);}}
+          else success=controllers.rename(request.target,request.snapshotName);
+          if(!success)reply.status=2;else ++state.revision;
         } else if (request.op == 36) {
           int selected=-1;
           if (!request.arg) selected=request.target-1;
@@ -2005,6 +2117,8 @@ int main(int argc, char **argv) {
                   static_cast<unsigned char>(request.snapshotName[j]);
             ++state.revision;
           }
+        } else if (request.op == 43) {
+          if(!controllers.testSource(request.target,request.value,(state.samples+frames)/double(sampleRate)))reply.status=2;
         } else if (request.op >= 20) {
           bool valid = false;
           if (request.op == 34) {
@@ -2223,6 +2337,9 @@ int main(int argc, char **argv) {
             if (request.binding.kind != 16)
               cancelAB();
             auto b = request.binding;
+            auto legacy=request.arg?model.legacyAssignment(b):nullptr;
+            const double oldLegacy=legacy?*legacy:0;
+            if(legacy)*legacy=0;
             auto address = model.bindingValue(b);
             if (!address)
               reply.status = 2;
@@ -2252,6 +2369,7 @@ int main(int argc, char **argv) {
                 ++state.revision;
               }
             }
+            if(reply.status && legacy)*legacy=oldLegacy;
           } else if (request.op == 17) {
             if (!controllers.remove(request.target))
               reply.status = 2;
@@ -2358,7 +2476,7 @@ int main(int argc, char **argv) {
               reply.status = 2;
             else {
               auto &inst = state.instruments[i];
-              std::array<int, 4> rows{};
+              std::array<int, 5> rows{};
               bool valid = true;
               for (int j = 0; j < request.count; ++j) {
                 auto &change = request.parameters[j];
@@ -2370,18 +2488,8 @@ int main(int argc, char **argv) {
                   valid = false;
                 else
                   rows[j] = row;
-                double low = change.kind == 7   ? -48
-                             : change.kind == 0 ? .2
-                             : change.kind == 5 ? .25
-                             : change.kind == 6 ? .02
-                                                : 0;
-                double high = change.kind == 7                        ? 48
-                              : change.kind == 0                      ? 3
-                              : change.kind == 5                      ? 16
-                              : change.kind == 6 || change.kind == 12 ? 1
-                              : change.kind == 4                      ? 2
-                              : change.kind == 8 || change.kind == 11 ? 3
-                                                                      : 127;
+                const auto &definition=performance::parameters[change.kind];
+                double low=definition.low,high=definition.high;
                 if (change.value < low || change.value > high)
                   valid = false;
                 for (int prior = 0; prior < j; ++prior)
@@ -2516,7 +2624,8 @@ int main(int argc, char **argv) {
           } else
             NSEEL_code_execute(panic_bridge);
         }
-        state.chain = true;
+        state.chain = true;state.chainPhrase=chain.phrase;state.chainErrorPhrase=chain.errorPhrase;
+        state.chainGridCapture=chainGridCapture;
         state.chainTimingVersion=chainTimingVersion;
         state.chainRun = chain.run;
         state.chainArmed = chain.armed;
@@ -2571,7 +2680,15 @@ int main(int argc, char **argv) {
       }
       if (chainMode && outBuffer && *panicPending > .5)
         cleanupChain();
+      chain.finishSwitchStop();
       ysfx_process_float(fx, nullptr, nullptr, 0, 0, frames);
+      chain.finishSwitchStop();
+      if(chainMode && !chain.gridCapture) {
+        chain.observe();
+        state.chainRun=chain.run;state.chainArmed=chain.armed;
+        state.chainRecord=chain.recording;state.chainError=chain.error;
+        state.chainLength=chain.length;
+      }
       for (unsigned j = 0; j < performanceTargetCount; ++j) {
         auto &p = (*performanceTargets)[j];
         if (p.legacyCurve >= 0 && p.legacyCurve < 232 &&
@@ -2772,11 +2889,12 @@ int main(int argc, char **argv) {
     }
 
     NSEEL_code_free(bridge);
+    NSEEL_code_free(switchReset);
     NSEEL_code_free(panic_bridge);
     NSEEL_code_free(chainRecovery);
     NSEEL_code_free(phrasePlay);
     NSEEL_code_free(phraseRecord);
-    NSEEL_code_free(phraseStop);
+    NSEEL_code_free(phraseStop);NSEEL_code_free(phraseClear);
     NSEEL_code_free(edit);
     NSEEL_code_free(structure);
     NSEEL_code_free(instrumentLifecycle);

@@ -6,16 +6,24 @@ note ownership, engine timing and existing project compatibility.
 ## Required web UI evidence
 
 Every PR changing `headless/web/` must run `scripts/screenshots.sh`, visually inspect
-**every generated view at all four viewport sizes**, and commit the updated real
+**every generated view at all five viewport sizes**, and commit the updated real
 PNG artifacts and `docs/screenshots/manifest.json`. Report layout failures and
 unsupported views explicitly. Passing automated checks does not replace visual
 inspection. Never substitute generated artwork, mocked APIs or fabricated views.
 
 The single command starts a private native engine with deterministic `--demo` data
-and the actual HTTP editor, captures 320×240, 800×480, 1366×768 and 1440×900 viewport PNGs,
+and the actual HTTP editor, captures 320×240, 800×480, 1366×768, 1440×900 and
+1904×1032 viewport PNGs,
 checks overflow/clipping/keyboard reachability, validates PNG dimensions, and stops
 its own processes. It does not use JACK, hardware, saved user patches or a running
 performance engine. Vertical scrolling is allowed; hidden controls are not.
+
+The workflow also runs the real native `--chain` recovery browser test for
+recording ARMED/RECORDING, named modulation menus, curve editing and reference
+instrument chains. Chromium uses software rendering (`--disable-gpu`) and waits
+for paint completion before capture: Cloud GPU rasterization can otherwise leave
+partially painted PNGs even when DOM checks pass. Inspect the images themselves.
+The metadata identifies demo and recovery fixture provenance separately.
 
 ## Codex Cloud setup
 

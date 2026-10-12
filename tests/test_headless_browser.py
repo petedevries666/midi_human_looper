@@ -28,7 +28,7 @@ try:
         page.locator('#phrase-pagination').get_by_role('button',name='←',exact=True).click()
         assert page.locator('.instrument').count()==3
         assert page.locator('.switch').count()==4
-        assert page.locator('[data-switch-id="3"] .tests button').first.is_disabled()
+        assert page.locator('[data-switch-id="3"] .tests button').first.is_enabled(), 'Manual preview does not require a hardware-enabled switch'
         before=api.call()
         assert page.locator('#metrics').text_content().find('Build '+before['buildRevision'])>=0
         page.locator('[data-switch-id="1"] .switch-test').evaluate('(e)=>e.open=true')

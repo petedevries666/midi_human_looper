@@ -2,7 +2,7 @@
 static void chain_mode_tests(const char *source) {
   Host h(source);
   h.run("ext_noinit=1;gmem[0]=0;panic_pending=0;slider9=1;");
-  ChainMode chain(h.f, true);
+  ChainMode chain(h.f, true, 1, true);
   chain.command(2, 0);
   check(!chain.tick(0, 128, 48000, false, 120),
         "armed record survives JACK Starting/Stopped before first roll");
@@ -91,14 +91,14 @@ static void chain_exact_timing_tests(const char *source) {
   for (unsigned rate : {44100u,48000u,96000u})
     for (unsigned block : {128u,256u,512u,8192u})
       for (double bpm : {73.,120.,137.}) {
-        ChainMode c(h.f,true,2);
+        ChainMode c(h.f,true,2,true);
         c.tick(0,block,rate,true,bpm);
         const uint64_t length=uint64_t(std::llround(rate*480./bpm));
         check(c.length==length,"v2 exact musical length independent of buffer");
         c.tick(length+17,block,rate,true,bpm);
         h.eq("chain_phase",17,"v2 exact phase independent of block alignment");
       }
-  ChainMode c(h.f,true,2);
+  ChainMode c(h.f,true,2,true);
   c.tick(0,128,44100,true,120);
   h.run("clear_layer(3);");c.command(2,3);
   const uint64_t start=176384; // grid origin occurs 16 samples into this block
@@ -132,7 +132,7 @@ static void chain_exact_playback_tests(const char *source) {
       h.run("slider9=1;slider5=0;mem[INST_TRANSFORM_COUNT_BASE]=0;"
             "clear_layer(0);mem[MODE_BASE]=0;mem[VEL_BASE]=1;"
             "store_event(0,0,144,60,100,0);store_event(0,32,128,60,0,0);");
-      ChainMode c(h.f,true,2);c.command(1,0);c.tick(0,block,rate,true,137);
+      ChainMode c(h.f,true,2,true);c.command(1,0);c.tick(0,block,rate,true,137);
       const uint64_t length=c.length,start=(length-1)/block*block;
       bool on=false,off=false;c.previous=0;
       for (uint64_t frame=start;frame<start+2*block;frame+=block) {
@@ -159,7 +159,7 @@ static void chain_capture_origin_tests(const char *source) {
       Host h(source);
       h.run("ext_noinit=1;gmem[0]=0;panic_pending=0;slider9=1;clear_layer(4);");
       *NSEEL_VM_getramptr(h.f->vm.get(),unsigned(*ysfx_find_var(h.f,"MODE_BASE"))+4,nullptr)=mode;
-      ChainMode c(h.f,true,version);
+      ChainMode c(h.f,true,version,true);
       c.tick(phase,128,48000,true,120);c.command(2,4);
       auto send=[&](int status,int note,int velocity,unsigned offset) {
         uint8_t bytes[]={uint8_t(status),uint8_t(note),uint8_t(velocity)};

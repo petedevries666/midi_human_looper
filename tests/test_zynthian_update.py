@@ -83,6 +83,27 @@ class Updates(unittest.TestCase):
                         runtime.healthy({**config,'runtime_revision':'wrong'},expected,timeout=.1)
             finally:server.shutdown();server.server_close();thread.join(timeout=2)
         finally:process.terminate();process.wait(timeout=5)
+    def test_grid_rollback_rejects_free_time_without_mutating_source(self):
+        import copy
+        for rate in (44100,48000,96000):
+            for block in (64,128,512,1024):
+                for timing in (1,2):
+                    state=dict(sampleRate=rate,blockSize=block,chainBpm=123)
+                    exact=rate*480/123
+                    period=int(exact+.5) if timing==2 else int(exact/block+.5)*block
+                    memory=[0]*164000;memory[163840]=2;memory[163952]=period
+                    patch=dict(globals=[period],memory=memory)
+                    u.validate_grid_restore(patch,state,timing)
+                    patch['globals'][0]=period+1;original=copy.deepcopy(patch)
+                    with self.assertRaisesRegex(ValueError,'no truncation'):u.validate_grid_restore(patch,state,timing)
+                    self.assertEqual(patch,original)
+                    patch['globals'][0]=period;memory[163952]=period+4096
+                    with self.assertRaisesRegex(ValueError,'independent LOOP'):u.validate_grid_restore(patch,state,timing)
+                    memory[163904]=1 # ONCE supports its own length on the previous runtime.
+                    u.validate_grid_restore(patch,state,timing)
+    def test_checkpoint_precedes_candidate_validation(self):
+        source=(ROOT/'scripts/zynthian-update.py').read_text()
+        self.assertLess(source.index('expected=runtime.checkpoint(directory)'),source.index('verified_revision=runtime.preflight(new,directory)'))
     def test_arm64_signed_char_applies_to_library_and_host(self):
         source=(ROOT/'scripts/zynthian-update.py').read_text()
         self.assertIn('-DCMAKE_C_FLAGS=-fsigned-char',source)

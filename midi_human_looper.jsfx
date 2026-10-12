@@ -22,6 +22,10 @@ loop(6,
   bridge_alloc_index+=65536;
 );
 
+// Runtime-only source channel; sounding channel is captured at emission.
+ARP_SOURCE_CH_BASE=3007000;arp_overflow_count=0;arp_init_i=0;loop(8,mem[ARP_SOURCE_CH_BASE+arp_init_i]=0;arp_init_i+=1;);
+FREE_FINISHED_BASE=3007180;FREE_LOOP_ANCHOR_BASE=3007100;free_record_ready=0;free_record_active=0;record_overflow=0;
+free_init=0;loop(16,mem[FREE_LOOP_ANCHOR_BASE+free_init]=0;mem[FREE_FINISHED_BASE+free_init]=0;free_init+=1;);
 STATE_IDLE = 0;
 STATE_READY = 1;
 STATE_RECORDING = 2;
@@ -647,7 +651,9 @@ local(j,idx)
 
 function reset_note_runtime()
 local(pv_i)
-(native_hold_read=native_hold_write;native_hold_release_mask=0;pv_i=0;loop(MAX_ONCE_VOICES,mem[VOICE_ACTIVE_BASE+pv_i]=0;pv_i+=1;);once_route_voice=-1;last_trigger_layer=-1;trigger_request=-1;hold_stop_request=-1;
+(
+  free_loop_stop_mask=0;native_free_time?(pv_i=0;loop(33024,mem[3008000+pv_i]=0;pv_i+=1;););
+  free_record_ready=0;free_record_active=0;free_play_error=0;free_reset=0;loop(16,mem[FREE_FINISHED_BASE+free_reset]=0;mem[FREE_LOOP_ANCHOR_BASE+free_reset]=0;free_reset+=1;);native_hold_read=native_hold_write;native_hold_release_mask=0;pv_i=0;loop(MAX_ONCE_VOICES,mem[VOICE_ACTIVE_BASE+pv_i]=0;pv_i+=1;);once_route_voice=-1;last_trigger_layer=-1;trigger_request=-1;hold_stop_request=-1;
  pv_i=0;loop(NOTE_REF_SIZE,mem[NOTE_REF_BASE+pv_i]=0;pv_i+=1;);pv_i=0;loop(16,mem[SUSTAIN_REF_BASE+pv_i]=0;pv_i+=1;);
  pv_i=0;loop(INST_CAP,i_clear_runtime(pv_i);pv_i+=1;);
 );
@@ -770,7 +776,7 @@ function param_name(kind)
  kind==PARAM_ARP_HOLD ? "HOLD" : "CC NUMBER";);
 function param_editor_kind(typ,row)
 (typ==1 ? PARAM_TRANSPOSE : typ==2 ? PARAM_RANGE_MODE+row : typ==3 ? PARAM_NOTE_MODE :
- typ==4 ? EXP_T_VEL : typ==5 ? (row==0 ? EXP_T_ARP_MODE : row==1 ? EXP_T_ARP_RATE : row==2 ? EXP_T_ARP_GATE : PARAM_ARP_HOLD) :
+ typ==4 ? EXP_T_VEL : typ==5 ? (row==0 ? EXP_T_ARP_MODE : row==1 ? EXP_T_ARP_RATE : row==2 ? EXP_T_ARP_GATE : row==3 ? PARAM_ARP_HOLD : EXP_T_ARP_ON) :
  typ==6 ? (row==0 ? EXP_T_MOD : PARAM_MOD_CC) : -1;);
 function param_discrete(kind)
 (kind!=EXP_T_VEL && kind!=EXP_T_ARP_RATE && kind!=EXP_T_ARP_GATE;);
@@ -999,7 +1005,7 @@ function arm_layer(layer)
     play_sample_pos=0;
     overdub_pos=0;
   ) : (
-  panic_pending=1;
+  !native_free_time || (state!=STATE_PLAYING && !once_any_active) ? panic_pending=1;
   overdub_wait_note=0;
   record_layer=layer;
   record_sample_pos=0;
@@ -1007,7 +1013,8 @@ function arm_layer(layer)
   overdub_armed=0;
   overdub_active=0;
   overdub_wait_note=0;
-  state=STATE_READY;
+  record_overflow=0;free_record_active=0;free_record_ready=native_free_time;
+  !(native_free_time && state==STATE_PLAYING)?state=STATE_READY;
   );
 );
 
@@ -1023,19 +1030,21 @@ local(count,base)
     mem[base+3]=d2;
     mem[base+4]=offs;
     set_layer_count(layer,count+1);
-  );
+  ) : native_free_time && (free_record_active || state==STATE_RECORDING || overdub_active)?record_overflow=1;
 );
 
-function arp_capture_note(gi, outst, note, vel, is_on)
-local(idx,sidx)
+function arp_capture_note(gi, outst, note, vel, is_on, offs)
+local(idx,sidx,n,held)
 (
   idx=engine_addr(ARP_HELD_COUNT_BASE,gi*128+note);
   sidx=engine_addr(ARP_SOURCE_COUNT_BASE,gi*128+note);
   is_on ? (
+    held=0;n=0;loop(128,held+=mem[engine_addr(ARP_HELD_COUNT_BASE,gi*128+n)];n+=1;);
+    held<=0?mem[engine_addr(ARP_STEP_REMAIN_BASE,gi)]=max(0,offs);
     mem[sidx]+=1;
     mem[idx]+=1;
     mem[engine_addr(ARP_HELD_VEL_BASE,gi*128+note)]=vel;
-    mem[engine_addr(ARP_ACTIVE_CH_BASE,gi)]=outst&15;
+    mem[ARP_SOURCE_CH_BASE+gi]=outst&15;
   ) : (
     mem[sidx]=max(0,mem[sidx]-1);
     // HOLD OFF follows source releases. HOLD ON keeps the note latched.
@@ -1105,47 +1114,31 @@ local(k,c,found)
   found;
 );
 function arp_process_instrument(gi)
-local(rate,gate,step_samples,step_rem,gate_rem,held,n,choice,pick,vel,ch,an,offs)
+local(rate,gate,step_samples,step_rem,gate_rem,held,n,choice,pick,vel,ch,an,offs,cur,mode,budget)
 (
   mem[engine_addr(INST_ARP_ENABLED_BASE,gi)]>0.5 && transformer_on(gi,5) ? (
     rate=max(0.25,min(16,mem[engine_addr(INST_ARP_RATE_BASE,gi)]));
     gate=max(0.02,min(1,mem[engine_addr(INST_ARP_GATE_BASE,gi)]));
     step_samples=max(1,srate*60/max(1,tempo)/rate);
-
-    step_rem=mem[engine_addr(ARP_STEP_REMAIN_BASE,gi)];
-    gate_rem=mem[engine_addr(ARP_GATE_REMAIN_BASE,gi)];
-
-    // Gate-off may happen inside this audio block.
-    an=mem[engine_addr(ARP_ACTIVE_NOTE_BASE,gi)];
-    an>=0 && gate_rem<=samplesblock ? (
-      offs=max(0,min(samplesblock-1,gate_rem));
-      ch=mem[engine_addr(ARP_ACTIVE_CH_BASE,gi)]&15;
-      instrument_output_owners(ch,an,gi)<=0?midisend(offs,128|ch,an);
-      mem[engine_addr(ARP_ACTIVE_NOTE_BASE,gi)]=-1;
-      gate_rem=0;
-    ) : gate_rem=max(0,gate_rem-samplesblock);
-
-    held=0; n=0;
-    loop(128,
-      mem[engine_addr(ARP_HELD_COUNT_BASE,gi*128+n)]>0 ? held+=1;
-      n+=1;
-    );
-
-    held<=0 ? (
-      arp_release_instrument(gi);
-      step_rem=0;
-    ) : (
-      // Generate every step that falls in this block. RANDOM chooses among currently held notes.
-      step_rem<=0 ? step_rem=0;
-      while(step_rem<samplesblock) (
-        // End previous arp note before retriggering the next one.
+    step_rem=max(0,mem[engine_addr(ARP_STEP_REMAIN_BASE,gi)]);
+    gate_rem=max(0,mem[engine_addr(ARP_GATE_REMAIN_BASE,gi)]);
+    held=0;n=0;loop(128,mem[engine_addr(ARP_HELD_COUNT_BASE,gi*128+n)]>0?held+=1;n+=1;);
+    held<=0 ? (arp_release_instrument(gi);step_rem=0;gate_rem=0;) : (
+      // Merge step and gate edges chronologically, including gates of notes
+      // created inside this block. Equal-time release precedes attack.
+      budget=256;
+      while(budget>0 && min(step_rem,mem[engine_addr(ARP_ACTIVE_NOTE_BASE,gi)]>=0?gate_rem:100000000000000000000)<samplesblock)(
         an=mem[engine_addr(ARP_ACTIVE_NOTE_BASE,gi)];
-        an>=0 ? (
+        an>=0 && gate_rem<=step_rem ? (
           ch=mem[engine_addr(ARP_ACTIVE_CH_BASE,gi)]&15;
-          instrument_output_owners(ch,an,gi)<=0?midisend(max(0,min(samplesblock-1,step_rem)),128|ch,an);
+          instrument_output_owners(ch,an,gi)<=0?midisend(max(0,min(samplesblock-1,gate_rem)),128|ch,an);
           mem[engine_addr(ARP_ACTIVE_NOTE_BASE,gi)]=-1;
-        );
-
+        ) : (
+          an>=0 ? (
+            ch=mem[engine_addr(ARP_ACTIVE_CH_BASE,gi)]&15;
+            instrument_output_owners(ch,an,gi)<=0?midisend(max(0,min(samplesblock-1,step_rem)),128|ch,an);
+            mem[engine_addr(ARP_ACTIVE_NOTE_BASE,gi)]=-1;
+          );
         mode=floor(mem[engine_addr(INST_ARP_MODE_BASE,gi)]+0.5);
         choice=-1;
         mode==0 ? (
@@ -1168,27 +1161,27 @@ local(rate,gate,step_samples,step_rem,gate_rem,held,n,choice,pick,vel,ch,an,offs
           loop(128, n<cur && choice<0 && mem[engine_addr(ARP_HELD_COUNT_BASE,gi*128+n)]>0 ? choice=n; n-=1;);
           choice<0 ? (n=127; loop(128, choice<0 && mem[engine_addr(ARP_HELD_COUNT_BASE,gi*128+n)]>0 ? choice=n; n-=1;););
         );
-        choice>=0 ? mem[engine_addr(ARP_CURSOR_BASE,gi)]=choice;
-        choice>=0 ? (
-          vel=max(1,min(127,mem[engine_addr(ARP_HELD_VEL_BASE,gi*128+choice)]));
-          ch=mem[engine_addr(ARP_ACTIVE_CH_BASE,gi)]&15;
-          offs=max(0,min(samplesblock-1,step_rem));
-          midisend(offs,144|ch,choice|(vel*256));
-          mem[engine_addr(ARP_ACTIVE_NOTE_BASE,gi)]=choice;
-          gate_rem=step_samples*gate;
-        );
-        step_rem+=step_samples;
-      );
-      step_rem-=samplesblock;
-    );
 
+          choice>=0 ? (
+            mem[engine_addr(ARP_CURSOR_BASE,gi)]=choice;
+            vel=max(1,min(127,mem[engine_addr(ARP_HELD_VEL_BASE,gi*128+choice)]));
+            ch=mem[ARP_SOURCE_CH_BASE+gi]&15;
+            offs=max(0,min(samplesblock-1,step_rem));
+            midisend(offs,144|ch,choice|(vel*256));
+            mem[engine_addr(ARP_ACTIVE_CH_BASE,gi)]=ch;
+            mem[engine_addr(ARP_ACTIVE_NOTE_BASE,gi)]=choice;
+            gate_rem=step_rem+step_samples*gate;
+          );
+          step_rem+=step_samples;
+        );budget-=1;
+      );
+      budget<=0 ? (arp_overflow_count+=1;panic_pending=1;);
+      step_rem=max(0,step_rem-samplesblock);
+      gate_rem=max(0,gate_rem-samplesblock);
+    );
     mem[engine_addr(ARP_STEP_REMAIN_BASE,gi)]=step_rem;
     mem[engine_addr(ARP_GATE_REMAIN_BASE,gi)]=gate_rem;
-  ) : (
-    // Turning ARP off must never leave a generated note hanging.
-    arp_release_instrument(gi);
-    mem[engine_addr(ARP_STEP_REMAIN_BASE,gi)]=0;
-  );
+  ) : (arp_release_instrument(gi);mem[engine_addr(ARP_STEP_REMAIN_BASE,gi)]=0;);
 );
 
 function note_in_range(gi, note)
@@ -1264,7 +1257,7 @@ local(ch,key,origin,idx)
     origin ? (
       is_on ? (mem[engine_addr(SW_ARP_PHRASE_SOURCE_BASE,gi*128+note)]+=1;mem[engine_addr(SW_ARP_PHRASE_BASE,gi*128+note)]+=1;) : (mem[engine_addr(SW_ARP_PHRASE_SOURCE_BASE,gi*128+note)]=max(0,mem[engine_addr(SW_ARP_PHRASE_SOURCE_BASE,gi*128+note)]-1);mem[engine_addr(INST_ARP_HOLD_BASE,gi)]<.5 ? mem[engine_addr(SW_ARP_PHRASE_BASE,gi*128+note)]=max(0,mem[engine_addr(SW_ARP_PHRASE_BASE,gi*128+note)]-1););
     );
-    arp_capture_note(gi,outst,note,vel,is_on);
+    arp_capture_note(gi,outst,note,vel,is_on,offs);
   ) : owned ? (
     key=NOTE_REF_BASE+ch*128+note;
     is_on ? (
@@ -1627,7 +1620,7 @@ local(addr,old,ti,unsafe)
         kind==EXP_T_LEVEL ? mem[engine_addr(CC_DIRTY_BASE,gi)]=1;
         kind==EXP_T_MOD || kind==PARAM_MOD_CC ? mem[engine_addr(CC_DIRTY_MOD_BASE,gi)]=1;
         kind==PARAM_ARP_HOLD && value<.5 ? arp_clear_latch(gi);
-        kind==EXP_T_ARP_ON && value<.5 ? (arp_release_instrument(gi);arp_clear_latch(gi););
+        kind==EXP_T_ARP_ON && value<.5 ? (arp_release_instrument(gi);arp_stop_n=0;loop(128,mem[engine_addr(ARP_HELD_COUNT_BASE,gi*128+arp_stop_n)]=0;mem[engine_addr(ARP_SOURCE_COUNT_BASE,gi*128+arp_stop_n)]=0;mem[engine_addr(SW_ARP_PHRASE_BASE,gi*128+arp_stop_n)]=0;mem[engine_addr(SW_ARP_PHRASE_SOURCE_BASE,gi*128+arp_stop_n)]=0;arp_stop_n+=1;););
       );
     );
   );
@@ -1860,17 +1853,18 @@ local(seconds,best_score,bars,bpm,score,target_bpm,i)
 function finish_phrase_record()
 local(phrase_len)
 (
-  state==STATE_RECORDING ? (
+  state==STATE_RECORDING || free_record_active ? (
     phrase_len=max(1,record_sample_pos);
-    mem[LEN_BASE+record_layer]=phrase_len;
+    mem[LEN_BASE+record_layer]=phrase_len;native_free_time?mem[FREE_FINISHED_BASE+record_layer]=1;
     (record_layer==0 || loop_len_samples<=0) ? (
       loop_len_samples=phrase_len;
       infer_tempo();
     );
-    play_sample_pos=0;
-    state=STATE_STOPPED;
-  ) : state==STATE_READY ? (
-    state=loop_len_samples>0 ? STATE_STOPPED : STATE_IDLE;
+    !(native_free_time && state==STATE_PLAYING)?(play_sample_pos=0;state=STATE_STOPPED;);
+    free_record_active=0;free_record_ready=0;
+  ) : state==STATE_READY || free_record_ready ? (
+    free_record_ready=0;
+    !(native_free_time && state==STATE_PLAYING)?state=loop_len_samples>0 ? STATE_STOPPED : STATE_IDLE;
   );
 );
 
@@ -1884,7 +1878,7 @@ function select_phrase_record(layer)
     overdub_pos=0;
   );
 
-  (state==STATE_RECORDING || state==STATE_READY) ? (
+  (state==STATE_RECORDING || state==STATE_READY || free_record_ready || free_record_active) ? (
     record_layer==layer ? (
       finish_phrase_record();
     ) : (
@@ -2074,6 +2068,27 @@ local(period,cycle,last)
     loop(min(10,max(0,last-cycle+1)),phrase_render_span(vi,until,0,cycle);cycle+=1;);
   ) : phrase_render_span(vi,until,instant,0);
   instant?mem[VOICE_FIRST_BASE+vi]=1:mem[VOICE_CURSOR_BASE+vi]=until;
+);
+// Native free LOOP source ownership; reuses the existing routing release path.
+function free_loop_stop(layer)
+local(k,c,ch,n,other,pedal,budget,failed,j)
+(
+  mem[TRIG_BASE+layer]=0;budget=2048;failed=0;
+  k=0;loop(2048,
+    c=max(0,mem[3008000+layer*2048+k]);mem[3008000+layer*2048+k]=0;
+    c>budget?failed=1;c=min(c,budget);budget-=c;
+    loop(c,sw_playback_origin=1;send_to_instruments(0,128|floor(k/128),k%128,0,1);sw_playback_origin=0;);
+    k+=1;
+  );
+  ch=0;loop(16,
+    mem[3040768+layer*16+ch]>0?(
+      mem[3040768+layer*16+ch]=0;other=0;pedal=0;loop(LAYERS,pedal+=mem[3040768+other*16+ch];other+=1;);
+      pedal<=0 && mem[SW_LIVE_SUSTAIN_BASE+ch]<64?(sw_playback_origin=1;send_to_instruments(0,176|ch,64,0,1);sw_playback_origin=0;);
+    );ch+=1;
+  );
+  failed?(free_play_error=layer+1;state=STATE_STOPPED;panic_pending=1;
+    j=0;loop(LAYERS,mem[TRIG_BASE+j]=0;j+=1;);j=0;loop(MAX_ONCE_VOICES,mem[VOICE_ACTIVE_BASE+j]=0;j+=1;);
+  );
 );
 function phrase_playing(layer) local(j,active) (j=0;active=0;loop(MAX_ONCE_VOICES,mem[VOICE_ACTIVE_BASE+j]==1 && mem[VOICE_LAYER_BASE+j]==layer?active=1;j+=1;);active;);
 function phrase_toggle_stop(layer,offs) local(j)
@@ -2272,6 +2287,7 @@ local(gi,ch,n,key,live,mi,idx,remain,old,desired,mode,src)
   param_release_owned();gi=0;loop(MAX_ONCE_VOICES,mem[VOICE_ACTIVE_BASE+gi]=0;gi+=1;);
   gi=0;loop(LAYERS,mem[TRIG_BASE+gi]=0;mem[HOLD_ACTIVE_BASE+gi]=0;gi+=1;);
   trigger_request=-1;hold_stop_request=-1;last_trigger_layer=-1;
+  native_free_time?(gi=0;loop(33024,mem[3008000+gi]=0;gi+=1;););
   state==STATE_PLAYING ? state=STATE_STOPPED;
 );
 // Optional native performance bridge. Config/runtime live beyond serialized memory;
@@ -2291,6 +2307,10 @@ local(slot)
 function sw_action(si,action,target,offs)
 local(b,r,step,phrase,gi,kind,k,c,found)
 (
+  native_free_time && (action==SW_STOP || action==SW_STOP_RESET || action==SW_PANIC) ? (
+    native_stop_pending=1;native_stop_capture_pos=max(0,record_sample_pos+offs);
+    free_record_active=0;free_record_ready=0;overdub_active=0;overdub_armed=0;state=STATE_STOPPED;
+  );
   snap_host_enabled && (action==SW_STOP || action==SW_STOP_RESET || action==SW_PANIC) ? (snap_host_cancel=1;snap_parameter_cancel(););
   b=sw_cfg(si);r=sw_rt(si);mem[r+11]=action;mem[r+12]+=1;mem[r+17]=0;
   action>=101 && action<=107 ? (
@@ -2302,7 +2322,7 @@ local(b,r,step,phrase,gi,kind,k,c,found)
     step=sw_traverse(si);step>=0 ? (
       phrase=mem[b+SW_LIST+step];
       phrase>=0 && phrase<LAYERS && layer_count(phrase)>0 ? (
-        mem[MODE_BASE+phrase]<.5 ? (loop_len_samples>0 ? (mem[TRIG_BASE+phrase]=1;state=STATE_PLAYING;) : mem[r+17]=2;) : (
+        mem[MODE_BASE+phrase]<.5 ? (loop_len_samples>0 ? (native_free_time?(mem[FREE_LOOP_ANCHOR_BASE+phrase]=play_sample_pos;mem[FREE_FINISHED_BASE+phrase]=0;);mem[TRIG_BASE+phrase]=1;state=STATE_PLAYING;) : mem[r+17]=2;) : (
           trigger_request=phrase;process_phrase_trigger(offs,0);
         );
       ) : mem[r+17]=2;
@@ -2879,8 +2899,22 @@ hold_stop_request>=0 ? (
   );
 );
 
+native_free_time && free_loop_stop_mask?(
+  free_stop_i=0;loop(LAYERS,free_loop_stop_mask&(1<<free_stop_i)?free_loop_stop(free_stop_i);free_stop_i+=1;);free_loop_stop_mask=0;
+);
 // Existing GUI/phrase requests execute at the block boundary.
 process_phrase_trigger(0,0);
+
+// Admit a free LOOP overdub before draining this block's MIDI, including a
+// wrap that falls inside the block. Monitoring must not be recorded too late.
+native_free_time && overdub_armed && !overdub_active && !overdub_wait_note && mem[MODE_BASE+overdub_layer]<.5?(
+  free_od_len=max(1,mem[LEN_BASE+overdub_layer]);free_od_phase=(play_sample_pos-mem[FREE_LOOP_ANCHOR_BASE+overdub_layer])%free_od_len;
+  free_od_boundary=free_od_phase==0?0:free_od_len-free_od_phase;
+  free_od_boundary<samplesblock?(overdub_pos=-free_od_boundary;overdub_active=1;overdub_armed=0;free_gate_i=0;loop(2048,mem[3002048+free_gate_i]=0;free_gate_i+=1;););
+);
+native_free_time && overdub_active?(
+  chain_capture_active=1;chain_capture_normalize=0;chain_capture_start=max(0,-overdub_pos);chain_capture_end=min(samplesblock,mem[LEN_BASE+overdub_layer]-overdub_pos);
+);
 
 while (
   midirecv(offset,msg1,msg23) ?
@@ -2922,23 +2956,27 @@ while (
     overdub_wait_note && overdub_armed && is_note_on && !is_trigger_command ? (
       // First played note starts the overdub take and retriggers the original ONCE/HOLD.
       overdub_wait_note=0;overdub_armed=0;overdub_active=1;
-      overdub_pos=0;
-      trigger_request=overdub_layer;
+      overdub_pos=native_free_time?-offset:0;
+      trigger_request=overdub_layer;native_free_time?(chain_capture_active=1;chain_capture_normalize=0;chain_capture_start=offset;chain_capture_end=min(samplesblock,mem[LEN_BASE+overdub_layer]+offset);process_phrase_trigger(offset,1););
     );
 
     !is_trigger_command ? (
-    state==STATE_READY && is_note_on && layer_count(record_layer)==0 ? (
+    (state==STATE_READY || free_record_ready) && is_note_on && layer_count(record_layer)==0 ? (
       // Only a truly empty phrase can enter destructive first-take recording.
       clear_layer(record_layer);
-      state=STATE_RECORDING;
-      record_sample_pos=0;
+      !(native_free_time && state==STATE_PLAYING)?state=STATE_RECORDING;
+      free_record_ready=0;free_record_active=native_free_time;
+      // One capture origin for the entire take, including the rest of this
+      // block. The first event is stored at zero; later events retain their
+      // distance from it rather than their distance from the block boundary.
+      record_sample_pos=-offset;
       store_event(record_layer,0,msg1,d1,d2,offset);
     ) :
     state==STATE_READY && layer_count(record_layer)>0 ? (
       // Safety fallback: never erase an existing phrase via READY.
       state=STATE_STOPPED;
     ) :
-    state==STATE_RECORDING ? (
+    state==STATE_RECORDING || free_record_active ? (
       store_event(record_layer,record_sample_pos+offset,msg1,d1,d2,offset);
     ) :
     overdub_active && (mem[MODE_BASE+overdub_layer]<0.5 || overdub_pos+offset<mem[LEN_BASE+overdub_layer]) && chain_capture_accept(msg1,d1,d2,offset) ? (
@@ -2967,8 +3005,8 @@ i_release_mask=0;
 sw_poll(sw_clock+samplesblock,samplesblock-1);sw_clock+=samplesblock;
 
 // arm -> active exactly at the next wrap
-state==STATE_PLAYING && overdub_armed && !overdub_active && !overdub_wait_note && mem[MODE_BASE+overdub_layer]<0.5 ? (
-  play_sample_pos==0 ? (
+!native_free_time && state==STATE_PLAYING && overdub_armed && !overdub_active && !overdub_wait_note && mem[MODE_BASE+overdub_layer]<0.5 ? (
+  (!native_free_time && play_sample_pos==0) || (native_free_time && (play_sample_pos-mem[FREE_LOOP_ANCHOR_BASE+overdub_layer])%max(1,mem[LEN_BASE+overdub_layer])<samplesblock) ? (
     // Overdub must preserve the existing events.
     overdub_pos=0;
     overdub_active=1;
@@ -2976,8 +3014,38 @@ state==STATE_PLAYING && overdub_armed && !overdub_active && !overdub_wait_note &
   );
 );
 
+function free_loop_render()
+local(fl,period,position,left,cursor,span,count,j,b,at,st,d1,d2,countkey)
+(
+  fl=0;loop(LAYERS,
+    layer_audible(fl) && mem[MODE_BASE+fl]<.5 && mem[TRIG_BASE+fl]>.5 ? (
+      period=max(1,mem[LEN_BASE+fl]);
+      period>=max(128,samplesblock/8)?(
+        position=(play_sample_pos-mem[FREE_LOOP_ANCHOR_BASE+fl])%period;
+        position<0?position+=period;left=samplesblock;cursor=0;
+while(left>0)(span=min(left,period-position);count=layer_count(fl);
+          // Newly captured events are monitored live in this pass. Replay the
+          // committed prefix until the overdub is finished, avoiding duplicates.
+          overdub_layer==fl && (overdub_active || overdub_armed) && free_old_count>0?count=min(count,free_old_count);j=0;
+          loop(count,b=layer_base(fl,j);at=mem[b];
+            at>=position && at<position+span?(
+              st=mem[b+1];d1=mem[b+2];d2=mem[b+3];
+              countkey=3008000+fl*2048+(st&15)*128+d1;
+              (st&240)==144 && d2>0?mem[countkey]+=1:((st&240)==128 || ((st&240)==144 && d2==0))?mem[countkey]=max(0,mem[countkey]-1);
+              (st&240)==176 && d1==64?mem[3040768+fl*16+(st&15)]=d2>=64;
+              (st&240)==144 && d2>0?d2=max(1,min(127,floor(d2*slider9*mem[VEL_BASE+fl]+.5)));
+              sw_playback_origin=1;send_to_instruments(cursor+at-position,st,d1,d2,1);sw_playback_origin=0;
+            );j+=1;);
+          left-=span;cursor+=span;position=(position+span)%period;
+        );
+      ):(mem[TRIG_BASE+fl]=0;free_play_error=fl+1;panic_pending=1;);
+    );fl+=1;
+  );play_sample_pos+=samplesblock;
+);
+native_free_time && state==STATE_PLAYING?free_loop_render();
+
 // playback LOOP layers
-state==STATE_PLAYING && loop_len_samples>0 ? (
+!native_free_time && state==STATE_PLAYING && loop_len_samples>0 ? (
   block_remaining=samplesblock;
   block_cursor=0;
 
@@ -3053,7 +3121,7 @@ vi=0;loop(MAX_ONCE_VOICES,mem[VOICE_ACTIVE_BASE+vi]>.5?(
   phrase_render_voice(vi,mem[VOICE_POS_BASE+vi]+samplesblock,0);
   mem[VOICE_POS_BASE+vi]+=samplesblock;mem[VOICE_CURSOR_BASE+vi]=mem[VOICE_POS_BASE+vi];
   !(native_hold_enabled && mem[MODE_BASE+mem[VOICE_LAYER_BASE+vi]]==2) && mem[VOICE_POS_BASE+vi]>=max(1,mem[LEN_BASE+mem[VOICE_LAYER_BASE+vi]]*mem[VOICE_TIME_BASE+vi])?(
-    mem[VOICE_ACTIVE_BASE+vi]=0;mem[VOICE_POS_BASE+vi]=0;
+    native_free_time?mem[FREE_FINISHED_BASE+mem[VOICE_LAYER_BASE+vi]]=1;mem[VOICE_ACTIVE_BASE+vi]=0;mem[VOICE_POS_BASE+vi]=0;
   );
 );vi+=1;);
 
@@ -3072,7 +3140,7 @@ once_any_active<0.5 && last_trigger_layer>=0 ? (
   );
 );
 
-state==STATE_RECORDING ? record_sample_pos+=samplesblock;
+state==STATE_RECORDING || free_record_active ? record_sample_pos+=samplesblock;
 overdub_active ? (
   overdub_pos+=samplesblock;
   mem[MODE_BASE+overdub_layer]>=0.5 ? (
@@ -3083,7 +3151,7 @@ overdub_active ? (
       overdub_pos=0;
     );
   ) : (
-    overdub_pos>=loop_len_samples ? overdub_pos=loop_len_samples-1;
+    native_free_time ? (overdub_pos>=max(1,mem[LEN_BASE+overdub_layer])?(overdub_active=0;overdub_pos=0;);):overdub_pos>=loop_len_samples ? overdub_pos=loop_len_samples-1;
   );
 );
 
@@ -3547,34 +3615,11 @@ function curve_factory(ti, preset)
 local(ui_k)
 (
   curve_clear_bends(ti);
-  preset==0 ? ( // flat 50%
-    mem[exp_count_addr(ti)]=2;
-    mem[exp_x_addr(ti)]=0; mem[exp_y_addr(ti)]=0.5;
-    mem[exp_x_addr(ti)+1]=1; mem[exp_y_addr(ti)+1]=0.5;
-  ) :
-  preset==1 ? ( // 0% first third, rise to 80% over second third, then plateau
-    mem[exp_count_addr(ti)]=4;
-    mem[exp_x_addr(ti)]=0;       mem[exp_y_addr(ti)]=0;
-    mem[exp_x_addr(ti)+1]=1/3;  mem[exp_y_addr(ti)+1]=0;
-    mem[exp_x_addr(ti)+2]=2/3;  mem[exp_y_addr(ti)+2]=0.8;
-    mem[exp_x_addr(ti)+3]=1;     mem[exp_y_addr(ti)+3]=0.8;
-  ) :
-  preset==2 ? ( // inverse
-    mem[exp_count_addr(ti)]=4;
-    mem[exp_x_addr(ti)]=0;       mem[exp_y_addr(ti)]=0.8;
-    mem[exp_x_addr(ti)+1]=1/3;  mem[exp_y_addr(ti)+1]=0.8;
-    mem[exp_x_addr(ti)+2]=2/3;  mem[exp_y_addr(ti)+2]=0;
-    mem[exp_x_addr(ti)+3]=1;     mem[exp_y_addr(ti)+3]=0;
-  ) :
-  preset==3 ? ( // rise
-    mem[exp_count_addr(ti)]=2;
-    mem[exp_x_addr(ti)]=0; mem[exp_y_addr(ti)]=0;
-    mem[exp_x_addr(ti)+1]=1; mem[exp_y_addr(ti)+1]=1;
-  ) : ( // fall
-    mem[exp_count_addr(ti)]=2;
-    mem[exp_x_addr(ti)]=0; mem[exp_y_addr(ti)]=1;
-    mem[exp_x_addr(ti)+1]=1; mem[exp_y_addr(ti)+1]=0;
-  );
+  preset==0?(mem[exp_count_addr(ti)]=2;mem[exp_x_addr(ti)+0]=0;mem[exp_y_addr(ti)+0]=0.5;mem[exp_bend_addr(ti)+0]=0;mem[exp_x_addr(ti)+1]=1;mem[exp_y_addr(ti)+1]=0.5;mem[exp_bend_addr(ti)+1]=0;):
+  preset==1?(mem[exp_count_addr(ti)]=4;mem[exp_x_addr(ti)+0]=0;mem[exp_y_addr(ti)+0]=0;mem[exp_bend_addr(ti)+0]=0;mem[exp_x_addr(ti)+1]=0.3333333333333333;mem[exp_y_addr(ti)+1]=0;mem[exp_bend_addr(ti)+1]=0;mem[exp_x_addr(ti)+2]=0.6666666666666666;mem[exp_y_addr(ti)+2]=0.8;mem[exp_bend_addr(ti)+2]=0;mem[exp_x_addr(ti)+3]=1;mem[exp_y_addr(ti)+3]=0.8;mem[exp_bend_addr(ti)+3]=0;):
+  preset==2?(mem[exp_count_addr(ti)]=4;mem[exp_x_addr(ti)+0]=0;mem[exp_y_addr(ti)+0]=0.8;mem[exp_bend_addr(ti)+0]=0;mem[exp_x_addr(ti)+1]=0.3333333333333333;mem[exp_y_addr(ti)+1]=0.8;mem[exp_bend_addr(ti)+1]=0;mem[exp_x_addr(ti)+2]=0.6666666666666666;mem[exp_y_addr(ti)+2]=0;mem[exp_bend_addr(ti)+2]=0;mem[exp_x_addr(ti)+3]=1;mem[exp_y_addr(ti)+3]=0;mem[exp_bend_addr(ti)+3]=0;):
+  preset==3?(mem[exp_count_addr(ti)]=2;mem[exp_x_addr(ti)+0]=0;mem[exp_y_addr(ti)+0]=0;mem[exp_bend_addr(ti)+0]=0;mem[exp_x_addr(ti)+1]=1;mem[exp_y_addr(ti)+1]=1;mem[exp_bend_addr(ti)+1]=0;):
+  (mem[exp_count_addr(ti)]=2;mem[exp_x_addr(ti)+0]=0;mem[exp_y_addr(ti)+0]=1;mem[exp_bend_addr(ti)+0]=0;mem[exp_x_addr(ti)+1]=1;mem[exp_y_addr(ti)+1]=0;mem[exp_bend_addr(ti)+1]=0;);
   mem[param_last_addr(ti)]=-999;
 );
 

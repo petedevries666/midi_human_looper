@@ -28,6 +28,7 @@ def run(command,extra=None):
 try:
     run(['scripts/headless-test.sh'],{'RUN_JACK_TESTS':'1' if a.jack else '0','RUN_NATIVE_TESTS':'0','TEST_PYTHON':sys.executable,'RUN_CHAIN_BROWSER':'1' if a.browser=='chromium' else '0'})
     run([sys.executable,'tests/test_zynthian_update.py'])
+    run([sys.executable,'tests/test_native_free_capture.py'])
     run([sys.executable,'tests/test_observation.py'])
     run([sys.executable,'tests/test_reliability_report.py'])
     run([sys.executable,'tests/test_controller_integration.py'])
@@ -61,6 +62,9 @@ try:
             run([sys.executable,'tests/test_performance_density.py'])
             run([sys.executable,'tests/test_phrase_midi_browser.py'])
             run([sys.executable,'tests/test_native_hold_browser.py'])
+            run([sys.executable,'tests/test_recovery_browser.py'])
+            run([sys.executable,'tests/test_hardware_feedback_browser.py'])
+            run([sys.executable,'tests/test_issue53_browser.py'])
     print('PASS selected combined regression suite',flush=True)
 except (RuntimeError,subprocess.TimeoutExpired,KeyboardInterrupt) as error:
     print(f'FAILED: {error}',file=sys.stderr);sys.exit(1)

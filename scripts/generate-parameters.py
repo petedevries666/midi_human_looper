@@ -72,6 +72,15 @@ local(lo,hi,n)
     source=(ROOT/'midi_human_looper.jsfx').read_text()
     source=re.sub(r'(?:\/\/ Generated bounds:[^\n]*\n)?function param_min\(kind\).*?(?=function param_name)',lambda _:eel,source,flags=re.S)
     source=re.sub(r'function param_scale\(kind,pos\).*?(?=function param_extension_reset)',lambda _:scale,source,flags=re.S)
+    if catalog.get('curvePresets'):
+        factory='function curve_factory(ti, preset)\nlocal(ui_k)\n(\n  curve_clear_bends(ti);\n'
+        for i,preset in enumerate(catalog['curvePresets']):
+            points=preset['points'];factory+=f'  preset=={i}?(' if i<len(catalog['curvePresets'])-1 else '  ('
+            factory+=f'mem[exp_count_addr(ti)]={len(points)};'
+            for j,(x,y,bend) in enumerate(points):factory+=f'mem[exp_x_addr(ti)+{j}]={x};mem[exp_y_addr(ti)+{j}]={y};mem[exp_bend_addr(ti)+{j}]={bend};'
+            factory+=');\n' if i==len(catalog['curvePresets'])-1 else '):\n'
+        factory+='  mem[param_last_addr(ti)]=-999;\n);\n\n'
+        source=re.sub(r'function curve_factory\(ti, preset\).*?(?=function curve_custom_save)',lambda _:factory,source,flags=re.S)
     return {ROOT/'headless/parameter_registry.hpp':cpp,ROOT/'midi_human_looper.jsfx':source}
 
 def main():

@@ -34,8 +34,9 @@ try:
    key='before' if old else 'after';results[key]={}
    for view,selector in [('phrases','#phrases'),('instruments','#instruments')]:
     results[key][view]=page.evaluate(MEASURE,selector)
-   inventories[key]=page.locator('#phrases button, #instruments button').evaluate_all('(nodes)=>nodes.map(e=>e.getAttribute("aria-label")||e.textContent).sort()')
+   inventories[key]=page.locator('#phrases button:not(.modulation-access), #instruments button:not(.modulation-access)').evaluate_all('(nodes)=>nodes.map(e=>e.getAttribute("aria-label")||e.textContent).sort()')
    page.locator('[data-instrument-id="1"]').get_by_role('button',name='ADD TRANSFORMER',exact=True).click();page.locator('.transformers .module').first.get_by_role('button',name='EDIT',exact=True).click()
+   page.locator('#editor').wait_for(state='visible')
    results[key]['transformer-editor']=page.evaluate(MEASURE,'#editor-content');page.keyboard.press('Escape')
    tf=api.call()['instruments'][0]['transformers'][0];api.command('module_structure',instrumentId=1,moduleId=tf['id'],operation='delete');page.locator('.transformers .module').wait_for(state='detached')
    if not old:
@@ -47,6 +48,8 @@ try:
     api.command('phrase_rename',phraseId=1,name='MMMMMMMMMMMMMMMM');named=page.get_by_role('button',name='Edit Phrase 1 name',exact=True);named.get_by_text('MMMMMMMMMMMMMMMM',exact=True).wait_for();page.set_viewport_size(dict(width=800,height=768));assert named.evaluate('(e)=>e.scrollWidth<=e.clientWidth&&e.scrollHeight<=e.clientHeight'), 'Full 16-character names must remain readable'
     assert page.locator('button.icon-only').evaluate_all('(nodes)=>nodes.every(e=>e.getAttribute("aria-label")&&e.title)')
    page.close()
+  # New expression access buttons are covered by test_recovery_browser;
+  # this inventory still requires every pre-existing primary action exactly.
   assert inventories['before']==inventories['after'],'A primary action disappeared or changed identity'
   for view in ['phrases','instruments']:
    assert results['after'][view]['characters']<results['before'][view]['characters']*.6,results

@@ -11,7 +11,7 @@ import shutil
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
-VIEWPORTS=[(320,240),(800,480),(1366,768),(1440,900)]
+VIEWPORTS=[(320,240),(800,480),(1366,768),(1440,900),(1904,1032)]
 sys.path.insert(0, str(ROOT / 'tests'))
 from test_headless_mvp import HeadlessTests
 from playwright.sync_api import sync_playwright
@@ -70,7 +70,7 @@ def run(output, performance=False):
         api.command('panic')
         api.command('controller_source',sourceId=101,kind=2,channel=2,number=21)
         with sync_playwright() as pw:
-            options=dict(headless=True,args=['--no-sandbox'])
+            options=dict(headless=True,args=['--no-sandbox','--disable-gpu'])
             if os.environ.get('CHROMIUM_PATH'): options['executable_path']=os.environ['CHROMIUM_PATH']
             browser=pw.chromium.launch(**options)
             viewports=[(800,480),(1366,768)] if performance else VIEWPORTS
@@ -84,11 +84,16 @@ def run(output, performance=False):
                 page.locator('[data-source-id]').wait_for(state='attached')
                 page.evaluate('document.fonts.ready')
                 def capture(name,selector=None):
+                    if 'editor' in name and 'name-editor' not in name:page.locator('#editor').wait_for(state='visible')
                     if performance and name not in ('phrases','instruments','transformer-editor'): return
                     if selector:
                         page.locator(selector).first.evaluate("e=>e.scrollIntoView({block:'start'})")
                     findings=page.evaluate(AUDIT)
                     path=output/f'{name}-{width}x{height}.png'
+                    page.evaluate('() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))')
+                    # Prime Chromium's software raster before persisting the frame.
+                    page.screenshot(animations='disabled')
+                    page.wait_for_timeout(80)
                     page.screenshot(path=str(path),animations='disabled')
                     verify_png(path,width,height)
                     artifacts.append(dict(view=name,viewport=[width,height],file=path.name,checks=findings))
@@ -117,6 +122,10 @@ def run(output, performance=False):
                 capture('patch', 'header')
                 capture('snapshots','#snapshots-section')
                 capture('smart-switches','#switches')
+                page.locator('[data-switch-id="1"] .switch-test').evaluate('e=>e.open=true')
+                page.locator('[data-switch-id="1"]').get_by_role('button',name='TEST TAP',exact=True).click()
+                page.locator('.switch-test-feedback').first.wait_for(state='visible');capture('smart-switch-test','#switches')
+                api.command('panic')
                 page.locator('[data-switch-id="1"]').get_by_role('button',name='OPTIONS',exact=True).click()
                 capture('smart-switch-editor');page.keyboard.press('Escape')
                 capture('phrases','#phrase-pagination')
@@ -125,12 +134,17 @@ def run(output, performance=False):
                 page.locator('[data-phrase-id="1"]').get_by_role('button',name='PHRASE OPTIONS',exact=True).click()
                 capture('phrase-editor');page.keyboard.press('Escape')
                 capture('instruments','#instruments')
+                page.locator('[data-instrument-id="1"]').get_by_label('Transformer type for Instrument 1',exact=True).select_option('empty')
+                page.locator('[data-instrument-id="1"]').get_by_role('button',name='ADD TRANSFORMER',exact=True).click()
+                capture('empty-transformer');page.get_by_role('button',name='CANCEL',exact=True).click()
                 page.get_by_role('button',name='Edit Instrument 1 name',exact=True).click()
                 capture('instrument-name-editor');page.keyboard.press('Escape')
                 page.locator('[data-instrument-id="1"]').get_by_role('button',name='EDIT',exact=True).first.click()
                 capture('instrument-editor');page.keyboard.press('Escape')
                 page.locator('#controller-section').evaluate('e=>e.open=true')
                 capture('controllers','#controller-section')
+                page.get_by_role('slider',name='TEST SOURCE 101',exact=True).fill('96')
+                capture('controller-live-test','#controller-section')
                 page.get_by_role('button',name='ADD MAPPING',exact=True).click()
                 capture('controller-editor')
                 page.locator('#editor details summary').first.click()
@@ -168,7 +182,14 @@ def run(output, performance=False):
                 if errors: raise AssertionError(errors)
                 context.close()
             browser.close()
-        manifest=dict(browser=browser.version,sourceRevision=subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip(),sourceDirty=bool(subprocess.check_output(['git','status','--porcelain','--untracked-files=no'],cwd=ROOT,text=True).strip()),runtimeBuildRevision=api.call()['buildRevision'],application='MIDI BAD MOTHERFUCKER',data='Native --demo; PANIC; one controller source; no playback',artifacts=artifacts,
+        # Additional native --chain evidence uses the production recovery test.
+        # It captures actual ARMED / RECORDING states, not mocked demo flags.
+        if not performance:
+            subprocess.run([sys.executable,str(ROOT/'tests/test_recovery_browser.py')],cwd=ROOT,env={**os.environ,'SCREENSHOT_RECOVERY_DIR':str(output)},check=True)
+            recovery=json.loads((output/'recovery-manifest.json').read_text())
+            artifacts.extend(recovery['artifacts'])
+            for artifact in recovery['artifacts']:artifact['runtimeBuildRevision']=recovery['runtimeBuildRevision'];artifact['data']=recovery['data']
+        manifest=dict(browser=browser.version,sourceRevision=subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip(),sourceDirty=bool(subprocess.check_output(['git','status','--porcelain','--untracked-files=no'],cwd=ROOT,text=True).strip()),runtimeBuildRevision=api.call()['buildRevision'],application='MIDI BAD MOTHERFUCKER',data='Native --demo views plus actual native --chain recovery: named CC source, real ARP MIDI, observed recording states and explicitly configured reference chains',artifacts=artifacts,
                       unsupported={'CONDUCTOR':'No implemented CONDUCTOR editor on the integration candidate; no mock screenshot supplied.'})
         (output/'manifest.json').write_text(json.dumps(manifest,indent=2)+'\n')
         failures=[a for a in artifacts if a['checks']]

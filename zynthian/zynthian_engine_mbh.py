@@ -35,6 +35,8 @@ class zynthian_engine_mbh(zynthian_engine):
         if self.config.get('version') != 1:raise ValueError('unsupported MBH installation')
         self.chain_timing=self.config.get('chain_timing_version',1)
         if type(self.chain_timing) is not int or self.chain_timing not in (1,2):raise ValueError('unsupported chain timing version')
+        self.grid_capture=self.config.get('chain_grid_capture',False)
+        if type(self.grid_capture) is not bool:raise ValueError('invalid chain_grid_capture')
         self.root = Path(self.config['repository'])
         sys.path.insert(0, str(self.root/'headless'))
         from server import Control
@@ -49,7 +51,9 @@ class zynthian_engine_mbh(zynthian_engine):
             raise RuntimeError('stale/occupied MBH socket: '+socket_path+'; check process ownership before cleanup')
         name = f'mbh_{pid}'
         log = (data/'engine.log').open('ab')
-        engine = subprocess.Popen([self.config['binary'],str(self.root/'midi_human_looper.jsfx'),socket_path,'--jack','--chain','--chain-timing',str(self.chain_timing),'--client',name],stdout=log,stderr=log)
+        command=[self.config['binary'],str(self.root/'midi_human_looper.jsfx'),socket_path,'--jack','--chain','--chain-timing',str(self.chain_timing),'--client',name]
+        if self.grid_capture:command.append('--chain-grid-capture')
+        engine = subprocess.Popen(command,stdout=log,stderr=log)
         entry = dict(engine=engine,web=None,log=log,control=self.Control(socket_path),phrase=0,data=data)
         self.instances[pid] = entry
         self._live_entries[pid] = entry

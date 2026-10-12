@@ -66,6 +66,20 @@ def build(directory, revision):
         'YSFX_SOURCE':str(ysfx),'YSFX_BUILD':str(ysfx/'build'),'HEADLESS_BINARY':str(binary)})
     return root,binary
 
+def validate_grid_restore(patch, state, timing_version):
+    """Reject incompatible execution before stopping the installed runtime."""
+    rate=state['sampleRate'];block=state['blockSize'];bpm=state.get('chainBpm',120)
+    if rate<=0 or block<=0 or bpm<=0:raise ValueError('Invalid current processor clock')
+    exact=rate*480/bpm
+    period=int(exact+.5) if timing_version==2 else int(exact/block+.5)*block
+    memory=patch['memory'];counts=memory[163840:163856]
+    if not any(counts):return
+    if patch['globals'][0]!=period:
+        raise ValueError('Grid-only runtime cannot restore this free-time project; no truncation performed. Keep the current runtime or restore a separate compatible project.')
+    for phrase,count in enumerate(counts):
+        if count and memory[163904+phrase]==0 and memory[163952+phrase]!=period:
+            raise ValueError('Grid-only runtime cannot restore independent LOOP durations; no installation changed')
+
 class Runtime:
     def __init__(self, root):
         sys.path.insert(0,str(Path(root)/'headless'))
@@ -85,25 +99,48 @@ class Runtime:
         return result
     def preflight(self, config, directory):
         run(config['binary'],'--queue-test')
-        with tempfile.TemporaryDirectory(prefix='mbmf-preflight-') as temporary:
-            socket=str(Path(temporary)/'control.sock')
-            with open(Path(temporary)/'engine.log','w+') as log:
-                process=subprocess.Popen([config['binary'],str(Path(config['repository'])/'midi_human_looper.jsfx'),socket],stdout=log,stderr=log)
-                try:
-                    deadline=time.monotonic()+30
-                    while not Path(socket).exists():
-                        if process.poll() is not None:raise ValueError('Preflight engine failed')
-                        if time.monotonic()>deadline:raise ValueError('Preflight startup timed out')
-                        time.sleep(.1)
-                    control=self.Control(socket);state=control.request()
-                    if state.get('status')!='ok':raise ValueError('Preflight protocol failed')
-                    for data in directory.glob('processor-*'):
-                        if data.is_dir():self.ProjectStore(data,control).restore()
-                    return state['buildRevision']
-                finally:
-                    process.terminate()
-                    try:process.wait(timeout=10)
-                    except subprocess.TimeoutExpired:process.kill();process.wait()
+        # Probe the actual candidate's execution capabilities; a header/version
+        # string cannot establish whether old grid-only playback is safe.
+        mode='two-bar-grid'
+        verified=None
+        for chain in (True,False):
+            with tempfile.TemporaryDirectory(prefix='mbmf-preflight-') as temporary:
+                socket=str(Path(temporary)/'control.sock')
+                args=[config['binary'],str(Path(config['repository'])/'midi_human_looper.jsfx'),socket]
+                if chain:
+                    args+=['--chain','--chain-timing',str(config.get('chain_timing_version',1))]
+                    if config.get('chain_grid_capture',False):args+=['--chain-grid-capture']
+                with open(Path(temporary)/'engine.log','w+') as log:
+                    process=subprocess.Popen(args,stdout=log,stderr=log)
+                    try:
+                        deadline=time.monotonic()+30
+                        while not Path(socket).exists():
+                            if process.poll() is not None:raise ValueError('Preflight engine failed')
+                            if time.monotonic()>deadline:raise ValueError('Preflight startup timed out')
+                            time.sleep(.1)
+                        control=self.Control(socket);state=control.request()
+                        if state.get('status')!='ok':raise ValueError('Preflight protocol failed')
+                        verified=state['buildRevision']
+                        if chain:
+                            mode=state.get('chainCaptureMode','two-bar-grid')
+                        else:
+                            portable=importlib.import_module('portable_project')
+                            sync=importlib.import_module('project_sync')
+                            for data in directory.glob('processor-*'):
+                                if not data.is_dir():continue
+                                store=self.ProjectStore(data,control)
+                                manifest=store.manifest()
+                                if manifest and mode=='two-bar-grid':
+                                    live=data/'control.sock'
+                                    if not live.exists():raise ValueError('Cannot verify grid rollback without the current processor clock; runtime unchanged')
+                                    current=self.Control(str(live)).request()
+                                    validate_grid_restore(portable.materialize(sync.read(store.directory/(manifest['revisionId']+'.json')),current['sampleRate']),current,config.get('chain_timing_version',1))
+                                store.restore()
+                    finally:
+                        process.terminate()
+                        try:process.wait(timeout=10)
+                        except subprocess.TimeoutExpired:process.kill();process.wait()
+        return verified
     def service(self, action):
         run('systemctl',action,'zynthian')
     def healthy(self, config, expected, timeout=60):
@@ -160,6 +197,7 @@ def main():
     parser.add_argument('--config',type=Path,default=Path('/zynthian/zynthian-my-data/midi-human-looper/install.json'))
     group=parser.add_mutually_exclusive_group(required=True)
     group.add_argument('--revision');group.add_argument('--rollback',action='store_true')
+    parser.add_argument('--backup',action='store_true',help='Opt in to a full pre-update copy of processor data, install config and token (disabled by default)')
     args=parser.parse_args()
     if os.geteuid()!=0:raise ValueError('Run with sudo; only the existing zynthian UI service is restarted')
     directory=args.config.parent
@@ -183,18 +221,24 @@ def main():
         else:
             root,binary=build(directory,args.revision)
             new={**old,'repository':str(root),'binary':str(binary),'runtime_revision':args.revision}
+        # Checkpoint current stopped musical data before validating the candidate.
+        expected=runtime.checkpoint(directory)
         verified_revision=runtime.preflight(new,directory)
         if not args.rollback and verified_revision!=args.revision:raise ValueError('Candidate binary revision differs from reviewed commit')
         new={**new,'runtime_revision':verified_revision}
-        expected=runtime.checkpoint(directory)
-        backup=directory/'backups'/str(time.time_ns())
-        backup.mkdir(parents=True,mode=0o700)
-        shutil.copy2(args.config,backup/'install.json')
-        for data in directory.glob('processor-*'):
-            if data.is_dir():shutil.copytree(data,backup/data.name,ignore=shutil.ignore_patterns('*.sock','*.log'))
-        if old.get('token_file'):shutil.copy2(old['token_file'],backup/'token')
+        # Full copies are optional. Runtime checkpoint, activation journal and
+        # automatic config rollback remain mandatory safety mechanisms.
+        backup=None
+        if args.backup:
+            backup=directory/'backups'/str(time.time_ns())
+            backup.mkdir(parents=True,mode=0o700)
+            shutil.copy2(args.config,backup/'install.json')
+            for data in directory.glob('processor-*'):
+                if data.is_dir():shutil.copytree(data,backup/data.name,ignore=shutil.ignore_patterns('*.sock','*.log'))
+            if old.get('token_file'):shutil.copy2(old['token_file'],backup/'token')
         activate(args.config,new,runtime,expected)
-        print('Runtime activated. Backup:',backup,'Revision:',new.get('runtime_revision','legacy'))
+        print('Runtime activated. Backup:',backup if backup else 'skipped (opt in with --backup)',
+              'Revision:',new.get('runtime_revision','legacy'))
 
 if __name__=='__main__':
     try:main()

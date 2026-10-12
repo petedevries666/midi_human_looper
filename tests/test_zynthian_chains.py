@@ -19,7 +19,9 @@ class Processor:
     def refresh_controllers(self):pass
 with tempfile.TemporaryDirectory(prefix='mbh-chains-') as temp:
     directory=Path(temp);Base.my_data_dir=temp
-    config=directory/'config.json';config.write_text(json.dumps(dict(version=1,chain_timing_version=TIMING,repository=str(ROOT),binary=os.environ['HEADLESS_BINARY'])))
+    # This regression deliberately exercises the optional synchronized grid,
+    # not the default first-note/free-time capture policy.
+    config=directory/'config.json';config.write_text(json.dumps(dict(version=1,chain_grid_capture=True,chain_timing_version=TIMING,repository=str(ROOT),binary=os.environ['HEADLESS_BINARY'])))
     os.environ['MBH_CONFIG']=str(config);os.environ['JACK_DEFAULT_SERVER']='mbh-chains-test'
     server_log_path=directory/'jack.log'
     # Never leave an unread logging pipe behind a real-time server.

@@ -4,10 +4,11 @@ from pathlib import Path
 class Registry:
     def __init__(self,document):
         if document.get('contractVersion')!=1:raise ValueError('unsupported contract')
+        self.curve_presets=document.get("curvePresets",[]);
         self.parameters={};self.modules={};self.engine_types={}
         for p in document['parameters']:
             if p['id'] in self.parameters or p['valueType'] not in ('float','int','enum','toggle') or not p['min']<=p['default']<=p['max'] or p['min']>=p['max'] or p['step']<=0:raise ValueError('invalid parameter')
-            if "choices" in p and (p["valueType"]!="enum" or p["min"]!=0 or not isinstance(p["choices"],list) or len(p["choices"])!=p["max"]+1 or any(not isinstance(label,str) or not label for label in p["choices"])):raise ValueError("invalid parameter choices")
+            if "choices" in p and (p["valueType"] not in ("enum","toggle") or p["min"]!=0 or not isinstance(p["choices"],list) or len(p["choices"])!=p["max"]+1 or any(not isinstance(label,str) or not label for label in p["choices"])):raise ValueError("invalid parameter choices")
             self.parameters[p['id']]=dict(p)
         for m in document['modules']:self.register(m)
     def register(self,module):
@@ -29,5 +30,5 @@ class Registry:
         if p['normalizedConversion']=='linear_continuous':return raw
         return max(p['min'],min(p['max'],math.floor(raw/p['step']+.5)*p['step']))
     def document(self):
-        return dict(contractVersion=1,parameters=list(self.parameters.values()),modules=list(self.modules.values()))
+        return dict(contractVersion=1,curvePresets=self.curve_presets,parameters=list(self.parameters.values()),modules=list(self.modules.values()))
 REGISTRY=Registry(json.loads((Path(__file__).resolve().parents[1]/'modules/catalog.json').read_text()))

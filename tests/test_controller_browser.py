@@ -20,7 +20,7 @@ try:
   assert not editor.locator('details').first.evaluate('(e)=>e.open')
   editor.get_by_label('TAKEOVER',exact=True).select_option('2');assert editor.get_by_label('TAKEOVER',exact=True).input_value()=='2'
   editor.get_by_role('button',name='CANCEL',exact=True).click();assert not decode(api.call()['controllerEngine'])['mappings']
-  page.get_by_role('button',name='ADD MAPPING',exact=True).click();editor.get_by_role('button',name='ADD POINT',exact=True).click();editor.get_by_label('Y point 2',exact=True).fill('.8');editor.get_by_label('BEND point 1',exact=True).fill('.2');editor.get_by_role('button',name='DONE',exact=True).click();editor.wait_for(state='hidden')
+  page.get_by_role('button',name='ADD MAPPING',exact=True).click();editor.get_by_role('button',name='ADD POINT',exact=True).click();editor.locator('.curve-precision summary').click();editor.get_by_label('Y point 2',exact=True).fill('.8');editor.get_by_label('BEND point 1',exact=True).fill('.2');editor.get_by_role('button',name='DONE',exact=True).click();editor.wait_for(state='hidden')
   mappings=decode(api.call()['controllerEngine'])['mappings'];assert len(mappings)==1 and mappings[0]['points'][1][1]==.8
   api.command('midi_cc',channel=2,number=21,value=64);assert api.call()['instruments'][0]['level']>100
   page.get_by_role('button',name='SAVE PATCH',exact=True).click();page.get_by_text('PATCH SAVED',exact=True).wait_for()

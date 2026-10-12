@@ -86,3 +86,23 @@ Cloud could not lock all JACK test memory (`Cannot allocate memory`), and the
 intentional input-flood test recorded an XRUN notification and bounded overflow.
 Safety guards remained enabled; the complete runner passed its cleanup/order
 assertions. This does not qualify Raspberry Pi latency or hardware reliability.
+
+Screenshot evidence: the final one-command run generated **133 valid PNGs** and
+an updated manifest, with no overflow/clipping/reachability findings. Every
+produced view was inspected at its generated viewport, using contact sheets and
+full-resolution checks of the changed controls. This caught the ambiguous FORGET
+X and narrow desktop TAP feedback; both were corrected and recaptured.
+Representative views: [Controller test / CLEAR MIDI](screenshots/controller-live-test-1366x768.png),
+[Smart Switch result](screenshots/smart-switch-test-1366x768.png),
+[blank Transformer draft](screenshots/empty-transformer-800x480.png).
+The manifest records UI source `9aecd5f` and native build `c828546.dirty`;
+there were no later native engine changes. The dirty marker includes retained,
+uncommitted screenshot output from preceding validation runs.
+
+The remote branch advanced during this work with updater commit `1500de4`.
+It was preserved through merge `40355c7`, without force-pushing or rewriting it.
+All 11 updater tests, including actual native preflight/checkpoint tests, passed
+against the combined branch. The full combined suite preceded the final CLEAR
+MIDI label/feedback CSS refinements; the issue #53 and existing Controller browser
+regressions were rerun after those changes, followed by the complete screenshot
+workflow. No feature was disabled or timing assertion relaxed.

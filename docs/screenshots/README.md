@@ -8,8 +8,10 @@ CONDUCTOR is not implemented on this base and has no fabricated screenshot.
 | --- | --- | --- | --- | --- | --- |
 | controller-advanced | [PNG](controller-advanced-320x240.png) | [PNG](controller-advanced-800x480.png) | [PNG](controller-advanced-1366x768.png) | [PNG](controller-advanced-1440x900.png) | [PNG](controller-advanced-1904x1032.png) |
 | controller-editor | [PNG](controller-editor-320x240.png) | [PNG](controller-editor-800x480.png) | [PNG](controller-editor-1366x768.png) | [PNG](controller-editor-1440x900.png) | [PNG](controller-editor-1904x1032.png) |
+| controller-live-test | [PNG](controller-live-test-320x240.png) | [PNG](controller-live-test-800x480.png) | [PNG](controller-live-test-1366x768.png) | [PNG](controller-live-test-1440x900.png) | [PNG](controller-live-test-1904x1032.png) |
 | controllers | [PNG](controllers-320x240.png) | [PNG](controllers-800x480.png) | [PNG](controllers-1366x768.png) | [PNG](controllers-1440x900.png) | [PNG](controllers-1904x1032.png) |
 | diagnostics | [PNG](diagnostics-320x240.png) | [PNG](diagnostics-800x480.png) | [PNG](diagnostics-1366x768.png) | [PNG](diagnostics-1440x900.png) | [PNG](diagnostics-1904x1032.png) |
+| empty-transformer | [PNG](empty-transformer-320x240.png) | [PNG](empty-transformer-800x480.png) | [PNG](empty-transformer-1366x768.png) | [PNG](empty-transformer-1440x900.png) | [PNG](empty-transformer-1904x1032.png) |
 | instrument-editor | [PNG](instrument-editor-320x240.png) | [PNG](instrument-editor-800x480.png) | [PNG](instrument-editor-1366x768.png) | [PNG](instrument-editor-1440x900.png) | [PNG](instrument-editor-1904x1032.png) |
 | instrument-editor-bottom | [PNG](instrument-editor-bottom-320x240.png) | — | — | — | — |
 | instrument-name-editor | [PNG](instrument-name-editor-320x240.png) | [PNG](instrument-name-editor-800x480.png) | [PNG](instrument-name-editor-1366x768.png) | [PNG](instrument-name-editor-1440x900.png) | [PNG](instrument-name-editor-1904x1032.png) |
@@ -28,6 +30,7 @@ CONDUCTOR is not implemented on this base and has no fabricated screenshot.
 | recovery-transformer-editor | — | — | — | — | [PNG](recovery-transformer-editor-1904x1032.png) |
 | smart-switch-editor | [PNG](smart-switch-editor-320x240.png) | [PNG](smart-switch-editor-800x480.png) | [PNG](smart-switch-editor-1366x768.png) | [PNG](smart-switch-editor-1440x900.png) | [PNG](smart-switch-editor-1904x1032.png) |
 | smart-switch-editor-bottom | [PNG](smart-switch-editor-bottom-320x240.png) | [PNG](smart-switch-editor-bottom-800x480.png) | — | — | — |
+| smart-switch-test | [PNG](smart-switch-test-320x240.png) | [PNG](smart-switch-test-800x480.png) | [PNG](smart-switch-test-1366x768.png) | [PNG](smart-switch-test-1440x900.png) | [PNG](smart-switch-test-1904x1032.png) |
 | smart-switches | [PNG](smart-switches-320x240.png) | [PNG](smart-switches-800x480.png) | [PNG](smart-switches-1366x768.png) | [PNG](smart-switches-1440x900.png) | [PNG](smart-switches-1904x1032.png) |
 | snapshot-ab | [PNG](snapshot-ab-320x240.png) | [PNG](snapshot-ab-800x480.png) | [PNG](snapshot-ab-1366x768.png) | [PNG](snapshot-ab-1440x900.png) | [PNG](snapshot-ab-1904x1032.png) |
 | snapshot-ab-editor | [PNG](snapshot-ab-editor-320x240.png) | [PNG](snapshot-ab-editor-800x480.png) | [PNG](snapshot-ab-editor-1366x768.png) | [PNG](snapshot-ab-editor-1440x900.png) | [PNG](snapshot-ab-editor-1904x1032.png) |

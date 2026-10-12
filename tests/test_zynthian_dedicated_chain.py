@@ -101,6 +101,24 @@ with tempfile.TemporaryDirectory(prefix='mbh-dedicated-') as temp:
         command(1);command(4);time.sleep(.4)
         assert control.request()['activeNotes']==0
         command(0)
+        # Real JACK input -> shared ARP -> native sorted JACK output. There is
+        # no injected engine-output shortcut: the probe supplies a held chord.
+        state=control.request()
+        response=control.request(op=13,target=1,arg=1,note=5,revision=state['revision'],session=state['engineSessionId'])
+        assert response['status']=='ok',response
+        state=control.request();arp=state['instruments'][0]['transformers'][-1]
+        response=control.request(op=12,target=1,module=arp['id'],parameters=[dict(kind=k,value=v) for k,v in ((3,1),(4,1),(5,16),(6,.5),(12,1))],revision=state['revision'],session=state['engineSessionId'])
+        assert response['status']=='ok',response
+        send(7);before=control.request()['midiCount']
+        wait(lambda:control.request()['midiCount']>before+24,'enabled ARP did not generate real JACK MIDI',timeout=8)
+        generated=control.request();assert generated['chainError']==0,generated
+        send(0);state=control.request()
+        response=control.request(op=12,target=1,module=arp['id'],parameters=[dict(kind=3,value=0)],revision=state['revision'],session=state['engineSessionId'])
+        assert response['status']=='ok',response
+        time.sleep(.4);state=control.request();quiet=state['midiCount']
+        time.sleep(.4);assert control.request()['midiCount']==quiet,'disabled ARP regenerated latched notes'
+        response=control.request(op=13,target=1,arg=2,module=arp['id'],revision=state['revision'],session=state['engineSessionId'])
+        assert response['status']=='ok',response
         mode(0)
         send(8);time.sleep(.4)
         assert not control.request()['chainRunning']
@@ -133,7 +151,7 @@ with tempfile.TemporaryDirectory(prefix='mbh-dedicated-') as temp:
             # does not protect an omni synth. This is an intentional guardrail.
             assert {status&15 for _,_,status,_,value in stream if status&240==144 and value}=={0,1,2}
         print('PASS one actual MBMF instance: 3-channel source capture/playback, native-style fanout, '
-              'identical ordered output streams, explicit receiver channel isolation, LOOP/ONCE/retrigger/HOLD/release/short-tap, STOP/transport/restart/removal cleanup')
+              'identical ordered output streams, explicit receiver channel isolation, LOOP/ONCE/retrigger/HOLD/release/short-tap, actual ARP chord generation/disable, STOP/transport/restart/removal cleanup')
     finally:
         if probe and probe.poll() is None:
             probe.terminate();probe.communicate(timeout=5)

@@ -18,6 +18,11 @@ struct ChainMode {
   NSEEL_CODEHANDLE freeArm, freeFinish, freePlay;
   EEL_F *musicalState, *recordPosition, *overdubArmed, *captureNormalize, *loopLength;
   EEL_F* voiceActive[24]{};
+  EEL_F *freeReady,*freeActive,*overflow,*freeOldCount,*freeOldLength,*freeOldTrigger;
+  NSEEL_CODEHANDLE rollbackCapture;
+  bool freeCaptureSession=false;
+  int errorPhrase=-1;
+  EEL_F* phraseTriggers[16]{};
   EEL_F* holdAccepted;
   EEL_F* phraseModes[16]{};
   ysfx_t *fx;
@@ -30,6 +35,7 @@ struct ChainMode {
     const auto modeBase=unsigned(*ysfx_find_var(f,"MODE_BASE"));
     for(unsigned i=0;i<16;++i)
       phraseModes[i]=NSEEL_VM_getramptr(f->vm.get(),modeBase+i,nullptr);
+    for(unsigned i=0;i<16;++i)phraseTriggers[i]=NSEEL_VM_getramptr(f->vm.get(),unsigned(*ysfx_find_var(f,"TRIG_BASE"))+i,nullptr);
     captureActive = NSEEL_VM_regvar(f->vm.get(), "chain_capture_active");
     captureStart = NSEEL_VM_regvar(f->vm.get(), "chain_capture_start");
     captureEnd = NSEEL_VM_regvar(f->vm.get(), "chain_capture_end");
@@ -51,10 +57,15 @@ struct ChainMode {
     loopLength=ysfx_find_var(f,"loop_len_samples");
     const unsigned voiceBase=unsigned(*ysfx_find_var(f,"VOICE_ACTIVE_BASE"));
     for(unsigned i=0;i<24;++i)voiceActive[i]=NSEEL_VM_getramptr(f->vm.get(),voiceBase+i,nullptr);
-    freeArm=compile("select_phrase_record(chain_target);");
+    *NSEEL_VM_regvar(f->vm.get(),"native_free_time")=active && !grid?1:0;
+    freeReady=NSEEL_VM_regvar(f->vm.get(),"free_record_ready");freeActive=NSEEL_VM_regvar(f->vm.get(),"free_record_active");
+    overflow=NSEEL_VM_regvar(f->vm.get(),"record_overflow");
+    freeOldCount=NSEEL_VM_regvar(f->vm.get(),"free_old_count");freeOldLength=NSEEL_VM_regvar(f->vm.get(),"free_old_length");freeOldTrigger=NSEEL_VM_regvar(f->vm.get(),"free_old_trigger");
+    rollbackCapture=compile("set_layer_count(chain_target,free_old_count);mem[LEN_BASE+chain_target]=free_old_length;mem[TRIG_BASE+chain_target]=free_old_trigger;free_record_ready=0;free_record_active=0;overdub_active=0;overdub_armed=0;state=STATE_STOPPED;panic_pending=1;");
+    freeArm=compile("free_old_count=layer_count(chain_target);free_old_length=mem[LEN_BASE+chain_target];free_old_trigger=mem[TRIG_BASE+chain_target];record_overflow=0;select_phrase_record(chain_target);");
     freeFinish=compile("finish_phrase_record();overdub_active=0;overdub_armed=0;overdub_wait_note=0;");
     freePlay=compile("mem[MODE_BASE+chain_target]<.5?"
-        "(layer_count(chain_target)>0?(mem[TRIG_BASE+chain_target]=1;state=STATE_PLAYING;play_sample_pos=0;);):"
+        "(layer_count(chain_target)>0 && mem[LEN_BASE+chain_target]>=max(128,samplesblock/8)?(state!=STATE_PLAYING?play_sample_pos=0;mem[FREE_FINISHED_BASE+chain_target]=0;mem[FREE_LOOP_ANCHOR_BASE+chain_target]=play_sample_pos;mem[TRIG_BASE+chain_target]=1;state=STATE_PLAYING;);):"
         "(trigger_request=chain_target;process_phrase_trigger(0,1););");
     align = compile(
         "loop_len_samples=chain_duration;slider6=chain_bpm;play_sample_pos="
@@ -71,11 +82,11 @@ struct ChainMode {
         "overdub_armed=0;overdub_wait_note=0;overdub_pos=chain_phase;"
         "chain_j=0;loop(2048,mem[3002048+chain_j]=0;chain_j+=1;);");
     finish = compile(
-        "chain_capture_active=0;overdub_active=0;overdub_armed=0;chain_bad=0;chain_j=0;loop(2048,mem["
+        "chain_capture_active=0;overdub_active=0;overdub_armed=0;chain_bad=0;chain_j=0;loop(16,mem[3007400+chain_j]=0;chain_j+=1;);chain_j=0;loop(2048,mem["
         "3000000+chain_j]=0;chain_j+=1;);chain_j=0;loop(layer_count(chain_"
         "target),chain_a=layer_base(chain_target,chain_j);chain_s=mem[chain_a+"
         "1];chain_n=mem[chain_a+2];chain_v=mem[chain_a+3];chain_k=(chain_s&15)*"
-        "128+chain_n;(chain_s&240)==144 && "
+        "128+chain_n;(chain_s&240)==176 && chain_n==64?mem[3007400+(chain_s&15)]=chain_v>=64;(chain_s&240)==144 && "
         "chain_v>0?mem[3000000+chain_k]+=1:((chain_s&240)==128 || "
         "((chain_s&240)==144 && "
         "chain_v==0))?mem[3000000+chain_k]=max(0,mem[3000000+chain_k]-1);chain_"
@@ -83,7 +94,7 @@ struct ChainMode {
         "layer_count(chain_target)<MAX_EVENTS_PER_LAYER?store_event(chain_"
         "target,max(0,chain_duration-1-(chain_capture_normalize?max(0,chain_capture_origin):0)),128|(chain_j/"
         "128|0),chain_j%128,0,0):chain_bad=1;);chain_j+=1;);mem[TRIG_BASE+"
-        "chain_target]=!chain_bad;mem[LEN_BASE+chain_target]=chain_duration;");
+        "chain_target]=!chain_bad;mem[LEN_BASE+chain_target]=chain_duration;chain_j=0;loop(16,mem[3007400+chain_j]>0?(layer_count(chain_target)<MAX_EVENTS_PER_LAYER?store_event(chain_target,max(0,chain_duration-1),176|chain_j,64,0,0):chain_bad=1;);chain_j+=1;);");
   }
   NSEEL_CODEHANDLE compile(const char *s) {
     auto code = NSEEL_code_compile(fx->vm.get(), s, 0);
@@ -96,12 +107,12 @@ struct ChainMode {
     NSEEL_code_free(begin);
     NSEEL_code_free(finish);
     NSEEL_code_free(play);NSEEL_code_free(holdPress);NSEEL_code_free(holdRelease);
-    NSEEL_code_free(freeArm);NSEEL_code_free(freeFinish);NSEEL_code_free(freePlay);
+    NSEEL_code_free(freeArm);NSEEL_code_free(freeFinish);NSEEL_code_free(freePlay);NSEEL_code_free(rollbackCapture);
   }
   void observe() {
     if(gridCapture)return;
-    recording=*musicalState==2 || *overdub>.5;
-    armed=*musicalState==1 || *overdubArmed>.5;
+    recording=*musicalState==2 || *freeActive>.5 || *overdub>.5;
+    armed=*musicalState==1 || *freeReady>.5 || *overdubArmed>.5;
     run=*musicalState==3;
     for(unsigned i=0;i<24;++i)run=run || *voiceActive[i]>.5;
     length=uint64_t(std::max(0.,*loopLength));
@@ -109,13 +120,17 @@ struct ChainMode {
   void finishFree() {
     // Reuse the bounded native pairing check only for a new take. Existing
     // overdubs keep the shared JSFX lifecycle and their original source data.
-    if(*musicalState==2) {
-      *duration=std::max(1.,*recordPosition);
+    if(*overflow>.5){NSEEL_code_execute(rollbackCapture);error=true;errorPhrase=phrase;freeCaptureSession=false;observe();return;}
+    if(freeCaptureSession && (*musicalState==2 || *freeActive>.5 || *freeOldCount>0)) {
+      *duration=*freeOldCount>0?*freeOldLength:std::max(1.,*recordPosition);
       *captureNormalize=0;
       NSEEL_code_execute(finish);
       error=*bad>.5;
+      if(error){errorPhrase=phrase;NSEEL_code_execute(rollbackCapture);freeCaptureSession=false;observe();return;}
+      *phraseTriggers[phrase]=*freeOldTrigger;
     }
     NSEEL_code_execute(freeFinish);
+    freeCaptureSession=false;
     observe();
   }
   void cancel() {
@@ -131,13 +146,14 @@ struct ChainMode {
     *captureActive=0;
   }
   bool command(int action, int selected) {
-    if(selected<0 || selected>=16 || action<0 || action>4)return false;
+    if(selected<0 || selected>=16 || action<0 || action>5)return false;
     if(!gridCapture) {
       observe();
       if((recording || armed) && selected!=phrase && action!=0 && action!=4)return false;
       if(action!=4){phrase=selected;*target=selected;}
+      if(action==5){if(!freeCaptureSession)return false;NSEEL_code_execute(rollbackCapture);freeCaptureSession=false;observe();return true;}
       if(action==0)cancel();
-      if(action==2){error=false;NSEEL_code_execute(freeArm);}
+      if(action==2){error=false;if(recording || armed)finishFree();else{freeCaptureSession=true;NSEEL_code_execute(freeArm);}}
       if(action==3)finishFree();
       if(action==1){
         if(recording || armed)finishFree();
@@ -200,6 +216,8 @@ struct ChainMode {
       return false;
     if(!gridCapture) {
       observe();
+      if(*overflow>.5){finishFree();*overflow=0;return true;}
+      if(freeCaptureSession && *freeOldCount>0 && !recording && !armed)finishFree();
       // Free takes use the shared sample counter, never the transport phase
       // or BPM. Preserve the interruption guard; do not conceal missing blocks.
       bpm=tempo; // ARP may follow host tempo; recorded source time never does.
@@ -210,8 +228,8 @@ struct ChainMode {
         lastFrameGap=int64_t(frame)-int64_t(previous);
         lastClockGap=int64_t(clock)-int64_t(previousClock);
         const bool wasRecording=recording;
-        cancel();
-        error=missed && wasRecording;
+        if(missed && wasRecording){NSEEL_code_execute(rollbackCapture);freeCaptureSession=false;armed=recording=run=false;}else cancel();
+        error=missed && wasRecording;if(error)errorPhrase=phrase;
       }
       previous=rolling?frame+frames:0;
       previousClock=clock?clock+frames:0;

@@ -677,9 +677,13 @@ static void stress(Host &h, bool historical, bool cc_instances = false, bool dyn
 #include "chain_mode_cases.hpp"
 #include "native_hold_cases.hpp"
 #include "free_capture_cases.hpp"
+#include "recovery_arp_cases.hpp"
+#include "recovery_recording_cases.hpp"
 int main(int argc, char **argv) {
   if (argc < 2)
     return 2;
+  if (argc>2 && std::string(argv[2])=="--recovery-recording") {recovery_recording_tests(argv[1]);printf("PASS: %d recording lifecycle checks\n",checks);return 0;}
+  if (argc>2 && std::string(argv[2])=="--recovery-arp") {recovery_arp_tests(argv[1]);printf("PASS: %d real ARP checks\n",checks);return 0;}
   if (argc>2 && std::string(argv[2])=="--free-capture") {free_capture_tests(argv[1]);printf("PASS: %d free capture checks\n",checks);return 0;}
   if (argc>2 && std::string(argv[2])=="--native-hold") {native_hold_tests(argv[1]);printf("PASS: %d native HOLD checks\n",checks);return 0;}
   if (argc>2 && std::string(argv[2])=="--instruments") {Host instruments(argv[1]);dynamic_instrument_tests(instruments);printf("PASS: %d instrument checks\n",checks);return 0;}
@@ -691,6 +695,8 @@ int main(int argc, char **argv) {
     stress(h, std::string(argv[2]) == "--historical");
     return 0;
   }
+  recovery_recording_tests(argv[1]);
+  recovery_arp_tests(argv[1]);
   free_capture_tests(argv[1]);
   chain_mode_tests(argv[1]);
   native_hold_tests(argv[1]);

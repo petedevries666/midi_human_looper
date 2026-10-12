@@ -7,9 +7,11 @@
 namespace controller {
 struct Source {
   uint32_t id = 0;
+  char name[17]{};
   int kind = 0, channel = 0, number = 0; // kind 0=unassigned, 1=note, 2=CC
   bool valid() const {
-    return id && id <= 16777215 && kind >= 0 && kind <= 2 && channel >= 0 &&
+    for(char ch:name)if(ch && (ch<32 || ch>=127))return false;
+    return name[16]==0 && id && id <= 16777215 && kind >= 0 && kind <= 2 && channel >= 0 &&
            channel < 16 && number >= 0 && number < 128 &&
            (kind != 2 || (number != 64 && number < 120));
   }
@@ -33,7 +35,9 @@ struct Binding {
 struct Configuration {
   std::array<Source, 16> sources{};
   std::array<Binding, 32> bindings{};
+  std::array<Curve,4> presets{};std::array<bool,4> presetEnabled{};
   bool valid() const {
+    for(unsigned i=0;i<4;++i)if(presetEnabled[i]&&!presets[i].valid())return false;
     for (unsigned i = 0; i < sources.size(); ++i)
       if (sources[i].id) {
         if (!sources[i].valid())
@@ -129,7 +133,8 @@ public:
         return false;
     for (auto &a : config.sources)
       if (a.id == s.id) {
-        a = s;
+        auto next=s;if(!next.name[0])for(unsigned j=0;j<17;++j)next.name[j]=a.name[j];
+        a = next;
         panic();
         return true;
       }
@@ -140,6 +145,8 @@ public:
       }
     return false;
   }
+  bool preset(unsigned slot,const Curve &curve){if(slot>=4 || !curve.valid())return false;config.presets[slot]=curve;config.presetEnabled[slot]=true;return true;}
+  bool rename(uint32_t id,const char* name){for(auto &s:config.sources)if(s.id==id){for(unsigned j=0;j<17;++j)s.name[j]=name[j];return true;}return false;}
   bool forget(uint32_t id) {
     for (auto &s : config.sources)
       if (s.id == id) {

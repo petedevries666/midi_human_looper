@@ -27,7 +27,7 @@ CONDUCTOR is not implemented on this base and has no fabricated screenshot.
 | recovery-recording | — | — | — | — | [PNG](recovery-recording-1904x1032.png) |
 | recovery-transformer-editor | — | — | — | — | [PNG](recovery-transformer-editor-1904x1032.png) |
 | smart-switch-editor | [PNG](smart-switch-editor-320x240.png) | [PNG](smart-switch-editor-800x480.png) | [PNG](smart-switch-editor-1366x768.png) | [PNG](smart-switch-editor-1440x900.png) | [PNG](smart-switch-editor-1904x1032.png) |
-| smart-switch-editor-bottom | [PNG](smart-switch-editor-bottom-320x240.png) | — | — | — | — |
+| smart-switch-editor-bottom | [PNG](smart-switch-editor-bottom-320x240.png) | [PNG](smart-switch-editor-bottom-800x480.png) | — | — | — |
 | smart-switches | [PNG](smart-switches-320x240.png) | [PNG](smart-switches-800x480.png) | [PNG](smart-switches-1366x768.png) | [PNG](smart-switches-1440x900.png) | [PNG](smart-switches-1904x1032.png) |
 | snapshot-ab | [PNG](snapshot-ab-320x240.png) | [PNG](snapshot-ab-800x480.png) | [PNG](snapshot-ab-1366x768.png) | [PNG](snapshot-ab-1440x900.png) | [PNG](snapshot-ab-1904x1032.png) |
 | snapshot-ab-editor | [PNG](snapshot-ab-editor-320x240.png) | [PNG](snapshot-ab-editor-800x480.png) | [PNG](snapshot-ab-editor-1366x768.png) | [PNG](snapshot-ab-editor-1440x900.png) | [PNG](snapshot-ab-editor-1904x1032.png) |

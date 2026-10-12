@@ -1,5 +1,7 @@
 # PR #50 recovery implementation
 
+**Current issue #51 sprint status:** see [Zynthian V4 feedback sprint](zynthian-v4-feedback-sprint.md). The preservation checkpoint below is historical: STOP finalization and phantom voice observation have since been fixed and tested. User-reported installed hardware is now `d82f932` / PR #50; this sprint performs no hardware access.
+
 Branch `fix/free-time-capture-origin`; dependencies #44 → #47 → #48 → #49 → #50.
 No merge, deployment or physical-device access. Installed hardware remains PR #49.
 

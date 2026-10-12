@@ -2875,6 +2875,17 @@ hold_stop_request>=0 ? (
 // Existing GUI/phrase requests execute at the block boundary.
 process_phrase_trigger(0,0);
 
+// Admit a free LOOP overdub before draining this block's MIDI, including a
+// wrap that falls inside the block. Monitoring must not be recorded too late.
+native_free_time && overdub_armed && !overdub_active && !overdub_wait_note && mem[MODE_BASE+overdub_layer]<.5?(
+  free_od_len=max(1,mem[LEN_BASE+overdub_layer]);free_od_phase=(play_sample_pos-mem[FREE_LOOP_ANCHOR_BASE+overdub_layer])%free_od_len;
+  free_od_boundary=free_od_phase==0?0:free_od_len-free_od_phase;
+  free_od_boundary<samplesblock?(overdub_pos=-free_od_boundary;overdub_active=1;overdub_armed=0;free_gate_i=0;loop(2048,mem[3002048+free_gate_i]=0;free_gate_i+=1;););
+);
+native_free_time && overdub_active?(
+  chain_capture_active=1;chain_capture_normalize=0;chain_capture_start=max(0,-overdub_pos);chain_capture_end=min(samplesblock,mem[LEN_BASE+overdub_layer]-overdub_pos);
+);
+
 while (
   midirecv(offset,msg1,msg23) ?
   (
@@ -2982,16 +2993,10 @@ local(fl,period,position,left,cursor,span,count,j,b,at,st,d1,d2)
       period>=max(128,samplesblock/8)?(
         position=(play_sample_pos-mem[FREE_LOOP_ANCHOR_BASE+fl])%period;
         position<0?position+=period;left=samplesblock;cursor=0;
-        native_free_time && overdub_armed && !overdub_active && !overdub_wait_note && mem[MODE_BASE+overdub_layer]<.5?(
-  free_od_len=max(1,mem[LEN_BASE+overdub_layer]);free_od_phase=(play_sample_pos-mem[FREE_LOOP_ANCHOR_BASE+overdub_layer])%free_od_len;
-  free_od_boundary=free_od_phase==0?0:free_od_len-free_od_phase;
-  free_od_boundary<samplesblock?(overdub_pos=-free_od_boundary;overdub_active=1;overdub_armed=0;free_gate_i=0;loop(2048,mem[3002048+free_gate_i]=0;free_gate_i+=1;););
-);
-native_free_time && overdub_active?(
-  chain_capture_active=1;chain_capture_normalize=0;chain_capture_start=max(0,-overdub_pos);chain_capture_end=min(samplesblock,mem[LEN_BASE+overdub_layer]-overdub_pos);
-);
-
-while(left>0)(span=min(left,period-position);count=layer_count(fl);j=0;
+while(left>0)(span=min(left,period-position);count=layer_count(fl);
+          // Newly captured events are monitored live in this pass. Replay the
+          // committed prefix until the overdub is finished, avoiding duplicates.
+          overdub_layer==fl && (overdub_active || overdub_armed) && free_old_count>0?count=min(count,free_old_count);j=0;
           loop(count,b=layer_base(fl,j);at=mem[b];
             at>=position && at<position+span?(
               st=mem[b+1];d1=mem[b+2];d2=mem[b+3];

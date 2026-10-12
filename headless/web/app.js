@@ -26,7 +26,9 @@ function tactileSlider(label,value,min,max,step,oncommit,defaultValue=1,logarith
   rail.type='range';rail.min=logarithmic?-1:min;rail.max=logarithmic?1:max;rail.step=logarithmic?.001:step;rail.value=logarithmic?Math.log2(value):value;rail.setAttribute('aria-label',label);
   const decode=()=>logarithmic?Math.pow(2,Number(rail.value)):Number(rail.value);
   const paint=()=>{const v=decode();root.style.setProperty('--position',`${100*(Number(rail.value)-Number(rail.min))/(Number(rail.max)-Number(rail.min))}%`);readout.value=step===1?String(Math.round(v)):label.startsWith('VEL DECAY')?`${Math.round(v*100)}%`:`×${v.toFixed(2)}`;rail.setAttribute('aria-valuetext',readout.value);};
-  let accepted=Number(value),desired=null,sending=false;
+  let accepted=Number(value),desired=null,sending=false,dragging=false;
+  rail.addEventListener('pointerdown',()=>dragging=true);for(const edge of ['pointerup','pointercancel','lostpointercapture'])rail.addEventListener(edge,()=>dragging=false);
+  rail.setEffective=v=>{if(dragging||sending||desired!==null||rail.dataset.assignmentGesture)return;accepted=Number(v);rail.value=logarithmic?Math.log2(accepted):accepted;paint();};
   async function commit(){if(rail.dataset.assignmentGesture)return;desired=decode();if(sending)return;sending=true;try{while(desired!==null){const next=desired;desired=null;const ok=await oncommit(next);if(ok===false&&desired===null){rail.value=logarithmic?Math.log2(accepted):accepted;paint();}else if(ok!==false)accepted=next;}}finally{sending=false;}}
   rail.oninput=paint;rail.onchange=commit;rail.ondblclick=()=>{rail.value=logarithmic?Math.log2(defaultValue):defaultValue;paint();commit();};
   root.append(caption,rail,readout);paint();if(binding)bindModulation(rail,binding);return root;
@@ -40,6 +42,7 @@ function curveY(points,x){let y=points.at(-1)[1];for(let i=1;i<points.length;i++
 function previewCurve(points){const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');svg.setAttribute('viewBox','0 0 100 20');svg.classList.add('rail-curve');svg.setAttribute('aria-hidden','true');const path=document.createElementNS(svg.namespaceURI,'path');path.setAttribute('d',Array.from({length:101},(_,x)=>`${x?'L':'M'}${x},${20*(1-curveY(points,x/100))}`).join(' '));svg.append(path);return svg;}
 function closeAssignment(){document.getElementById('assignment-menu')?.remove();}
 function bindModulation(control,binding){
+ control.mbmfBinding=binding;
  const p=parameter(binding.kind);if(!p?.assignmentEligible)return;
  control.dataset.modulationTarget=JSON.stringify(binding);
  const mapping=mappingFor(binding),source=controllerConfiguration().sources.find(s=>s.id===mapping?.sourceId);
@@ -79,7 +82,7 @@ document.addEventListener('pointerdown',e=>{const menu=$('assignment-menu');if(m
 document.addEventListener('keydown',e=>{if(e.key==='Escape'){if(document.querySelector('.assignment-menu')){closeAssignment();e.preventDefault();return;}const dialog=document.querySelector('dialog[data-contextual][open]');if(dialog){const cancel=new Event('cancel',{cancelable:true});if(dialog.dispatchEvent(cancel))dialog.close();e.preventDefault();}}});
 function showEditor(dialog,docked=false){if(docked){dialog.dataset.contextual='true';dialog.show();dialog.scrollIntoView({block:'nearest'});}else{delete dialog.dataset.contextual;dialog.showModal();}}
 document.addEventListener('pointerdown',e=>{const d=$('editor');if(d.open&&d.dataset.contextual&&!d.contains(e.target)&&!e.target.closest('.module')&&!e.target.closest('#assignment-menu'))d.close();});
-function editInstrument(i){const d=descriptor(0);if(!d)return;edit(d,i,d.parameters.map(id=>{const p=catalog.parameters.find(p=>p.id===id);return {descriptor:p,value:i[p.engineField],assignment:0};}),null);}
+function editInstrument(i){const d=descriptor(0);if(!d)return;edit(d,i,d.parameters.map(id=>{const p=catalog.parameters.find(p=>p.id===id),canonical=parameter({enabled:21,input:22,output:23}[id]);const display=canonical?{...p,valueType:canonical.valueType,choices:canonical.choices}:p;return {descriptor:display,value:i[p.engineField],assignment:0};}),null);}
 function editModule(i,tf){selectedModule={instrumentId:i.id,moduleId:tf.id};for(const element of document.querySelectorAll('.module'))element.classList.toggle('selected',Number(element.dataset.moduleId)===tf.id);const d=descriptor(tf.type);if(!d)return;edit(d,i,tf.parameters.map(p=>({descriptor:parameter(p.kind),...p})),tf);}
 function edit(module,instrument,values,instance){
   const dialog=$('editor'),content=$('editor-content');if(dialog.open)return;
@@ -93,10 +96,10 @@ function edit(module,instrument,values,instance){
     const p=draft.descriptor;if(!p)continue;
     const label=node('label',shortParameter(p.label),'parameter');
     if(p.valueType==='toggle'||p.valueType==='enum'){
-      const control=p.valueType==='toggle'?button(draft.value?'ON':'OFF',()=>{draft.value=draft.value?0:1;control.textContent=draft.value?'ON':'OFF';control.setAttribute('aria-pressed',String(!!draft.value));}):node('select');
+      const control=p.valueType==='toggle'?button(draft.value?'ON':'OFF',()=>{draft.dirty=true;draft.value=draft.value?0:1;control.textContent=draft.value?'ON':'OFF';control.setAttribute('aria-pressed',String(!!draft.value));}):node('select');
       control.setAttribute('aria-label',p.label);control.title=p.label;control.disabled=!!draft.assignment;
       if(p.valueType==='toggle')control.setAttribute('aria-pressed',String(!!draft.value));
-      else{const names=p.choices;for(let v=p.min;v<=p.max;v+=p.step){const o=node('option',names?.[v]||String(v));o.value=v;control.append(o);}control.value=draft.value;control.onchange=()=>draft.value=Number(control.value);}
+      else{const names=p.choices;for(let v=p.min;v<=p.max;v+=p.step){const o=node('option',names?.[v]||String(v));o.value=v;control.append(o);}control.value=draft.value;control.onchange=()=>{draft.dirty=true;draft.value=Number(control.value);};}
       label.append(control);if(draft.assignment)label.append(node('small',`EXP ${draft.assignment}`));content.append(label);bindModulation(control,{instrumentId:instrument.id,moduleId:instance?.id||0,kind:p.engineKind});continue;
     }
     const number=node('input');number.type='number';number.min=p.min;number.max=p.max;number.step=p.step;number.value=draft.value;
@@ -229,11 +232,12 @@ function renderAB(s){
     if(mapping&&learn.target===mapping.sourceId){feedback.append(node('span',learn.conflict<0?' · Assigned to a legacy controller: cancel and choose another input.':learn.conflict>0?' · Already assigned: deliberate reassignment required.':' · Waiting for MIDI…'),button('CANCEL LEARN',()=>command({action:'controller_cancel',sourceId:mapping.sourceId})));if(learn.conflict>0)feedback.append(button('REASSIGN',()=>command({action:'controller_confirm',sourceId:mapping.sourceId})));}
   }
 }
+function paintEffectiveRails(s){for(const rail of document.querySelectorAll('.tactile-slider input[type=range]')){const b=rail.mbmfBinding;if(!b||!rail.setEffective)continue;const p=[14,15,17].includes(b.kind)?s.phrases.find(p=>p.id===b.instrumentId):s.instruments.find(i=>i.id===b.instrumentId);if(!p)continue;const field={1:'level',14:'timeDecay',15:'velocityDecay',17:'baseVelocity'}[b.kind];if(field)rail.setEffective(p[field]);}}
 function render(s){
   if(engineSession===s.engineSessionId&&s.revision<revision)return;
   engineSession=s.engineSessionId;revision=s.revision;latest=s;
   $('connection').textContent='CONNECTED · Engine running';
-  $('stop-native').hidden=!s.chainMode;paintPhraseStates(s);
+  $('stop-native').hidden=!s.chainMode;paintPhraseStates(s);paintEffectiveRails(s);
   $('transport-state').textContent=s.chainMode?`NATIVE · ${s.chainRecording?'RECORDING':s.chainArmed?'RECORD ARMED':s.chainRunning?'PLAYING':'STOPPED'} · ${s.activeNotes} ACTIVE NOTES`:`ENGINE RUNNING · ${s.activeNotes} ACTIVE NOTES`;
   $('metrics').replaceChildren(...[`Build ${s.buildRevision||'unknown'}`,`Backend ${s.backend} · ${s.sampleRate} Hz / ${s.blockSize}`,`Sample clock ${s.sampleClock}`,`MIDI messages ${s.midiCount}`,`Active notes ${s.activeNotes}`,`Maximum callback ${s.maxCallbackUs.toFixed(1)} µs`,`JACK XRUN notifications ${s.lateBlocks}`,`Output overflow ${s.outputOverflow}`].map(v=>node('span',v)));
   if(s.chainMode)$('metrics').append(node('span',`Zynthian · ${s.chainCaptureMode==='free-time'?'FREE TIME':'TWO BARS'} · ${s.chainBpm} BPM · ${s.chainError?'CLOCK / CAPACITY ERROR — stopped':s.chainRecording?'RECORDING':s.chainArmed?(s.chainCaptureMode==='free-time'?'WAITING FOR FIRST NOTE':'WAITING FOR NEXT LOOP'):s.chainRunning?'PLAYING':'STOPPED'}`));
@@ -508,7 +512,7 @@ function compactInstrument(i){
   for(const tf of i.transformers||[]){
     const card=node('article',undefined,'module');card.dataset.moduleId=tf.id;card.classList.toggle('bypassed',!tf.enabled);card.classList.toggle('selected',selectedModule?.instrumentId===i.id&&selectedModule.moduleId===tf.id);
     card.append(node('strong',`${descriptor(tf.type)?.label||'MODULE'}`),node('small',tf.enabled?'ON':'BYPASS'),button('EDIT',()=>editModule(i,tf)));
-    for(const p of tf.parameters||[]){const d=parameter(p.kind);if(!d)continue;if(p!==tf.parameters[0])continue;const meter=node('meter');meter.min=d.min;meter.max=d.max;meter.value=p.value;meter.title=`${d.label}: ${p.value}${p.assignment?' · EXPRESSION '+p.assignment:''}`;meter.setAttribute('aria-label',meter.title);const feedback=node('div',undefined,'module-feedback');feedback.append(node('small',shortParameter(d.label)),meter,node('output',musicalValue(d,p.value)));card.append(feedback);}
+    for(const p of tf.parameters||[]){const d=parameter(p.kind);if(!d)continue;if(p!==tf.parameters[0])continue;const meter=node('meter');meter.min=d.min;meter.max=d.max;meter.value=p.value;meter.title=`${d.label}: ${p.value}${p.assignment?' · EXPRESSION '+p.assignment:''}`;meter.setAttribute('aria-label',meter.title);const feedback=node('div',undefined,'module-feedback');feedback.append(node('small',shortParameter(d.label)),meter,node('output',tf.type===6?`CC${tf.parameters.find(v=>v.kind===13)?.value??0}`:musicalValue(d,p.value)));card.append(feedback);}
     for(const [label,operation] of [['BYPASS','bypass'],['↑','up'],['↓','down'],['DELETE','delete']]){
       if(operation==='up'||operation==='down'){
         const index=i.transformers.indexOf(tf),other=i.transformers[index+(operation==='up'?-1:1)];

@@ -8,7 +8,7 @@ FreeCapture.setUpClass();api=FreeCapture('test_free_capture')
 try:
  api.command('panic')
  with sync_playwright() as p:
-  browser=p.chromium.launch(headless=True,executable_path=os.environ.get('CHROMIUM_PATH','/usr/bin/chromium'),args=['--no-sandbox'])
+  browser=p.chromium.launch(headless=True,executable_path=os.environ.get('CHROMIUM_PATH','/usr/bin/chromium'),args=['--no-sandbox','--disable-gpu'])
   page=browser.new_page(viewport=dict(width=1904 if os.environ.get('SCREENSHOT_RECOVERY_DIR') else 1366,height=1032 if os.environ.get('SCREENSHOT_RECOVERY_DIR') else 768));page.goto(api.base);page.get_by_text('CONNECTED · Engine running',exact=True).wait_for()
   evidence=[]
   def screenshot(name,selector=None):
@@ -18,7 +18,7 @@ try:
    if selector:page.locator(selector).first.evaluate("e=>e.scrollIntoView({block:'start'})")
    errors=page.evaluate(AUDIT);assert not errors,errors
    output=Path(os.environ['SCREENSHOT_RECOVERY_DIR']);output.mkdir(parents=True,exist_ok=True)
-   path=output/f'{name}-1904x1032.png';page.screenshot(path=str(path),animations='disabled');verify_png(path,1904,1032)
+   path=output/f'{name}-1904x1032.png';page.evaluate('() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');page.screenshot(path=str(path),animations='disabled');verify_png(path,1904,1032)
    evidence.append(dict(view=name,viewport=[1904,1032],file=path.name,checks=[]))
   panel=page.locator('[data-instrument-id="1"]');panel.get_by_label('Transformer type for Instrument 1',exact=True).select_option('5');panel.get_by_role('button',name='ADD TRANSFORMER',exact=True).click()
   panel.locator('.module').last.get_by_role('button',name='EDIT',exact=True).click()
@@ -42,6 +42,16 @@ try:
   # Named source and contextual assignment use the real native ownership engine.
   api.command('controller_source',sourceId=101,kind=2,channel=2,number=21)
   api.command('controller_rename',sourceId=101,name='EXP 1 CODIE')
+  # A mapped enum edited by hand must commit through the same owner policy;
+  # it cannot silently lose a user's selection as an untouched draft field.
+  api.command('mapping_commit',mapping=dict(id=2,targetId=2,sourceId=101,instrumentId=1,moduleId=module['id'],kind=4,enabled=1,points=[[0,0,0],[1,1,0]]))
+  page.reload();page.get_by_text('CONNECTED · Engine running',exact=True).wait_for()
+  page.locator('[data-instrument-id="1"] .module').get_by_role('button',name='EDIT',exact=True).click()
+  page.get_by_label('MODE',exact=True).select_option(label='UP')
+  page.get_by_role('button',name='DONE',exact=True).click();page.locator('#editor').wait_for(state='hidden')
+  assert next(v['value'] for v in api.call()['instruments'][0]['transformers'][0]['parameters'] if v['kind']==4)==1
+  api.command('mapping_delete',mappingId=2)
+  api.command('module_commit',instrumentId=1,moduleId=module['id'],parameters=[dict(kind=4,value=2)])
   page.reload();page.get_by_text('CONNECTED · Engine running',exact=True).wait_for()
   rail=page.get_by_role('slider',name='VOLUME Instrument 1',exact=True);rail.click(button='right')
   screenshot('recovery-modulator-menu')
@@ -55,8 +65,10 @@ try:
   api.command('midi_cc',channel=2,number=21,value=64)
   assert api.call()['instruments'][0]['level']==64,'physical-equivalent CC must control actual volume'
   page.get_by_role('button',name='DONE',exact=True).click();page.locator('#editor').wait_for(state='hidden')
+  page.get_by_role('slider',name='VOLUME Instrument 1',exact=True).focus()
   api.command('midi_cc',channel=2,number=21,value=32)
   assert api.call()['instruments'][0]['level']==2,'bend and multipoint curve must change native scaling'
+  page.wait_for_function("""() => document.querySelector('[data-instrument-id="1"] input[aria-label="VOLUME Instrument 1"]').value==='2'""")
   emitted=api.call()['lastEvent'];assert emitted[1:]==[176,7,2],f'named controller curve must emit actual instrument CC7 volume: {emitted}'
   api.command('panic');api.patch('save');api.patch('load')
   from controller_config import decode

@@ -35,4 +35,12 @@ static void recovery_recording_tests(const char* source) {
   h.eq("mem[layer_base(3,3)+1]",177,"sustain cleanup keeps exact channel");
   h.eq("mem[layer_base(3,3)+2]",64,"sustain cleanup is CC64");
   h.eq("mem[layer_base(3,3)+3]",0,"sustain cleanup releases pedal");
+  c.command(0,0);h.run("send_all_notes_off();reset_note_runtime();clear_layer(6);store_event(6,0,144,48,81,0);store_event(6,64,128,48,23,0);mem[MODE_BASE+6]=0;mem[LEN_BASE+6]=512;mem[TRIG_BASE+6]=1;mem[FREE_LOOP_ANCHOR_BASE+6]=0;state=STATE_PLAYING;play_sample_pos=510;");h.events();
+  check(c.command(2,6),"LOOP overdub is armed at an arbitrary phase");
+  uint8_t on[]={144,67,92},off[]={128,67,31};ysfx_midi_event_t input{};input.size=3;input.offset=17;input.data=on;check(ysfx_send_midi(h.f,&input),"first in-block overdub Note On");input.offset=97;input.data=off;check(ysfx_send_midi(h.f,&input),"first in-block overdub Note Off");
+  h.block();h.eq("layer_count(6)",4,"wrap admission captures both events in its first block");
+  h.eq("mem[layer_base(6,2)]",15,"onset is relative to in-block wrap, not the next callback");h.eq("mem[layer_base(6,3)]",95,"off retains its source duration");
+  int monitored=0;for(auto e:h.events())if(e[0]==144 && e[1]==67 && e[2])++monitored;
+  check(monitored==1,"new overdub notes are monitored once, not echoed by the loop in the same pass");
+  check(c.command(3,6),"LOOP overdub FINISH");h.eq("mem[LEN_BASE+6]",512,"LOOP overdub retains its phrase duration");
 }

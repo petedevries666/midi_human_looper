@@ -698,7 +698,7 @@
     {
       "typeId": "range",
       "engineType": 2,
-      "label": "RANGE",
+      "label": "NOTE RANGE",
       "scope": "instrument",
       "parameters": [
         "range_mode",
@@ -757,7 +757,7 @@
     {
       "typeId": "arp",
       "engineType": 5,
-      "label": "ARP",
+      "label": "ARPEGGIATOR",
       "scope": "instrument",
       "parameters": [
         "arp_mode",
@@ -780,7 +780,7 @@
     {
       "typeId": "cc_mod",
       "engineType": 6,
-      "label": "CC MOD",
+      "label": "CC / MOD",
       "scope": "instrument",
       "parameters": [
         "mod_level",

@@ -170,4 +170,6 @@ dialog[data-contextual][open]{position:relative;inset:auto;width:100%;max-width:
 /* Controller audition is a real source gesture, distinct from mapping removal. */
 .controller-test-slider{grid-template-columns:minmax(60px,1fr) 30px;margin-top:4px;max-width:220px}
 .controller-test-slider input{width:100%;min-width:0}
-.switch-test-feedback{display:block;font:9px monospace;color:var(--active);overflow-wrap:anywhere}
+.switch-test-feedback{display:block;flex-basis:100%;grid-column:1/-1;grid-row:4;min-width:0;font:9px monospace;color:var(--active);overflow-wrap:anywhere}
+
+.switch-test-feedback:empty{display:none}

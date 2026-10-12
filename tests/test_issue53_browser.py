@@ -89,7 +89,7 @@ try:
   page.get_by_text('TAP · EMPTY SEQUENCE / PHRASE · OPTIONS',exact=True).wait_for()
   api.command('switch_commit',switchId=sw['id'],settings=settings,sequence=[1],name='TEST ONLY');page.wait_for_function('(r)=>revision>=r',arg=api.call()['revision'])
   card.get_by_role('button',name='TEST TAP',exact=True).click();api.wait_for(lambda:api.call()['phrases'][0]['state']=='PLAYING','unbound TAP starts real phrase')
-  page.get_by_text('TAP · ACTION NEXT · STEP 1',exact=True).wait_for();assert api.call()['lastEvent'][2]==60
+  page.get_by_text('TAP · ACTION NEXT · STEP 1',exact=True).wait_for();feedback=card.locator('.switch-test-feedback').bounding_box();assert feedback['width']>card.bounding_box()['width']*.8 and feedback['height']<32,feedback;assert api.call()['lastEvent'][2]==60
   api.command('panic');assert api.call()['activeNotes']==0
   assert not errors,errors;browser.close();print('PASS issue #53 '+family+': blank draft, targeted keyboard FINISH, unbound TAP MIDI, source test ownership/Learn isolation, mapped MIDI output, persistence/removal')
 finally:FreeCapture.tearDownClass()

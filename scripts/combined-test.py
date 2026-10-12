@@ -62,6 +62,7 @@ try:
             run([sys.executable,'tests/test_performance_density.py'])
             run([sys.executable,'tests/test_phrase_midi_browser.py'])
             run([sys.executable,'tests/test_native_hold_browser.py'])
+            run([sys.executable,'tests/test_recovery_browser.py'])
     print('PASS selected combined regression suite',flush=True)
 except (RuntimeError,subprocess.TimeoutExpired,KeyboardInterrupt) as error:
     print(f'FAILED: {error}',file=sys.stderr);sys.exit(1)

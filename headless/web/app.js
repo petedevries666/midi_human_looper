@@ -1,5 +1,6 @@
 'use strict';
 let revision=1, engineSession=null, pending=false, renderedModel='', latest=null;
+let selectedModule=null;
 let catalog=null, ws=null, reconnect=null, renderedSnapshots='', renderedSnapshotSession=null;
 const $=id=>document.getElementById(id);
 const node=(tag,text,cls)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;if(cls)n.className=cls;return n;};
@@ -7,40 +8,85 @@ function headers(){return {'Content-Type':'application/json','X-Engine-Token':$(
 async function request(path,body){const response=await fetch(path,{method:body?'POST':'GET',headers:headers(),body:body?JSON.stringify(body):undefined});const data=await response.json();if(!response.ok)throw new Error(data.error||data.status||'Request failed');return data;}
 const iconPaths={play:'M6 3l12 9-12 9z',stop:'M5 5h14v14H5z',record:'M12 4a8 8 0 1 0 0 16a8 8 0 1 0 0-16',mute:'M4 9h4l5-4v14l-5-4H4z M17 8l5 8m0-8-5 8',solo:'M12 3l3 6 7 1-5 5 1 7-6-3-6 3 1-7-5-5 7-1z',edit:'M4 20l1-6L17 2l5 5L10 19z',add:'M12 4v16M4 12h16',remove:'M5 5l14 14M19 5L5 19',prev:'M16 4l-8 8 8 8',next:'M8 4l8 8-8 8',save:'M4 3h14l3 3v15H3V3z M7 3v7h10V3 M7 21v-7h10v7',load:'M3 8h7l2 3h9l-3 10H3z M12 2v7m-3-3 3 3 3-3',midi:'M4 4h16v16H4z M8 4v9m4-9v9m4-9v9'};
 function decorateButton(b,label){
-  const key=/LEARN|MIDI/.test(label)?'midi':/^REC(?: |$)|FINISH/.test(label)?'record':/TRIGGER|TEST|RECALL/.test(label)?'play':/STOP/.test(label)?'stop':/MUTE/.test(label)?'mute':/SOLO/.test(label)?'solo':/LEARN|MIDI/.test(label)?'midi':/EDIT|OPTIONS|CONFIGURE/.test(label)?'edit':/ADD|CAPTURE/.test(label)?'add':/DELETE|FORGET|^×$/.test(label)?'remove':/SAVE/.test(label)?'save':/LOAD/.test(label)?'load':label==='←'?'prev':label==='→'?'next':null;
+  const key=/^(BYPASS|ENABLE)$/.test(label)?'record':/LEARN|MIDI/.test(label)?'midi':/^REC(?: |$)|FINISH/.test(label)?'record':/TRIGGER|TEST|RECALL/.test(label)?'play':/STOP/.test(label)?'stop':/MUTE/.test(label)?'mute':/SOLO/.test(label)?'solo':/LEARN|MIDI/.test(label)?'midi':/EDIT|OPTIONS|CONFIGURE/.test(label)?'edit':/ADD|CAPTURE/.test(label)?'add':/DELETE|FORGET|^×$/.test(label)?'remove':/SAVE/.test(label)?'save':/LOAD/.test(label)?'load':label==='←'?'prev':label==='→'?'next':null;
   if(!key)return;b.setAttribute('aria-label',label);b.title=label;if(/^(MUTE|SOLO)/.test(label))b.setAttribute('aria-pressed',String(label.endsWith(' ON')));
   const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');svg.setAttribute('viewBox','0 0 24 24');svg.setAttribute('aria-hidden','true');svg.classList.add('action-icon');
   const path=document.createElementNS(svg.namespaceURI,'path');path.setAttribute('d',iconPaths[key]);svg.append(path);b.prepend(svg);
 }
 function button(label,action){const b=node('button',label);b.setAttribute('aria-label',label);b.title=label;decorateButton(b,label);compactAction(b,label);b.addEventListener('click',action);return b;}
 function compactAction(b,label){
-  const short={'SOLO':'S','SOLO ON':'S','MUTE':'M','MUTE ON':'M','FINISH REC':'END','MIDI LEARN':'LEARN','TRIGGER LEARN':'','CANCEL LEARN':'','ADD TRANSFORMER':'','ADD INSTRUMENT':'INST','ADD CONTROLLER SOURCE':'SOURCE','ADD MAPPING':'MAP','+ CAPTURE SNAPSHOT':'CAPTURE','CAPTURE STATE':'STATE','SIMULATE FOOTSWITCH':'MIDI','CONFIGURE A/B':'A/B','SAVE PATCH':'','LOAD PATCH':'','STOP':'','EDIT':'','PHRASE OPTIONS':'','OPTIONS':'','DELETE':'','FORGET':'','×':'','TRIGGER':'','REC / OVERDUB':'','RECALL':'','←':'','→':''};
+  const short={'BYPASS':'','ENABLE':'','SOLO':'S','SOLO ON':'S','MUTE':'M','MUTE ON':'M','FINISH REC':'END','MIDI LEARN':'LEARN','TRIGGER LEARN':'','CANCEL LEARN':'','ADD TRANSFORMER':'','ADD INSTRUMENT':'INST','ADD CONTROLLER SOURCE':'SOURCE','ADD MAPPING':'MAP','+ CAPTURE SNAPSHOT':'CAPTURE','CAPTURE STATE':'STATE','SIMULATE FOOTSWITCH':'MIDI','CONFIGURE A/B':'A/B','SAVE PATCH':'','LOAD PATCH':'','STOP':'','EDIT':'','PHRASE OPTIONS':'','OPTIONS':'','DELETE':'','FORGET':'','×':'','TRIGGER':'','REC / OVERDUB':'','RECALL':'','←':'','→':''};
   const text=Object.hasOwn(short,label)?short[label]:label.startsWith('TEST ')?label.slice(5):label.startsWith('LEARN ·')?'':null;
   if(text===null)return;if(label==='CANCEL LEARN')b.setAttribute('aria-pressed','true');if(label==='FINISH REC')b.querySelector('svg')?.remove();for(const child of [...b.childNodes])if(child.nodeType===Node.TEXT_NODE)child.remove();if(text)b.append(document.createTextNode(text));b.classList.toggle('icon-only',!text);}
 const shortParameter=label=>({'BASE VEL':'VEL','VEL DECAY':'V.DEC','TIME DECAY':'T.DEC','VOLUME':'VOL','SEMITONES':'ST','LOW NOTE':'LOW','HIGH NOTE':'HIGH'}[label]||label);
 function contextualHelp(text){const help=node('details',undefined,'context-help');help.append(node('summary','HELP'),node('p',text));return help;}
 // Native range inputs provide pointer/touch capture and standard keyboard semantics.
-function tactileSlider(label,value,min,max,step,oncommit,defaultValue=1,logarithmic=false){
+function tactileSlider(label,value,min,max,step,oncommit,defaultValue=1,logarithmic=false,binding=null){
   const root=node('label',undefined,'tactile-slider'),caption=node('span',shortParameter(label.replace(/ (Phrase|Instrument) \d+$/,'')),'slider-caption'),rail=node('input'),readout=node('output');
   rail.type='range';rail.min=logarithmic?-1:min;rail.max=logarithmic?1:max;rail.step=logarithmic?.001:step;rail.value=logarithmic?Math.log2(value):value;rail.setAttribute('aria-label',label);
   const decode=()=>logarithmic?Math.pow(2,Number(rail.value)):Number(rail.value);
   const paint=()=>{const v=decode();root.style.setProperty('--position',`${100*(Number(rail.value)-Number(rail.min))/(Number(rail.max)-Number(rail.min))}%`);readout.value=step===1?String(Math.round(v)):label.startsWith('VEL DECAY')?`${Math.round(v*100)}%`:`×${v.toFixed(2)}`;rail.setAttribute('aria-valuetext',readout.value);};
   let accepted=Number(value),desired=null,sending=false;
-  async function commit(){desired=decode();if(sending)return;sending=true;try{while(desired!==null){const next=desired;desired=null;const ok=await oncommit(next);if(ok===false&&desired===null){rail.value=logarithmic?Math.log2(accepted):accepted;paint();}else if(ok!==false)accepted=next;}}finally{sending=false;}}
+  async function commit(){if(rail.dataset.assignmentGesture)return;desired=decode();if(sending)return;sending=true;try{while(desired!==null){const next=desired;desired=null;const ok=await oncommit(next);if(ok===false&&desired===null){rail.value=logarithmic?Math.log2(accepted):accepted;paint();}else if(ok!==false)accepted=next;}}finally{sending=false;}}
   rail.oninput=paint;rail.onchange=commit;rail.ondblclick=()=>{rail.value=logarithmic?Math.log2(defaultValue):defaultValue;paint();commit();};
-  root.append(caption,rail,readout);paint();return root;
+  root.append(caption,rail,readout);paint();if(binding)bindModulation(rail,binding);return root;
 }
 function descriptor(type){return catalog?.modules.find(m=>m.engineType===type);}
+function musicalValue(p,value){return p?.choices?.[Math.round(value)]??`${Number(value).toFixed(p?.step>=1?0:2)} ${p?.unit||''}`;}
 function parameter(kind){return catalog?.parameters.find(p=>p.engineKind===kind);}
 async function loadDescriptors(){try{catalog=await request('/api/v1/descriptors');$('app-version').textContent=`V ${catalog.applicationVersion||'UNKNOWN'}`;renderedModel='';if(latest)render(latest);}catch(e){$('error').textContent=e.message;}}
+function mappingFor(binding){return controllerConfiguration().mappings.find(m=>m.instrumentId===binding.instrumentId&&m.moduleId===binding.moduleId&&m.kind===binding.kind&&m.enabled);}
+function curveY(points,x){let y=points.at(-1)[1];for(let i=1;i<points.length;i++)if(x<=points[i][0]){const a=points[i-1],b=points[i];let t=(x-a[0])/(b[0]-a[0]),power=1+5*Math.abs(a[2]);t=a[2]>0?Math.pow(t,power):a[2]<0?1-Math.pow(1-t,power):t;return a[1]+(b[1]-a[1])*t;}return y;}
+function previewCurve(points){const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');svg.setAttribute('viewBox','0 0 100 20');svg.classList.add('rail-curve');svg.setAttribute('aria-hidden','true');const path=document.createElementNS(svg.namespaceURI,'path');path.setAttribute('d',Array.from({length:101},(_,x)=>`${x?'L':'M'}${x},${20*(1-curveY(points,x/100))}`).join(' '));svg.append(path);return svg;}
+function closeAssignment(){document.getElementById('assignment-menu')?.remove();}
+function bindModulation(control,binding){
+ const p=parameter(binding.kind);if(!p?.assignmentEligible)return;
+ control.dataset.modulationTarget=JSON.stringify(binding);
+ const mapping=mappingFor(binding),source=controllerConfiguration().sources.find(s=>s.id===mapping?.sourceId);
+ if(mapping){control.classList.add('modulated');control.title=`${p.label} · ${source?.name||'SOURCE '+mapping.sourceId}`;control.parentElement?.append(previewCurve(mapping.points));}
+ const open=(x,y)=>assignmentMenu(binding,x,y);
+ control.oncontextmenu=e=>{e.preventDefault();e.stopPropagation();open(e.clientX,e.clientY);};
+ control.addEventListener('keydown',e=>{if(e.key==='ContextMenu'||(e.shiftKey&&e.key==='F10')){e.preventDefault();const r=control.getBoundingClientRect();open(r.left,r.bottom);}});
+ let timer;control.addEventListener('pointerdown',e=>{if(e.pointerType==='touch'){const value=control.value;timer=setTimeout(()=>{control.dataset.assignmentGesture='1';control.value=value;control.dispatchEvent(new Event('input'));open(e.clientX,e.clientY);setTimeout(()=>delete control.dataset.assignmentGesture,500);},600);}});for(const event of ['pointerup','pointercancel','pointermove'])control.addEventListener(event,()=>clearTimeout(timer));
+ const access=button('EXP',()=>{const r=control.getBoundingClientRect();open(r.left,r.bottom);});access.className='modulation-access';access.setAttribute('aria-label',`Assign modulation ${p.label}`);access.title=source?.name||'Assign expression · right-click or long press';control.parentElement?.append(access);
+}
+async function assignmentMenu(binding,x,y){
+ closeAssignment();const menu=node('div',undefined,'assignment-menu');menu.id='assignment-menu';menu.setAttribute('role','menu');menu.setAttribute('aria-label','Modulator assignment');
+ const {sources,mappings}=controllerConfiguration();const matches=mappings.filter(m=>m.instrumentId===binding.instrumentId&&m.moduleId===binding.moduleId&&m.kind===binding.kind);
+ const item=(label,action)=>{const b=button(label,async()=>{closeAssignment();try{await action();}catch(e){$('error').textContent=e.message;}});b.setAttribute('role','menuitem');menu.append(b);};
+ item('NONE',async()=>{for(const m of matches)await command({action:'mapping_delete',mappingId:m.id});if(binding.kind<14){const data=await request('/api/v1/command',{protocolVersion:1,expectedRevision:revision,expectedEngineSessionId:engineSession,action:'parameter_curve',targetId:binding.instrumentId,moduleId:binding.moduleId,kind:binding.kind});if(data.legacyCurve.source)await command({action:'parameter_unassign',targetId:binding.instrumentId,moduleId:binding.moduleId,kind:binding.kind});}});
+ for(const source of sources)item(source.name||`SOURCE ${source.id}`,()=>assignModulator(binding,source));
+ item('+ SOURCE',()=>createNamedSource(binding));
+ ($('editor').open?$('editor'):document.body).append(menu);const r=menu.getBoundingClientRect();menu.style.left=`${Math.max(4,Math.min(x,innerWidth-r.width-4))}px`;menu.style.top=`${Math.max(4,Math.min(y,innerHeight-r.height-4))}px`;menu.querySelector('button')?.focus();
+ menu.onkeydown=e=>{const buttons=[...menu.querySelectorAll('button')];if(e.key==='Escape'){e.preventDefault();closeAssignment();}if(['ArrowDown','ArrowUp'].includes(e.key)){e.preventDefault();const index=buttons.indexOf(document.activeElement);buttons[(index+(e.key==='ArrowDown'?1:-1)+buttons.length)%buttons.length].focus();}};
+}
+function createNamedSource(binding){
+ const dialog=$('editor');if(dialog.open)dialog.close();delete dialog.dataset.contextual;
+ const content=$('editor-content');content.replaceChildren(node('h2','EXPRESSION SOURCE'));
+ const input=node('input');input.maxLength=16;input.value='EXP 1 CODIE';input.setAttribute('aria-label','Controller name');content.append(input);
+ const error=node('p');error.setAttribute('role','alert');content.append(error);
+ content.append(button('DONE',async()=>{try{const sourceId=freshId(controllerConfiguration().sources.map(s=>s.id));const state=await request('/api/v1/command',{protocolVersion:1,expectedRevision:revision,expectedEngineSessionId:engineSession,action:'controller_rename',sourceId,name:input.value,create:true});render(state);dialog.close();await assignModulator(binding,controllerConfiguration().sources.find(s=>s.id===sourceId));}catch(e){error.textContent=e.message;}}),button('CANCEL',()=>dialog.close()));showEditor(dialog);input.focus();
+}
+async function assignModulator(binding,source){
+ const {mappings}=controllerConfiguration();const existing=mappingFor(binding);let points=existing?.points||[[0,0,0],[1,1,0]],legacy=0;
+ if(binding.kind<14){const state=await request('/api/v1/command',{protocolVersion:1,expectedRevision:revision,expectedEngineSessionId:engineSession,action:'parameter_curve',targetId:binding.instrumentId,moduleId:binding.moduleId,kind:binding.kind});legacy=state.legacyCurve.source;if(legacy){if(!confirm('Replace this legacy expression assignment with native Controller ownership? Other legacy targets remain unchanged.'))return;points=state.legacyCurve.points;}}
+ const same=mappings.find(m=>m.instrumentId===binding.instrumentId&&m.moduleId===binding.moduleId&&m.kind===binding.kind);
+ const mapping={...(existing||{}),...binding,id:existing?.id||freshId(mappings.map(m=>m.id)),targetId:same?.targetId||freshId(mappings.map(m=>m.targetId)),sourceId:source.id,enabled:1,points};
+ const state=await request('/api/v1/command',{protocolVersion:1,expectedRevision:revision,expectedEngineSessionId:engineSession,action:'mapping_commit',mapping,replaceLegacy:!!legacy});render(state);
+ if($('editor').open)$('editor').close();editMapping(controllerConfiguration().mappings.find(m=>m.id===mapping.id));
+}
+document.addEventListener('pointerdown',e=>{const menu=$('assignment-menu');if(menu&&!menu.contains(e.target)){e.preventDefault();e.stopImmediatePropagation();closeAssignment();}},true);
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){if(document.querySelector('.assignment-menu')){closeAssignment();e.preventDefault();return;}const dialog=document.querySelector('dialog[data-contextual][open]');if(dialog){const cancel=new Event('cancel',{cancelable:true});if(dialog.dispatchEvent(cancel))dialog.close();e.preventDefault();}}});
+function showEditor(dialog,docked=false){if(docked){dialog.dataset.contextual='true';dialog.show();dialog.scrollIntoView({block:'nearest'});}else{delete dialog.dataset.contextual;dialog.showModal();}}
+document.addEventListener('pointerdown',e=>{const d=$('editor');if(d.open&&d.dataset.contextual&&!d.contains(e.target)&&!e.target.closest('.module')&&!e.target.closest('#assignment-menu'))d.close();});
 function editInstrument(i){const d=descriptor(0);if(!d)return;edit(d,i,d.parameters.map(id=>{const p=catalog.parameters.find(p=>p.id===id);return {descriptor:p,value:i[p.engineField],assignment:0};}),null);}
-function editModule(i,tf){for(const element of document.querySelectorAll('.module'))element.classList.toggle('selected',Number(element.dataset.moduleId)===tf.id);const d=descriptor(tf.type);if(!d)return;edit(d,i,tf.parameters.map(p=>({descriptor:parameter(p.kind),...p})),tf);}
+function editModule(i,tf){selectedModule={instrumentId:i.id,moduleId:tf.id};for(const element of document.querySelectorAll('.module'))element.classList.toggle('selected',Number(element.dataset.moduleId)===tf.id);const d=descriptor(tf.type);if(!d)return;edit(d,i,tf.parameters.map(p=>({descriptor:parameter(p.kind),...p})),tf);}
 function edit(module,instrument,values,instance){
   const dialog=$('editor'),content=$('editor-content');if(dialog.open)return;
   const capturedRevision=revision,capturedSession=engineSession;
   let committing=false;
   const drafts=values.map(v=>({...v}));
-  const heading=node('h2',instance?module.label:instrument.name||`${module.label} ${instrument.id}`);heading.title=`Stable target ${instance?.id||instrument.id}`;content.replaceChildren(heading);if(!instance)content.append(contextualHelp(instrument.serialPitchOrder?'Serial pitch order · Velocity → Polyphony → ARP; CC separate':'Legacy stages: Transpose → Range → Velocity → Polyphony → ARP; CC separate'));
+  const heading=node('h2',instance?`${instrument.name||'INSTRUMENT '+instrument.id} / ${module.label}`:instrument.name||`${module.label} ${instrument.id}`);heading.title=`Stable target ${instance?.id||instrument.id}`;content.replaceChildren(heading);if(!instance)content.append(contextualHelp(instrument.serialPitchOrder?'Serial pitch order · Velocity → Polyphony → ARP; CC separate':'Legacy stages: Transpose → Range → Velocity → Polyphony → ARP; CC separate'));
   const dismiss=()=>{if(!committing)dialog.close();};
   content.append(button('×',dismiss));
   for(const draft of drafts){
@@ -50,24 +96,24 @@ function edit(module,instrument,values,instance){
       const control=p.valueType==='toggle'?button(draft.value?'ON':'OFF',()=>{draft.value=draft.value?0:1;control.textContent=draft.value?'ON':'OFF';control.setAttribute('aria-pressed',String(!!draft.value));}):node('select');
       control.setAttribute('aria-label',p.label);control.title=p.label;control.disabled=!!draft.assignment;
       if(p.valueType==='toggle')control.setAttribute('aria-pressed',String(!!draft.value));
-      else{const names=p.choices||({4:['RANDOM','UP','DOWN'],8:['FULL','DOWN','UP','BOTH'],11:['POLY','BASS','LAST','LEGATO']}[p.engineKind]);for(let v=p.min;v<=p.max;v+=p.step){const o=node('option',names?.[v]||String(v));o.value=v;control.append(o);}control.value=draft.value;control.onchange=()=>draft.value=Number(control.value);}
-      label.append(control);if(draft.assignment)label.append(node('small',`EXP ${draft.assignment}`));content.append(label);continue;
+      else{const names=p.choices;for(let v=p.min;v<=p.max;v+=p.step){const o=node('option',names?.[v]||String(v));o.value=v;control.append(o);}control.value=draft.value;control.onchange=()=>draft.value=Number(control.value);}
+      label.append(control);if(draft.assignment)label.append(node('small',`EXP ${draft.assignment}`));content.append(label);bindModulation(control,{instrumentId:instrument.id,moduleId:instance?.id||0,kind:p.engineKind});continue;
     }
     const number=node('input');number.type='number';number.min=p.min;number.max=p.max;number.step=p.step;number.value=draft.value;
     const rail=node('input');rail.type='range';rail.min=p.min;rail.max=p.max;rail.step=p.step;rail.value=draft.value;
     rail.disabled=number.disabled=!!draft.assignment;
-    function update(value){draft.value=Number(value);number.value=draft.value;rail.value=draft.value;}
+    function update(value){draft.dirty=true;draft.value=Number(value);number.value=draft.value;rail.value=draft.value;}
     number.addEventListener('input',()=>update(number.value));rail.addEventListener('input',()=>update(rail.value));rail.addEventListener('dblclick',()=>update(p.default));
     const paintRail=()=>rail.style.setProperty('--position',`${100*(Number(rail.value)-p.min)/(p.max-p.min||1)}%`);rail.addEventListener('input',paintRail);number.addEventListener('input',paintRail);rail.addEventListener('dblclick',paintRail);paintRail();rail.setAttribute('aria-label',p.label);label.append(number,node('span',p.unit),rail);
     if(draft.assignment)label.append(node('small',`EXP ${draft.assignment}`));
-    content.append(label);
+    content.append(label);bindModulation(rail,{instrumentId:instrument.id,moduleId:instance?.id||0,kind:p.engineKind});
   }
   const error=node('p','');error.setAttribute('role','alert');content.append(error);
   const done=button('DONE',async()=>{
     if(committing)return;
     if(engineSession!==capturedSession){error.textContent='Engine restarted. CANCEL and reopen this editor.';return;}
-    const body=instance?{action:'module_commit',instrumentId:instrument.id,moduleId:instance.id,parameters:drafts.filter(d=>!d.assignment).map(d=>({kind:d.kind,value:d.value}))}:{action:'instrument_commit',instrumentId:instrument.id,...Object.fromEntries(drafts.map(d=>[d.descriptor.engineField,d.value]))};
-    if(instance&&drafts.every(d=>d.assignment)){dialog.close();return;}
+    const body=instance?{action:'module_commit',instrumentId:instrument.id,moduleId:instance.id,parameters:drafts.filter(d=>!d.assignment && (d.dirty || !mappingFor({instrumentId:instrument.id,moduleId:instance.id,kind:d.kind}))).map(d=>({kind:d.kind,value:d.value}))}:{action:'instrument_commit',instrumentId:instrument.id,...Object.fromEntries(drafts.map(d=>[d.descriptor.engineField,d.value]))};
+    if(instance&&!body.parameters.length){dialog.close();return;}
     committing=true;done.disabled=cancel.disabled=true;
     try{const state=await request('/api/v1/command',{protocolVersion:1,expectedRevision:capturedRevision,expectedEngineSessionId:capturedSession,...body});render(state);dialog.close();}
     catch(e){error.textContent=e.message==='conflict'?'Configuration changed. CANCEL and reopen this editor.':e.message;}
@@ -76,7 +122,7 @@ function edit(module,instrument,values,instance){
   const cancel=button('CANCEL',dismiss);content.append(done,cancel);
   dialog.oncancel=e=>{if(committing)e.preventDefault();};
   dialog.onclick=e=>{const r=dialog.getBoundingClientRect();if(e.target===dialog&&(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom))dismiss();};
-  dialog.showModal();
+  showEditor(dialog,!!instance);
 }
 async function editSnapshot(record){
   const dialog=$('editor'),content=$('editor-content');if(dialog.open)return;
@@ -111,7 +157,7 @@ async function editSnapshot(record){
   const cancel=button('CANCEL',dismiss);content.append(done,cancel);
   dialog.oncancel=e=>{if(committing)e.preventDefault();};
   dialog.onclick=e=>{const r=dialog.getBoundingClientRect();if(e.target===dialog&&(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom))dismiss();};
-  dialog.showModal();
+  showEditor(dialog);
 }
 function editSwitchSnapshots(sw){
   const dialog=$('editor'),content=$('editor-content');if(dialog.open)return;
@@ -138,7 +184,7 @@ function editSwitchSnapshots(sw){
     finally{committing=false;done.disabled=cancel.disabled=false;}
   });
   const cancel=button('CANCEL',dismiss);content.append(done,cancel);
-  dialog.oncancel=e=>{if(committing)e.preventDefault();};dialog.onclick=e=>{const r=dialog.getBoundingClientRect();if(e.target===dialog&&(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom))dismiss();};dialog.showModal();
+  dialog.oncancel=e=>{if(committing)e.preventDefault();};dialog.onclick=e=>{const r=dialog.getBoundingClientRect();if(e.target===dialog&&(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom))dismiss();};showEditor(dialog);
 }
 let renderedAB='',abDesired=null,abSendTimer=null;
 function queueAB(position){
@@ -168,7 +214,7 @@ function editAB(){
   const error=node('p','');error.setAttribute('role','alert');content.append(error);
   const done=button('DONE',async()=>{if(committing)return;committing=true;done.disabled=cancel.disabled=true;
     try{const state=await request('/api/v1/command',{protocolVersion:1,expectedRevision:capturedRevision,expectedEngineSessionId:capturedSession,action:'snapshot_ab_configure',a:Number(a.value),b:Number(b.value),ease:Number(ease.value),position:latest.snapshotAB?.position||0});dialog.close();renderedAB='';render(state);}catch(e){error.textContent=e.message;}finally{committing=false;done.disabled=cancel.disabled=false;}
-  });const cancel=button('CANCEL',dismiss);content.append(done,cancel);dialog.oncancel=e=>{if(committing)e.preventDefault();};dialog.onclick=e=>{const r=dialog.getBoundingClientRect();if(e.target===dialog&&(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom))dismiss();};dialog.showModal();
+  });const cancel=button('CANCEL',dismiss);content.append(done,cancel);dialog.oncancel=e=>{if(committing)e.preventDefault();};dialog.onclick=e=>{const r=dialog.getBoundingClientRect();if(e.target===dialog&&(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom))dismiss();};showEditor(dialog);
 }
 function renderAB(s){
   const macro=s.snapshotAB||{},key=JSON.stringify([s.engineSessionId,(s.snapshots||[]).map(r=>[r.id,r.name]),macro.a,macro.b,macro.ease]);
@@ -187,10 +233,10 @@ function render(s){
   if(engineSession===s.engineSessionId&&s.revision<revision)return;
   engineSession=s.engineSessionId;revision=s.revision;latest=s;
   $('connection').textContent='CONNECTED · Engine running';
-  $('stop-native').hidden=!s.chainMode;
+  $('stop-native').hidden=!s.chainMode;paintPhraseStates(s);
   $('transport-state').textContent=s.chainMode?`NATIVE · ${s.chainRecording?'RECORDING':s.chainArmed?'RECORD ARMED':s.chainRunning?'PLAYING':'STOPPED'} · ${s.activeNotes} ACTIVE NOTES`:`ENGINE RUNNING · ${s.activeNotes} ACTIVE NOTES`;
   $('metrics').replaceChildren(...[`Build ${s.buildRevision||'unknown'}`,`Backend ${s.backend} · ${s.sampleRate} Hz / ${s.blockSize}`,`Sample clock ${s.sampleClock}`,`MIDI messages ${s.midiCount}`,`Active notes ${s.activeNotes}`,`Maximum callback ${s.maxCallbackUs.toFixed(1)} µs`,`JACK XRUN notifications ${s.lateBlocks}`,`Output overflow ${s.outputOverflow}`].map(v=>node('span',v)));
-  if(s.chainMode)$('metrics').append(node('span',`Zynthian · two bars · ${s.chainBpm} BPM · ${s.chainError?'CLOCK / CAPACITY ERROR — stopped':s.chainRecording?'RECORDING':s.chainArmed?'WAITING FOR NEXT LOOP':s.chainRunning?'PLAYING':'STOPPED'}`));
+  if(s.chainMode)$('metrics').append(node('span',`Zynthian · ${s.chainCaptureMode==='free-time'?'FREE TIME':'TWO BARS'} · ${s.chainBpm} BPM · ${s.chainError?'CLOCK / CAPACITY ERROR — stopped':s.chainRecording?'RECORDING':s.chainArmed?(s.chainCaptureMode==='free-time'?'WAITING FOR FIRST NOTE':'WAITING FOR NEXT LOOP'):s.chainRunning?'PLAYING':'STOPPED'}`));
   $('last-midi').textContent=`Last MIDI · sample ${s.lastEvent[0]} · status ${s.lastEvent[1]} · number ${s.lastEvent[2]} · value ${s.lastEvent[3]}`;
   for(const sw of s.switches){const el=document.querySelector(`[data-switch-id="${sw.id}"] .step`);if(el)el.textContent=`STEP ${sw.step} / ${sw.length}`;}
   $('capture-snapshot').onclick=()=>command({action:'snapshot_capture'});
@@ -218,7 +264,7 @@ function render(s){
   renderAB(s);
   renderControllers(s);
   if(document.activeElement?.classList.contains('name-input')||document.activeElement?.type==='range'||document.querySelector('[data-live-release=held]'))return;
-  const model=JSON.stringify([s.controllerLearn,s.phrases,s.instruments,s.switches.map(v=>({...v,step:0})),s.snapshotActions]);if(model===renderedModel)return;renderedModel=model;
+  const model=JSON.stringify([s.controllerEngine,s.controllerLearn,s.phrases.map(p=>({...p,state:undefined,events:0})),s.instruments,s.switches.map(v=>({...v,step:0})),s.snapshotActions]);if(model===renderedModel)return;renderedModel=model;
   compactPhrases(s);
   $('instruments').replaceChildren(...s.instruments.map(compactInstrument));
   const openSwitchTests=new Set([...document.querySelectorAll('.switch-test[open]')].map(e=>e.closest('[data-switch-id]').dataset.switchId));
@@ -247,20 +293,22 @@ window.addEventListener('blur',()=>window.mbmfHeldRelease?.());
 document.addEventListener('visibilitychange',()=>{if(document.hidden)window.mbmfHeldRelease?.();});
 // Browser timers only refresh telemetry; they never schedule MIDI.
 
+let decodedControllerWire=null,decodedController=null;
 function controllerConfiguration(s=latest){
-  const wire=s?.controllerEngine?.configuration;if(!wire)return {sources:[],mappings:[]};
+  const wire=s?.controllerEngine?.configuration;if(!wire)return {sources:[],mappings:[],presets:[]};if(wire===decodedControllerWire)return decodedController;
   const sources=[],mappings=[];
-  for(let i=0;i<16;i++){const [id,kind,channel,number]=wire.slice(1+4*i,5+4*i);if(id)sources.push({id,kind,channel:channel+1,number});}
+  for(let i=0;i<16;i++){const [id,kind,channel,number]=wire.slice(1+4*i,5+4*i);if(id)sources.push({id,kind,channel:channel+1,number,name:s.controllerEngine.version===2?String.fromCharCode(...wire.slice(2177+i*16,2193+i*16).filter(Boolean)):null});}
   const fields=['id','sourceId','targetId','instrumentId','moduleId','kind','base','priority','takeover','returnMode','easing','threshold','glideSeconds','slewPerSecond','idleSeconds','returnSeconds','enabled','pointCount'];
   for(let i=0;i<32;i++){const record=wire.slice(65+66*i,131+66*i);if(!record[0])continue;const m=Object.fromEntries(fields.map((key,j)=>[key,record[j]]));m.points=Array.from({length:m.pointCount},(_,j)=>record.slice(18+3*j,21+3*j));m.slot=i;mappings.push(m);}
-  return {sources,mappings};
+  const presets=s.controllerEngine.version===2?Array.from({length:4},(_,i)=>{const r=wire.slice(2433+i*49,2482+i*49);return Array.from({length:r[0]},(_,j)=>r.slice(1+j*3,4+j*3));}):[];
+  decodedControllerWire=wire;return decodedController={sources,mappings,presets};
 }
 function freshId(used){let id;do{id=crypto.getRandomValues(new Uint32Array(1))[0]&0xffffff;}while(!id||used.includes(id));return id;}
 function renderControllers(s){
   const {sources,mappings}=controllerConfiguration(s),learn=s.controllerLearn||{};
   $('controllers').replaceChildren(...sources.map(source=>{
     const card=node('article',undefined,'module');card.dataset.sourceId=source.id;
-    card.append(node('h3',`SOURCE ${source.id}`),node('p',source.kind?`${source.kind===1?'NOTE':'CC'} ${source.number} · CH ${source.channel}`:'UNASSIGNED'));
+    card.append(editableName('Controller',source.id,source.name,`SOURCE ${source.id}`),node('p',source.kind?`${source.kind===1?'NOTE':'CC'} ${source.number} · CH ${source.channel}`:'UNASSIGNED'));
     card.append(button('MIDI LEARN',()=>command({action:'controller_learn',sourceId:source.id})),button('FORGET',()=>command({action:'controller_forget',sourceId:source.id})));
     if(learn.domain!=='phrase'&&learn.target===source.id){card.append(node('p',learn.conflict<0?'Already assigned to a legacy phrase/switch/controller. CANCEL and choose another input.':learn.conflict>0?`Already assigned to SOURCE ${learn.conflict}. Reassign deliberately?`:'Waiting for MIDI note or CC…'),button('CANCEL LEARN',()=>command({action:'controller_cancel',sourceId:source.id})));if(learn.conflict>0)card.append(button('REASSIGN',()=>command({action:'controller_confirm',sourceId:source.id})));}
     return card;
@@ -279,26 +327,48 @@ function curveEditor(points){
   let dragged=-1;canvas.setAttribute('aria-label','Drag curve points; numeric controls below provide keyboard editing');canvas.style.touchAction='none';
   canvas.onpointerdown=e=>{const r=canvas.getBoundingClientRect(),x=(e.clientX-r.left)/r.width,y=1-(e.clientY-r.top)/r.height;dragged=points.reduce((best,p,i)=>Math.hypot(p[0]-x,p[1]-y)<Math.hypot(points[best][0]-x,points[best][1]-y)?i:best,0);canvas.setPointerCapture(e.pointerId);};
   canvas.onpointermove=e=>{if(dragged<0)return;const r=canvas.getBoundingClientRect(),p=points[dragged];p[1]=Math.max(0,Math.min(1,1-(e.clientY-r.top)/r.height));if(dragged>0&&dragged<points.length-1)p[0]=Math.max(points[dragged-1][0]+.001,Math.min(points[dragged+1][0]-.001,(e.clientX-r.left)/r.width));rows();};canvas.onpointerup=canvas.onpointercancel=()=>dragged=-1;
-  root.append(button('ADD POINT',()=>{if(points.length>=16)return;let at=1;for(let i=2;i<points.length;i++)if(points[i][0]-points[i-1][0]>points[at][0]-points[at-1][0])at=i;points.splice(at,0,[(points[at-1][0]+points[at][0])/2,(points[at-1][1]+points[at][1])/2,0]);rows();}));rows();return root;
+  root.append(button('ADD POINT',()=>{if(points.length>=16)return;let at=1;for(let i=2;i<points.length;i++)if(points[i][0]-points[i-1][0]>points[at][0]-points[at-1][0])at=i;points.splice(at,0,[(points[at-1][0]+points[at][0])/2,(points[at-1][1]+points[at][1])/2,0]);rows();}));rows();
+  const presets=node('div',undefined,'curve-presets');root.append(presets);
+  const choose=shape=>{points.splice(0,points.length,...structuredClone(shape));rows();};
+  for(const preset of catalog?.curvePresets||[]){const b=button(preset.name,()=>choose(preset.points));b.prepend(previewCurve(preset.points));presets.append(b);}
+  for(let slot=0;slot<4;slot++){
+    const shape=controllerConfiguration().presets[slot];const load=button(`CUSTOM ${slot+1}`,()=>choose(controllerConfiguration().presets[slot]));load.disabled=!shape?.length;presets.append(load);
+    presets.append(button(`STORE CUSTOM ${slot+1}`,async()=>{if(await command({action:'curve_preset_store',slot,points:structuredClone(points)})){load.disabled=false;}}));
+  }
+  canvas.oncontextmenu=e=>e.preventDefault();
+  let segment=-1,origin=null;canvas.onpointerdown=e=>{
+    const r=canvas.getBoundingClientRect(),x=(e.clientX-r.left)/r.width,y=1-(e.clientY-r.top)/r.height;
+    let closest=0;for(let i=1;i<points.length;i++)if(Math.hypot((points[i][0]-x)*r.width,(points[i][1]-y)*r.height)<Math.hypot((points[closest][0]-x)*r.width,(points[closest][1]-y)*r.height))closest=i;
+    const distance=Math.hypot((points[closest][0]-x)*r.width,(points[closest][1]-y)*r.height);
+    if(e.button===2){e.preventDefault();if(distance<14&&closest>0&&closest<points.length-1){points.splice(closest,1);rows();}return;}
+    if(e.altKey||e.shiftKey){segment=Math.max(0,points.findIndex(p=>p[0]>x)-1);origin={y:e.clientY,bend:points[segment][2],a:points[segment][1],b:points[segment+1][1],shift:e.shiftKey};dragged=-1;}
+    else{segment=-1;if(distance>14&&points.length<16&&x>.001&&x<.999){closest=points.findIndex(p=>p[0]>x);points.splice(closest,0,[x,Math.max(0,Math.min(1,y)),0]);}dragged=closest;}
+    canvas.setPointerCapture(e.pointerId);rows();
+  };
+  canvas.onpointermove=e=>{const r=canvas.getBoundingClientRect();if(segment>=0&&origin){const delta=(origin.y-e.clientY)/r.height;if(origin.shift){const offset=Math.max(-Math.min(origin.a,origin.b),Math.min(1-Math.max(origin.a,origin.b),delta));points[segment][1]=origin.a+offset;points[segment+1][1]=origin.b+offset;}else points[segment][2]=Math.max(-.98,Math.min(.98,origin.bend+delta*1.96));rows();}else if(dragged>=0){const p=points[dragged];p[1]=Math.max(0,Math.min(1,1-(e.clientY-r.top)/r.height));if(dragged>0&&dragged<points.length-1)p[0]=Math.max(points[dragged-1][0]+.001,Math.min(points[dragged+1][0]-.001,(e.clientX-r.left)/r.width));rows();}};
+  canvas.onpointerup=canvas.onpointercancel=()=>{dragged=-1;segment=-1;origin=null;};
+  root.append(contextualHelp('Click to add · drag points · right-click a point to remove · ALT drag bends a segment · SHIFT drag moves a segment. Numeric point controls support keyboard editing.'));
+
+  return root;
 }
 function editMapping(existing){
   if(!catalog||!latest||$('editor').open)return;
   const {sources,mappings}=controllerConfiguration();if(!sources.length){$('error').textContent='Add a controller source first.';return;}
   const draft=structuredClone(existing||{id:freshId(mappings.map(m=>m.id)),sourceId:sources[0].id,enabled:1,points:[[0,0,0],[1,1,0]]});
-  const capturedRevision=revision,capturedSession=engineSession,dialog=$('editor'),content=$('editor-content');let committing=false;
-  const dismiss=()=>{if(!committing)dialog.close();};content.replaceChildren(node('h2','CONTROLLER MAPPING'),button('×',dismiss));
-  const source=node('select');source.setAttribute('aria-label','Controller source');for(const s of sources){const o=node('option',`SOURCE ${s.id}`);o.value=s.id;source.append(o);}source.value=draft.sourceId;content.append(source);
+  const capturedRevision=revision,capturedSession=engineSession,mappingFingerprint=JSON.stringify(mappings),dialog=$('editor'),content=$('editor-content');let committing=false;
+  const dismiss=()=>{if(!committing)dialog.close();};content.replaceChildren(node('h2',`${parameter(draft.kind)?.label||'MODULATION'} / ${sources.find(s=>s.id===draft.sourceId)?.name||'CONTROLLER'}`),button('×',dismiss));
+  const source=node('select');source.setAttribute('aria-label','Controller source');for(const s of sources){const o=node('option',s.name||`SOURCE ${s.id}`);o.value=s.id;source.append(o);}source.value=draft.sourceId;content.append(source);
   const target=node('select');target.setAttribute('aria-label','Controller target');
   const targets=[{instrumentId:1,moduleId:0,kind:16,label:'GLOBAL SNAPSHOT A/B'}];for(const p of latest.phrases)for(const kind of [14,15,17,18,19,20])targets.push({instrumentId:p.id,moduleId:0,kind,label:`PHRASE ${p.id} / ${parameter(kind).label}`});for(const i of latest.instruments){for(const kind of [1,21,22,23])targets.push({instrumentId:i.id,moduleId:0,kind,label:`I${i.id} / ${parameter(kind).label}`});for(const tf of i.transformers){targets.push({instrumentId:i.id,moduleId:tf.id,kind:24,label:`I${i.id} / ${tf.id} ON/OFF`});for(const p of tf.parameters)if(!p.assignment && parameter(p.kind)?.assignmentEligible)targets.push({instrumentId:i.id,moduleId:tf.id,kind:p.kind,label:`I${i.id} / ${tf.id} / ${parameter(p.kind).label}`});}}
   targets.forEach((t,j)=>{const o=node('option',t.label);o.value=j;target.append(o);});let selection=targets.findIndex(t=>t.instrumentId===draft.instrumentId&&t.moduleId===draft.moduleId&&t.kind===draft.kind);target.value=selection<0?targets.findIndex(t=>t.kind===1):selection;content.append(target);
   const advanced=node('details');advanced.append(node('summary','ADVANCED OPTIONS'));
   const descriptor=descriptorForMapping();for(const id of descriptor.parameters){const p=catalog.parameters.find(p=>p.id===id),label=node('label',shortParameter(p.label),'parameter'),input=node(p.choices?'select':'input');if(p.choices){p.choices.forEach((text,value)=>{const option=node('option',text);option.value=value;input.append(option);});}else{input.type='number';input.min=p.min;input.max=p.max;input.step=p.step;}input.setAttribute('aria-label',p.label);input.value=draft[p.policyField]??p.default;draft[p.policyField]=Number(input.value);input.addEventListener('input',()=>draft[p.policyField]=Number(input.value));label.append(input,node('span',p.unit));(p.choices?content:advanced).append(label);}
-  content.append(advanced,curveEditor(draft.points));
+  content.append(button('MIDI LEARN',()=>command({action:'controller_learn',sourceId:Number(source.value)})),button('CANCEL LEARN',()=>command({action:'controller_cancel',sourceId:Number(source.value)})),advanced,curveEditor(draft.points));
   const error=node('p','');error.setAttribute('role','alert');content.append(error);
   const done=button('DONE',async()=>{if(committing)return;const t=targets[Number(target.value)];if(!t){error.textContent='No eligible target';return;}Object.assign(draft,t);delete draft.label;draft.sourceId=Number(source.value);const same=mappings.find(m=>m.instrumentId===t.instrumentId&&m.moduleId===t.moduleId&&m.kind===t.kind);draft.targetId=same?.targetId||freshId(mappings.map(m=>m.targetId));
     committing=true;done.disabled=cancel.disabled=true;
-    try{render(await request('/api/v1/command',{protocolVersion:1,expectedRevision:capturedRevision,expectedEngineSessionId:capturedSession,action:'mapping_commit',mapping:draft}));dialog.close();}catch(e){error.textContent=e.message;}finally{committing=false;done.disabled=cancel.disabled=false;}});
-  const cancel=button('CANCEL',dismiss);content.append(done,cancel);dialog.oncancel=e=>{e.preventDefault();dismiss();};dialog.onclick=e=>{const r=dialog.getBoundingClientRect();if(e.target===dialog&&(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom))dismiss();};dialog.showModal();
+    try{if(engineSession!==capturedSession||JSON.stringify(controllerConfiguration().mappings)!==mappingFingerprint)throw new Error('Configuration changed. CANCEL and reopen.');render(await request('/api/v1/command',{protocolVersion:1,expectedRevision:revision,expectedEngineSessionId:capturedSession,action:'mapping_commit',mapping:draft}));dialog.close();}catch(e){error.textContent=e.message;}finally{committing=false;done.disabled=cancel.disabled=false;}});
+  const cancel=button('CANCEL',dismiss);content.append(done,cancel);dialog.oncancel=e=>{e.preventDefault();dismiss();};dialog.onclick=e=>{const r=dialog.getBoundingClientRect();if(e.target===dialog&&(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom))dismiss();};showEditor(dialog,true);
 }
 function descriptorForMapping(){return catalog.modules.find(m=>m.typeId==='controller_mapping');}
 $('add-controller').addEventListener('click',()=>{const {sources}=controllerConfiguration();command({action:'controller_source',sourceId:freshId(sources.map(s=>s.id))});});
@@ -328,6 +398,7 @@ function phraseOptions(phraseId){
     try{if(await command({action:'phrase_clear',phraseId}))dialog.close();else error.textContent='Stop playback and finish recording before clearing MIDI.';}
     finally{committing=false;}
   }));
+  if(latest.chainMode&&['ARMED','RECORDING','OVERDUB ARMED','OVERDUB ACTIVE'].includes(latest.phrases.find(p=>p.id===phraseId)?.state))content.append(button('CANCEL REC',async()=>{if(!confirm('Discard this recording/overdub take and restore the previous MIDI content?'))return;if(await command({action:'phrase_cancel',phraseId}))dialog.close();}));
   const preview=node('div');content.append(preview,error,button('CANCEL',dismiss));
   file.onchange=async()=>{
     preview.replaceChildren();error.textContent='';
@@ -346,7 +417,7 @@ function phraseOptions(phraseId){
       });preview.append(replace);
     }catch(e){error.textContent=e.message;}
   };
-  dialog.oncancel=e=>{if(committing)e.preventDefault();};dialog.onclick=e=>{const r=dialog.getBoundingClientRect();if(e.target===dialog&&(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom))dismiss();};dialog.showModal();
+  dialog.oncancel=e=>{if(committing)e.preventDefault();};dialog.onclick=e=>{const r=dialog.getBoundingClientRect();if(e.target===dialog&&(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom))dismiss();};showEditor(dialog);
 }
 let phrasePage=0;
 function liveParameter(targetId,kind,value,moduleId=0){return command({action:'parameter_set',targetId,moduleId,kind,value});}
@@ -367,8 +438,8 @@ function editableName(domain,id,value,fallback){
           $('error').textContent='Names use up to 16 printable ASCII characters, matching REAPER.';return;
         }
         finished=true;input.disabled=true;input.blur();
-        const ok=await command({action:domain==='Phrase'?'phrase_rename':'instrument_rename',
-          [domain==='Phrase'?'phraseId':'instrumentId']:id,name:input.value,
+        const ok=await command({action:domain==='Controller'?'controller_rename':domain==='Phrase'?'phrase_rename':'instrument_rename',
+          [domain==='Controller'?'sourceId':domain==='Phrase'?'phraseId':'instrumentId']:id,name:input.value,
           expectedRevision:capturedRevision,expectedEngineSessionId:capturedSession});
         if(!ok){finished=false;input.disabled=false;input.focus();}
         else document.querySelector(`[data-${domain.toLowerCase()}-id="${id}"] .editable-name`)?.focus();
@@ -376,15 +447,17 @@ function editableName(domain,id,value,fallback){
     };
     input.onblur=()=>{if(!finished)cancel();};
   });
+  control.replaceChildren(node('span',value||fallback,'name-text'));
   control.className='editable-name';control.setAttribute('aria-label',`Edit ${domain} ${id} name`);
   control.title='Click to rename · Enter saves · Escape cancels · 16 characters';return control;
 }
+function paintPhraseStates(s){for(const p of s.phrases||[]){const row=document.querySelector(`[data-phrase-id="${p.id}"]`);if(!row)continue;row.dataset.state=p.state||'IDLE';const state=row.querySelector('.phrase-state');if(state)state.textContent=p.state||'IDLE';const rec=row.querySelector('[aria-label="REC / OVERDUB"]');if(rec){rec.dataset.state=p.state;rec.title=`REC / OVERDUB · ${p.state||'IDLE'}`;rec.setAttribute('aria-pressed',String(['ARMED','RECORDING','OVERDUB ARMED','OVERDUB ACTIVE'].includes(p.state)));}}}
 function compactPhrases(s){
   const pages=Math.ceil(s.phrases.length/6);phrasePage=Math.min(phrasePage,pages-1);
   $('phrase-pagination').replaceChildren(button('←',()=>{phrasePage=Math.max(0,phrasePage-1);renderedModel='';render(latest);}),node('span',`${phrasePage+1} / ${pages}`),button('→',()=>{phrasePage=Math.min(pages-1,phrasePage+1);renderedModel='';render(latest);}));
   if(!$('phrase-columns')){const head=node('div',undefined,'phrase-columns');head.id='phrase-columns';for(const text of ['#','NAME','PLAY','REC','M','S','MODE','VEL','V.DEC','T.DEC','MIDI','END','EDIT'])head.append(node('span',text));$('phrases').before(head);}
   $('phrases').replaceChildren(...s.phrases.slice(phrasePage*6,phrasePage*6+6).map(p=>{
-    const row=node('div',undefined,'phrase');row.dataset.phraseId=p.id;row.classList.toggle('empty',!p.events);row.classList.toggle('muted',!!p.mute);row.classList.toggle('soloed',!!p.solo);row.append(node('span',String(p.id).padStart(2,'0'),'phrase-number'));
+    const row=node('div',undefined,'phrase');row.dataset.phraseId=p.id;row.dataset.state=p.state||'IDLE';row.classList.toggle('empty',!p.events);row.classList.toggle('muted',!!p.mute);row.classList.toggle('soloed',!!p.solo);row.append(node('span',String(p.id).padStart(2,'0'),'phrase-number'));
     const heldMode=!!s.chainMode&&!!s.nativeHeldRelease&&p.mode===2;
     const trigger=button('TRIGGER',()=>{if(!heldMode)command({action:'phrase_play',phraseId:p.id});});
     if(heldMode){
@@ -408,9 +481,9 @@ function compactPhrases(s){
       if(s.controllerLearn.conflict>0)row.append(button('REASSIGN',()=>command({action:'phrase_learn_confirm',phraseId:p.id})));}
     row.append(button(p.solo?'SOLO ON':'SOLO',()=>liveParameter(p.id,19,p.solo?0:1)),button(p.mute?'MUTE ON':'MUTE',()=>liveParameter(p.id,18,p.mute?0:1)));
     const mode=node('select');mode.setAttribute('aria-label',`Play mode Phrase ${p.id}`);
-    for(const [value,label] of [[1,'ONCE'],[0,'LOOP'],[2,'HOLD']]){const option=node('option',label);option.value=value;option.disabled=!!s.chainMode&&!s.nativeHeldRelease&&value===2;if(option.disabled)option.textContent='HOLD (UNAVAILABLE)';if(option.disabled)option.title='Native held-trigger release is not supported yet';mode.append(option);}mode.value=p.mode;mode.title=s.chainMode?'LOOP: shared two-bar timeline · ONCE: immediate one-shot · STOP to apply mode edits safely · HOLD: repeat while pressed; release stops owned notes (polyphonic, no ARP)':'REAPER legacy HOLD sustains notes until STOP / next phrase';mode.onchange=async()=>{if(await liveParameter(p.id,20,Number(mode.value))&&latest.chainMode&&latest.chainRunning)$('error').textContent='Mode change queued. STOP this processor to apply safely.';};row.append(mode);
-    row.append(tactileSlider(`BASE VEL Phrase ${p.id}`,p.baseVelocity,.2,3,.01,value=>liveParameter(p.id,17,value)));
-    if(p.mode===1)row.append(tactileSlider(`VEL DECAY Phrase ${p.id}`,p.velocityDecay,.2,1,.01,value=>liveParameter(p.id,15,value)),tactileSlider(`TIME DECAY Phrase ${p.id}`,p.timeDecay,.5,2,.01,value=>liveParameter(p.id,14,value),1,true));
+    for(const [value,label] of [[1,'ONCE'],[0,'LOOP'],[2,'HOLD']]){const option=node('option',label);option.value=value;option.disabled=!!s.chainMode&&!s.nativeHeldRelease&&value===2;if(option.disabled)option.textContent='HOLD (UNAVAILABLE)';if(option.disabled)option.title='Native held-trigger release is not supported yet';mode.append(option);}mode.value=p.mode;mode.title=s.chainMode?'LOOP: recorded phrase timeline · ONCE: immediate one-shot · STOP to apply mode edits safely · HOLD: repeat while pressed; release stops owned notes (polyphonic, no ARP)':'REAPER legacy HOLD sustains notes until STOP / next phrase';bindModulation(mode,{instrumentId:p.id,moduleId:0,kind:20});mode.onchange=async()=>{if(await liveParameter(p.id,20,Number(mode.value))&&latest.chainMode&&latest.chainRunning)$('error').textContent='Mode change queued. STOP this processor to apply safely.';};row.append(mode);
+    row.append(tactileSlider(`BASE VEL Phrase ${p.id}`,p.baseVelocity,.2,3,.01,value=>liveParameter(p.id,17,value),1,false,{instrumentId:p.id,moduleId:0,kind:17}));
+    if(p.mode===1)row.append(tactileSlider(`VEL DECAY Phrase ${p.id}`,p.velocityDecay,.2,1,.01,value=>liveParameter(p.id,15,value),.8,false,{instrumentId:p.id,moduleId:0,kind:15}),tactileSlider(`TIME DECAY Phrase ${p.id}`,p.timeDecay,.5,2,.01,value=>liveParameter(p.id,14,value),1,true,{instrumentId:p.id,moduleId:0,kind:14}));
     const finish=button('FINISH REC',()=>command({action:'phrase_finish',phraseId:p.id}));finish.title='Finish record / overdub without discarding the take';row.append(finish,node('small',`${p.events} events`),button('PHRASE OPTIONS',()=>phraseOptions(p.id)));
     const buttons=[...row.querySelectorAll('button')],find=label=>buttons.find(b=>b.getAttribute('aria-label')===label),rails=[...row.querySelectorAll('.tactile-slider')];
     for(const rail of rails){rail.dataset.shortLabel=rail.querySelector('.slider-caption').textContent;rail.querySelector('.slider-caption').remove();}
@@ -418,23 +491,24 @@ function compactPhrases(s){
     const cells=[row.querySelector('.phrase-number'),row.querySelector('.editable-name'),trigger,find('REC / OVERDUB'),buttons.find(b=>/^MUTE/.test(b.getAttribute('aria-label'))),buttons.find(b=>/^SOLO/.test(b.getAttribute('aria-label'))),mode,rails[0],rails[1]||empty(),rails[2]||empty(),learn,finish,find('PHRASE OPTIONS')];
     const notices=[...row.children].filter(n=>!cells.includes(n)&&n.tagName==='SMALL'&&!n.textContent.endsWith(' events'));
     row.replaceChildren(...cells);row.querySelector('.phrase-number').title=`Phrase ${p.id} · ${p.events} source events`;row.querySelector('.phrase-number').setAttribute('aria-label',row.querySelector('.phrase-number').title);for(const notice of notices){notice.classList.add('phrase-alert');row.append(notice);}const reassign=find('REASSIGN');if(reassign){reassign.classList.add('phrase-alert');row.append(reassign);}
+    const state=node('small',p.state||'IDLE','phrase-state');row.querySelector('.editable-name').append(state);
     return row;
   }));
 }
 function compactInstrument(i){
   const n=node('article',undefined,'instrument');n.dataset.instrumentId=i.id;
   const main=node('div',undefined,'instrument-main');
-  const enable=button(i.enabled?'ON':'OFF',()=>liveParameter(i.id,21,i.enabled?0:1));enable.setAttribute('aria-pressed',String(!!i.enabled));main.append(enable,editableName('Instrument',i.id,i.name,`INSTRUMENT ${i.id}`));
+  const enable=button(i.enabled?'ON':'OFF',()=>liveParameter(i.id,21,i.enabled?0:1));enable.setAttribute('aria-pressed',String(!!i.enabled));bindModulation(enable,{instrumentId:i.id,moduleId:0,kind:21});main.append(enable,editableName('Instrument',i.id,i.name,`INSTRUMENT ${i.id}`));
   for(const [label,kind,current,zero] of [['MIDI IN',22,i.input,'ALL'],['MIDI OUT',23,i.output,'ORIGINAL']]){
     const wrap=node('label',label==='MIDI IN'?'IN':'OUT','inline-control'),select=node('select');select.setAttribute('aria-label',`${label} Instrument ${i.id}`);
-    for(let channel=0;channel<=16;channel++){const option=node('option',channel?String(channel):zero);option.value=channel;select.append(option);}select.value=current;select.onchange=()=>liveParameter(i.id,kind,Number(select.value));wrap.append(select);main.append(wrap);
+    for(let channel=0;channel<=16;channel++){const option=node('option',channel?String(channel):zero);option.value=channel;select.append(option);}select.value=current;select.onchange=()=>liveParameter(i.id,kind,Number(select.value));wrap.append(select);main.append(wrap);bindModulation(select,{instrumentId:i.id,moduleId:0,kind});
   }
-  main.append(tactileSlider(`VOLUME Instrument ${i.id}`,i.level,0,127,1,value=>liveParameter(i.id,1,value),parameter(1)?.default??127),button('×',()=>{if(confirm(`Delete Instrument ${i.id} and its complete Transformer chain?`))command({action:'instrument_delete',instrumentId:i.id});}));n.append(main);
+  main.append(tactileSlider(`VOLUME Instrument ${i.id}`,i.level,0,127,1,value=>liveParameter(i.id,1,value),parameter(1)?.default??127,false,{instrumentId:i.id,moduleId:0,kind:1}),button('×',()=>{if(confirm(`Delete Instrument ${i.id} and its complete Transformer chain?`))command({action:'instrument_delete',instrumentId:i.id});}));n.append(main);
   const chain=node('div',undefined,'transformers');
   for(const tf of i.transformers||[]){
-    const card=node('article',undefined,'module');card.dataset.moduleId=tf.id;card.classList.toggle('bypassed',!tf.enabled);
+    const card=node('article',undefined,'module');card.dataset.moduleId=tf.id;card.classList.toggle('bypassed',!tf.enabled);card.classList.toggle('selected',selectedModule?.instrumentId===i.id&&selectedModule.moduleId===tf.id);
     card.append(node('strong',`${descriptor(tf.type)?.label||'MODULE'}`),node('small',tf.enabled?'ON':'BYPASS'),button('EDIT',()=>editModule(i,tf)));
-    for(const p of tf.parameters||[]){const d=parameter(p.kind);if(!d)continue;const meter=node('meter');meter.min=d.min;meter.max=d.max;meter.value=p.value;meter.title=`${d.label}: ${p.value}${p.assignment?' · EXPRESSION '+p.assignment:''}`;meter.setAttribute('aria-label',meter.title);const feedback=node('div',undefined,'module-feedback');feedback.append(node('small',shortParameter(d.label)),meter,node('output',`${Number(p.value).toFixed(d.step>=1?0:2)} ${d.unit||''}`));card.append(feedback);}
+    for(const p of tf.parameters||[]){const d=parameter(p.kind);if(!d)continue;if(p!==tf.parameters[0])continue;const meter=node('meter');meter.min=d.min;meter.max=d.max;meter.value=p.value;meter.title=`${d.label}: ${p.value}${p.assignment?' · EXPRESSION '+p.assignment:''}`;meter.setAttribute('aria-label',meter.title);const feedback=node('div',undefined,'module-feedback');feedback.append(node('small',shortParameter(d.label)),meter,node('output',musicalValue(d,p.value)));card.append(feedback);}
     for(const [label,operation] of [['BYPASS','bypass'],['↑','up'],['↓','down'],['DELETE','delete']]){
       if(operation==='up'||operation==='down'){
         const index=i.transformers.indexOf(tf),other=i.transformers[index+(operation==='up'?-1:1)];

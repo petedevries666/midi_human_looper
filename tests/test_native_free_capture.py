@@ -22,6 +22,38 @@ class FreeCapture(SnapshotTests):
     def export(self,phrase):
         return urllib.request.urlopen(self.base+f'/api/v1/phrase/{phrase}/midi',timeout=5).read()
 
+    def test_hardware_stop_state_and_record_finalization(self):
+        self.command('panic')
+        self.command('phrase_clear',phraseId=8)
+        self.command('phrase_record',phraseId=8)
+        self.command('midi',channel=2,note=64,value=98)
+        time.sleep(.1)
+        self.assertEqual(self.call()['phrases'][7]['state'],'RECORDING')
+        self.command('chain_stop')
+        self.wait_for(lambda:self.call()['activeNotes']==0,'STOP releases monitor')
+        source=read_smf(self.export(8))
+        self.assertEqual([e[1:4] for e in source['events']],[[145,64,98],[129,64,0]])
+        self.assertGreater(source['events'][1][0],.05)
+        self.assertEqual(source['events'][0][0],0)
+        self.command('parameter_set',targetId=8,kind=20,value=0)
+        for stop in ('chain_stop','panic'):
+            self.command('phrase_play',phraseId=8)
+            self.wait_for(lambda:self.call()['phrases'][7]['state']=='PLAYING','LOOP playing')
+            self.command(stop)
+            time.sleep(.3)
+            state=self.call()
+            self.assertFalse(state['chainRunning'])
+            self.assertNotEqual(state['phrases'][7]['state'],'PLAYING')
+            self.assertEqual(state['activeNotes'],0)
+            self.command('phrase_clear',phraseId=8)
+            self.assertEqual(self.call()['phrases'][7]['events'],0)
+            # Keep a source for the second iteration.
+            self.command('phrase_record',phraseId=8)
+            self.command('midi',channel=2,note=64,value=98)
+            time.sleep(.06)
+            self.command('phrase_finish',phraseId=8)
+            self.command('panic')
+
     def test_free_capture(self):
         self.assertEqual(self.call()['chainCaptureMode'],'free-time')
         for mode in (0,1,2):
@@ -107,5 +139,5 @@ class FreeCapture(SnapshotTests):
         self.assertEqual(self.call()['activeNotes'],0)
 
 if __name__=='__main__':
-    result=unittest.TextTestRunner(verbosity=2).run(unittest.TestSuite([FreeCapture('test_free_capture'),FreeCapture('test_overdub_cancel_and_independent_loop')]))
+    result=unittest.TextTestRunner(verbosity=2).run(unittest.TestSuite([FreeCapture('test_hardware_stop_state_and_record_finalization'),FreeCapture('test_free_capture'),FreeCapture('test_overdub_cancel_and_independent_loop')]))
     raise SystemExit(not result.wasSuccessful())

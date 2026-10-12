@@ -2018,6 +2018,8 @@ int main(int argc, char **argv) {
             reply.status = 3;
           else {
             if (request.arg == 0) {
+              // Finalize the capture before PANIC clears its authoritative flags.
+              chain.cancel();
               *snapHostRead = *snapHostWrite;
               performanceMorphSeconds = 0;
               cancelAB();

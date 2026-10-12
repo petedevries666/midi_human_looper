@@ -113,7 +113,9 @@ struct ChainMode {
     if(gridCapture)return;
     recording=*musicalState==2 || *freeActive>.5 || *overdub>.5;
     armed=*musicalState==1 || *freeReady>.5 || *overdubArmed>.5;
-    run=*musicalState==3;
+    run=false;
+    for(unsigned i=0;i<16;++i)
+      run=run || (*musicalState==3 && *phraseModes[i]<.5 && *phraseTriggers[i]>.5);
     for(unsigned i=0;i<24;++i)run=run || *voiceActive[i]>.5;
     length=uint64_t(std::max(0.,*loopLength));
   }
@@ -150,7 +152,8 @@ struct ChainMode {
     if(!gridCapture) {
       observe();
       if((recording || armed) && selected!=phrase && action!=0 && action!=4)return false;
-      if(action!=4){phrase=selected;*target=selected;}
+      // STOP finishes the current recording target, not the HTTP placeholder 0.
+      if(action!=4 && action!=0){phrase=selected;*target=selected;}
       if(action==5){if(!freeCaptureSession)return false;NSEEL_code_execute(rollbackCapture);freeCaptureSession=false;observe();return true;}
       if(action==0)cancel();
       if(action==2){error=false;if(recording || armed)finishFree();else{freeCaptureSession=true;NSEEL_code_execute(freeArm);}}

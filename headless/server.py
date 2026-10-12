@@ -378,6 +378,10 @@ class Handler(BaseHTTPRequestHandler):
                 args=dict(op=39,target=slot,binding=binding)
             elif action=='mapping_commit':
                 binding=binding_wire(data.get('mapping'));args=dict(op=16,target=binding[0],binding=binding,arg=int(data.get('replaceLegacy') is True))
+            elif action=='controller_test':
+                target,value=data.get('sourceId'),data.get('value')
+                if type(target) is not int or not 1<=target<=16777215 or type(value) is not int or not 0<=value<=127:raise ValueError()
+                args=dict(op=43,target=target,value=value)
             elif action=='midi_cc':
                 channel,number,value=data.get('channel'),data.get('number'),data.get('value')
                 if any(type(v) is not int for v in (channel,number,value)) or not 1<=channel<=16 or not 0<=number<=127 or not 0<=value<=127:raise ValueError()

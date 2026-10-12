@@ -78,7 +78,7 @@ struct Request {
   performance::Configuration snapshotConfig;
 };
 struct Switch {
-  int id = 0, on = 0, type = 0, kind = 0, ch = 0, num = 0, length = 0, step = 0;
+  int id = 0, on = 0, type = 0, kind = 0, ch = 0, num = 0, length = 0, step = 0, actionCount = 0, lastAction = 0, result = 0;
   char name[17]{};
   std::array<int,18> settings{};std::array<int,64> sequence{};
 };
@@ -182,7 +182,7 @@ struct Model {
   std::array<CurvePointers,8> levelCurves;
   mutable double abPosition = 0;
   mutable std::atomic<bool> abRestorePending{false};
-  std::array<std::array<double *, 26>, 16> sw;
+  std::array<std::array<double *, 28>, 16> sw;
   std::array<std::array<double *, 22>, 8> inst;
   std::array<std::array<double *, 10>, 16> phrase;
   std::array<std::array<double *, 16>, 16> phraseNames;
@@ -312,6 +312,7 @@ struct Model {
       for(unsigned j=0;j<128;++j)switchFields[i][j]=cell(fx,b+j);
       sw[i][24] = cell(fx, rt + 7);
       sw[i][25] = cell(fx, rt + 12);
+      sw[i][26] = cell(fx, rt + 11);sw[i][27] = cell(fx, rt + 17);
       for (unsigned j=0;j<16;++j)
         phraseNames[i][j]=cell(fx,unsigned(variable(fx,"PHRASE_NAME_BASE"))+i*16+j);
       phrase[i][8] = cell(fx, unsigned(variable(fx, "PHRASE_NOTE_BASE")) + i);
@@ -495,6 +496,7 @@ struct Model {
       v.num = int(*sw[i][6]);
       v.length = int(*sw[i][7]);
       v.step = int(*sw[i][24]) + 1;
+      v.actionCount=int(*sw[i][25]);v.lastAction=int(*sw[i][26]);v.result=int(*sw[i][27]);
       const unsigned fields[]={0,2,3,4,12,13,6,7,8,9,10,11,14,15,16,17,18,19};
       for(unsigned j=0;j<18;++j)v.settings[j]=int(*switchFields[i][fields[j]]);
       for(unsigned j=0;j<64;++j)v.sequence[j]=int(*switchFields[i][48+j])+1;
@@ -585,6 +587,7 @@ static std::string json(const Reply &r) {
     << ",\"chainCaptureMode\":" << quote(s.chainGridCapture?"two-bar-grid":"free-time")
     << ",\"chainMode\":" << s.chain << ",\"chainRunning\":" << s.chainRun
     << ",\"chainArmed\":" << s.chainArmed
+    << ",\"chainPhraseId\":" << s.chainPhrase+1
     << ",\"chainRecording\":" << s.chainRecord
     << ",\"chainError\":" << s.chainError << ",\"chainFrame\":" << s.chainFrame
     << ",\"chainLength\":" << s.chainLength << ",\"chainBpm\":" << s.chainBpm
@@ -606,7 +609,8 @@ static std::string json(const Reply &r) {
         << ",\"enabled\":" << v.on << ",\"type\":" << v.type
         << ",\"kind\":" << v.kind << ",\"channel\":" << v.ch
         << ",\"number\":" << v.num << ",\"length\":" << v.length
-        << ",\"step\":" << v.step << ",\"settings\":[";
+        << ",\"step\":" << v.step << ",\"actionCount\":" << v.actionCount
+        << ",\"lastAction\":" << v.lastAction << ",\"result\":" << v.result << ",\"settings\":[";
       for(unsigned j=0;j<18;++j){if(j)o<<',';o<<v.settings[j];}
       o<<"],\"sequence\":[";for(int j=0;j<v.length;++j){if(j)o<<',';o<<v.sequence[j];}o<<"]}";
     }
@@ -916,7 +920,7 @@ static void control(int listener, Queue<Request, 64> &commands,
                       request.arg >> request.revision >> request.ch >>
                       request.note >> request.value) &&
                  request.id > 0 && request.id <= 9007199254740991ULL &&
-                 request.op >= 0 && (request.op <= 42) && request.arg >= 0 &&
+                 request.op >= 0 && (request.op <= 43) && request.arg >= 0 &&
                  request.arg <= (request.op == 13   ? 5
                                  : request.op == 40 ? 6
                                  : request.op == 15 || request.op == 34 ? 3
@@ -2113,6 +2117,8 @@ int main(int argc, char **argv) {
                   static_cast<unsigned char>(request.snapshotName[j]);
             ++state.revision;
           }
+        } else if (request.op == 43) {
+          if(!controllers.testSource(request.target,request.value,(state.samples+frames)/double(sampleRate)))reply.status=2;
         } else if (request.op >= 20) {
           bool valid = false;
           if (request.op == 34) {

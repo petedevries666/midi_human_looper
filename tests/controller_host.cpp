@@ -11,6 +11,26 @@ static void check(bool ok, const char *s) {
 }
 int main() {
   {
+    controller::Host manual;controller::Source source;source.id=900;
+    check(manual.source(source),"unassigned named source can be auditioned");
+    controller::Binding binding;binding.policy.id=901;binding.policy.source=900;binding.policy.target=902;binding.instrument=1;binding.kind=1;binding.base=.25;
+    binding.policy.takeover=controller::Takeover::Glide;binding.policy.glideSeconds=.2;
+    check(manual.bind(binding),"manual test shares regular policy mapping");
+    const auto saved=controller::configurationJson(manual.configuration());
+    check(manual.learn(900),"manual source Learn armed");
+    check(manual.testSource(900,127,0),"manual input accepted by source identity");
+    double applied=0;auto exists=[](const controller::Binding&){return true;};auto apply=[&](const controller::Binding&,double v){applied=v;};
+    manual.tick(.1,exists,apply);check(std::abs(applied-.625)<1e-8,"manual input obeys GLIDE midpoint");
+    check(manual.learnTarget()==900 && manual.configuration().sources[0].kind==0,"manual test cannot capture or cancel Learn");
+    check(controller::configurationJson(manual.configuration())==saved,"manual gesture cannot mutate persistent assignment or base");
+    check(!manual.testSource(999,64,.1) && !manual.testSource(900,128,.1),"manual test rejects missing source and out of range");
+    manual.tick(.2,exists,apply);check(applied==1,"manual glide reaches physical maximum");
+    manual.cancel();source.kind=1;source.channel=0;source.number=99;check(manual.source(source),"note source assignment remains supported");
+    binding.policy.takeover=controller::Takeover::Direct;check(manual.bind(binding),"note direct policy");
+    check(manual.testSource(900,1,.3),"manual NOTE has binary physical range");manual.tick(.3,exists,apply);check(applied==1,"NOTE test positive value means full press");
+    check(manual.testSource(900,0,.4),"manual NOTE release");manual.tick(.4,exists,apply);check(applied==0,"NOTE test zero means release");
+  }
+  {
     controller::Host commands;
     controller::Source source; source.id=1; source.kind=1; source.channel=3; source.number=60;
     check(commands.source(source), "command Learn source setup");

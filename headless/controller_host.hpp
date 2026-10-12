@@ -147,6 +147,15 @@ public:
   }
   bool preset(unsigned slot,const Curve &curve){if(slot>=4 || !curve.valid())return false;config.presets[slot]=curve;config.presetEnabled[slot]=true;return true;}
   bool rename(uint32_t id,const char* name){for(auto &s:config.sources)if(s.id==id){for(unsigned j=0;j<17;++j)s.name[j]=name[j];return true;}return false;}
+  // Manual audition enters the same policy core as MIDI, by stable source ID.
+  // It never participates in Learn, changes a binding, or emits input MIDI.
+  bool testSource(uint32_t id,unsigned value,double now) {
+    if(value>127)return false;
+    for(const auto &s:config.sources)if(s.id==id){
+      return core.input(id,s.kind==1?(value?1.:0.):value/127.,now,value>0);
+    }
+    return false;
+  }
   bool removeSource(uint32_t id) {
     for(auto &s:config.sources)if(s.id==id){
       for(auto &b:config.bindings)if(b.policy.id && b.policy.source==id)remove(b.policy.id);

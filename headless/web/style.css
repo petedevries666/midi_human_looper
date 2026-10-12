@@ -167,3 +167,7 @@ dialog[data-contextual][open]{position:relative;inset:auto;width:100%;max-width:
 
 .phrase-rails{display:contents}
 @media(max-width:700px){.phrase-rails{display:grid;grid-column:1/-1;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px}.phrase-rails .tactile-slider{height:34px;min-width:0;padding:2px}.phrase-rails .tactile-slider::before{content:attr(data-short-label);grid-column:1/-1;color:#aaa;font-size:7px}.phrase-rails .tactile-slider input{width:100%}.phrase-rails .decay-empty{display:block}}
+/* Controller audition is a real source gesture, distinct from mapping removal. */
+.controller-test-slider{grid-template-columns:minmax(60px,1fr) 30px;margin-top:4px;max-width:220px}
+.controller-test-slider input{width:100%;min-width:0}
+.switch-test-feedback{display:block;font:9px monospace;color:var(--active);overflow-wrap:anywhere}

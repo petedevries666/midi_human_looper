@@ -39,6 +39,13 @@ try:
   assert decode(api.call()['controllerEngine'])==before
   api.patch('save');api.patch('load');assert decode(api.call()['controllerEngine'])==before
   page.reload();page.get_by_text('CONNECTED · Engine running',exact=True).wait_for();page.locator('#controller-section').evaluate('e=>e.open=true')
+  # The formerly ambiguous X is CLEAR MIDI, not a second source deletion.
+  api.command('controller_source',sourceId=101,kind=2,channel=2,number=21)
+  clear=page.locator('[data-source-id="101"]').get_by_role('button',name='FORGET MIDI',exact=True);clear.wait_for();assert clear.inner_text().strip()=='CLEAR MIDI'
+  assert 'keep Controller' in clear.get_attribute('title');clear.click()
+  api.wait_for(lambda:decode(api.call()['controllerEngine'])['sources'][0]['kind']==0,'CLEAR MIDI clears only physical binding')
+  cleared=decode(api.call()['controllerEngine']);assert cleared['sources'][0]['id']==101 and cleared['sources'][0]['name']=='HELIX EXP' and cleared['mappings']==before['mappings']
+  assert page.locator('[data-source-id="101"]').count()==1
   # Cleanup only that source; the module/other Instruments remain intact.
   page.once('dialog',lambda d:d.accept());page.locator('[data-source-id="101"]').get_by_role('button',name='REMOVE',exact=True).click()
   api.wait_for(lambda:not decode(api.call()['controllerEngine'])['sources'],'source removal');assert not decode(api.call()['controllerEngine'])['mappings']

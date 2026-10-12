@@ -21,7 +21,8 @@ updater behavior, token, JACK routing or installed configuration.
   missing target. Preview does not commit the switch editor's uncommitted draft.
 - Controller **REMOVE** removes only that source and its mappings. The formerly
   ambiguous mapping DELETE icon now reads **REMOVE MAPPING**, with confirmation;
-  it removes only the parameter binding. Source cards have no second X control.
+  it removes only the parameter binding. The separate X was the physical MIDI FORGET action; it now visibly reads
+  **CLEAR MIDI**, retaining the source and mappings, and is absent when unassigned.
 - Each Controller has a compact **TEST** slider. CC and unassigned sources use
   0–127; NOTE sources use binary 0/127. Mouse/touch input and keyboard movement
   enter the existing Controller policy core by stable source ID, including curves,

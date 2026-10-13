@@ -40,7 +40,7 @@ end
 
 local function refuse_headless()
   if reaper.ShowMessageBox then
-    reaper.ShowMessageBox("This file contains headless Controller Engine, Global Snapshots or CONDUCTOR configuration. Use EXPORT REAPER BASE in the web editor, then copy the separate patchN-reaper.json file to the REAPER patch slot. The original headless patch has been preserved.", "MIDI Human Looper", 0)
+    reaper.ShowMessageBox("This file contains native-only configuration and has been preserved. CONDUCTOR cannot execute in REAPER yet. EXPORT REAPER BASE is available only for projects without CONDUCTOR and with supported export settings.", "MIDI Human Looper", 0)
   end
   return false
 end

@@ -49,6 +49,7 @@ try:
         # PR A baseline: explicit known failures, not functional Conductor support.
         run(['scripts/conductor-baseline.sh'])
         run([sys.executable,'tests/test_conductor_native_baseline.py'])
+        run([sys.executable,'tests/test_instance_ownership_native.py'])
         run(['tests/run_host_tests.sh'])
         run(['scripts/portable-test.sh'],{'TEST_PYTHON':sys.executable})
         run([sys.executable,'tests/test_patch_io.py'])

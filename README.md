@@ -1,8 +1,10 @@
 <div align="center">
 
-# MIDI BAD MOTHERFUCKER
+# 🐧 MIDI BAD MOTHERFUCKER
 
 ### Human timing. Machine memory. No grid required.
+
+**Born to play. Built on Linux. Powered by JACK.**
 
 **A playable MIDI phrase instrument for REAPER and Linux / Zynthian.**
 
@@ -16,6 +18,10 @@
 </div>
 
 ---
+
+## Linux under the hood. Music under your fingers.
+
+This is a **Linux-first live MIDI experiment** with JACK at its core, a native headless engine, a browser control surface and Zynthian as its intended stage home. REAPER remains the creative studio laboratory. The penguin is not a sticker on the flight case: Linux is where the live instrument is meant to breathe.
 
 ## What is this thing?
 

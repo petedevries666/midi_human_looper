@@ -4,19 +4,21 @@
   "auditedPr45": "d1abbc327b8184e1f400548126ab248eebd7380a",
   "implementationCommit": "949b6b2c4d8c23ac18418f7b20fdd267a5aaa100",
   "luaClarificationCommit": "e5cafe84497b89e44e7cabd1910780240348bab0",
-  "binarySha256": "ebdd2d6044472437c9e6f32163c6ceca711bc39c76cc6c7c2f7f9c991c79118c",
-  "asanBinarySha256": "473b30c620d53852ba099108d1e875778063404e11dcbab975497fc8def95c35",
+  "binarySha256": "7e3eca885df51bbac5cc27814838ff17e903c15134370624e2a683189feace70",
+  "asanBinarySha256": "9f9a6017b3f76aa6d8896a7955b4474eaa5a36293170e1a0acaccdae5dc161be",
   "sourceHashes": {
     "headless/conductor.py": "699ac0952918905a8a5216ea946b68b504a6cc2b6273b9e9afbdc3fc0f0879aa",
     "headless/conductor_document.hpp": "9a0a073181760231b99787a61147a665dabc71cc85676406653ca3f51941d728",
     "headless/conductor_wire.hpp": "a20a75e2ffc94799308307e5afe4c214deafb39d13e08c590f2a2524849b2ead",
-    "headless/engine.cpp": "677e69f7d8e960f0f3853de347e07b81e0e133e5e2852b7032b8ff9aec96933a",
+    "headless/engine.cpp": "c0afa55b5f500b5bd19463d6c63fee035b9f869aaa2b96efe3fb0131d86cade3",
     "headless/server.py": "16c75988b431c8c795cef0b2317c43c501b5d04ff40feb814aa78915925a9143",
     "headless/portable_project.py": "3364c52df5e9e4f36d77bb60aeb5f494c41c8b661ddf3f9c96f7f2f3d0525060",
     "midi_human_looper_patch_io.lua": "81eaf54129b9586329e5db59683016662eed1c823de50f553b10a7dc773f186e",
-    "tests/test_conductor_persistence.py": "432f1cde031dde2762e387394b0cddc1572ae912034c6c2fd7c5dae636d42452",
+    "tests/test_conductor_persistence.py": "844044ce1c4a95927f45a7f33a826d70b4cf9983d7b6d8acdd9605aa91abdf02",
     "tests/test_patch_io.py": "667e1cd87477152b684733b9b82b04b9126e3e4e83024fa6a704e5761ae51bd4",
-    "scripts/combined-test.py": "661a49d2e60442191569923131b858dadd40e2c9529863a8ca6013e97c531fd6"
+    "scripts/combined-test.py": "b49a6f3b3561b6fd2e6bc34728915cdcb5f23d139becd200c8b79b3036bc8ac7",
+    "scripts/headless-build.sh": "df9bc933766a04cca10f63f54bd891be39b19f5e705edb0acaa92612370fa96b",
+    "scripts/conductor-persistence-test.sh": "8bbf29d93c5674ddec44e06713c1798398e791e68e45dcecce4a9a7c4c53c86c"
   },
   "unchangedProductionFiles": [
     "midi_human_looper.jsfx",
@@ -48,7 +50,9 @@
     "nativeAsanUbsan": {
       "exit": 0,
       "tests": 23,
-      "ysfxInstrumented": false
+      "ysfxInstrumented": false,
+      "diagnosticFiles": 0,
+      "strictChildGate": true
     },
     "ownershipAsanUbsan": {
       "exit": 0,
@@ -72,25 +76,40 @@
       "exit": 1,
       "classification": "preexisting same signature; idle positive control passes"
     },
-    "legacyOnceChoke": "explicit XFAIL retained; independent ownership tests PASS"
+    "legacyOnceChoke": "explicit XFAIL retained; independent ownership tests PASS",
+    "shutdownLeak": {
+      "classification": "preexisting in clean B and initial C; corrected in final C",
+      "bytesBefore": 196464,
+      "allocationsBefore": 3,
+      "suppressed": false,
+      "finalDiagnosticFiles": 0
+    }
   },
   "gate": "Conditional GO for minimal PR D; no release/hardware qualification",
   "hardwareValidated": false,
   "merged": false,
   "deployed": false,
   "evidenceHashes": {
-    "docs/evidence/conductor-data-model/README.md": "104c08d37ceffa6f3983df3e8e89ba48017836df1307eb596609b991017a9211",
+    "docs/evidence/conductor-data-model/README.md": "ff4c6a25b1bfe7970e172aef80ffa45c7421a50a266a31c64d9941574dfd1613",
+    "docs/evidence/conductor-data-model/baseline-asan-build.log": "7f76ab43f9e87df4892a1802ea4ff066543f40ca49f03d6085021d4c60bc0bf9",
     "docs/evidence/conductor-data-model/build.log": "d84762a882ae0d1a1b4a345f9102d79f81f154568cb90c3876506433772e3282",
     "docs/evidence/conductor-data-model/capacity.json": "1f22338b300168c4ab82e6fccd6d1ada50c9e68842e318feb0cf33b27247e53a",
-    "docs/evidence/conductor-data-model/combined.log": "eaa397dc267ddd1b5336f1a7db72d9a2631d46f8cf89a74ff899c0019e67e8ca",
+    "docs/evidence/conductor-data-model/combined-before-cleanup.log": "eaa397dc267ddd1b5336f1a7db72d9a2631d46f8cf89a74ff899c0019e67e8ca",
+    "docs/evidence/conductor-data-model/combined.log": "638b6aff4ab296c85f216d5b324d286683ea874afe9c6dc175bc7b994d1b5106",
     "docs/evidence/conductor-data-model/lua.log": "e9dbc1a31936475165af55356b566005547a03914ab93e4739e4aa9949799201",
+    "docs/evidence/conductor-data-model/native-asan-before-cleanup-diagnostics.log": "0fc49c195dc88bf6a13eaa807df201e40563dc38fa65644aeeffd39d472da0dc",
+    "docs/evidence/conductor-data-model/native-asan-before-cleanup-functional.log": "ab09231f8e3cbd213817addee46a0594fcea2011358cabe9155ad3c0291f707e",
     "docs/evidence/conductor-data-model/native-asan-build.log": "90681e3896710d43bd7c4f21b43a76a66f4586c8bb8ee500a00d0c467252e402",
-    "docs/evidence/conductor-data-model/native-asan.log": "0a5936a2cf7de1a4d362da2a0e12fee48f5f48e856906c6a92b5d6e8ffd29f28",
+    "docs/evidence/conductor-data-model/native-asan.log": "c7e99ba66dfc2e6a707a8f6b98dfe5c1a95b1a26b34ec396cbc27364327b85d6",
     "docs/evidence/conductor-data-model/ownership-asan.log": "511c21610759fbe76fe9ba0bdc30875989f47fe6aeddfc5a5974c144f0dc76b5",
-    "docs/evidence/conductor-data-model/targeted.log": "5349031dfabc8539410e2b76e928c2edb0dbac1778e8b583666d41ace17d8d0c",
+    "docs/evidence/conductor-data-model/shutdown-leak-comparison.json": "340cedd7f6cb42e934841b6df26243669be7283f23a81bb3d45f6ae3dd90bc33",
+    "docs/evidence/conductor-data-model/targeted.log": "e888c8d811c49fd0d68b4ea60936791ca788615f19f7ca98c3dbce23b3f38738",
     "docs/evidence/conductor-data-model/ui-editor-import-failure.log": "f58bde1f22e90ef9bceb826779ff8f377732795b0b298d28a4700880ac721d2a",
     "docs/evidence/conductor-data-model/ui-editor.log": "6717ad24719a1418d8999b1bafc9522b9697ecb217203a427eee279db8c00045",
     "docs/evidence/conductor-data-model/ui-pending-import-failure.log": "fb9408c7251b794dae4b4e5fbca1fa91ad4860e43ee643b95e9eeb4869d67532",
-    "docs/evidence/conductor-data-model/ui-pending.log": "83896e0453e7303761b058e89093df9ff6045aa1d3f7f3a995ed7d1545768344"
-  }
+    "docs/evidence/conductor-data-model/ui-pending.log": "9e396e783183c05ebb3df73e9e347774d852666182bb888e3101a14ef35a7717"
+  },
+  "finalImplementationCommit": "4dd37c1a89763d3cb3b49068a08a4182f3544519",
+  "baselineAsanBinarySha256": "1fae90bd9348c78a1f2d129763bcd4da5aa83ef92efd1b4b721bf5727a48c0e5",
+  "buildRevisionNote": "4dd37c1 source exact; .dirty build suffix reflects pending evidence/documentation, not uncommitted implementation"
 }

@@ -1,5 +1,6 @@
++ /workspace/setup-tools/venv/bin/python tests/test_conductor_persistence.py
 .......................
 ----------------------------------------------------------------------
-Ran 23 tests in 14.443s
+Ran 23 tests in 13.969s
 
 OK

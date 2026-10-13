@@ -167,6 +167,23 @@ handoff from the existing 12-voice budget. Propose limits with measurements;
 no assertion here treats Q3 as resolved. MOVEMENT update rate, runtime storage,
 handover duration and curve limits remain open for their later phases.
 
+## Native shutdown correction discovered during validation
+
+An explicit child-process diagnostic check found a pre-existing EEL shutdown
+leak that ordinary Python functional tests had missed: 196,464 bytes / three
+allocations. ASAN builds of clean B `25c78f7` and initial C `949b6b2` reproduce
+identical findings on a simple start/stop. The existing compiled bridges
+`controllerApply`, `legacyConflict` and `cancelLearn` lacked matching frees.
+C frees them only after processing/control threads stop, alongside the other
+existing bridge frees. No MIDI processing/ownership policy is changed.
+
+`scripts/headless-build.sh` now supports optional `SANITIZE=1`; its default build
+is unchanged. `scripts/conductor-persistence-test.sh` uses this existing build
+path and fails if **any** child sanitizer diagnostic file exists, even if all
+Python assertions pass. No suppression or disabled leak detection is used.
+The combined native runner includes this gate. Initial failures, B/C comparison
+and final corrected results remain in the evidence folder.
+
 ## Validation and gate
 
 Run `tests/test_conductor_persistence.py` against the **built C binary**. It

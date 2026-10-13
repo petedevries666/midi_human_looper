@@ -324,6 +324,26 @@ NATIVE_HOLD_QUEUE_BASE=VOICE_FIRST_BASE+MAX_ONCE_VOICES;
 native_hold_enabled=0;native_hold_read=0;native_hold_write=0;native_hold_release_mask=0;
 native_hold_init=0;loop(MAX_ONCE_VOICES*2+32,mem[VOICE_CURSOR_BASE+native_hold_init]=0;native_hold_init+=1;);
 once_route_voice=-1;i_release_mask=0;i_init_q=0;loop(INST_CAP*2048+INST_CAP,mem[I_QUARANTINE_BASE+i_init_q]=0;i_init_q+=1;);
+// Runtime-only owner storage. Reuse existing voice/event bounds, not future
+// CONDUCTOR limits. Pre-touch RAM pages at init before audio/JACK activation.
+INSTANCE_BASE=3100000;INSTANCE_HEADER=48;INSTANCE_OWNERS=MAX_ONCE_VOICES+LAYERS;INSTANCE_ROWS=MAX_EVENTS_PER_LAYER;
+INSTANCE_ROW=4+(INST_CAP+1)*3;
+INSTANCE_QUEUE_BASE=INSTANCE_BASE+INSTANCE_OWNERS*INSTANCE_HEADER;
+INSTANCE_POOL_BASE=INSTANCE_QUEUE_BASE+INSTANCE_OWNERS*2048*3;
+INSTANCE_END=INSTANCE_POOL_BASE+INSTANCE_OWNERS*INSTANCE_ROWS*INSTANCE_ROW;
+INSTANCE_PEDAL_BASE=INSTANCE_END+16;INSTANCE_PEDAL_STRIDE=16*(INST_CAP+1)*2;
+INSTANCE_STORAGE_END=INSTANCE_PEDAL_BASE+INSTANCE_OWNERS*INSTANCE_PEDAL_STRIDE;
+instance_init_page=INSTANCE_BASE;loop(ceil((INSTANCE_STORAGE_END-INSTANCE_BASE)/65536)+1,
+ mem[instance_init_page]=0;instance_init_page+=65536;);
+instance_output_fault=0;instance_output_open=0;instance_serial=0;instance_last_source=-1;instance_repeat=0;instance_rejected=0;instance_error=0;instance_route_record=-1;
+function instance_header(v) (INSTANCE_BASE+v*INSTANCE_HEADER;);
+function instance_row(v,r) (INSTANCE_POOL_BASE+(v*INSTANCE_ROWS+r)*INSTANCE_ROW;);
+function instance_queue(v,key) (INSTANCE_QUEUE_BASE+(v*2048+key)*3;);
+function instance_pedal(v,ch,j) (INSTANCE_PEDAL_BASE+v*INSTANCE_PEDAL_STRIDE+(ch*(INST_CAP+1)+j)*2;);
+function instance_discard_all() local(v,h)
+(v=0;loop(INSTANCE_OWNERS,h=instance_header(v);mem[h+11]=0;mem[h+1]+=1;mem[h+2]=-1;mem[h+3]=-1;mem[h+4]=0;mem[h+5]=0;mem[h+6]=-1;mem[h+7]=0;mem[h+9]=0;mem[h+13]=0;v+=1;);instance_route_record=-1;instance_last_source=-1;instance_repeat=0;);
+instance_discard_all();
+
 I_NEW_PRIMARY_TI=87;I_NEW_EXTRA_TI=157;UI_PARAM_TOTAL=232;
 PATCH_PAYLOAD_SIZE=I_LEGACY_PAYLOAD+I_CFG_SIZE;
 // Read-only address lookup tables. Never use GUI/audio scratch to resolve storage.
@@ -652,7 +672,7 @@ local(j,idx)
 function reset_note_runtime()
 local(pv_i)
 (
-  free_loop_stop_mask=0;native_free_time?(pv_i=0;loop(33024,mem[3008000+pv_i]=0;pv_i+=1;););
+  instance_discard_all();free_loop_stop_mask=0;native_free_time?(pv_i=0;loop(33024,mem[3008000+pv_i]=0;pv_i+=1;););
   free_record_ready=0;free_record_active=0;free_play_error=0;free_reset=0;loop(16,mem[FREE_FINISHED_BASE+free_reset]=0;mem[FREE_LOOP_ANCHOR_BASE+free_reset]=0;free_reset+=1;);native_hold_read=native_hold_write;native_hold_release_mask=0;pv_i=0;loop(MAX_ONCE_VOICES,mem[VOICE_ACTIVE_BASE+pv_i]=0;pv_i+=1;);once_route_voice=-1;last_trigger_layer=-1;trigger_request=-1;hold_stop_request=-1;
  pv_i=0;loop(NOTE_REF_SIZE,mem[NOTE_REF_BASE+pv_i]=0;pv_i+=1;);pv_i=0;loop(16,mem[SUSTAIN_REF_BASE+pv_i]=0;pv_i+=1;);
  pv_i=0;loop(INST_CAP,i_clear_runtime(pv_i);pv_i+=1;);
@@ -1244,6 +1264,36 @@ local(key,count,on,off)
   );
 );
 
+// Reserve one attack record (including filtered destinations) before routing.
+// Per-source-key FIFO makes repeated same-pitch release pairing constant time.
+// Output-buffer rejection is different from voice/ledger capacity refusal.
+// Defer the existing explicit PANIC to the next fresh output buffer.
+function instance_emit(offs,st,note,velocity) local(accepted)
+(accepted=midisend(offs,st,note,velocity);accepted<=0 && instance_output_open?(
+ instance_output_fault=1;instance_error=6;instance_rejected+=1;panic_pending=1;
+);accepted;);
+function instance_begin_attack(v,key)
+local(h,r,b,q,tail,j)
+(
+ h=instance_header(v);r=mem[h+3];
+ r>=0 ? mem[h+3]=mem[instance_row(v,r)] : (r=mem[h+4];r<INSTANCE_ROWS?mem[h+4]+=1:r=-1;);
+ r>=0 ? (
+  b=instance_row(v,r);mem[b]=-1;mem[b+1]=mem[h+2];mem[b+2]=-1;mem[b+3]=key;
+  mem[h+2]>=0?mem[instance_row(v,mem[h+2])+2]=r;mem[h+2]=r;mem[h+5]+=1;
+  j=0;loop(INST_CAP+1,mem[b+4+j*3]=-1;mem[b+5+j*3]=-1;mem[b+6+j*3]=-1;j+=1;);
+  q=instance_queue(v,key);mem[q]!=mem[h+1]?(mem[q]=mem[h+1];mem[q+1]=-1;mem[q+2]=-1;);
+  tail=mem[q+2];tail>=0?mem[instance_row(v,tail)]=r:mem[q+1]=r;mem[q+2]=r;
+ );r;
+);
+function instance_capture_output(gi,key)
+local(b)
+(instance_route_record>=0?(b=instance_row(once_route_voice,instance_route_record)+4+gi*3;mem[b]=key;mem[instance_header(once_route_voice)+13]+=1;mem[b+1]=gi<INST_CAP?mem[I_IDS_BASE+gi]:0;););
+function instance_poly_routes() local(j,ok)
+(ok=1;j=0;loop(INST_CAP,
+ mem[I_EXISTS_BASE+j] && mem[engine_addr(INST_ENABLED_BASE,j)]>.5 &&
+ ((transformer_on(j,3) && mem[engine_addr(INST_NOTE_MODE_BASE,j)]>.5) ||
+ (transformer_on(j,5) && mem[engine_addr(INST_ARP_ENABLED_BASE,j)]>.5))?ok=0;j+=1;);ok;);
+
 function route_emit_note(gi, offs, outst, note, vel, is_on, owned, origin_override)
 local(ch,key,origin,idx)
 (
@@ -1262,7 +1312,9 @@ local(ch,key,origin,idx)
     key=NOTE_REF_BASE+ch*128+note;
     is_on ? (
       mem[key]+=1;mem[I_ONCE_OUT_BASE+idx]+=1;
-      midisend(offs,outst,note|(vel*256));
+      (instance_route_record>=0?instance_emit(offs,outst,note,vel):midisend(offs,outst,note|(vel*256)))>0 ? instance_capture_output(gi,ch*128+note) : instance_route_record>=0 ? (
+        mem[key]=max(0,mem[key]-1);mem[I_ONCE_OUT_BASE+idx]-=1;mem[engine_addr(SW_PHRASE_OUT_BASE,idx)]-=1;
+      );
     ) : (
       mem[key]=max(0,mem[key]-1);mem[I_ONCE_OUT_BASE+idx]=max(0,mem[I_ONCE_OUT_BASE+idx]-1);
       mem[key]<=0 && instrument_output_owners(ch,note,-1)<=0 ? midisend(offs,128|ch,note);
@@ -1368,6 +1420,113 @@ local(gi,j,idx)
   );
 );
 
+function instance_inst_id(v,i) (v<MAX_ONCE_VOICES?mem[VOICE_INST_IDS_BASE+v*INST_CAP+i]:mem[instance_header(v)+32+i];);
+function instance_inst_input(v,i) (v<MAX_ONCE_VOICES?mem[VOICE_INST_IN_BASE+v*INST_CAP+i]:mem[instance_header(v)+40+i];);
+function instance_clear_record(v,r,offs)
+local(h,b,j,k,id,tracked,idx)
+(
+ h=instance_header(v);b=instance_row(v,r);j=0;loop(INST_CAP+1,
+  k=mem[b+4+j*3];id=mem[b+5+j*3];tracked=mem[b+6+j*3];k>=0?mem[h+13]=max(0,mem[h+13]-1);
+  (j==INST_CAP || (mem[I_EXISTS_BASE+j] && mem[I_IDS_BASE+j]==id))?(
+   tracked>=0 && j<INST_CAP?param_track_input(j,floor(tracked/128),tracked%128,0,1);
+   k>=0?(
+    j<INST_CAP?(
+     idx=j*2048+k;mem[engine_addr(SW_PHRASE_OUT_BASE,idx)]=max(0,mem[engine_addr(SW_PHRASE_OUT_BASE,idx)]-1);
+     mem[I_ONCE_OUT_BASE+idx]=max(0,mem[I_ONCE_OUT_BASE+idx]-1);
+    ):mem[I_FALLBACK_BASE+2048+k]=max(0,mem[I_FALLBACK_BASE+2048+k]-1);
+    mem[NOTE_REF_BASE+k]=max(0,mem[NOTE_REF_BASE+k]-1);
+    instrument_output_owners(floor(k/128),k%128,-1)<=0?instance_emit(offs,128|floor(k/128),k%128,0);
+   );
+  );
+  mem[b+4+j*3]=-1;mem[b+5+j*3]=-1;mem[b+6+j*3]=-1;j+=1;
+ );
+ );
+function instance_release_record(v,r,offs)
+local(h,b,prev,next)
+(
+ instance_clear_record(v,r,offs);h=instance_header(v);b=instance_row(v,r);
+ prev=mem[b+2];next=mem[b+1];prev>=0?mem[instance_row(v,prev)+1]=next:mem[h+2]=next;
+ next>=0?mem[instance_row(v,next)+2]=prev;
+ mem[b]=mem[h+3];mem[h+3]=r;mem[h+5]-=1;
+);
+function instance_channel_clear(v,sourcech,offs) local(h,r,next,ch)
+(h=instance_header(v);r=mem[h+2];loop(min(INSTANCE_ROWS,max(0,mem[h+5])),r>=0?(
+ next=mem[instance_row(v,r)+1];floor(mem[instance_row(v,r)+3]/128)==sourcech?instance_clear_record(v,r,offs);r=next;););
+);
+function instance_release_input(v,key,offs) local(h,q,r)
+(h=instance_header(v);q=instance_queue(v,key);
+ mem[q]==mem[h+1] && mem[q+1]>=0?(
+  r=mem[q+1];mem[q+1]=mem[instance_row(v,r)];mem[q+1]<0?mem[q+2]=-1;
+  instance_release_record(v,r,offs);
+ ););
+function instance_remove_destination(gi,id) local(v,h,r,b,next,ch,p,out,j,remaining,mask)
+(v=0;loop(INSTANCE_OWNERS,h=instance_header(v);r=mem[h+2];
+ loop(min(INSTANCE_ROWS,max(0,mem[h+5])),r>=0?(
+  next=mem[instance_row(v,r)+1];b=instance_row(v,r)+4+gi*3;
+  mem[b+1]==id?(mem[b]>=0?mem[h+13]=max(0,mem[h+13]-1);mem[b]=-1;mem[b+1]=-1;mem[b+2]=-1;);
+  r=next;
+ ););
+ ch=0;loop(16,
+  mask=mem[h+16+ch];p=instance_pedal(v,ch,gi);
+  mask>0 && mem[p]==id?(
+   out=mem[p+1];mem[p]=-1;mem[p+1]=-1;remaining=0;j=0;loop(INST_CAP+1,
+    b=instance_pedal(v,ch,j);mem[b]>=0 && mem[b+1]==out?remaining=1;j+=1;);
+   !remaining && out>=0 && (mask&(1<<out))?(
+    mask-=1<<out;mem[h+16+ch]=mask;mask==0?mem[h+9]=max(0,mem[h+9]-1);
+    mem[SUSTAIN_REF_BASE+out]=max(0,mem[SUSTAIN_REF_BASE+out]-1);
+    mem[SUSTAIN_REF_BASE+out]<=0 && mem[SW_LIVE_SUSTAIN_BASE+out]<64?(
+     mem[SW_PHRASE_SUSTAIN_BASE+out]=0;instance_emit(0,176|out,64,0);
+    );
+   );
+  );ch+=1;
+ );v+=1;);
+);
+function instance_release_pedal(v,ch,offs) local(h,mask,k)
+(h=instance_header(v);mask=mem[h+16+ch];mask>0?mem[h+9]=max(0,mem[h+9]-1);mem[h+16+ch]=0;k=0;loop(16,
+ mask&(1<<k)?(
+  mem[SUSTAIN_REF_BASE+k]=max(0,mem[SUSTAIN_REF_BASE+k]-1);
+  mem[SUSTAIN_REF_BASE+k]<=0 && mem[SW_LIVE_SUSTAIN_BASE+k]<64?(
+   mem[SW_PHRASE_SUSTAIN_BASE+k]=0;instance_emit(offs,176|k,64,0);
+  );
+ );k+=1;););
+function instance_stop_voice(v,offs) local(h,r,ch)
+(h=instance_header(v);r=mem[h+2];loop(min(INSTANCE_ROWS,max(0,mem[h+5])),r>=0?(
+ instance_release_record(v,r,offs);r=mem[h+2];););
+ ch=0;loop(16,instance_release_pedal(v,ch,offs);ch+=1;);
+ mem[h+1]+=1;mem[h+11]=0;v<MAX_ONCE_VOICES?mem[VOICE_ACTIVE_BASE+v]=0:mem[TRIG_BASE+v-MAX_ONCE_VOICES]=0;mem[h+2]=-1;mem[h+3]=-1;mem[h+4]=0;mem[h+5]=0;
+);
+function instance_stop_token(id,generation,offs) local(v,h,ok)
+(v=0;ok=0;loop(INSTANCE_OWNERS,h=instance_header(v);
+ mem[h]==id && mem[h+1]==generation && mem[h+6]>=0?(
+  instance_stop_voice(v,offs);ok=1;);v+=1;);ok;);
+function instance_request_stop(id,generation) local(v,h,found,a)
+(
+ found=0;v=0;loop(INSTANCE_OWNERS,h=instance_header(v);
+ mem[h]==id && mem[h+1]==generation && mem[h+6]>=0 && (mem[h+11] || mem[h+5]>0 || mem[h+9]>0)?found=1;v+=1;);
+ found && native_hold_write-native_hold_read<16?(
+  a=NATIVE_HOLD_QUEUE_BASE+(native_hold_write%16)*2;mem[a]=id;mem[a+1]=3;
+  mem[INSTANCE_END+native_hold_write%16]=generation;native_hold_write+=1;1;
+ ):0;
+);
+
+function instance_sustain(v,sourcech,st,value,offs)
+local(h,mask,j,in_ch,out_ch,ch,k,p)
+(
+ h=instance_header(v);mask=mem[h+16+sourcech];
+ value<64?instance_release_pedal(v,sourcech,offs):mask==0?(
+  j=0;loop(INST_CAP+1,p=instance_pedal(v,sourcech,j);mem[p]=-1;mem[p+1]=-1;j+=1;);
+  j=0;loop(INST_CAP,
+   mem[I_EXISTS_BASE+j] && mem[engine_addr(INST_ENABLED_BASE,j)]>.5 && instance_inst_id(v,j)==mem[I_IDS_BASE+j]?(
+    in_ch=mem[engine_addr(INST_IN_BASE,j)];in_ch==0 || in_ch==(st&15)+1?(
+     out_ch=mem[engine_addr(INST_OUT_BASE,j)];ch=out_ch>0?out_ch-1:st&15;mask|=1<<ch;
+     p=instance_pedal(v,sourcech,j);mem[p]=mem[I_IDS_BASE+j];mem[p+1]=ch;
+    );
+   );j+=1;
+  );mask==0?(mask=1<<(st&15);p=instance_pedal(v,sourcech,INST_CAP);mem[p]=0;mem[p+1]=st&15;);mem[h+16+sourcech]=mask;mem[h+9]+=1;
+  k=0;loop(16,mask&(1<<k)?(mem[SUSTAIN_REF_BASE+k]+=1;mem[SW_PHRASE_SUSTAIN_BASE+k]=127;instance_emit(offs,176|k,64,value););k+=1;);
+ );
+);
+
 function send_to_instruments(offs, st, d1, d2, extra_gain)
 local(srcch,typ,ii,in_ch,out_ch,outst,outd2,matched,velmul,nmode,tn,input_ok)
 (
@@ -1449,13 +1608,23 @@ local(srcch,typ,ii,in_ch,out_ch,outst,outd2,matched,velmul,msg_chan,note_key,nmo
 (
   srcch=(st&15)+1;
   typ=st&240;
+  (once_route_voice>=0 && mem[instance_header(once_route_voice)+6]>=0 &&
+   ((typ==128)||(typ==144 && d2==0))) ? instance_release_input(once_route_voice,instance_input_key,offs) : (
+  (once_route_voice>=0 && mem[instance_header(once_route_voice)+6]>=0 && typ==176 && d1==64) ? instance_sustain(once_route_voice,floor(instance_input_key/128),st,d2,offs) : (
+  (once_route_voice>=0 && mem[instance_header(once_route_voice)+6]>=0 && typ==176 && (d1==120 || d1==123)) ? instance_channel_clear(once_route_voice,floor(instance_input_key/128),offs) : (
+  instance_route_record=-1;
+  once_route_voice>=0 && mem[instance_header(once_route_voice)+6]>=0 && typ==144 && d2>0 ? instance_route_record=instance_begin_attack(once_route_voice,instance_input_key);
+  // No unrepresentable attack: fail/retire only this instance if its fixed pool fills.
+  once_route_voice>=0 && mem[instance_header(once_route_voice)+6]>=0 && typ==144 && d2>0 && instance_route_record<0 ? (
+    instance_error=4;instance_rejected+=1;free_play_error=mem[instance_header(once_route_voice)+10]+1;instance_stop_voice(once_route_voice,offs);
+  ) : (
   matched=0;original_match=0;
   once_route_voice>=0?(j=0;loop(INST_CAP,
-    mem[VOICE_INST_IDS_BASE+once_route_voice*INST_CAP+j]>0 && (mem[VOICE_INST_IN_BASE+once_route_voice*INST_CAP+j]==0 || mem[VOICE_INST_IN_BASE+once_route_voice*INST_CAP+j]==srcch)?original_match=1;j+=1;
+    instance_inst_id(once_route_voice,j)>0 && (instance_inst_input(once_route_voice,j)==0 || instance_inst_input(once_route_voice,j)==srcch)?original_match=1;j+=1;
   ););
   ii=0;
   loop(INST_CAP,
-    mem[I_EXISTS_BASE+ii] && mem[engine_addr(INST_ENABLED_BASE,ii)]>0.5 && (once_route_voice<0 || mem[VOICE_INST_IDS_BASE+once_route_voice*INST_CAP+ii]==mem[I_IDS_BASE+ii]) ? (
+    mem[I_EXISTS_BASE+ii] && mem[engine_addr(INST_ENABLED_BASE,ii)]>0.5 && (once_route_voice<0 || instance_inst_id(once_route_voice,ii)==mem[I_IDS_BASE+ii]) ? (
       in_ch=mem[engine_addr(INST_IN_BASE,ii)];
       (in_ch==0 || in_ch==srcch) ? (
         matched=1;
@@ -1468,6 +1637,10 @@ local(srcch,typ,ii,in_ch,out_ch,outst,outd2,matched,velmul,msg_chan,note_key,nmo
 
         (typ==144 && d2>0) ? (
           param_track_input(ii,srcch-1,d1,1,1);
+          instance_route_record>=0 ? (
+            mem[instance_row(once_route_voice,instance_route_record)+5+ii*3]=mem[I_IDS_BASE+ii];
+            mem[instance_row(once_route_voice,instance_route_record)+6+ii*3]=(srcch-1)*128+d1;
+          );
           tn=tf_pitch(ii,d1);
           tn>=0 && tn<=127 ? (
             outd2=tf_velocity(ii,d2,phrase_gain);
@@ -1507,12 +1680,18 @@ local(srcch,typ,ii,in_ch,out_ch,outst,outd2,matched,velmul,msg_chan,note_key,nmo
     (typ==144 && d2>0) ? (
       outd2=max(1,min(127,floor(d2*phrase_gain+0.5)));
       note_key=NOTE_REF_BASE+msg_chan*128+d1; mem[note_key]+=1;
-      midisend(offs,st,d1|(outd2*256));
+      (instance_route_record>=0?instance_emit(offs,st,d1,outd2):midisend(offs,st,d1|(outd2*256)))>0?instance_capture_output(INST_CAP,msg_chan*128+d1):instance_route_record>=0?(
+        mem[note_key]=max(0,mem[note_key]-1);mem[I_FALLBACK_BASE+2048+msg_chan*128+d1]-=1;
+      );
     ) :
     ((typ==128)||(typ==144&&d2==0)) ? (
       note_key=NOTE_REF_BASE+msg_chan*128+d1; mem[note_key]=max(0,mem[note_key]-1);
       mem[note_key]<=0 && instrument_output_owners(msg_chan,d1,-1)<=0 ? midisend(offs,128|msg_chan,d1);
     ) : midisend(offs,st,d1|(d2*256));
+  );
+  );instance_route_record=-1;
+  );
+  );
   );
 );
 
@@ -1913,7 +2092,7 @@ function send_all_notes_off()
 local(ch,note)
 (
 
-  param_input_reset();ch=0;loop(INST_CAP*2048+INST_CAP,mem[I_QUARANTINE_BASE+ch]=0;ch+=1;);
+  instance_discard_all();param_input_reset();ch=0;loop(INST_CAP*2048+INST_CAP,mem[I_QUARANTINE_BASE+ch]=0;ch+=1;);
  ch=0;loop(INST_CAP, note=0;loop(2048,mem[engine_addr(SW_LIVE_OUT_BASE,ch*2048+note)]=0;mem[engine_addr(SW_PHRASE_OUT_BASE,ch*2048+note)]=0;mem[engine_addr(SW_LOOP_INPUT_BASE,ch*2048+note)]=0;mem[I_ONCE_OUT_BASE+ch*2048+note]=0;note+=1;);ch+=1;);
  ch=0;loop(4096,mem[I_FALLBACK_BASE+ch]=0;ch+=1;);ch=0;loop(INST_CAP*16+16,mem[I_SUSTAIN_BASE+ch]=0;ch+=1;);
   ch=SW_PHRASE_OUT_BASE;loop(SW_MEMORY_END-SW_PHRASE_OUT_BASE,mem[ch]=0;ch+=1;);
@@ -1933,6 +2112,8 @@ function release_phrase_notes_at(offs,selective)
 local(ch,note,key,mi,mn,idx,owned)
 (
 
+  instance_stop_i=0;loop(MAX_ONCE_VOICES,
+    mem[instance_header(instance_stop_i)+6]>=0?instance_stop_voice(instance_stop_i,offs);instance_stop_i+=1;);
   param_release_owned();
   // Targeted choke for ONE SHOT voices only.
   // Release exactly the notes that our ownership table says are still sounding.
@@ -2041,18 +2222,25 @@ local(grid,q,target)
 );
 
 function phrase_render_span(vi,until,instant,cycle)
-local(once_layer,once_start,once_end,once_time,phrase_end,count,i,base,evt_t,out_offs,out_status,out_chan,out_d1,out_d2,velmul,is_recorded_noteoff,relative_t)
+local(once_layer,once_start,once_end,once_time,phrase_end,count,i,base,evt_t,out_offs,out_status,out_chan,out_d1,out_d2,velmul,is_recorded_noteoff,relative_t,h)
 (
+  h=instance_header(vi);
+  mem[h+6]>=0 && !instance_poly_routes() ? (
+    mem[h+7]==0 && mem[h+5]==0 && mem[h+9]==0 ? mem[h+6]=-1 : (
+      instance_error=3;instance_rejected+=1;instance_stop_voice(vi,max(0,min(samplesblock-1,-mem[VOICE_POS_BASE+vi])));
+    );
+  );
   once_layer=mem[VOICE_LAYER_BASE+vi];once_start=mem[VOICE_CURSOR_BASE+vi];once_end=until;
   once_time=mem[VOICE_TIME_BASE+vi];phrase_end=max(1,mem[LEN_BASE+once_layer]*once_time);
   count=layer_count(once_layer);i=0;loop(count,
     base=layer_base(once_layer,i);relative_t=mem[base]*once_time;evt_t=relative_t+cycle*phrase_end;
-    (instant?evt_t==0:(evt_t>=once_start && evt_t<once_end && !(evt_t==0 && mem[VOICE_FIRST_BASE+vi]))) && (relative_t<phrase_end || (native_hold_enabled && mem[MODE_BASE+once_layer]==2 && relative_t==phrase_end && ((mem[base+1]&240)==128 || ((mem[base+1]&240)==144 && mem[base+3]==0)))) ? (
+    mem[instance_header(vi)+11]>.5 && (instant?evt_t==0:(evt_t>=once_start && evt_t<once_end && !(evt_t==0 && mem[VOICE_FIRST_BASE+vi]))) && (relative_t<phrase_end || (native_hold_enabled && mem[MODE_BASE+once_layer]==2 && relative_t==phrase_end && ((mem[base+1]&240)==128 || ((mem[base+1]&240)==144 && mem[base+3]==0)))) ? (
       out_offs=evt_t-mem[VOICE_POS_BASE+vi];
       slider8==0?out_status=mem[base+1]&255:(out_chan=max(1,min(16,slider8))-1;out_status=(mem[base+1]&240)|out_chan;);
       out_d1=mem[base+2]&127;out_d2=mem[base+3]&127;
       velmul=slider9*mem[VEL_BASE+once_layer]*mem[VOICE_GAIN_BASE+vi];
       is_recorded_noteoff=((out_status&240)==128)||((out_status&240)==144 && out_d2==0);
+      instance_input_key=(mem[base+1]&15)*128+(mem[base+2]&127);
       once_route_voice=vi;!(mem[MODE_BASE+once_layer]==2 && !native_hold_enabled && is_recorded_noteoff)?send_once_to_instruments(out_offs,out_status,out_d1,out_d2,velmul);once_route_voice=-1;
     );i+=1;
   );
@@ -2063,16 +2251,41 @@ function phrase_render_voice(vi,until,instant)
 local(period,cycle,last)
 (
   period=max(1,mem[LEN_BASE+mem[VOICE_LAYER_BASE+vi]]*mem[VOICE_TIME_BASE+vi]);
-  native_hold_enabled && mem[MODE_BASE+mem[VOICE_LAYER_BASE+vi]]==2 && !instant ? (
+  ((mem[instance_header(vi)+7]>0 && mem[instance_header(vi)+8]!=1) || (native_hold_enabled && mem[MODE_BASE+mem[VOICE_LAYER_BASE+vi]]==2)) && !instant ? (
     cycle=max(0,floor(mem[VOICE_CURSOR_BASE+vi]/period)-1);last=floor(until/period);
     loop(min(10,max(0,last-cycle+1)),phrase_render_span(vi,until,0,cycle);cycle+=1;);
   ) : phrase_render_span(vi,until,instant,0);
   instant?mem[VOICE_FIRST_BASE+vi]=1:mem[VOICE_CURSOR_BASE+vi]=until;
 );
+// Preserve legacy LOOP timing/velocity and current routing for each new attack.
+// Releases use the same ledger as voices, rather than recomputing transformations.
+function instance_loop_dispatch(layer,offs,st,note,velocity,inputkey)
+local(v,h,j,safe)
+(
+ v=MAX_ONCE_VOICES+layer;h=instance_header(v);safe=instance_poly_routes();
+ !safe && mem[h+11] && mem[h+6]>=0 && (mem[h+5]>0 || mem[h+9]>0)?(
+  instance_error=3;instance_rejected+=1;instance_stop_voice(v,offs);
+  j=0;loop(2048,mem[3008000+layer*2048+j]=0;j+=1;);j=0;loop(16,mem[3040768+layer*16+j]=0;j+=1;);
+ );
+ safe && mem[TRIG_BASE+layer]>.5 && (mem[h+11] || instance_serial<9007199254740990)?(
+  mem[h+11]==0?(
+   instance_serial+=1;mem[h]=instance_serial;mem[h+1]+=1;mem[h+2]=-1;mem[h+3]=-1;mem[h+4]=0;mem[h+5]=0;
+   mem[h+6]=1;mem[h+7]=0;mem[h+8]=0;mem[h+9]=0;mem[h+10]=layer;mem[h+11]=1;mem[h+13]=0;
+   j=0;loop(16,mem[h+16+j]=0;j+=1;);
+  );
+  j=0;loop(INST_CAP,mem[h+32+j]=mem[I_EXISTS_BASE+j] && mem[engine_addr(INST_ENABLED_BASE,j)]>.5?mem[I_IDS_BASE+j]:0;mem[h+40+j]=mem[engine_addr(INST_IN_BASE,j)];j+=1;);
+  instance_input_key=inputkey;once_route_voice=v;send_once_to_instruments(offs,st,note,velocity,1);once_route_voice=-1;
+ ): !safe && mem[TRIG_BASE+layer]>.5?(mem[h+5]==0 && mem[h+9]==0?(mem[h+11]?(mem[h+1]+=1;mem[h+11]=0;);mem[h+6]=-1;);sw_playback_origin=1;send_to_instruments(offs,st,note,velocity,1);sw_playback_origin=0;);
+);
 // Native free LOOP source ownership; reuses the existing routing release path.
 function free_loop_stop(layer)
 local(k,c,ch,n,other,pedal,budget,failed,j)
 (
+  j=0;loop(MAX_ONCE_VOICES,mem[VOICE_ACTIVE_BASE+j] && mem[VOICE_LAYER_BASE+j]==layer && mem[instance_header(j)+6]>=0?instance_stop_voice(j,0);j+=1;);
+  mem[instance_header(MAX_ONCE_VOICES+layer)+11] && mem[instance_header(MAX_ONCE_VOICES+layer)+6]>=0?(
+   instance_stop_voice(MAX_ONCE_VOICES+layer,0);k=0;loop(2048,mem[3008000+layer*2048+k]=0;k+=1;);
+   k=0;loop(16,mem[3040768+layer*16+k]=0;k+=1;);
+  );
   mem[TRIG_BASE+layer]=0;budget=2048;failed=0;
   k=0;loop(2048,
     c=max(0,mem[3008000+layer*2048+k]);mem[3008000+layer*2048+k]=0;
@@ -2094,9 +2307,10 @@ function phrase_playing(layer) local(j,active) (j=0;active=0;loop(MAX_ONCE_VOICE
 function phrase_toggle_stop(layer,offs) local(j)
 (
   j=0;loop(MAX_ONCE_VOICES,mem[VOICE_ACTIVE_BASE+j] && mem[VOICE_LAYER_BASE+j]==layer?(
-    phrase_render_voice(j,mem[VOICE_POS_BASE+j]+offs,0);mem[VOICE_ACTIVE_BASE+j]=0;
+    phrase_render_voice(j,mem[VOICE_POS_BASE+j]+offs,0);
+    mem[instance_header(j)+6]>=0?instance_stop_voice(j,offs):mem[VOICE_ACTIVE_BASE+j]=0;
   );j+=1;);
-  release_phrase_notes_at(offs,1);mem[HOLD_ACTIVE_BASE+layer]=0;
+  !instance_poly_routes()?release_phrase_notes_at(offs,1);mem[HOLD_ACTIVE_BASE+layer]=0;
   layer==last_trigger_layer?last_trigger_layer=-1;
 );
 
@@ -2125,55 +2339,55 @@ function native_hold_release(layer,offs)
   native_hold_enabled && mem[MODE_BASE+layer]==2 && mem[HOLD_ACTIVE_BASE+layer]>.5?phrase_toggle_stop(layer,offs);
 );
 function process_phrase_trigger(start_offset,play_only)
-local(requested_layer,voice_slot,vi,vgi,held)
+local(requested_layer,voice_slot,vi,vgi,held,h,safe,old_repeat,instance_time,instance_gain)
 (
 trigger_request>=0 ? (
+  instance_last_admitted=0;instance_error=0;
   requested_layer=trigger_request;
   trigger_request=-1;
   held=native_hold_enabled && mem[MODE_BASE+requested_layer]==2;
-  !(held && (!native_hold_can_play(requested_layer) || phrase_playing(requested_layer))) ? (
+  safe=instance_poly_routes();
+  instance_serial>=9007199254740990 ? (instance_error=5;instance_rejected+=1;) : (
+  !(instance_independent_request && (!safe || layer_count(requested_layer)<=0 || mem[LEN_BASE+requested_layer]<=0 ||
+    (mem[MODE_BASE+requested_layer]!=1 && mem[LEN_BASE+requested_layer]*phrase_time_factor(requested_layer)<max(128,samplesblock/8)))) &&
+  !(held && !instance_independent_request && (!native_hold_can_play(requested_layer) || phrase_playing(requested_layer))) ? (
   !play_only && overdub_wait_note && overdub_armed && overdub_layer==requested_layer ? (
     // ONCE/HOLD: record from this trigger, not from the looping transport.
     overdub_wait_note=0;overdub_armed=0;overdub_active=1;
     overdub_pos=0;
   );
 
-  requested_layer!=last_trigger_layer ? (
+  !instance_independent_request && requested_layer!=last_trigger_layer ? (
     last_trigger_layer>=0 ? (
-      native_hold_enabled && (held || mem[MODE_BASE+last_trigger_layer]==2)?release_phrase_notes_at(start_offset,1):release_phrase_notes();
-      arp_flush_nonhold_sources();
-      vi=0;
-      loop(MAX_ONCE_VOICES,
-        mem[VOICE_ACTIVE_BASE+vi]=0;
-        vi+=1;
-      );
+      vi=0;loop(MAX_ONCE_VOICES,h=instance_header(vi);
+        mem[h+7]==0 && mem[h+6]>=0?instance_stop_voice(vi,start_offset);vi+=1;);
+      !safe?(release_phrase_notes_at(start_offset,1);arp_flush_nonhold_sources();
+        vi=0;loop(MAX_ONCE_VOICES,mem[instance_header(vi)+7]==0?mem[VOICE_ACTIVE_BASE+vi]=0;vi+=1;););
       mem[REPEAT_BASE+last_trigger_layer]=0;
       mem[HOLD_ACTIVE_BASE+last_trigger_layer]=0;
     );
-    mem[REPEAT_BASE+requested_layer]=0;
-    last_trigger_layer=requested_layer;
-  ) : (
-    mem[REPEAT_BASE+requested_layer]+=1;
   );
 
-  // Find a free voice. If all are busy, recycle the oldest slot safely.
+  // Reserve an existing slot; reject capacity exhaustion without changing survivors.
   voice_slot=-1;
   vi=0;
   loop(MAX_ONCE_VOICES,
-    voice_slot<0 && mem[VOICE_ACTIVE_BASE+vi]<0.5 ? voice_slot=vi;
+    voice_slot<0 && mem[VOICE_ACTIVE_BASE+vi]<0.5 && mem[instance_header(vi)+5]==0 && mem[instance_header(vi)+9]==0 ? voice_slot=vi;
     vi+=1;
   );
-  voice_slot<0 ? (
-    release_phrase_notes();
-    arp_flush_nonhold_sources();
-    vi=0;
-    loop(MAX_ONCE_VOICES,
-      mem[VOICE_ACTIVE_BASE+vi]=0;
-      vi+=1;
-    );
-    voice_slot=0;
+  voice_slot<0 ? (instance_error=2;instance_rejected+=1;) : (
+  instance_independent_request?(
+    requested_layer==instance_last_source?instance_repeat+=1:instance_repeat=0;instance_last_source=requested_layer;
+    old_repeat=mem[REPEAT_BASE+requested_layer];mem[REPEAT_BASE+requested_layer]=instance_repeat;
+    instance_gain=pow(mem[DECAY_BASE+requested_layer],instance_repeat);instance_time=phrase_time_factor(requested_layer);
+    mem[REPEAT_BASE+requested_layer]=old_repeat;
+  ):(
+    requested_layer==last_trigger_layer?mem[REPEAT_BASE+requested_layer]+=1:mem[REPEAT_BASE+requested_layer]=0;
+    last_trigger_layer=requested_layer;instance_gain=pow(mem[DECAY_BASE+requested_layer],mem[REPEAT_BASE+requested_layer]);instance_time=phrase_time_factor(requested_layer);
   );
-
+  h=instance_header(voice_slot);mem[h+10]=requested_layer;mem[h+11]=1;mem[h+13]=0;instance_serial+=1;mem[h]=instance_serial;mem[h+1]+=1;
+  mem[h+2]=-1;mem[h+3]=-1;mem[h+4]=0;mem[h+5]=0;mem[h+6]=safe?1:-1;mem[h+7]=instance_independent_request>0;mem[h+8]=mem[MODE_BASE+requested_layer];
+  vgi=0;loop(16,mem[h+16+vgi]=0;vgi+=1;);instance_last_admitted=instance_serial;
   vgi=0;loop(INST_CAP,
     mem[VOICE_INST_IDS_BASE+voice_slot*INST_CAP+vgi]=mem[I_EXISTS_BASE+vgi] && mem[engine_addr(INST_ENABLED_BASE,vgi)]>.5?mem[I_IDS_BASE+vgi]:0;
     mem[VOICE_INST_IN_BASE+voice_slot*INST_CAP+vgi]=mem[engine_addr(INST_IN_BASE,vgi)];vgi+=1;
@@ -2181,15 +2395,20 @@ trigger_request>=0 ? (
   mem[VOICE_ACTIVE_BASE+voice_slot]=1;
   mem[VOICE_LAYER_BASE+voice_slot]=requested_layer;mem[VOICE_CURSOR_BASE+voice_slot]=-max(0,min(samplesblock-1,start_offset));mem[VOICE_FIRST_BASE+voice_slot]=0;
   mem[VOICE_POS_BASE+voice_slot]=-max(0,min(samplesblock-1,start_offset));
-  mem[VOICE_TIME_BASE+voice_slot]=phrase_time_factor(requested_layer);
-  mem[VOICE_GAIN_BASE+voice_slot]=pow(mem[DECAY_BASE+requested_layer],mem[REPEAT_BASE+requested_layer]);
+  mem[VOICE_TIME_BASE+voice_slot]=instance_time;
+  mem[VOICE_GAIN_BASE+voice_slot]=instance_gain;
   mem[MODE_BASE+requested_layer]>=1.5 ? mem[HOLD_ACTIVE_BASE+requested_layer]=1;
-  held?phrase_render_voice(voice_slot,0,1);
+  held && !instance_independent_request?phrase_render_voice(voice_slot,0,1);
+  );
+  ) : (instance_error=3;instance_rejected+=1;);
   );
 );
-
 );
-
+function phrase_admit_independent(layer,offs) local(result)
+(
+ layer>=0 && layer<LAYERS?(instance_independent_request=1;trigger_request=layer;process_phrase_trigger(offs,1);instance_independent_request=0;result=instance_last_admitted;):result=0;
+ result;
+);
 
 function sw_assign(si,kind,ch,num,press,release)
 local(b,j,other,ok)
@@ -2247,6 +2466,7 @@ local(b,r,n,step,k,j,tmp,last,choice,restart)
 function sw_stop_phrases()
 local(gi,ch,n,key,live,mi,idx,remain,old,desired,mode,src)
 (
+  instance_stop_i=0;loop(INSTANCE_OWNERS,mem[instance_header(instance_stop_i)+6]>=0?instance_stop_voice(instance_stop_i,0);instance_stop_i+=1;);
   // Stop only playback-owned output. Live-through output remains untouched.
   gi=0;loop(INST_CAP,
     n=0;loop(128,
@@ -2663,8 +2883,8 @@ local(j,ch,n,idx,si,b,k,held)
  b>0 && instrument_output_owners(ch,n,-1)<=0?midisend(0,128|ch,n);j+=1;);
  ch=0;loop(16,held=mem[I_SUSTAIN_BASE+gi*16+ch];mem[I_SUSTAIN_BASE+gi*16+ch]=0;b=mem[I_FALLBACK_SUSTAIN_BASE+ch];j=0;loop(INST_CAP,b=max(b,mem[I_SUSTAIN_BASE+j*16+ch]);j+=1;);
  j=0;loop(INST_CAP,k=0;loop(TRANSFORM_SLOTS,idx=cc_record(j,k==5?6:k+7);mem[I_EXISTS_BASE+j] && mem[engine_addr(INST_ENABLED_BASE,j)] && j!=gi && mem[idx+4] && mem[idx+5]==ch && mem[idx+6]==64?b=max(b,mem[idx+7]);k+=1;);j+=1;);
- held>=64 && b<64?midisend(0,176|ch,64,0);ch+=1;);
- i_clear_runtime(gi);mem[I_EXISTS_BASE+gi]=0;mem[engine_addr(INST_TRANSFORM_COUNT_BASE,gi)]=0;
+ held>=64 && b<64 && mem[SUSTAIN_REF_BASE+ch]<=0?midisend(0,176|ch,64,0);ch+=1;);
+ instance_remove_destination(gi,id);i_clear_runtime(gi);mem[I_EXISTS_BASE+gi]=0;mem[engine_addr(INST_TRANSFORM_COUNT_BASE,gi)]=0;
  si=0;loop(SW_COUNT,b=sw_committed_cfg(si);k=0;loop(3,mem[b+14+k]>=SW_TOGGLE && floor(mem[b+17+k]/TRANSFORM_TYPES)==gi?mem[b+14+k]=SW_NONE;k+=1;);si+=1;);
  ui_sw_editor_open?(k=0;loop(3,mem[SW_DRAFT_BASE+14+k]>=SW_TOGGLE && floor(mem[SW_DRAFT_BASE+17+k]/TRANSFORM_TYPES)==gi?mem[SW_DRAFT_BASE+14+k]=SW_NONE;k+=1;););
  selected_transform_gi==gi?(selected_transform_gi=-1;selected_transform_slot=-1;);
@@ -2809,6 +3029,7 @@ ps_magic==727121 && ps_version==1 && ps_schema==7 && ps_size>0 && ps_size<=20000
 // shared engine functions from @slider and caused REAPER compile failures.
 
 @block
+instance_output_open=1;instance_output_fault=0;
 
 project_restore_pending?project_restore();
 // ReaScript bridge mailbox: one verified JSFX instance per REAPER project.
@@ -2863,14 +3084,19 @@ restore_flash<0 ? restore_flash=0;
 
 
 panic_pending ? (
-  send_all_notes_off();
+  instance_error==6 ? (
+    sw_action(0,SW_PANIC,0,0);
+    // Same bounded emergency channel messages as the native queue fail-safe.
+    instance_recovery_ch=0;loop(16,midisend(0,176|instance_recovery_ch,123,0);midisend(0,176|instance_recovery_ch,120,0);instance_recovery_ch+=1;);
+  ) : send_all_notes_off();
   panic_pending=0;
 );
 
 // Host PRESS/RELEASE enters after ysfx opens the block; preserve FIFO for short taps.
-native_hold_enabled?loop(min(16,native_hold_write-native_hold_read),
+native_hold_write>native_hold_read?loop(min(16,native_hold_write-native_hold_read),
   native_hold_address=NATIVE_HOLD_QUEUE_BASE+(native_hold_read%16)*2;
   native_hold_layer=mem[native_hold_address];
+  mem[native_hold_address+1]==3 ? instance_stop_token(native_hold_layer,mem[INSTANCE_END+native_hold_read%16],0) :
   mem[native_hold_address+1]? (trigger_request=native_hold_layer;process_phrase_trigger(0,1);):native_hold_release(native_hold_layer,0);
   native_hold_read+=1;
 );
@@ -3028,13 +3254,13 @@ while(left>0)(span=min(left,period-position);count=layer_count(fl);
           // committed prefix until the overdub is finished, avoiding duplicates.
           overdub_layer==fl && (overdub_active || overdub_armed) && free_old_count>0?count=min(count,free_old_count);j=0;
           loop(count,b=layer_base(fl,j);at=mem[b];
-            at>=position && at<position+span?(
+            mem[TRIG_BASE+fl]>.5 && at>=position && at<position+span?(
               st=mem[b+1];d1=mem[b+2];d2=mem[b+3];
               countkey=3008000+fl*2048+(st&15)*128+d1;
               (st&240)==144 && d2>0?mem[countkey]+=1:((st&240)==128 || ((st&240)==144 && d2==0))?mem[countkey]=max(0,mem[countkey]-1);
               (st&240)==176 && d1==64?mem[3040768+fl*16+(st&15)]=d2>=64;
               (st&240)==144 && d2>0?d2=max(1,min(127,floor(d2*slider9*mem[VEL_BASE+fl]+.5)));
-              sw_playback_origin=1;send_to_instruments(cursor+at-position,st,d1,d2,1);sw_playback_origin=0;
+              instance_loop_dispatch(fl,cursor+at-position,st,d1,d2,(st&15)*128+d1);
             );j+=1;);
           left-=span;cursor+=span;position=(position+span)%period;
         );
@@ -3084,7 +3310,7 @@ native_free_time && state==STATE_PLAYING?free_loop_render();
             );
 
             // out_d2 already includes phrase/global velocity; instrument velocity is applied in router.
-            sw_playback_origin=1;send_to_instruments(out_offs,out_status,out_d1,out_d2,1);sw_playback_origin=0;
+            instance_loop_dispatch(layer,out_offs,out_status,out_d1,out_d2,(mem[base+1]&15)*128+out_d1);
           );
 
           i+=1;
@@ -3120,7 +3346,8 @@ native_free_time && state==STATE_PLAYING?free_loop_render();
 vi=0;loop(MAX_ONCE_VOICES,mem[VOICE_ACTIVE_BASE+vi]>.5?(
   phrase_render_voice(vi,mem[VOICE_POS_BASE+vi]+samplesblock,0);
   mem[VOICE_POS_BASE+vi]+=samplesblock;mem[VOICE_CURSOR_BASE+vi]=mem[VOICE_POS_BASE+vi];
-  !(native_hold_enabled && mem[MODE_BASE+mem[VOICE_LAYER_BASE+vi]]==2) && mem[VOICE_POS_BASE+vi]>=max(1,mem[LEN_BASE+mem[VOICE_LAYER_BASE+vi]]*mem[VOICE_TIME_BASE+vi])?(
+  !((mem[instance_header(vi)+7]>0 && mem[instance_header(vi)+8]!=1) || (native_hold_enabled && mem[MODE_BASE+mem[VOICE_LAYER_BASE+vi]]==2)) && mem[VOICE_POS_BASE+vi]>=max(1,mem[LEN_BASE+mem[VOICE_LAYER_BASE+vi]]*mem[VOICE_TIME_BASE+vi])?(
+    mem[instance_header(vi)+6]>=0 && mem[MODE_BASE+mem[VOICE_LAYER_BASE+vi]]!=2?instance_stop_voice(vi,samplesblock-1);
     native_free_time?mem[FREE_FINISHED_BASE+mem[VOICE_LAYER_BASE+vi]]=1;mem[VOICE_ACTIVE_BASE+vi]=0;mem[VOICE_POS_BASE+vi]=0;
   );
 );vi+=1;);
@@ -3161,6 +3388,8 @@ loop(INST_CAP,
   arp_process_instrument(ii);
   ii+=1;
 );
+
+instance_output_open=0;
 
 @gfx 900 720
 

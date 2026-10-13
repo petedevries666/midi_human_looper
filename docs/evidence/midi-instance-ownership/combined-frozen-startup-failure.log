@@ -1,0 +1,44 @@
++ scripts/headless-test.sh
+PASS bounded FIFO
+...............
+----------------------------------------------------------------------
+Ran 15 tests in 5.710s
+
+OK
+.......
+----------------------------------------------------------------------
+Ran 7 tests in 0.523s
+
+OK
+.........
+----------------------------------------------------------------------
+Ran 9 tests in 1.373s
+
+OK
+....
+----------------------------------------------------------------------
+Ran 4 tests in 0.001s
+
+OK
+Cannot lock down 107341340 byte memory area (Cannot allocate memory)
+PASS actual JACK ownership: targeted STOP preserves live note, final releases and stable ordering [[0, 229376, 0, 144, 60, 100], [0, 245760, 0, 144, 60, 91], [0, 278528, 0, 144, 62, 91], [0, 344064, 0, 128, 60, 0], [0, 368640, 0, 128, 62, 0]]
+Cannot lock down 107341340 byte memory area (Cannot allocate memory)
+PASS three native-chain Chromium editors: independent sources and chain telemetry
+PASS native Zynthian adapter: three isolated chains, sequential recording during playback, shared phase, Note Offs, per-chain STOP/SAVE/LOAD and snapshot recreation
+Cannot lock down 107341340 byte memory area (Cannot allocate memory)
+PASS one actual MBMF instance: 3-channel source capture/playback, native-style fanout, identical ordered output streams, explicit receiver channel isolation, LOOP/ONCE/retrigger/HOLD/release/short-tap, actual ARP chord generation/disable, STOP/transport/restart/removal cleanup
+Cannot lock down 107341340 byte memory area (Cannot allocate memory)
+PANIC diagnostic {'blocks': 125, 'midiCount': 8259, 'activeNotes': 0, 'outputOverflow': 0, 'lateBlocks': 0, 'maxCallbackUs': 2873.92, 'lastEvent': [63488, 191, 64, 0]}
+JACK notes on=4 off=2050 emergency=0
+Cannot lock down 107341340 byte memory area (Cannot allocate memory)
+PASS actual JACK graph: two Instruments, phrase switch, Note On/Off and PANIC
+Flood diagnostic {'midiCount': 73190, 'outputOverflow': 13443, 'pendingOutput': 976, 'lateBlocks': 1}
+JACK notes on=3168 off=29497 emergency=288
+Cannot lock down 107341340 byte memory area (Cannot allocate memory)
+PASS actual JACK FIFO overflow: emergency channel releases, bounded recovery and final PANIC
+Traceback (most recent call last):
+  File "/workspace/mbmf-conductor-a/tests/test_jack_graph.py", line 61, in <module>
+    assert observer.wait(timeout=10)==0,'same-block timestamp/tie ordering failed'
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: same-block timestamp/tie ordering failed
+FAILED: exit 1: scripts/headless-test.sh

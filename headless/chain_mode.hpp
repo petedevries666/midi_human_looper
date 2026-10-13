@@ -15,7 +15,9 @@ struct ChainMode {
   EEL_F *phase, *duration, *target, *tempoVar, *runVar, *bad, *overdub,
       *overdubPos, *captureActive, *captureStart, *captureEnd;
   NSEEL_CODEHANDLE align, begin, finish, play, holdPress, holdRelease;
-  NSEEL_CODEHANDLE freeArm, freeFinish, freePlay, freeStop;
+  NSEEL_CODEHANDLE freeArm, freeFinish, freePlay, freeStop, independentPlay, instanceStop;
+  EEL_F *instanceId,*instanceGeneration;
+  EEL_F *instanceAccepted;
   EEL_F *musicalState, *recordPosition, *overdubArmed, *captureNormalize, *loopLength;
   EEL_F* voiceActive[12]{};
   EEL_F *switchStopPending,*switchStopPosition;
@@ -68,18 +70,23 @@ struct ChainMode {
     overflow=NSEEL_VM_regvar(f->vm.get(),"record_overflow");
     freeOldCount=NSEEL_VM_regvar(f->vm.get(),"free_old_count");freeOldLength=NSEEL_VM_regvar(f->vm.get(),"free_old_length");freeOldTrigger=NSEEL_VM_regvar(f->vm.get(),"free_old_trigger");
     rollbackCapture=compile("set_layer_count(chain_target,free_old_count);mem[LEN_BASE+chain_target]=free_old_length;mem[TRIG_BASE+chain_target]=free_old_trigger;free_record_ready=0;free_record_active=0;overdub_active=0;overdub_armed=0;state=STATE_STOPPED;panic_pending=1;");
+    instanceAccepted=NSEEL_VM_regvar(f->vm.get(),"chain_instance_accepted");
+    instanceId=NSEEL_VM_regvar(f->vm.get(),"chain_instance_id");instanceGeneration=NSEEL_VM_regvar(f->vm.get(),"chain_instance_generation");
+    instanceStop=compile("chain_instance_accepted=instance_request_stop(chain_instance_id,chain_instance_generation);");
+    independentPlay=compile("chain_instance_accepted=phrase_admit_independent(chain_target,0);");
     freeArm=compile("free_old_count=layer_count(chain_target);free_old_length=mem[LEN_BASE+chain_target];free_old_trigger=mem[TRIG_BASE+chain_target];record_overflow=0;select_phrase_record(chain_target);");
     freeFinish=compile("finish_phrase_record();overdub_active=0;overdub_armed=0;overdub_wait_note=0;");
     freeStop=compile("mem[MODE_BASE+chain_target]<.5?free_loop_stop_mask|=1<<chain_target:native_hold_enqueue(chain_target,0);");
+    // Legacy choke emits releases only after ysfx opens its DSP output buffer.
     freePlay=compile("mem[MODE_BASE+chain_target]<.5?"
         "(layer_count(chain_target)>0 && mem[LEN_BASE+chain_target]>=max(128,samplesblock/8)?(state!=STATE_PLAYING?play_sample_pos=0;mem[FREE_FINISHED_BASE+chain_target]=0;mem[FREE_LOOP_ANCHOR_BASE+chain_target]=play_sample_pos;mem[TRIG_BASE+chain_target]=1;state=STATE_PLAYING;);):"
-        "(trigger_request=chain_target;process_phrase_trigger(0,1););");
+        "(native_hold_enqueue(chain_target,1););");
     align = compile(
         "loop_len_samples=chain_duration;slider6=chain_bpm;play_sample_pos="
         "chain_phase;state=chain_running?STATE_PLAYING:STATE_STOPPED;");
     play = compile("layer_count(chain_target)>0?(mem[MODE_BASE+chain_target]<.5?"
         "mem[TRIG_BASE+chain_target]=1:mem[MODE_BASE+chain_target]<1.5?"
-        "(trigger_request=chain_target;process_phrase_trigger(0,1);));");
+        "(native_hold_enqueue(chain_target,1);));");
     holdPress=compile("chain_hold_accepted=native_hold_can_play(chain_target)?native_hold_enqueue(chain_target,1):0;");
     holdRelease=compile("chain_hold_accepted=native_hold_enqueue(chain_target,0);");
     begin = compile(
@@ -114,7 +121,10 @@ struct ChainMode {
     NSEEL_code_free(begin);
     NSEEL_code_free(finish);
     NSEEL_code_free(play);NSEEL_code_free(holdPress);NSEEL_code_free(holdRelease);
-    NSEEL_code_free(freeArm);NSEEL_code_free(freeFinish);NSEEL_code_free(freePlay);NSEEL_code_free(freeStop);NSEEL_code_free(rollbackCapture);
+    NSEEL_code_free(instanceStop);NSEEL_code_free(independentPlay);NSEEL_code_free(freeArm);NSEEL_code_free(freeFinish);NSEEL_code_free(freePlay);NSEEL_code_free(freeStop);NSEEL_code_free(rollbackCapture);
+  }
+  bool stopInstance(uint64_t id,uint64_t generation) {
+    *instanceId=double(id);*instanceGeneration=double(generation);NSEEL_code_execute(instanceStop);return *instanceAccepted>.5;
   }
   void observe() {
     if(gridCapture)return;
@@ -162,7 +172,10 @@ struct ChainMode {
     *captureActive=0;
   }
   bool command(int action, int selected) {
-    if(selected<0 || selected>=16 || action<0 || action>6)return false;
+    if(selected<0 || selected>=16 || action<0 || action>7)return false;
+    if(action==7){
+      *target=selected;NSEEL_code_execute(independentPlay);*target=phrase;observe();return *instanceAccepted>0;
+    }
     if(action==6 && gridCapture && *phraseModes[selected]>=1.5)return command(4,selected);
     if(action==6){
       if(gridCapture || ((recording || armed) && selected==phrase))return false;

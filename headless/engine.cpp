@@ -64,7 +64,7 @@ struct ParameterChange {
   double value = 0;
 };
 struct Request {
-  uint64_t id = 0, session = 0;
+  uint64_t id = 0, session = 0, instanceId=0, instanceGeneration=0;
   int op = 0, target = 0, arg = 0, revision = 1, ch = 0, note = 0, value = 0;
   int module = 0, count = 0;
   char snapshotName[49]{};
@@ -114,6 +114,8 @@ struct Snapshot {
   uint64_t outputOverflow = 0;
   int active = 0, last_status = 0, last_note = 0, last_value = 0;
   double max_us = 0;
+  std::array<std::array<double,14>,28> instances{};
+  int instanceError=0;uint64_t instanceRejected=0;
   std::array<Switch, 16> switches{};
   std::array<Instrument, 8> instruments{};
   std::array<Phrase, 16> phrases{};
@@ -182,6 +184,8 @@ struct Model {
   std::array<CurvePointers,8> levelCurves;
   mutable double abPosition = 0;
   mutable std::atomic<bool> abRestorePending{false};
+  std::array<std::array<double*,14>,28> instances;
+  double *instanceError,*instanceRejected,*instanceFault;
   std::array<std::array<double *, 28>, 16> sw;
   std::array<std::array<double *, 22>, 8> inst;
   std::array<std::array<double *, 10>, 16> phrase;
@@ -257,6 +261,10 @@ struct Model {
   explicit Model(ysfx_t *fx) {
     if(variable(fx,"MAX_ONCE_VOICES")!=voiceActive.size())throw std::runtime_error("shared voice capacity mismatch");
     musicalState=ysfx_find_var(fx,"state");recordLayer=ysfx_find_var(fx,"record_layer");odLayer=ysfx_find_var(fx,"overdub_layer");odActive=ysfx_find_var(fx,"overdub_active");odArmed=ysfx_find_var(fx,"overdub_armed");freeActive=ysfx_find_var(fx,"free_record_active");freeReady=ysfx_find_var(fx,"free_record_ready");freeError=ysfx_find_var(fx,"free_play_error");
+    auto instanceBase=unsigned(variable(fx,"INSTANCE_BASE"));
+    for(unsigned j=0;j<28;++j)for(unsigned k=0;k<14;++k)instances[j][k]=cell(fx,instanceBase+j*48+k);
+    instanceFault=NSEEL_VM_regvar(fx->vm.get(),"instance_output_fault");
+    instanceError=NSEEL_VM_regvar(fx->vm.get(),"instance_error");instanceRejected=NSEEL_VM_regvar(fx->vm.get(),"instance_rejected");
     for(unsigned j=0;j<12;++j){voiceActive[j]=cell(fx,unsigned(variable(fx,"VOICE_ACTIVE_BASE"))+j);voiceLayer[j]=cell(fx,unsigned(variable(fx,"VOICE_LAYER_BASE"))+j);}
     for(unsigned j=0;j<16;++j){phraseTriggers[j]=cell(fx,unsigned(variable(fx,"TRIG_BASE"))+j);phraseFinished[j]=cell(fx,unsigned(variable(fx,"FREE_FINISHED_BASE"))+j);}
 
@@ -486,6 +494,10 @@ struct Model {
     return pending && *pending != -999 ? *pending : *bindingValue(b);
   }
   void snapshot(Snapshot &s) const {
+    s.instanceError=int(*instanceError);s.instanceRejected=uint64_t(*instanceRejected);
+    for(unsigned j=0;j<28;++j)for(unsigned k=0;k<14;++k)s.instances[j][k]=*instances[j][k];
+    for(unsigned j=0;j<28;++j){s.instances[j][2]=j<12?*voiceActive[j]:(*instances[j][11]>.5 && *phraseTriggers[j-12]>.5);s.instances[j][3]=j<12?*voiceLayer[j]+1:j-12+1;}
+
     for (unsigned i = 0; i < 16; ++i) {
       auto &v = s.switches[i];
       v.id = *sw[i][0] ? int(*sw[i][1]) : 0;
@@ -598,7 +610,16 @@ static std::string json(const Reply &r) {
     << ",\"outputOverflow\":" << s.outputOverflow
     << ",\"lateBlocks\":" << s.late << ",\"maxCallbackUs\":" << s.max_us
     << ",\"lastEvent\":[" << s.last_sample << "," << s.last_status << ","
-    << s.last_note << "," << s.last_value << "],\"switches\":[";
+    << s.last_note << "," << s.last_value << "]"
+    << ",\"instanceError\":"<<s.instanceError<<",\"instanceRejected\":"<<s.instanceRejected<<",\"instances\":[";
+  bool instanceComma=false;
+  for(const auto &v:s.instances)if(v[2]>.5 || v[5]>0 || v[9]>0){
+    if(instanceComma)o<<',';instanceComma=true;
+    o<<"{\"id\":"<<uint64_t(v[0])<<",\"generation\":"<<uint64_t(v[1])<<",\"phraseId\":"<<int(v[3])
+     <<",\"active\":"<<(v[2]>.5?"true":"false")<<",\"reservedAttacks\":"<<int(v[5])<<",\"ownedOutputs\":"<<int(v[13])
+     <<",\"ownershipSupported\":"<<(v[6]>=0?"true":"false")<<",\"independent\":"<<(v[7]>.5?"true":"false")<<",\"mode\":"<<int(v[8])<<'}';
+  }
+  o<<"],\"switches\":[";
   bool comma = false;
   for (auto &v : s.switches)
     if (v.id) {
@@ -920,9 +941,9 @@ static void control(int listener, Queue<Request, 64> &commands,
                       request.arg >> request.revision >> request.ch >>
                       request.note >> request.value) &&
                  request.id > 0 && request.id <= 9007199254740991ULL &&
-                 request.op >= 0 && (request.op <= 43) && request.arg >= 0 &&
+                 request.op >= 0 && (request.op <= 44) && request.arg >= 0 &&
                  request.arg <= (request.op == 13   ? 5
-                                 : request.op == 40 ? 6
+                                 : request.op == 40 ? 7
                                  : request.op == 15 || request.op == 34 ? 3
                                  : request.op == 32 || request.op == 38 ? 24
                                                     : 2) &&
@@ -1014,6 +1035,9 @@ static void control(int listener, Queue<Request, 64> &commands,
                (request.macroPosition >= 0 && request.macroPosition <= 1));
       if (input >> extra)
         valid = false;
+    } else if (valid && request.op == 44) {
+      valid=bool(input>>request.instanceId>>request.instanceGeneration) && request.instanceId>0 && request.instanceId<=9007199254740991ULL && request.instanceGeneration>0 && request.instanceGeneration<=9007199254740991ULL;
+      if(input>>extra)valid=false;
     } else if (valid && request.op == 28) {
       valid = bool(input >> request.module) && request.module >= 0 &&
               request.module <= 16777215 && request.ch <= 7;
@@ -2054,6 +2078,8 @@ int main(int argc, char **argv) {
           }
           maintenance = true;
           }
+        } else if (request.op == 44) {
+          if(!chain.stopInstance(request.instanceId,request.instanceGeneration))reply.status=3;
         } else if (request.op == 40) {
           if (!chainMode)
             reply.status = 3;
@@ -2682,6 +2708,9 @@ int main(int argc, char **argv) {
         cleanupChain();
       chain.finishSwitchStop();
       ysfx_process_float(fx, nullptr, nullptr, 0, 0, frames);
+      // The shared output buffer rejected an owned event: cancel queued attacks
+      // through the existing native emergency recovery on the next callback.
+      if(*model.instanceFault>.5){++state.outputOverflow;overflowRecovery=true;}
       chain.finishSwitchStop();
       if(chainMode && !chain.gridCapture) {
         chain.observe();

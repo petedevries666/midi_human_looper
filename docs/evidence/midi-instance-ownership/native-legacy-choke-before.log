@@ -1,0 +1,6 @@
+Cannot lock down 107341340 byte memory area (Cannot allocate memory)
+Traceback (most recent call last):
+  File "/workspace/mbmf-conductor-a/tests/test_instance_ownership_jack.py", line 55, in <module>
+    assert notes==[[144,60,100],[144,60,91],[144,62,91],[128,60,0],[128,62,0],[144,60,91],[128,60,0],[144,62,91],[128,62,0]],notes
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: [[144, 60, 100], [144, 60, 91], [144, 62, 91], [128, 60, 0], [128, 62, 0], [144, 60, 91], [144, 62, 91], [128, 62, 0]]

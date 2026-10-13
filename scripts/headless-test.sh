@@ -14,6 +14,8 @@ if [[ "${RUN_JACK_TESTS:-0}" == 1 ]];then
   if [[ -n "${JACK_INCLUDE:-}" ]];then jack_flags=(-I"$JACK_INCLUDE" -l:libjack.so.0);else read -r -a jack_flags <<< "$(pkg-config --cflags --libs jack)";fi
   c++ -std=c++11 -O2 tests/headless_jack.cpp "${jack_flags[@]}" -lpthread -o "$test_dir/jack-smoke"
   c++ -std=c++11 -O2 tests/zynthian_chain_jack.cpp "${jack_flags[@]}" -lpthread -o "$test_dir/chain-probe"
+  CHAIN_JACK_PROBE="$test_dir/chain-probe" "${TEST_PYTHON:-python3}" tests/test_instance_ownership_jack.py
+  CHAIN_JACK_PROBE="$test_dir/chain-probe" "${TEST_PYTHON:-python3}" tests/test_instance_output_overflow_jack.py
   CHAIN_JACK_PROBE="$test_dir/chain-probe" "${TEST_PYTHON:-python3}" tests/test_zynthian_chains.py
   CHAIN_JACK_PROBE="$test_dir/chain-probe" "${TEST_PYTHON:-python3}" tests/test_zynthian_dedicated_chain.py
   JACK_TEST_BINARY="$test_dir/jack-smoke" python3 tests/test_jack_graph.py

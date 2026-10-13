@@ -49,7 +49,7 @@ class Control:
                 self._observation_until=time.monotonic()+.25
             return self._observation
 
-    def request(self, op=0, target=0, arg=0, revision=1, ch=0, note=0, value=0, session=0, patch=None, parameters=None, module=0, binding=None, name=None, settings=None, inclusions=None, macro=None, phrase=None):
+    def request(self, op=0, target=0, arg=0, revision=1, ch=0, note=0, value=0, session=0, patch=None, parameters=None, module=0, binding=None, name=None, settings=None, inclusions=None, macro=None,instance=None, phrase=None):
         # One worker producer owns the engine's command queue; HTTP threads never
         # inspect live engine state. A timeout does not cancel an already executed TEST.
         with self.lock:
@@ -61,6 +61,7 @@ class Control:
             if name is not None:line=line.rstrip('\n')+' '+(name.encode('ascii').hex() or '-')+'\n'
             if settings is not None:line=line.rstrip('\n')+' '+' '.join(format(v,'.17g') for v in settings)+'\n'
             if inclusions is not None:line=line.rstrip('\n')+' include '+str(len(inclusions))+' '+ ' '.join(str(v) for a in inclusions for v in (a['instrumentId'],a['moduleId'],a['kind'],int(a['included'])))+'\n'
+            if instance is not None:line=line.rstrip('\n')+' '+str(instance[0])+' '+str(instance[1])+'\n'
             if macro is not None:line=line.rstrip('\n')+' '+' '.join(format(v,'.17g') for v in macro)+'\n'
             if parameters is not None:
                 line=line.rstrip('\n')+f' {module} {len(parameters)} '+ ' '.join(f"{p['kind']} {p['value']:.17g}" for p in parameters)+'\n'
@@ -386,6 +387,14 @@ class Handler(BaseHTTPRequestHandler):
                 channel,number,value=data.get('channel'),data.get('number'),data.get('value')
                 if any(type(v) is not int for v in (channel,number,value)) or not 1<=channel<=16 or not 0<=number<=127 or not 0<=value<=127:raise ValueError()
                 args=dict(op=19,ch=channel-1,note=number,value=value)
+            elif action=='instance_stop':
+                id,generation=data.get('instanceId'),data.get('generation')
+                if any(type(v) is not int or not 1<=v<=9007199254740991 for v in (id,generation)):raise ValueError()
+                args=dict(op=44,instance=(id,generation))
+            elif action=='phrase_play_independent':
+                target=data.get('phraseId')
+                if type(target) is not int or not 1<=target<=16:raise ValueError()
+                args=dict(op=40,target=target-1,arg=7)
             elif action=='phrase_stop':
                 target=data.get('phraseId')
                 if type(target) is not int or not 1<=target<=16:raise ValueError()

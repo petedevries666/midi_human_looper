@@ -38,6 +38,7 @@ try:
     run([sys.executable,'tests/test_phrase_midi.py'])
     run([sys.executable,'tests/test_portable_project.py'])
     run([sys.executable,'tests/test_conductor_legacy_contract.py'])
+    run([sys.executable,'tests/test_conductor_persistence.py'])
     run([sys.executable,'tests/test_portable_engine.py'])
     run([sys.executable,'tests/test_project_sync.py'])
     run([sys.executable,'tests/test_project_authority.py'])
@@ -52,6 +53,7 @@ try:
         run([sys.executable,'tests/test_instance_ownership_native.py'])
         run(['tests/run_host_tests.sh'])
         run(['scripts/portable-test.sh'],{'TEST_PYTHON':sys.executable})
+        run(['scripts/conductor-persistence-test.sh'],{'TEST_PYTHON':sys.executable})
         run([sys.executable,'tests/test_patch_io.py'])
     if a.browser=='stock-firefox':run([sys.executable,'tests/test_headless_firefox.py'])
     elif a.browser!='none':

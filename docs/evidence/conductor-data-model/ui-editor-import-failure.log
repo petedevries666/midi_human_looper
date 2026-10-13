@@ -1,0 +1,4 @@
+Traceback (most recent call last):
+  File "/workspace/mbmf-conductor-a/tests/conductor_diagnostics/editor_click.py", line 9, in <module>
+    from test_native_free_capture import FreeCapture
+ModuleNotFoundError: No module named 'test_native_free_capture'

@@ -9,7 +9,7 @@ FECK, JOIN or PAUSE/RESUME. Q3 future capacity decisions remain open.
 ## Execution contract
 
 Each admission receives a monotonic, runtime-only ID and a generation. STOP
-requires both. Reused voice slots, PANIC, patch replacement and retired instances
+requires both, within the existing engine-session/CAS scope. Reused voice slots, PANIC, patch replacement and retired instances
 invalidate old tokens. The shared EEL implementation runs in REAPER and the
 native ysfx host; C++ queues control requests and observes state, without a
 second note scheduler. Generations never enter patch data.
@@ -112,3 +112,20 @@ Zynthian/REAPER/Helix validation, merge or deployment has occurred. Native
 independent admission is an API foundation, not a new UI or multitrack feature.
 
 Executed results and gate verdict are in the adjacent evidence manifest and logs.
+
+## JACK test startup correction
+
+One full run stopped in the JACK timestamp fixture before the ordering probe
+could connect. Controlled 500 ms delay before activation reproduces probe exit
+**3** on clean PR50 and B with the unchanged fixture. Socket creation precedes
+JACK activation; it is not a readiness guarantee. The fixture now waits for an
+actual command/callback round trip before connecting. Its exact timestamp,
+same-block and equal-time Note On/Off assertions are unchanged. With the same
+forced delay, actual output remains `16,120,120,220,400` in one block.
+
+Reproduce with `tests/conductor_diagnostics/jack_readiness.py` and its accompanying
+`delayed_jack_activate.cpp` shared-library shim. The shim affects private Cloud
+fixture startup only; it is never installed, used on hardware, or linked into
+the engine. Failed global and diagnostic logs remain published. A separate global
+run interrupted by an in-session source edit/syntax error is retained as invalid
+mixed-source validation; the syntax error was fixed before the frozen rerun.

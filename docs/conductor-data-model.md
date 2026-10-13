@@ -81,7 +81,9 @@ No local edit writes source parameters.
 Action blocks contain `id`, `type: ACTION`, `action`, `target`, `trigger`.
 Stored actions: STOP/PAUSE/RESUME/RESET_CURSOR/RESET_SHUFFLE_BAG/STOP_RESET.
 Typed targets use a PHRASE source UUID, MUTE_GROUP ID, ALL_PHRASES, or SWITCH ID;
-reset actions target a switch. These records have no dispatcher in C.
+reset actions target a switch. These records have no dispatcher in C. The existing Smart Switch dispatcher
+continues to execute its legacy configuration; CONDUCTOR metadata is dormant
+until D. Do not treat a legacy TEST action as playback of the new document.
 
 ## Stable source adoption and unavailable references
 
@@ -154,6 +156,11 @@ ceiling, 32 KiB HTTP command ceiling (including `conductor_commit`), JSON nestin
 32 for the worker parser (this schema needs fewer levels). These are parser/
 transport limits, **not** approved musical capacities. Oversize requests reject,
 never truncate. Larger configurations can travel through validated patch LOAD.
+
+Measured example (four STEPS × two LAYERS, sixteen source identities):
+2,756 typed JSON bytes, 9,028 patch-carrier bytes, 2,867 HTTP command bytes.
+The reproducible sizing recipe is in the evidence README. This is one fixture,
+not a capacity benchmark or an approved upper limit.
 
 Before live execution in D, measure admission costs and derive a bounded
 handoff from the existing 12-voice budget. Propose limits with measurements;

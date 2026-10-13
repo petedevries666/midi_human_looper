@@ -1,0 +1,96 @@
+{
+  "baseCommit": "25c78f791421650ce73b446eb07bbc00d6d26784",
+  "contractCommit": "73cdee5604992ca3bd68e4c6c3b97c545333b127",
+  "auditedPr45": "d1abbc327b8184e1f400548126ab248eebd7380a",
+  "implementationCommit": "949b6b2c4d8c23ac18418f7b20fdd267a5aaa100",
+  "luaClarificationCommit": "e5cafe84497b89e44e7cabd1910780240348bab0",
+  "binarySha256": "ebdd2d6044472437c9e6f32163c6ceca711bc39c76cc6c7c2f7f9c991c79118c",
+  "asanBinarySha256": "473b30c620d53852ba099108d1e875778063404e11dcbab975497fc8def95c35",
+  "sourceHashes": {
+    "headless/conductor.py": "699ac0952918905a8a5216ea946b68b504a6cc2b6273b9e9afbdc3fc0f0879aa",
+    "headless/conductor_document.hpp": "9a0a073181760231b99787a61147a665dabc71cc85676406653ca3f51941d728",
+    "headless/conductor_wire.hpp": "a20a75e2ffc94799308307e5afe4c214deafb39d13e08c590f2a2524849b2ead",
+    "headless/engine.cpp": "677e69f7d8e960f0f3853de347e07b81e0e133e5e2852b7032b8ff9aec96933a",
+    "headless/server.py": "16c75988b431c8c795cef0b2317c43c501b5d04ff40feb814aa78915925a9143",
+    "headless/portable_project.py": "3364c52df5e9e4f36d77bb60aeb5f494c41c8b661ddf3f9c96f7f2f3d0525060",
+    "midi_human_looper_patch_io.lua": "81eaf54129b9586329e5db59683016662eed1c823de50f553b10a7dc773f186e",
+    "tests/test_conductor_persistence.py": "432f1cde031dde2762e387394b0cddc1572ae912034c6c2fd7c5dae636d42452",
+    "tests/test_patch_io.py": "667e1cd87477152b684733b9b82b04b9126e3e4e83024fa6a704e5761ae51bd4",
+    "scripts/combined-test.py": "661a49d2e60442191569923131b858dadd40e2c9529863a8ca6013e97c531fd6"
+  },
+  "unchangedProductionFiles": [
+    "midi_human_looper.jsfx",
+    "headless/web/app.js",
+    "headless/web/fonts/OFL.txt",
+    "headless/web/fonts/README.md",
+    "headless/web/fonts/mbmf-block.woff2",
+    "headless/web/index.html",
+    "headless/web/style.css",
+    "scripts/zynthian-update.py",
+    "zynthian/install.py",
+    "zynthian/zynthian_engine_mbh.py",
+    "zynthian/zynthian_engine_mbh_catalog.py"
+  ],
+  "issue54PreservedFiles": 25,
+  "results": {
+    "combined": {
+      "exit": 0,
+      "realEelGuiMidiChecks": 18383,
+      "captureSmfFixtures": 18,
+      "freeCaptureSmfFixtures": 36,
+      "portableEelMidiChecks": 41
+    },
+    "targeted": {
+      "exit": 0,
+      "newWorkflows": 8,
+      "inheritedNativeTests": 15
+    },
+    "nativeAsanUbsan": {
+      "exit": 0,
+      "tests": 23,
+      "ysfxInstrumented": false
+    },
+    "ownershipAsanUbsan": {
+      "exit": 0,
+      "checks": 6698,
+      "ysfxInstrumented": false
+    },
+    "controller": {
+      "exit": 0,
+      "normalAndAsanCoreChecks": 162709,
+      "normalAndAsanHostChecks": 558
+    },
+    "lua": {
+      "exit": 0,
+      "tests": 6
+    },
+    "uiPending": {
+      "exit": 1,
+      "classification": "preexisting same signature; idle positive control passes"
+    },
+    "uiEditor": {
+      "exit": 1,
+      "classification": "preexisting same signature; idle positive control passes"
+    },
+    "legacyOnceChoke": "explicit XFAIL retained; independent ownership tests PASS"
+  },
+  "gate": "Conditional GO for minimal PR D; no release/hardware qualification",
+  "hardwareValidated": false,
+  "merged": false,
+  "deployed": false,
+  "evidenceHashes": {
+    "docs/evidence/conductor-data-model/README.md": "104c08d37ceffa6f3983df3e8e89ba48017836df1307eb596609b991017a9211",
+    "docs/evidence/conductor-data-model/build.log": "d84762a882ae0d1a1b4a345f9102d79f81f154568cb90c3876506433772e3282",
+    "docs/evidence/conductor-data-model/capacity.json": "1f22338b300168c4ab82e6fccd6d1ada50c9e68842e318feb0cf33b27247e53a",
+    "docs/evidence/conductor-data-model/combined.log": "eaa397dc267ddd1b5336f1a7db72d9a2631d46f8cf89a74ff899c0019e67e8ca",
+    "docs/evidence/conductor-data-model/lua.log": "e9dbc1a31936475165af55356b566005547a03914ab93e4739e4aa9949799201",
+    "docs/evidence/conductor-data-model/native-asan-build.log": "90681e3896710d43bd7c4f21b43a76a66f4586c8bb8ee500a00d0c467252e402",
+    "docs/evidence/conductor-data-model/native-asan.log": "0a5936a2cf7de1a4d362da2a0e12fee48f5f48e856906c6a92b5d6e8ffd29f28",
+    "docs/evidence/conductor-data-model/ownership-asan.log": "511c21610759fbe76fe9ba0bdc30875989f47fe6aeddfc5a5974c144f0dc76b5",
+    "docs/evidence/conductor-data-model/targeted.log": "5349031dfabc8539410e2b76e928c2edb0dbac1778e8b583666d41ace17d8d0c",
+    "docs/evidence/conductor-data-model/ui-editor-import-failure.log": "f58bde1f22e90ef9bceb826779ff8f377732795b0b298d28a4700880ac721d2a",
+    "docs/evidence/conductor-data-model/ui-editor.log": "6717ad24719a1418d8999b1bafc9522b9697ecb217203a427eee279db8c00045",
+    "docs/evidence/conductor-data-model/ui-pending-import-failure.log": "fb9408c7251b794dae4b4e5fbca1fa91ad4860e43ee643b95e9eeb4869d67532",
+    "docs/evidence/conductor-data-model/ui-pending.log": "83896e0453e7303761b058e89093df9ff6045aa1d3f7f3a995ed7d1545768344"
+  }
+}

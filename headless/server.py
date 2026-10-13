@@ -208,7 +208,7 @@ class Handler(BaseHTTPRequestHandler):
                 if patch.get('format')!='MIDI_HUMAN_LOOPER_PATCH':
                     self.respond(409,patch);return
                 model=decode_conductor(patch['conductor']) if 'conductor' in patch else None
-                self.respond(200,{'executionSupported':False,'model':model,'missingReferences':resolve(model,{v['id'] for v in state['switches']}) if model else []})
+                self.respond(200,{'executionSupported':True,'supportedExecution':['SEQUENTIAL','IMMEDIATE','PRESS_INSTANT','PHRASE_POLY'],'runtime':{str(v['id']):v.get('conductor',{}) for v in state['switches']},'model':model,'missingReferences':resolve(model,{v['id'] for v in state['switches']}) if model else []})
             except (ValueError,OSError):self.respond(503,{'error':'CONDUCTOR unavailable'})
             return
         if path == '/api/v1/descriptors':
@@ -357,6 +357,10 @@ class Handler(BaseHTTPRequestHandler):
                         for a in masks:
                             if not isinstance(a,dict) or any(type(a.get(k)) is not int for k in ('instrumentId','moduleId','kind')) or not 1<=a['instrumentId']<=16777215 or not 0<=a['moduleId']<=16777215 or (not 0<=a['kind']<=24 or a['kind']==16) or type(a.get('included')) is not bool:raise ValueError()
                         args['inclusions']=masks
+            elif action=='conductor_release':
+                target=data.get('switchId')
+                if type(target) is not int or not 1<=target<=16777215:raise ValueError()
+                args=dict(op=45,target=target)
             elif action=='snapshot_ab_configure':
                 a,b,ease,position=data.get('a'),data.get('b'),data.get('ease',0),data.get('position',0)
                 if any(type(v) is not int for v in (a,b,ease)) or not 0<=a<=16777215 or not 0<=b<=16777215 or ease not in (0,1) or (bool(a)!=bool(b)) or (a and a==b) or type(position) not in (int,float) or not math.isfinite(position) or not 0<=position<=1:raise ValueError()

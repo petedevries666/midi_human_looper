@@ -39,6 +39,7 @@ try:
     run([sys.executable,'tests/test_portable_project.py'])
     run([sys.executable,'tests/test_conductor_legacy_contract.py'])
     run([sys.executable,'tests/test_conductor_persistence.py'])
+    run([sys.executable,'tests/test_conductor_execution_native.py'])
     run([sys.executable,'tests/test_portable_engine.py'])
     run([sys.executable,'tests/test_project_sync.py'])
     run([sys.executable,'tests/test_project_authority.py'])

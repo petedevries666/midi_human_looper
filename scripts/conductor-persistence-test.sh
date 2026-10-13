@@ -14,6 +14,9 @@ scripts/headless-build.sh
 set +e
 "$TEST_PYTHON" tests/test_conductor_persistence.py
 functional_status=$?
+"$TEST_PYTHON" tests/test_conductor_execution_native.py
+execution_status=$?
+if [[ $execution_status != 0 ]];then functional_status=$execution_status;fi
 set -e
 "$TEST_PYTHON" - "$sanitizer_dir" "$functional_status" <<'PY'
 from pathlib import Path

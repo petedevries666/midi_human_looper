@@ -21,7 +21,9 @@ placeholders but own no emitted output. Matching Offs consume source-key FIFO
 records, including Note On velocity zero, and release the saved output rather
 than recomputing current pitch/routing. CC120/123 release only this instance's
 claims for the source channel; tombstones prevent later old Offs from cutting
-new attacks. Instrument removal invalidates its old claims before slot reuse.
+new attacks. Instrument removal invalidates its old claims before slot reuse. Pedal destinations also retain stable instrument IDs
+and exact output channels, so deletion cannot leave a stale pedal or release
+a surviving destination sharing that channel.
 
 The native JACK adapter retains its existing bounded, timestamp-sorted output
 queue and emergency recovery. Ledger acceptance means acceptance by the shared
@@ -58,7 +60,8 @@ with a strict stacked-Note-On counter need separate destination channels.
   counts refusals. `reservedAttacks` and `ownedOutputs` are distinct.
 
 There are 12 existing voice owners plus 16 legacy LOOP source owners. Ledger
-storage is 1,951,040 EEL cells (15,608,320 bytes, ~14.89 MiB), pre-touched at
+storage is 1,959,120 EEL cells (15,672,960 bytes, ~14.95 MiB), including
+pedal destination claims and the generation queue; it is pre-touched at
 initialization; reservation/release uses fixed arrays and source-key FIFOs.
 Cleanup traverses at most 2048 records × nine destinations per owner, with 28
 existing owners. No allocation, filesystem work, networking or new scheduler
@@ -95,7 +98,8 @@ The native regression runner includes `tests/test_instance_ownership_native.py`;
 the JACK runner includes `tests/test_instance_ownership_jack.py`. The EEL suite
 includes real emitted MIDI ownership, routed/transposed releases, repeated pitches,
 sustain, source-channel clear tombstones, filtered attacks, stale tokens, capacity
-reservation, legacy LOOP, independent LOOP/HOLD cycles, and exact offsets at 44.1/48/96 kHz with
+reservation, destination deletion/reuse with shared and separate pedal channels,
+legacy LOOP, independent LOOP/HOLD cycles, and exact offsets at 44.1/48/96 kHz with
 128/256/512/8192-frame blocks. Recording, overdub and SMF fixtures are unchanged.
 Controller tests run normally and with ASAN. Additional focused EEL host
 ASAN/UBSAN checks link the existing uninstrumented ysfx library; they are not

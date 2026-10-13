@@ -123,6 +123,33 @@ static void instance_ownership_tests(const char *source) {
     h.midi(128,48,0);output=h.events();check(conductor_count(output,128,48)==1,"physical release after LOOP STOP emits final Off");
     h.eq("mem[instance_header(MAX_ONCE_VOICES)+13]",0,"legacy LOOP ownership retired");
   }
+  {
+    Host h(source);conductor_fixture(h);
+    h.run("clear_layer(0);store_event(0,0,176,64,127,0);store_event(0,1,144,48,90,0);mem[LEN_BASE]=8192;a=phrase_admit_independent(0,0);ag=mem[instance_header(0)+1];oldid=mem[I_IDS_BASE];");h.block();h.events();
+    h.eq("mem[SUSTAIN_REF_BASE]",1,"pedal captures its emitted instrument destination");
+    h.run("i_submit(2,0,oldid);");h.block();auto output=h.events();
+    bool pedalOff=false;for(auto e:output)if(e[0]==176 && e[1]==64 && e[2]==0)pedalOff=true;
+    check(pedalOff,"queued instrument deletion releases its last owned pedal destination");
+    check(conductor_count(output,128,48)==1,"queued deletion emits owned note release");
+    h.eq("mem[instance_header(0)+13]",0,"deleted destination leaves no ledger claim");
+    h.eq("mem[SUSTAIN_REF_BASE]",0,"deleted destination leaves no pedal reference");
+    h.run("i_submit(1,0,0);");h.block();h.events();
+    check(h.eval("mem[I_IDS_BASE]!=oldid"),"replacement instrument never inherits deleted stable ID");
+    h.run("instance_request_stop(a,ag);");h.block();output=h.events();
+    check(conductor_count(output,128,48)==0,"old instance STOP cannot release replacement instrument");
+  }
+  for(unsigned secondChannel:{1u,2u}) {
+    Host h(source);conductor_fixture(h);
+    h.run("mem[INST_ENABLED_BASE+1]=1;mem[INST_OUT_BASE+1]="+std::to_string(secondChannel)+";clear_layer(0);store_event(0,0,176,64,127,0);store_event(0,1,144,48,90,0);mem[LEN_BASE]=8192;a=phrase_admit_independent(0,0);ag=mem[instance_header(0)+1];oldid=mem[I_IDS_BASE];");h.block();h.events();
+    h.run("i_submit(2,0,oldid);");h.block();auto output=h.events();
+    bool wrongPedal=false;for(auto e:output)if(e[0]==int(175+secondChannel) && e[1]==64 && e[2]==0)wrongPedal=true;
+    check(!wrongPedal,"destination deletion preserves the remaining instrument pedal");
+    h.eq("mem[SUSTAIN_REF_BASE+"+std::to_string(secondChannel-1)+"]",1,"surviving routed pedal retains exactly one source claim");
+    h.eq("mem[instance_header(0)+13]",1,"deletion preserves one actual note destination");
+    h.run("instance_request_stop(a,ag);");h.block();output=h.events();
+    bool pedalOff=false,noteOff=false;for(auto e:output){if(e[0]==int(175+secondChannel) && e[1]==64 && e[2]==0)pedalOff=true;if(e[0]==int(127+secondChannel) && e[1]==48)noteOff=true;}
+    check(pedalOff && noteOff,"final STOP releases surviving frozen note/pedal destination");
+  }
   for(unsigned mode:{0u,2u}) {
     Host h(source);conductor_fixture(h);
     h.run("clear_layer(0);store_event(0,0,144,48,90,0);store_event(0,64,128,48,0,0);mem[LEN_BASE]=512;mem[MODE_BASE]="+std::to_string(mode)+";a=phrase_admit_independent(0,0);ag=mem[instance_header(0)+1];");

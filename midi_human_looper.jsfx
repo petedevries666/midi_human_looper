@@ -331,12 +331,15 @@ INSTANCE_ROW=4+(INST_CAP+1)*3;
 INSTANCE_QUEUE_BASE=INSTANCE_BASE+INSTANCE_OWNERS*INSTANCE_HEADER;
 INSTANCE_POOL_BASE=INSTANCE_QUEUE_BASE+INSTANCE_OWNERS*2048*3;
 INSTANCE_END=INSTANCE_POOL_BASE+INSTANCE_OWNERS*INSTANCE_ROWS*INSTANCE_ROW;
-instance_init_page=INSTANCE_BASE;loop(ceil((INSTANCE_END-INSTANCE_BASE)/65536)+1,
+INSTANCE_PEDAL_BASE=INSTANCE_END+16;INSTANCE_PEDAL_STRIDE=16*(INST_CAP+1)*2;
+INSTANCE_STORAGE_END=INSTANCE_PEDAL_BASE+INSTANCE_OWNERS*INSTANCE_PEDAL_STRIDE;
+instance_init_page=INSTANCE_BASE;loop(ceil((INSTANCE_STORAGE_END-INSTANCE_BASE)/65536)+1,
  mem[instance_init_page]=0;instance_init_page+=65536;);
 instance_serial=0;instance_last_source=-1;instance_repeat=0;instance_rejected=0;instance_error=0;instance_route_record=-1;
 function instance_header(v) (INSTANCE_BASE+v*INSTANCE_HEADER;);
 function instance_row(v,r) (INSTANCE_POOL_BASE+(v*INSTANCE_ROWS+r)*INSTANCE_ROW;);
 function instance_queue(v,key) (INSTANCE_QUEUE_BASE+(v*2048+key)*3;);
+function instance_pedal(v,ch,j) (INSTANCE_PEDAL_BASE+v*INSTANCE_PEDAL_STRIDE+(ch*(INST_CAP+1)+j)*2;);
 function instance_discard_all() local(v,h)
 (v=0;loop(INSTANCE_OWNERS,h=instance_header(v);mem[h+11]=0;mem[h+1]+=1;mem[h+2]=-1;mem[h+3]=-1;mem[h+4]=0;mem[h+5]=0;mem[h+6]=-1;mem[h+7]=0;mem[h+9]=0;mem[h+13]=0;v+=1;);instance_route_record=-1;instance_last_source=-1;instance_repeat=0;);
 instance_discard_all();
@@ -1450,13 +1453,27 @@ function instance_release_input(v,key,offs) local(h,q,r)
   r=mem[q+1];mem[q+1]=mem[instance_row(v,r)];mem[q+1]<0?mem[q+2]=-1;
   instance_release_record(v,r,offs);
  ););
-function instance_remove_destination(gi,id) local(v,h,r,b,next)
+function instance_remove_destination(gi,id) local(v,h,r,b,next,ch,p,out,j,remaining,mask)
 (v=0;loop(INSTANCE_OWNERS,h=instance_header(v);r=mem[h+2];
  loop(min(INSTANCE_ROWS,max(0,mem[h+5])),r>=0?(
   next=mem[instance_row(v,r)+1];b=instance_row(v,r)+4+gi*3;
   mem[b+1]==id?(mem[b]>=0?mem[h+13]=max(0,mem[h+13]-1);mem[b]=-1;mem[b+1]=-1;mem[b+2]=-1;);
   r=next;
- ););v+=1;);
+ ););
+ ch=0;loop(16,
+  mask=mem[h+16+ch];p=instance_pedal(v,ch,gi);
+  mask>0 && mem[p]==id?(
+   out=mem[p+1];mem[p]=-1;mem[p+1]=-1;remaining=0;j=0;loop(INST_CAP+1,
+    b=instance_pedal(v,ch,j);mem[b]>=0 && mem[b+1]==out?remaining=1;j+=1;);
+   !remaining && out>=0 && (mask&(1<<out))?(
+    mask-=1<<out;mem[h+16+ch]=mask;mask==0?mem[h+9]=max(0,mem[h+9]-1);
+    mem[SUSTAIN_REF_BASE+out]=max(0,mem[SUSTAIN_REF_BASE+out]-1);
+    mem[SUSTAIN_REF_BASE+out]<=0 && mem[SW_LIVE_SUSTAIN_BASE+out]<64?(
+     mem[SW_PHRASE_SUSTAIN_BASE+out]=0;midisend(0,176|out,64,0);
+    );
+   );
+  );ch+=1;
+ );v+=1;);
 );
 function instance_release_pedal(v,ch,offs) local(h,mask,k)
 (h=instance_header(v);mask=mem[h+16+ch];mask>0?mem[h+9]=max(0,mem[h+9]-1);mem[h+16+ch]=0;k=0;loop(16,
@@ -1487,17 +1504,19 @@ function instance_request_stop(id,generation) local(v,h,found,a)
 );
 
 function instance_sustain(v,sourcech,st,value,offs)
-local(h,mask,j,in_ch,out_ch,ch,k)
+local(h,mask,j,in_ch,out_ch,ch,k,p)
 (
  h=instance_header(v);mask=mem[h+16+sourcech];
  value<64?instance_release_pedal(v,sourcech,offs):mask==0?(
+  j=0;loop(INST_CAP+1,p=instance_pedal(v,sourcech,j);mem[p]=-1;mem[p+1]=-1;j+=1;);
   j=0;loop(INST_CAP,
    mem[I_EXISTS_BASE+j] && mem[engine_addr(INST_ENABLED_BASE,j)]>.5 && instance_inst_id(v,j)==mem[I_IDS_BASE+j]?(
     in_ch=mem[engine_addr(INST_IN_BASE,j)];in_ch==0 || in_ch==(st&15)+1?(
      out_ch=mem[engine_addr(INST_OUT_BASE,j)];ch=out_ch>0?out_ch-1:st&15;mask|=1<<ch;
+     p=instance_pedal(v,sourcech,j);mem[p]=mem[I_IDS_BASE+j];mem[p+1]=ch;
     );
    );j+=1;
-  );mask==0?mask=1<<(st&15);mem[h+16+sourcech]=mask;mem[h+9]+=1;
+  );mask==0?(mask=1<<(st&15);p=instance_pedal(v,sourcech,INST_CAP);mem[p]=0;mem[p+1]=st&15;);mem[h+16+sourcech]=mask;mem[h+9]+=1;
   k=0;loop(16,mask&(1<<k)?(mem[SUSTAIN_REF_BASE+k]+=1;mem[SW_PHRASE_SUSTAIN_BASE+k]=127;midisend(offs,176|k,64,value););k+=1;);
  );
 );
@@ -2848,7 +2867,7 @@ local(j,ch,n,idx,si,b,k,held)
  b>0 && instrument_output_owners(ch,n,-1)<=0?midisend(0,128|ch,n);j+=1;);
  ch=0;loop(16,held=mem[I_SUSTAIN_BASE+gi*16+ch];mem[I_SUSTAIN_BASE+gi*16+ch]=0;b=mem[I_FALLBACK_SUSTAIN_BASE+ch];j=0;loop(INST_CAP,b=max(b,mem[I_SUSTAIN_BASE+j*16+ch]);j+=1;);
  j=0;loop(INST_CAP,k=0;loop(TRANSFORM_SLOTS,idx=cc_record(j,k==5?6:k+7);mem[I_EXISTS_BASE+j] && mem[engine_addr(INST_ENABLED_BASE,j)] && j!=gi && mem[idx+4] && mem[idx+5]==ch && mem[idx+6]==64?b=max(b,mem[idx+7]);k+=1;);j+=1;);
- held>=64 && b<64?midisend(0,176|ch,64,0);ch+=1;);
+ held>=64 && b<64 && mem[SUSTAIN_REF_BASE+ch]<=0?midisend(0,176|ch,64,0);ch+=1;);
  instance_remove_destination(gi,id);i_clear_runtime(gi);mem[I_EXISTS_BASE+gi]=0;mem[engine_addr(INST_TRANSFORM_COUNT_BASE,gi)]=0;
  si=0;loop(SW_COUNT,b=sw_committed_cfg(si);k=0;loop(3,mem[b+14+k]>=SW_TOGGLE && floor(mem[b+17+k]/TRANSFORM_TYPES)==gi?mem[b+14+k]=SW_NONE;k+=1;);si+=1;);
  ui_sw_editor_open?(k=0;loop(3,mem[SW_DRAFT_BASE+14+k]>=SW_TOGGLE && floor(mem[SW_DRAFT_BASE+17+k]/TRANSFORM_TYPES)==gi?mem[SW_DRAFT_BASE+14+k]=SW_NONE;k+=1;););

@@ -1,7 +1,7 @@
 # CONDUCTOR PR A: executable baseline before instance ownership changes
 
 Base: PR #50, `25fcb1e458ffdce7286ff4c60cd4546d586e19a4`.
-Contract: PR #55, `d63431a7dda54ce69317ad29e0ddded89ee42404`,
+Current contract: PR #55, `73cdee5604992ca3bd68e4c6c3b97c545333b127` (878 lines, fully reread),
 `docs/movement-phrase-conductor-master-spec.md`.
 This PR changes tests and documentation only. It does not implement CONDUCTOR,
 change musical behavior, merge prerequisites, install software, or touch hardware.
@@ -115,7 +115,8 @@ pairing/generations for repeated pitches and surviving-owner aggregation.
 - Q1 **resolved** in PR #55: FECK retains STEP; next PRESS replays it from the
   start; following PRESS resumes normal traversal. PR A records that contract,
   but does not claim that new FECK cursor behavior exists in the legacy engine.
-- Q2 non-LOOP JOIN beyond duration and Q4 held-note PAUSE/RESUME remain unresolved.
+- Q2 **resolved**: non-LOOP JOIN beyond duration triggers normally at time zero, retaining PLAY MODE/properties without time stretch.
+- Q4 **resolved**: PAUSE preserves the position and releases only owned sounding notes; RESUME emits future attacks without reattacking paused notes, and filters their historical orphan Offs. Live notes/other instances stay independent.
 - Q3 numerical caps/handover durations remain proposals pending measurement and
   review; existing capacities are not user approval.
 - PR #45 contains relevant gesture work but also schema-8/portable-v2 changes;
@@ -157,7 +158,7 @@ Physical qualification remains pending: real REAPER APIs, Oram routing,
 Firefox/Helix, physical sustain and same-pitch receiver behavior, playable buffer
 deadlines/XRUNs. No deployment or hardware changes are part of PR A.
 
-## Executed results and unresolved regression gate
+## Initial executed results and regression gate (historical PR A submission)
 
 - New compatibility suite: **5 tests pass**.
 - Production EEL baseline: **85 checks complete, 3 explicit XFAIL contracts**.
@@ -187,8 +188,10 @@ deadlines/XRUNs. No deployment or hardware changes are part of PR A.
 See [execution evidence](evidence/conductor-a-validation.txt) and the
 [measured MIDI/capacity report](evidence/conductor-a-baseline.json). No assertions,
 timing guards or queue bounds were weakened. No runtime source was changed.
-Keep PR A draft: its focused baseline is reproducible, but the complete
-regression gate must be resolved before starting critical PR B changes. Do not
+The initial submission kept PR A draft pending comparison with clean PR #50.
+Historical evidence retains the specification SHA actually used at that time;
+Q2/Q4 are now resolved as stated above. A differential gate can isolate confirmed
+pre-existing failures without hiding them (see comparative follow-up). Do not
 retry until green and erase failed attempts, or treat the known-failure runner's
 exit zero as proof of new musical behavior.
 
@@ -204,3 +207,13 @@ retained legacy trigger fixtures before changing `process_phrase_trigger`,
 events, descriptors, serialized addresses and recording semantics. Resolve the
 overload and physical-owner cases before admitting layered playback. Keep mono/
 ARP restrictions explicit until their corresponding ledger tests actually pass.
+
+## Comparative follow-up supersedes the initial blanket NO-GO
+
+The user accepted the reproducible baseline and requested clean-base comparison.
+See [the differential report](conductor-comparison.md): pre-existing UI loss
+mechanisms are reproduced on both SHAs and the same interruption guard is tested.
+**Conditional GO for PR B core development**, under its precise gate, without
+claiming the full regression suite or physical hardware is qualified. Q1/Q2/Q4
+are now resolved in current PR55; no further product arbitration is needed for
+those decisions. The initial failed executions remain preserved above/in evidence.

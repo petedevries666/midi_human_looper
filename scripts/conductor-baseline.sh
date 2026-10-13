@@ -29,7 +29,7 @@ report['provenance']={
     'recordedAtUTC':datetime.datetime.now(datetime.timezone.utc).isoformat(),
     'checkoutCommit':subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip(),
     'engineBaseCommit':'25fcb1e458ffdce7286ff4c60cd4546d586e19a4',
-    'specCommit':'d63431a7dda54ce69317ad29e0ddded89ee42404',
+    'specCommit':'73cdee5604992ca3bd68e4c6c3b97c545333b127',
     'machine':platform.machine(),
     'sourceHashes':{name:hashlib.sha256(Path(name).read_bytes()).hexdigest() for name in (
         'midi_human_looper.jsfx','tests/conductor_baseline_cases.hpp','tests/expression_host.cpp')},

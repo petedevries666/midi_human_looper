@@ -13,7 +13,8 @@
     [22050, 129, 67, 23, 0]
   ],
   "eventSeconds": [0, 0.05, 0.1, 0.2, 0.25, 0.5],
+  "specCommit": "73cdee5604992ca3bd68e4c6c3b97c545333b127",
   "q1": "FECK retains the selected STEP; next PRESS replays it from the start; following PRESS resumes traversal",
-  "q2": "UNRESOLVED",
-  "q4": "UNRESOLVED"
+  "q2": "Non-loop phrase JOIN beyond its duration triggers normally at time 0 with existing PLAY MODE/properties, without stretching",
+  "q4": "PAUSE freezes position and releases owned sounding notes; RESUME emits only future attacks, filters historical orphan Offs and preserves independent live/other owners"
 }

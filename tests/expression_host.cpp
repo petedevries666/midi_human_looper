@@ -681,9 +681,11 @@ static void stress(Host &h, bool historical, bool cc_instances = false, bool dyn
 #include "recovery_recording_cases.hpp"
 #include "conductor_baseline_cases.hpp"
 #include "instance_ownership_cases.hpp"
+#include "conductor_execution_cases.hpp"
 int main(int argc, char **argv) {
   if (argc < 2)
     return 2;
+  if (argc>2 && std::string(argv[2])=="--conductor-execution") {conductor_execution_tests(argv[1]);return 0;}
   if (argc>2 && std::string(argv[2])=="--instances") {instance_ownership_tests(argv[1]);return 0;}
   if (argc>2 && std::string(argv[2])=="--conductor-baseline") return conductor_baseline_tests(argv[1],argc>3 && std::string(argv[3])=="--strict");
   if (argc>2 && std::string(argv[2])=="--recovery-recording") {recovery_recording_tests(argv[1]);printf("PASS: %d recording lifecycle checks\n",checks);return 0;}
@@ -699,6 +701,7 @@ int main(int argc, char **argv) {
     stress(h, std::string(argv[2]) == "--historical");
     return 0;
   }
+  conductor_execution_tests(argv[1]);
   instance_ownership_tests(argv[1]);
   recovery_recording_tests(argv[1]);
   recovery_arp_tests(argv[1]);

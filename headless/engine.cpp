@@ -3,6 +3,7 @@
 #include "chain_mode.hpp"
 #include "controller_wire.hpp"
 #include "conductor_wire.hpp"
+#include "conductor_execution.hpp"
 #include "parameter_registry.hpp"
 #include "snapshot_wire.hpp"
 #include "ysfx.hpp"
@@ -79,6 +80,7 @@ struct Request {
   performance::Configuration snapshotConfig;
 };
 struct Switch {
+  int conductorStep=0,conductorSteps=0,conductorResult=0,conductorMissing=0,conductorAdmitted=0;
   int id = 0, on = 0, type = 0, kind = 0, ch = 0, num = 0, length = 0, step = 0, actionCount = 0, lastAction = 0, result = 0;
   char name[17]{};
   std::array<int,18> settings{};std::array<int,64> sequence{};
@@ -177,6 +179,7 @@ static void execute(ysfx_t *fx, const char *text) {
 }
 struct Model {
   std::array<std::array<EEL_F*,128>,16> switchFields;
+  std::array<std::array<EEL_F*,8>,16> conductorFields;
   EEL_F *musicalState,*recordLayer,*odLayer,*odActive,*odArmed,*freeActive,*freeReady,*freeError;
   std::array<EEL_F*,12> voiceActive,voiceLayer;
   std::array<EEL_F*,16> phraseTriggers,phraseFinished;
@@ -319,6 +322,7 @@ struct Model {
       unsigned rt = i < 4 ? unsigned(variable(fx, "SW_RT_BASE")) + i * 32
                           : unsigned(variable(fx, "DS_RT_BASE")) + (i - 4) * 32;
       for(unsigned j=0;j<128;++j)switchFields[i][j]=cell(fx,b+j);
+      for(unsigned k=0;k<8;++k)conductorFields[i][k]=cell(fx,unsigned(variable(fx,"CONDUCTOR_BASE"))+i*8+k);
       sw[i][24] = cell(fx, rt + 7);
       sw[i][25] = cell(fx, rt + 12);
       sw[i][26] = cell(fx, rt + 11);sw[i][27] = cell(fx, rt + 17);
@@ -502,6 +506,8 @@ struct Model {
     for (unsigned i = 0; i < 16; ++i) {
       auto &v = s.switches[i];
       v.id = *sw[i][0] ? int(*sw[i][1]) : 0;
+      v.conductorStep=v.conductorSteps=v.conductorResult=v.conductorMissing=v.conductorAdmitted=0;
+      if(v.id && *conductorFields[i][0]==v.id){v.conductorStep=int(*conductorFields[i][3])+1;v.conductorSteps=int(*conductorFields[i][1]);v.conductorResult=int(*conductorFields[i][4]);v.conductorMissing=int(*conductorFields[i][5]);v.conductorAdmitted=int(*conductorFields[i][6]);}
       v.on = int(*sw[i][2]);
       v.type = int(*sw[i][3]);
       v.kind = int(*sw[i][4]);
@@ -632,6 +638,7 @@ static std::string json(const Reply &r) {
         << ",\"kind\":" << v.kind << ",\"channel\":" << v.ch
         << ",\"number\":" << v.num << ",\"length\":" << v.length
         << ",\"step\":" << v.step << ",\"actionCount\":" << v.actionCount
+        << ",\"conductor\":{\"step\":"<<v.conductorStep<<",\"steps\":"<<v.conductorSteps<<",\"result\":"<<v.conductorResult<<",\"missing\":"<<v.conductorMissing<<",\"admitted\":"<<v.conductorAdmitted<<"}"
         << ",\"lastAction\":" << v.lastAction << ",\"result\":" << v.result << ",\"settings\":[";
       for(unsigned j=0;j<18;++j){if(j)o<<',';o<<v.settings[j];}
       o<<"],\"sequence\":[";for(int j=0;j<v.length;++j){if(j)o<<',';o<<v.sequence[j];}o<<"]}";
@@ -908,6 +915,15 @@ static void control(int listener, Queue<Request, 64> &commands,
                     performance::Snapshots &performanceSnapshots,
                     const std::function<bool(int, int, int)> &conflicts) {
   std::vector<unsigned> conductorConfiguration; // worker-owned, never live MIDI state
+  auto installConductor=[&](const std::vector<unsigned>& bytes){
+    std::array<unsigned,16> owners{};
+    for(unsigned i=0;i<16;++i)owners[i]=*model.sw[i][0]?unsigned(*model.sw[i][1]):0;
+    unsigned base=unsigned(variable(patch.fx,"CONDUCTOR_BASE"));
+    auto cells=conductor::compile(bytes,base,owners);
+    // Touch/resolve every cell on the worker while processing is paused.
+    for(unsigned i=0;i<cells.size();++i)*cell(patch.fx,base+i)=cells[i];
+    *NSEEL_VM_regvar(patch.fx->vm.get(),"conductor_host_enabled")=1;
+  };
   while (!shutdown) {
     pollfd p{listener, POLLIN, 0};
     if (poll(&p, 1, 20) <= 0)
@@ -944,7 +960,7 @@ static void control(int listener, Queue<Request, 64> &commands,
                       request.arg >> request.revision >> request.ch >>
                       request.note >> request.value) &&
                  request.id > 0 && request.id <= 9007199254740991ULL &&
-                 request.op >= 0 && (request.op <= 44) && request.arg >= 0 &&
+                 request.op >= 0 && (request.op <= 45) && request.arg >= 0 &&
                  request.arg <= (request.op == 13   ? 5
                                  : request.op == 40 ? 7
                                  : request.op == 15 || request.op == 34 ? 3
@@ -1216,7 +1232,7 @@ static void control(int listener, Queue<Request, 64> &commands,
           }
           paused.store(false,std::memory_order_release);
         } else if(reply.status==0 && request.op==42){
-          patch.load(7,patch.factory);patch.guardedReady=false;conductorConfiguration.clear();
+          patch.load(7,patch.factory);patch.guardedReady=false;conductorConfiguration.clear();installConductor(conductorConfiguration);
           send_line(fd,json(reply),shutdown);
         } else if (reply.status == 0 && request.op == 4) {
           auto document =
@@ -1257,6 +1273,7 @@ static void control(int listener, Queue<Request, 64> &commands,
             }
           }
           if (reply.status == 0 && request.op == 5) {
+            installConductor(pendingConductor);
             conductorConfiguration.swap(pendingConductor);
             performanceSnapshots.restore(request.snapshotConfig);
             model.abPosition = performanceSnapshots.ab.position;
@@ -1499,6 +1516,9 @@ int main(int argc, char **argv) {
     if (!controllerApply || !legacyConflict || !cancelLearn)
       throw std::runtime_error("controller bridge");
     Model model(fx);
+    auto conductorHoldWrite=ysfx_find_var(fx,"native_hold_write"), conductorHoldRead=ysfx_find_var(fx,"native_hold_read"), conductorReleaseMask=NSEEL_VM_regvar(fx->vm.get(),"conductor_release_mask");
+    std::array<double*,32> conductorReleaseQueue{};
+    for(unsigned j=0;j<32;++j)conductorReleaseQueue[j]=cell(fx,unsigned(variable(fx,"NATIVE_HOLD_QUEUE_BASE"))+j);
     auto importState=ysfx_find_var(fx,"state"), importOverdub=ysfx_find_var(fx,"overdub_active");
     std::array<double*,12> importVoices{};
     std::array<double*,16> importSustain{}, importLiveSustain{};
@@ -2054,6 +2074,15 @@ int main(int argc, char **argv) {
                [&](){for(unsigned j=0;j<12;++j)if(*model.voiceActive[j]>.5 && *model.voiceLayer[j]==request.target)return true;return false;}()))) reply.status=3;
           else if(request.arg==2){*phraseTarget=request.target;NSEEL_code_execute(phraseClear);++state.revision;}
           else { maintenance=true; if(request.arg!=0) ++state.revision; }
+        }
+        else if(request.op==45){
+          bool found=false;
+          for(unsigned si=0;si<16;++si)if(*model.sw[si][0] && *model.sw[si][1]==request.target && *model.conductorFields[si][0]==request.target){
+            found=true;
+            if(*conductorHoldWrite-*conductorHoldRead>=16)*conductorReleaseMask=unsigned(*conductorReleaseMask)|(1u<<si);
+            else {unsigned q=unsigned(*conductorHoldWrite)%16*2;*conductorReleaseQueue[q]=si;*conductorReleaseQueue[q+1]=4;++*conductorHoldWrite;}
+          }
+          if(!found)reply.status=2;
         }
         else if (request.op == 4 || request.op == 5) {
           // Portable activation/capture must never stop a running performance.

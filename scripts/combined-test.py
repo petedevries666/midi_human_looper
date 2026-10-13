@@ -39,6 +39,7 @@ try:
     run([sys.executable,'tests/test_portable_project.py'])
     run([sys.executable,'tests/test_conductor_legacy_contract.py'])
     run([sys.executable,'tests/test_conductor_persistence.py'])
+    run([sys.executable,'tests/test_conductor_execution_native.py'])
     run([sys.executable,'tests/test_portable_engine.py'])
     run([sys.executable,'tests/test_project_sync.py'])
     run([sys.executable,'tests/test_project_authority.py'])
@@ -61,6 +62,7 @@ try:
         # The generic editor currently uses Chromium's explicit executable route.
         if a.browser=='chromium':
             run([sys.executable,'tests/test_headless_editor.py'])
+            run([sys.executable,'tests/test_conductor_execution_browser.py'])
             run([sys.executable,'tests/test_controller_browser.py'])
             run([sys.executable,'tests/test_snapshot_browser.py'])
             run([sys.executable,'tests/test_product_browser.py'])

@@ -1,0 +1,5 @@
+CONDUCTOR EEL PRESS trace [[144,48,100],[144,52,100],[144,56,100],[144,60,100],[144,48,100]]
+CONDUCTOR COST {"layers":1,"blocks":100,"frames":128,"medianUs":26.875,"p95Us":66.821,"maxUs":212.089}
+CONDUCTOR COST {"layers":2,"blocks":100,"frames":128,"medianUs":30.748,"p95Us":84.86,"maxUs":775.594}
+CONDUCTOR COST {"layers":12,"blocks":100,"frames":128,"medianUs":50.185,"p95Us":130.34,"maxUs":192.206}
+PASS actual CONDUCTOR shared EEL checks: 125

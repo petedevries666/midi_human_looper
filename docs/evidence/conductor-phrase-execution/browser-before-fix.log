@@ -1,0 +1,6 @@
+Traceback (most recent call last):
+  File "/workspace/mbmf-conductor-a/tests/test_conductor_execution_browser.py", line 19, in <module>
+    api.wait_for(lambda:len(api.call()['instances'])==i+1,'manual browser Conductor admission')
+  File "/workspace/mbmf-conductor-a/tests/test_headless_mvp.py", line 42, in wait_for
+    raise AssertionError(label+' failed to start')
+AssertionError: manual browser Conductor admission failed to start

@@ -37,6 +37,7 @@ try:
     run([sys.executable,'tests/test_web_names.py'])
     run([sys.executable,'tests/test_phrase_midi.py'])
     run([sys.executable,'tests/test_portable_project.py'])
+    run([sys.executable,'tests/test_conductor_legacy_contract.py'])
     run([sys.executable,'tests/test_portable_engine.py'])
     run([sys.executable,'tests/test_project_sync.py'])
     run([sys.executable,'tests/test_project_authority.py'])
@@ -45,6 +46,9 @@ try:
     run(['scripts/controller-test.sh'])
     run(['scripts/controller-test.sh'],{'SANITIZE':'1'})
     if a.native:
+        # PR A baseline: explicit known failures, not functional Conductor support.
+        run(['scripts/conductor-baseline.sh'])
+        run([sys.executable,'tests/test_conductor_native_baseline.py'])
         run(['tests/run_host_tests.sh'])
         run(['scripts/portable-test.sh'],{'TEST_PYTHON':sys.executable})
         run([sys.executable,'tests/test_patch_io.py'])

@@ -1,0 +1,339 @@
+{
+  "version": 1,
+  "scope": "production EEL; Cloud wall-clock workload, not hardware qualification",
+  "knownFailures": [
+    {
+      "id": "ONCE_CROSS_SOURCE_CHOKE",
+      "status": "XFAIL",
+      "observed": {
+        "activeVoices": 1,
+        "midi": [
+          [
+            128,
+            48,
+            0
+          ],
+          [
+            144,
+            72,
+            83
+          ]
+        ]
+      }
+    },
+    {
+      "id": "VOICE_EXHAUSTION_GLOBAL_RELEASE",
+      "status": "XFAIL",
+      "observed": {
+        "before": 12,
+        "after": 1,
+        "midi": [
+          [
+            128,
+            48,
+            0
+          ],
+          [
+            144,
+            48,
+            91
+          ]
+        ]
+      }
+    },
+    {
+      "id": "CHOKE_RELEASES_LIVE_OWNER",
+      "status": "XFAIL",
+      "observed": {
+        "liveOwners": 1,
+        "midi": [
+          [
+            128,
+            48,
+            0
+          ],
+          [
+            144,
+            72,
+            83
+          ]
+        ]
+      }
+    }
+  ],
+  "capacities": {
+    "IO_SCHEMA": 7,
+    "LAYERS": 16,
+    "MAX_EVENTS_PER_LAYER": 2048,
+    "EV_SIZE": 5,
+    "MAX_ONCE_VOICES": 12,
+    "INST_CAP": 8,
+    "TRANSFORM_SLOTS": 6,
+    "SW_COUNT": 16,
+    "SW_STEPS": 64,
+    "EXP_POINTS": 6,
+    "PATCH_PAYLOAD_SIZE": 171649,
+    "I_RUNTIME_END": 651343,
+    "controllerTargets": 512,
+    "controllerPolicyMappings": 64,
+    "controllerSources": 16,
+    "controllerBindings": 32,
+    "controllerCurvePoints": 16,
+    "controllerCoreBytes": 79896,
+    "controllerConfigBytes": 18024
+  },
+  "measurements": [
+    {
+      "sampleRate": 44100,
+      "block": 128,
+      "voices": 1,
+      "iterations": 64,
+      "medianUs": 9.394,
+      "p95Us": 9.82,
+      "maxUs": 44.065,
+      "budgetUs": 2902.49
+    },
+    {
+      "sampleRate": 44100,
+      "block": 128,
+      "voices": 12,
+      "iterations": 64,
+      "medianUs": 10.138,
+      "p95Us": 15.005,
+      "maxUs": 78.956,
+      "budgetUs": 2902.49
+    },
+    {
+      "sampleRate": 44100,
+      "block": 256,
+      "voices": 1,
+      "iterations": 64,
+      "medianUs": 9.347,
+      "p95Us": 12.058,
+      "maxUs": 167.852,
+      "budgetUs": 5804.99
+    },
+    {
+      "sampleRate": 44100,
+      "block": 256,
+      "voices": 12,
+      "iterations": 64,
+      "medianUs": 10.095,
+      "p95Us": 10.563,
+      "maxUs": 64.118,
+      "budgetUs": 5804.99
+    },
+    {
+      "sampleRate": 44100,
+      "block": 512,
+      "voices": 1,
+      "iterations": 64,
+      "medianUs": 9.576,
+      "p95Us": 11.049,
+      "maxUs": 63.496,
+      "budgetUs": 11610
+    },
+    {
+      "sampleRate": 44100,
+      "block": 512,
+      "voices": 12,
+      "iterations": 64,
+      "medianUs": 10.31,
+      "p95Us": 10.759,
+      "maxUs": 11.781,
+      "budgetUs": 11610
+    },
+    {
+      "sampleRate": 44100,
+      "block": 8192,
+      "voices": 1,
+      "iterations": 64,
+      "medianUs": 9.316,
+      "p95Us": 9.749,
+      "maxUs": 78.56,
+      "budgetUs": 185760
+    },
+    {
+      "sampleRate": 44100,
+      "block": 8192,
+      "voices": 12,
+      "iterations": 64,
+      "medianUs": 10.291,
+      "p95Us": 12.145,
+      "maxUs": 63.741,
+      "budgetUs": 185760
+    },
+    {
+      "sampleRate": 48000,
+      "block": 128,
+      "voices": 1,
+      "iterations": 64,
+      "medianUs": 9.548,
+      "p95Us": 25.49,
+      "maxUs": 88.046,
+      "budgetUs": 2666.67
+    },
+    {
+      "sampleRate": 48000,
+      "block": 128,
+      "voices": 12,
+      "iterations": 64,
+      "medianUs": 10.093,
+      "p95Us": 10.601,
+      "maxUs": 44.803,
+      "budgetUs": 2666.67
+    },
+    {
+      "sampleRate": 48000,
+      "block": 256,
+      "voices": 1,
+      "iterations": 64,
+      "medianUs": 9.5,
+      "p95Us": 10.859,
+      "maxUs": 83.189,
+      "budgetUs": 5333.33
+    },
+    {
+      "sampleRate": 48000,
+      "block": 256,
+      "voices": 12,
+      "iterations": 64,
+      "medianUs": 10.16,
+      "p95Us": 10.5,
+      "maxUs": 11.72,
+      "budgetUs": 5333.33
+    },
+    {
+      "sampleRate": 48000,
+      "block": 512,
+      "voices": 1,
+      "iterations": 64,
+      "medianUs": 9.489,
+      "p95Us": 10.063,
+      "maxUs": 82.314,
+      "budgetUs": 10666.7
+    },
+    {
+      "sampleRate": 48000,
+      "block": 512,
+      "voices": 12,
+      "iterations": 64,
+      "medianUs": 10.117,
+      "p95Us": 10.503,
+      "maxUs": 11.628,
+      "budgetUs": 10666.7
+    },
+    {
+      "sampleRate": 48000,
+      "block": 8192,
+      "voices": 1,
+      "iterations": 64,
+      "medianUs": 9.474,
+      "p95Us": 9.862,
+      "maxUs": 31.009,
+      "budgetUs": 170667
+    },
+    {
+      "sampleRate": 48000,
+      "block": 8192,
+      "voices": 12,
+      "iterations": 64,
+      "medianUs": 9.831,
+      "p95Us": 11.453,
+      "maxUs": 231.543,
+      "budgetUs": 170667
+    },
+    {
+      "sampleRate": 96000,
+      "block": 128,
+      "voices": 1,
+      "iterations": 64,
+      "medianUs": 9.487,
+      "p95Us": 9.81,
+      "maxUs": 25.454,
+      "budgetUs": 1333.33
+    },
+    {
+      "sampleRate": 96000,
+      "block": 128,
+      "voices": 12,
+      "iterations": 64,
+      "medianUs": 10.182,
+      "p95Us": 16.191,
+      "maxUs": 240.934,
+      "budgetUs": 1333.33
+    },
+    {
+      "sampleRate": 96000,
+      "block": 256,
+      "voices": 1,
+      "iterations": 64,
+      "medianUs": 9.304,
+      "p95Us": 9.644,
+      "maxUs": 30.838,
+      "budgetUs": 2666.67
+    },
+    {
+      "sampleRate": 96000,
+      "block": 256,
+      "voices": 12,
+      "iterations": 64,
+      "medianUs": 10.094,
+      "p95Us": 10.574,
+      "maxUs": 35.236,
+      "budgetUs": 2666.67
+    },
+    {
+      "sampleRate": 96000,
+      "block": 512,
+      "voices": 1,
+      "iterations": 64,
+      "medianUs": 9.429,
+      "p95Us": 9.754,
+      "maxUs": 35.54,
+      "budgetUs": 5333.33
+    },
+    {
+      "sampleRate": 96000,
+      "block": 512,
+      "voices": 12,
+      "iterations": 64,
+      "medianUs": 10.319,
+      "p95Us": 67.832,
+      "maxUs": 94.933,
+      "budgetUs": 5333.33
+    },
+    {
+      "sampleRate": 96000,
+      "block": 8192,
+      "voices": 1,
+      "iterations": 64,
+      "medianUs": 9.328,
+      "p95Us": 9.567,
+      "maxUs": 37.303,
+      "budgetUs": 85333.3
+    },
+    {
+      "sampleRate": 96000,
+      "block": 8192,
+      "voices": 12,
+      "iterations": 64,
+      "medianUs": 10.273,
+      "p95Us": 44.656,
+      "maxUs": 411.931,
+      "budgetUs": 85333.3
+    }
+  ],
+  "provenance": {
+    "recordedAtUTC": "2026-10-13T09:54:07.230632+00:00",
+    "checkoutCommit": "25fcb1e458ffdce7286ff4c60cd4546d586e19a4",
+    "engineBaseCommit": "25fcb1e458ffdce7286ff4c60cd4546d586e19a4",
+    "specCommit": "d63431a7dda54ce69317ad29e0ddded89ee42404",
+    "machine": "x86_64",
+    "sourceHashes": {
+      "midi_human_looper.jsfx": "e38e784a410b031598f1762da5c45edbb8107df8eb4d5939996b3f2a5c337fb3",
+      "tests/conductor_baseline_cases.hpp": "9f97dccb5f0e1964575eec4bb8264d3213b69b21f71a204f7bc6c59af3149b09",
+      "tests/expression_host.cpp": "60718dd230afb498b2ed91d043e8f36a880470c55053a0c506ae2a627c070b84"
+    }
+  }
+}

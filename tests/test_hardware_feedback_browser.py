@@ -1,5 +1,5 @@
 """Issue #51 hardware workflows through the production HTTP, browser and engine."""
-import os,time
+import os,time,json
 from playwright.sync_api import sync_playwright
 from test_native_free_capture import FreeCapture
 from controller_config import decode
@@ -36,7 +36,20 @@ try:
   page.get_by_role('button',name='DONE',exact=True).click();page.locator('#editor').wait_for(state='hidden')
   row=page.locator('[data-phrase-id="1"]');row.get_by_role('button',name='REC / OVERDUB',exact=True).click();api.command('midi',channel=1,note=60,value=100);time.sleep(.15)
   row.get_by_role('button',name='FINISH REC',exact=True).click();page.get_by_role('button',name='PANIC',exact=True).click()
-  row.get_by_label('Play mode Phrase 1',exact=True).select_option('0');row.locator('[data-phrase-play]').click();row.get_by_role('button',name='STOP PHRASE',exact=True).wait_for()
+  row.get_by_label('Play mode Phrase 1',exact=True).select_option('0')
+  # Selection queues a live write. Verify the intended engine mode before the
+  # playback action rather than racing two independent requests in this fixture.
+  try:
+   api.wait_for(lambda:api.call()['phrases'][0]['mode']==0,'native LOOP selection applied before PLAY')
+  except AssertionError:
+   observed=api.call()
+   print('LOOP SELECTION FAILURE',json.dumps({
+    'phrase':observed['phrases'][0],
+    'runtime':{key:observed[key] for key in ('chainRunning','chainRecording','chainError','activeNotes','lateBlocks')},
+    'uiError':page.locator('#error').inner_text(),
+   }),flush=True)
+   raise
+  row.locator('[data-phrase-play]').click();row.get_by_role('button',name='STOP PHRASE',exact=True).wait_for()
   row.get_by_role('button',name='STOP PHRASE',exact=True).click();api.wait_for(lambda:api.call()['activeNotes']==0,'browser STOP owned notes')
   row.get_by_role('button',name='TRIGGER',exact=True).wait_for()
   row.get_by_role('button',name='PHRASE OPTIONS',exact=True).click();page.once('dialog',lambda d:d.accept());page.get_by_role('button',name='CLEAR MIDI',exact=True).click()

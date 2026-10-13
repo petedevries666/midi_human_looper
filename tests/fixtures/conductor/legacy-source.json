@@ -1,0 +1,19 @@
+{
+  "provenance": "PR50 schema7 source fixture; deliberately overlapping same-pitch and cross-channel notes",
+  "schema": 7,
+  "portableVersion": 1,
+  "sampleRate": 44100,
+  "lengthSamples": 44100,
+  "sourceEvents": [
+    [0, 144, 60, 100, 0],
+    [2205, 145, 67, 81, 0],
+    [4410, 144, 60, 91, 0],
+    [8820, 144, 60, 0, 0],
+    [11025, 128, 60, 31, 0],
+    [22050, 129, 67, 23, 0]
+  ],
+  "eventSeconds": [0, 0.05, 0.1, 0.2, 0.25, 0.5],
+  "q1": "FECK retains the selected STEP; next PRESS replays it from the start; following PRESS resumes traversal",
+  "q2": "UNRESOLVED",
+  "q4": "UNRESOLVED"
+}

@@ -117,10 +117,10 @@ async function editConductor(sw){
  const addStep=action('ADD STEP',()=>change(()=>{sequence.steps.push(step());selected=sequence.steps.at(-1).id;}));
  const done=action('DONE',async()=>{
   if(engineSession!==session||revision!==rev){error.textContent='Configuration changed. CANCEL and reopen; draft retained.';return;}
-  committing=true;done.disabled=cancel.disabled=true;
+  committing=true;const controls=[...root.querySelectorAll('button,input,select')],wasDisabled=controls.map(control=>control.disabled);controls.forEach(control=>control.disabled=true);
   try{await request('/api/v1/command',{protocolVersion:1,expectedRevision:rev,expectedEngineSessionId:session,action:'conductor_commit',conductor:model});dialog.close();await refresh();}
   catch(e){error.textContent=e.message==='conflict'?'Configuration changed. CANCEL and reopen; draft retained.':`${e.message} · STOP/PANIC before DONE; draft retained.`;}
-  finally{committing=false;done.disabled=cancel.disabled=false;}
+  finally{committing=false;controls.forEach((control,index)=>control.disabled=wasDisabled[index]);}
  });
  const cancel=action('CANCEL',()=>dialog.close());heading.append(undo,addStep,done,cancel);
  dialog.oncancel=e=>{if(committing)e.preventDefault();};dialog.onclick=e=>{const r=dialog.getBoundingClientRect();if(!committing&&e.target===dialog&&(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom))dialog.close();};

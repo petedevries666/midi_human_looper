@@ -45,7 +45,8 @@ slot reuse cannot silently bind them to another source.
 Native activation is **STOP-only**. Held notes, running phrases/recording or
 morphs cause a visible refusal with the draft retained. Edits in another browser
 invalidate this draft's session/revision; DONE refuses instead of overwriting.
-Cancel/reopen to merge deliberately. Telemetry updates status independently and
+Controls are locked while DONE is awaiting its real native reply; late edits cannot
+be accepted and then lost on close. Cancel/reopen to merge deliberately. Telemetry updates status independently and
 never rebuilds the draft. No blind conflict retries or implicit PANIC occur.
 
 The existing UI's enabled mode edit now queues behind pending commands instead
@@ -71,7 +72,9 @@ source-library deletion or source adoption/rebinding tool. Correct a missing
 reference by deliberately replacing it with an available identity.
 
 Draft undo is local, not shared across unrelated editors or persisted to disk.
-No saved undo restores historical MIDI. Runtime active STEP is observed from D;
+No saved undo restores historical MIDI. Existing TEST TAP is PRESS-only; a HOLD
+source requires physical RELEASE or the existing STOP/PANIC controls. This slice
+does not add a new browser gesture-testing system. Runtime active STEP is observed from D;
 it does not infer per-layer playback states unsupported by the engine. Unsupported
 existing overrides remain intact when the four supported options are edited.
 

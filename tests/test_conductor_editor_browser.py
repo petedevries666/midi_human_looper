@@ -5,13 +5,13 @@ from pathlib import Path
 from playwright.sync_api import sync_playwright
 from test_conductor_execution_native import Execution
 
-def author_four_steps(page):
+def author_four_steps(page,touch=False):
  page.locator('[data-switch-id="1"]').get_by_role('button',name='CONDUCTOR',exact=True).click()
  page.locator('.conductor-editor').wait_for()
  for i in range(1,5):
   col=page.locator('.conductor-step').nth(i-1)
-  col.get_by_role('button',name=f'Add PHRASE STEP {i} LAYER 1',exact=True).click()
-  col.get_by_role('button',name=re.compile(f'^PHRASE {i:02d} ·')).click()
+  getattr(col.get_by_role('button',name=f'Add PHRASE STEP {i} LAYER 1',exact=True),'tap' if touch else 'click')()
+  getattr(col.get_by_role('button',name=re.compile(f'^PHRASE {i:02d} ·')),'tap' if touch else 'click')()
  assert page.locator('.conductor-step').count()==5,'next empty STEP must be automatic'
 
 def save_draft(page):
@@ -27,7 +27,7 @@ if __name__=='__main__':
    context=browser.new_context(viewport={'width':1440,'height':900},has_touch=True)
    page=context.new_page();page.goto(api.base);page.get_by_text('CONNECTED · Engine running',exact=True).wait_for()
    page.evaluate('()=>{crypto.randomUUID=undefined;}') # LAN HTTP does not provide secure-context randomUUID.
-   author_four_steps(page)
+   author_four_steps(page,touch=True)
    # Local override, two populated layers, move/undo and source isolation.
    first=page.locator('.conductor-step').first
    first.get_by_role('button',name='Add PHRASE STEP 1 LAYER 2',exact=True).click()
@@ -35,6 +35,9 @@ if __name__=='__main__':
    first.get_by_role('button',name='EDIT BLOCK',exact=True).first.click()
    page.get_by_label('VEL inheritance',exact=True).select_option('OVERRIDE')
    page.get_by_label('VEL override',exact=True).fill('0.5')
+   page.get_by_label('VEL override',exact=True).press('ArrowRight')
+   assert float(page.get_by_label('VEL override',exact=True).input_value())==.51
+   page.get_by_label('VEL override',exact=True).press('ArrowLeft')
    first.get_by_role('button',name='MOVE LAYER DOWN',exact=True).first.click()
    page.get_by_role('button',name='UNDO',exact=True).click()
    first.get_by_role('button',name='MOVE STEP RIGHT',exact=True).click()
@@ -58,7 +61,12 @@ if __name__=='__main__':
    page.get_by_role('button',name='UNDO',exact=True).click()
    # Preserve four-step-only musical acceptance; extra layer saved later.
    first.get_by_role('button',name='REMOVE BLOCK',exact=True).nth(1).click()
-   save_draft(page)
+   # Delay the real native commit reply: controls lock, committed data stays exact.
+   page.evaluate("""()=>{const original=fetch.bind(window);window.__commitHeld=false;
+    window.fetch=async(...args)=>{const body=args[1]?.body?JSON.parse(args[1].body):{};const reply=await original(...args);if(body.action==='conductor_commit'){window.__commitHeld=true;await new Promise(r=>setTimeout(r,500));window.__commitHeld=false;}return reply;};} """)
+   page.get_by_role('button',name='DONE',exact=True).click();page.wait_for_function('()=>window.__commitHeld')
+   assert page.locator('.conductor-editor button:enabled,.conductor-editor input:enabled,.conductor-editor select:enabled').count()==0
+   page.locator('#editor').wait_for(state='hidden')
    model=json.load(__import__('urllib.request').request.urlopen(api.base+'/api/v1/conductor'))['model']
    assert len(model['switches'][0]['steps'])==4
    source_ids=[s['layers'][0]['block']['sourceId'] for s in model['switches'][0]['steps']]

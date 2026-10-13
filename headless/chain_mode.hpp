@@ -77,15 +77,16 @@ struct ChainMode {
     freeArm=compile("free_old_count=layer_count(chain_target);free_old_length=mem[LEN_BASE+chain_target];free_old_trigger=mem[TRIG_BASE+chain_target];record_overflow=0;select_phrase_record(chain_target);");
     freeFinish=compile("finish_phrase_record();overdub_active=0;overdub_armed=0;overdub_wait_note=0;");
     freeStop=compile("mem[MODE_BASE+chain_target]<.5?free_loop_stop_mask|=1<<chain_target:native_hold_enqueue(chain_target,0);");
+    // Legacy choke emits releases only after ysfx opens its DSP output buffer.
     freePlay=compile("mem[MODE_BASE+chain_target]<.5?"
         "(layer_count(chain_target)>0 && mem[LEN_BASE+chain_target]>=max(128,samplesblock/8)?(state!=STATE_PLAYING?play_sample_pos=0;mem[FREE_FINISHED_BASE+chain_target]=0;mem[FREE_LOOP_ANCHOR_BASE+chain_target]=play_sample_pos;mem[TRIG_BASE+chain_target]=1;state=STATE_PLAYING;);):"
-        "(trigger_request=chain_target;process_phrase_trigger(0,1););");
+        "(native_hold_enqueue(chain_target,1););");
     align = compile(
         "loop_len_samples=chain_duration;slider6=chain_bpm;play_sample_pos="
         "chain_phase;state=chain_running?STATE_PLAYING:STATE_STOPPED;");
     play = compile("layer_count(chain_target)>0?(mem[MODE_BASE+chain_target]<.5?"
         "mem[TRIG_BASE+chain_target]=1:mem[MODE_BASE+chain_target]<1.5?"
-        "(trigger_request=chain_target;process_phrase_trigger(0,1);));");
+        "(native_hold_enqueue(chain_target,1);));");
     holdPress=compile("chain_hold_accepted=native_hold_can_play(chain_target)?native_hold_enqueue(chain_target,1):0;");
     holdRelease=compile("chain_hold_accepted=native_hold_enqueue(chain_target,0);");
     begin = compile(

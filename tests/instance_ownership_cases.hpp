@@ -160,6 +160,38 @@ static void instance_ownership_tests(const char *source) {
     h.run("instance_request_stop(a,ag);");h.block();h.events();
     check(conductor_active(h)==0,"targeted STOP retires repeating independent instance");
   }
+  {
+    Host h(source);conductor_fixture(h);ysfx_set_midi_capacity(h.f,65536,false);
+    h.run("clear_layer(0);test_j=0;loop(1024,store_event(0,0,144,48+test_j%12,90,0);store_event(0,4096,128,48+test_j%12,0,0);test_j+=1;);mem[LEN_BASE]=8192;test_j=0;loop(5,phrase_admit_independent(0,0);test_j+=1;);");
+    h.block();auto output=h.events();unsigned ons=0;for(auto e:output)if((e[0]&240)==144 && e[2])++ons;
+    unsigned claims=int(h.eval("test_j=0;test_n=0;loop(MAX_ONCE_VOICES,test_n+=mem[instance_header(test_j)+13];test_j+=1;);test_n;"));
+    printf("OUTPUT CAPACITY attempted=5120 accepted=%u owned=%u error=%g panic=%g\n",ons,claims,h.val("instance_error"),h.val("panic_pending"));
+    check(ons>0 && ons<5120 && ons==claims,"fixed output buffer owns only accepted attacks");
+    h.eq("instance_error",6,"output buffer rejection reported distinctly from voice capacity");h.eq("panic_pending",1,"output rejection requests deferred existing PANIC");
+    h.block();output=h.events();unsigned offs=0;for(auto e:output)if((e[0]&240)==128)++offs;
+    check(offs>=2048 && conductor_active(h)==0,"fresh-buffer PANIC releases accepted notes and retires instances");
+    unsigned emergency=0;for(auto e:output)if((e[0]&240)==176 && (e[1]==120 || e[1]==123) && !e[2])++emergency;
+    check(emergency==32,"output failure emits bounded emergency channel cleanup, including stacked receivers");
+    h.eq("mem[NOTE_REF_BASE+48]",0,"output overflow recovery leaves no ownership");
+  }
+  {
+    Host h(source);conductor_fixture(h);ysfx_set_midi_capacity(h.f,65536,false);
+    h.run("clear_layer(0);test_j=0;loop(1024,store_event(0,128,176,2,test_j%128,0);test_j+=1;);mem[LEN_BASE]=8192;clear_layer(1);store_event(1,0,144,60,90,0);store_event(1,129,128,60,0,0);mem[LEN_BASE+1]=8192;test_j=0;loop(5,phrase_admit_independent(0,0);test_j+=1;);phrase_admit_independent(1,0);");
+    h.block();check(conductor_count(h.events(),144,60)==1,"note emits before subsequent full-buffer CC burst");
+    h.block();auto output=h.events();check(conductor_count(output,128,60)==0,"fixture actually rejects the scheduled Off after CC burst");
+    h.eq("instance_error",6,"failed release cannot silently abandon accepted output");
+    h.eq("panic_pending",1,"failed release schedules bounded recovery");
+    h.block();output=h.events();check(conductor_count(output,128,60)>=1,"existing PANIC eventually releases failed Off pitch");
+    check(conductor_active(h)==0,"output recovery stops all burst instances explicitly");
+  }
+  for(unsigned type:{3u,5u}) {
+    Host h(source);conductor_fixture(h);
+    h.run("clear_layer(0);store_event(0,256,144,48,90,0);store_event(0,384,128,48,0,0);mem[LEN_BASE]=1024;phrase_admit_independent(0,0);");h.block();h.events();
+    h.run("mem[INST_TRANSFORM_COUNT_BASE]=1;mem[INST_TRANSFORM_TYPE_BASE]="+std::to_string(type)+";mem[INST_NOTE_MODE_BASE]=1;mem[INST_ARP_ENABLED_BASE]=1;");h.block();auto output=h.events();
+    check(conductor_count(output,144,48)==0 && conductor_active(h)==0,"late unsafe module activation retires independent admission before attack");
+    h.eq("instance_error",3,"late unsafe transition is explicit, not an untracked continuation");
+    h.eq("mem[engine_addr(ARP_HELD_COUNT_BASE,48)]",0,"rejected independent attack leaves no ARP held source");
+  }
   for(unsigned rate:{44100u,48000u,96000u})for(unsigned frames:{128u,256u,512u,8192u}) {
     Host h(source);ysfx_set_sample_rate(h.f,rate);ysfx_set_block_size(h.f,frames);ysfx_init(h.f);conductor_fixture(h);
     h.run("clear_layer(0);store_event(0,0,144,48,90,0);store_event(0,"+std::to_string(frames-1)+",128,48,23,0);mem[LEN_BASE]="+std::to_string(frames+1)+";phrase_admit_independent(0,0);");

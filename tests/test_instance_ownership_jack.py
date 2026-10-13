@@ -42,15 +42,19 @@ with tempfile.TemporaryDirectory(prefix='mbmf-instance-jack-') as temp:
   assert c.request()['activeNotes']==2,'targeted STOP cut held physical note'
   command(op=3,ch=0,note=60,value=0);time.sleep(.2)
   command(op=44,instance=(b['id'],b['generation']));time.sleep(.2)
+  command(op=40,target=0,arg=1);time.sleep(.2)
+  command(op=40,target=1,arg=1);time.sleep(.2)
+  legacy=next(i for i in c.request()['instances'] if i['phraseId']==2)
+  command(op=44,instance=(legacy['id'],legacy['generation']));time.sleep(.2)
   command(op=2);time.sleep(.3)
   state=c.request();assert state['activeNotes']==0 and state['outputOverflow']==0,state
   probe.stdin.close();lines=probe.stdout.read().splitlines();assert probe.wait(timeout=5)==0;probe=None
   events=[list(map(int,line.split())) for line in lines]
   own=[e for e in events if e[0]==0 and (e[3]&240) in (128,144)]
   notes=[[e[3],e[4],e[5]] for e in own]
-  assert notes==[[144,60,100],[144,60,91],[144,62,91],[128,60,0],[128,62,0]],notes
+  assert notes==[[144,60,100],[144,60,91],[144,62,91],[128,60,0],[128,62,0],[144,60,91],[128,60,0],[144,62,91],[128,62,0]],notes
   assert all(a[1]+a[2]<=b[1]+b[2] for a,b in zip(own,own[1:])),own
-  print('PASS actual JACK ownership: targeted STOP preserves live note, final releases and stable ordering',json.dumps(own),flush=True)
+  print('PASS actual JACK ownership: targeted STOP preserves live note, legacy choke, final releases and stable ordering',json.dumps(own),flush=True)
  finally:
   if probe is not None:probe.terminate();probe.communicate(timeout=5)
   if engine is not None:engine.terminate();engine.communicate(timeout=10)

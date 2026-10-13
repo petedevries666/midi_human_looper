@@ -185,7 +185,7 @@ struct Model {
   mutable double abPosition = 0;
   mutable std::atomic<bool> abRestorePending{false};
   std::array<std::array<double*,14>,28> instances;
-  double *instanceError,*instanceRejected;
+  double *instanceError,*instanceRejected,*instanceFault;
   std::array<std::array<double *, 28>, 16> sw;
   std::array<std::array<double *, 22>, 8> inst;
   std::array<std::array<double *, 10>, 16> phrase;
@@ -263,6 +263,7 @@ struct Model {
     musicalState=ysfx_find_var(fx,"state");recordLayer=ysfx_find_var(fx,"record_layer");odLayer=ysfx_find_var(fx,"overdub_layer");odActive=ysfx_find_var(fx,"overdub_active");odArmed=ysfx_find_var(fx,"overdub_armed");freeActive=ysfx_find_var(fx,"free_record_active");freeReady=ysfx_find_var(fx,"free_record_ready");freeError=ysfx_find_var(fx,"free_play_error");
     auto instanceBase=unsigned(variable(fx,"INSTANCE_BASE"));
     for(unsigned j=0;j<28;++j)for(unsigned k=0;k<14;++k)instances[j][k]=cell(fx,instanceBase+j*48+k);
+    instanceFault=NSEEL_VM_regvar(fx->vm.get(),"instance_output_fault");
     instanceError=NSEEL_VM_regvar(fx->vm.get(),"instance_error");instanceRejected=NSEEL_VM_regvar(fx->vm.get(),"instance_rejected");
     for(unsigned j=0;j<12;++j){voiceActive[j]=cell(fx,unsigned(variable(fx,"VOICE_ACTIVE_BASE"))+j);voiceLayer[j]=cell(fx,unsigned(variable(fx,"VOICE_LAYER_BASE"))+j);}
     for(unsigned j=0;j<16;++j){phraseTriggers[j]=cell(fx,unsigned(variable(fx,"TRIG_BASE"))+j);phraseFinished[j]=cell(fx,unsigned(variable(fx,"FREE_FINISHED_BASE"))+j);}
@@ -616,7 +617,7 @@ static std::string json(const Reply &r) {
     if(instanceComma)o<<',';instanceComma=true;
     o<<"{\"id\":"<<uint64_t(v[0])<<",\"generation\":"<<uint64_t(v[1])<<",\"phraseId\":"<<int(v[3])
      <<",\"active\":"<<(v[2]>.5?"true":"false")<<",\"reservedAttacks\":"<<int(v[5])<<",\"ownedOutputs\":"<<int(v[13])
-     <<",\"independent\":"<<(v[7]>.5?"true":"false")<<",\"mode\":"<<int(v[8])<<'}';
+     <<",\"ownershipSupported\":"<<(v[6]>=0?"true":"false")<<",\"independent\":"<<(v[7]>.5?"true":"false")<<",\"mode\":"<<int(v[8])<<'}';
   }
   o<<"],\"switches\":[";
   bool comma = false;
@@ -2707,6 +2708,9 @@ int main(int argc, char **argv) {
         cleanupChain();
       chain.finishSwitchStop();
       ysfx_process_float(fx, nullptr, nullptr, 0, 0, frames);
+      // The shared output buffer rejected an owned event: cancel queued attacks
+      // through the existing native emergency recovery on the next callback.
+      if(*model.instanceFault>.5){++state.outputOverflow;overflowRecovery=true;}
       chain.finishSwitchStop();
       if(chainMode && !chain.gridCapture) {
         chain.observe();

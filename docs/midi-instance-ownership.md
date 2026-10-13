@@ -42,6 +42,8 @@ with a strict stacked-Note-On counter need separate destination channels.
 ## Admission and bounds
 
 - Legacy ONCE cross-source choke remains explicitly separate and compatible.
+  Native legacy admission now uses the existing DSP FIFO: releasing the old
+  source before ysfx opened its output buffer previously lost its MIDI Off.
   Its baseline XFAIL denotes a requirement for future independent layers, not
   a hidden change to legacy behavior.
 - New shared `phrase_admit_independent(layer,offset)` and headless
@@ -52,12 +54,14 @@ with a strict stacked-Note-On counter need separate destination channels.
 - Each owner has 2048 source attack records, reusing the existing source event
   bound. Exhaustion refuses the unrepresentable attack and retires only that
   instance. No global destruction presented as single-voice recycling.
-- Independent admission rejects active mono/ARP routes conservatively. Their
+- Independent admission rejects active mono/ARP routes conservatively and cancels
+  an independent voice if an unsafe route becomes active during playback. Their
   legacy implementations remain tested, but isolated concurrent mono/ARP
   ownership is **not supported**. No silent fallback or bypass.
 - `instanceError`: 2 voice capacity, 3 unsupported/invalid admission, 4 ledger
-  exhaustion, 5 exact numeric identity range exhausted. `instanceRejected`
-  counts refusals. `reservedAttacks` and `ownedOutputs` are distinct.
+  exhaustion, 5 exact numeric identity range exhausted, 6 shared output-buffer rejection. `instanceRejected`
+  counts refusals. `reservedAttacks` and `ownedOutputs` are distinct;
+  `ownershipSupported` explicitly identifies legacy unsafe routes.
 
 There are 12 existing voice owners plus 16 legacy LOOP source owners. Ledger
 storage is 1,959,120 EEL cells (15,672,960 bytes, ~14.95 MiB), including
@@ -129,3 +133,26 @@ fixture startup only; it is never installed, used on hardware, or linked into
 the engine. Failed global and diagnostic logs remain published. A separate global
 run interrupted by an in-session source edit/syntax error is retained as invalid
 mixed-source validation; the syntax error was fixed before the frozen rerun.
+
+## Actual output-buffer rejection and recovery
+
+A real 65,536-byte, non-extensible ysfx buffer accepts 4,369 of 5,120 attempted
+attacks in the focused fixture. Previously the rest were silently dropped;
+a full-buffer CC burst could also lose a scheduled Off after its owner record
+was retired. Error 6 now marks this distinct output failure, defers the existing
+PANIC to a fresh block, and emits bounded CC123/120 emergency cleanup. Calls
+outside ysfx's DSP output window are not classified as buffer exhaustion.
+
+Native processing forwards the shared fault latch into its existing emergency
+queue recovery, discarding queued stale attacks. The actual JACK stress fixture
+emits 64 partial attacks, then 64 captured emergency CC messages, has no attacks
+after emergency cleanup, leaves no stacked receiver notes, and preserves all
+2,048 source events. This is an explicit global output-failure PANIC; voice
+admission exhaustion (error 2) and per-instance ledger exhaustion (error 4)
+retain their isolated behavior. No output capacity or safety guard was increased.
+
+Legacy basic mono/ARP execution remains available through the original path,
+with per-instance ownership unsupported. A previously safe legacy voice may
+enter that path only with no outstanding ledger/pedal claims. Unsafe transitions
+with outstanding claims retire the affected source explicitly. These restrictions
+are deliberate and are not claims of safe arbitrary layered mono/ARP routing.

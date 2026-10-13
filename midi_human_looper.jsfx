@@ -335,7 +335,7 @@ INSTANCE_PEDAL_BASE=INSTANCE_END+16;INSTANCE_PEDAL_STRIDE=16*(INST_CAP+1)*2;
 INSTANCE_STORAGE_END=INSTANCE_PEDAL_BASE+INSTANCE_OWNERS*INSTANCE_PEDAL_STRIDE;
 instance_init_page=INSTANCE_BASE;loop(ceil((INSTANCE_STORAGE_END-INSTANCE_BASE)/65536)+1,
  mem[instance_init_page]=0;instance_init_page+=65536;);
-instance_serial=0;instance_last_source=-1;instance_repeat=0;instance_rejected=0;instance_error=0;instance_route_record=-1;
+instance_output_fault=0;instance_output_open=0;instance_serial=0;instance_last_source=-1;instance_repeat=0;instance_rejected=0;instance_error=0;instance_route_record=-1;
 function instance_header(v) (INSTANCE_BASE+v*INSTANCE_HEADER;);
 function instance_row(v,r) (INSTANCE_POOL_BASE+(v*INSTANCE_ROWS+r)*INSTANCE_ROW;);
 function instance_queue(v,key) (INSTANCE_QUEUE_BASE+(v*2048+key)*3;);
@@ -1266,6 +1266,12 @@ local(key,count,on,off)
 
 // Reserve one attack record (including filtered destinations) before routing.
 // Per-source-key FIFO makes repeated same-pitch release pairing constant time.
+// Output-buffer rejection is different from voice/ledger capacity refusal.
+// Defer the existing explicit PANIC to the next fresh output buffer.
+function instance_emit(offs,st,note,velocity) local(accepted)
+(accepted=midisend(offs,st,note,velocity);accepted<=0 && instance_output_open?(
+ instance_output_fault=1;instance_error=6;instance_rejected+=1;panic_pending=1;
+);accepted;);
 function instance_begin_attack(v,key)
 local(h,r,b,q,tail,j)
 (
@@ -1306,7 +1312,7 @@ local(ch,key,origin,idx)
     key=NOTE_REF_BASE+ch*128+note;
     is_on ? (
       mem[key]+=1;mem[I_ONCE_OUT_BASE+idx]+=1;
-      midisend(offs,outst,note|(vel*256))>0 ? instance_capture_output(gi,ch*128+note) : instance_route_record>=0 ? (
+      (instance_route_record>=0?instance_emit(offs,outst,note,vel):midisend(offs,outst,note|(vel*256)))>0 ? instance_capture_output(gi,ch*128+note) : instance_route_record>=0 ? (
         mem[key]=max(0,mem[key]-1);mem[I_ONCE_OUT_BASE+idx]-=1;mem[engine_addr(SW_PHRASE_OUT_BASE,idx)]-=1;
       );
     ) : (
@@ -1429,7 +1435,7 @@ local(h,b,j,k,id,tracked,idx)
      mem[I_ONCE_OUT_BASE+idx]=max(0,mem[I_ONCE_OUT_BASE+idx]-1);
     ):mem[I_FALLBACK_BASE+2048+k]=max(0,mem[I_FALLBACK_BASE+2048+k]-1);
     mem[NOTE_REF_BASE+k]=max(0,mem[NOTE_REF_BASE+k]-1);
-    instrument_output_owners(floor(k/128),k%128,-1)<=0?midisend(offs,128|floor(k/128),k%128,0);
+    instrument_output_owners(floor(k/128),k%128,-1)<=0?instance_emit(offs,128|floor(k/128),k%128,0);
    );
   );
   mem[b+4+j*3]=-1;mem[b+5+j*3]=-1;mem[b+6+j*3]=-1;j+=1;
@@ -1469,7 +1475,7 @@ function instance_remove_destination(gi,id) local(v,h,r,b,next,ch,p,out,j,remain
     mask-=1<<out;mem[h+16+ch]=mask;mask==0?mem[h+9]=max(0,mem[h+9]-1);
     mem[SUSTAIN_REF_BASE+out]=max(0,mem[SUSTAIN_REF_BASE+out]-1);
     mem[SUSTAIN_REF_BASE+out]<=0 && mem[SW_LIVE_SUSTAIN_BASE+out]<64?(
-     mem[SW_PHRASE_SUSTAIN_BASE+out]=0;midisend(0,176|out,64,0);
+     mem[SW_PHRASE_SUSTAIN_BASE+out]=0;instance_emit(0,176|out,64,0);
     );
    );
   );ch+=1;
@@ -1480,7 +1486,7 @@ function instance_release_pedal(v,ch,offs) local(h,mask,k)
  mask&(1<<k)?(
   mem[SUSTAIN_REF_BASE+k]=max(0,mem[SUSTAIN_REF_BASE+k]-1);
   mem[SUSTAIN_REF_BASE+k]<=0 && mem[SW_LIVE_SUSTAIN_BASE+k]<64?(
-   mem[SW_PHRASE_SUSTAIN_BASE+k]=0;midisend(offs,176|k,64,0);
+   mem[SW_PHRASE_SUSTAIN_BASE+k]=0;instance_emit(offs,176|k,64,0);
   );
  );k+=1;););
 function instance_stop_voice(v,offs) local(h,r,ch)
@@ -1517,7 +1523,7 @@ local(h,mask,j,in_ch,out_ch,ch,k,p)
     );
    );j+=1;
   );mask==0?(mask=1<<(st&15);p=instance_pedal(v,sourcech,INST_CAP);mem[p]=0;mem[p+1]=st&15;);mem[h+16+sourcech]=mask;mem[h+9]+=1;
-  k=0;loop(16,mask&(1<<k)?(mem[SUSTAIN_REF_BASE+k]+=1;mem[SW_PHRASE_SUSTAIN_BASE+k]=127;midisend(offs,176|k,64,value););k+=1;);
+  k=0;loop(16,mask&(1<<k)?(mem[SUSTAIN_REF_BASE+k]+=1;mem[SW_PHRASE_SUSTAIN_BASE+k]=127;instance_emit(offs,176|k,64,value););k+=1;);
  );
 );
 
@@ -1674,7 +1680,7 @@ local(srcch,typ,ii,in_ch,out_ch,outst,outd2,matched,velmul,msg_chan,note_key,nmo
     (typ==144 && d2>0) ? (
       outd2=max(1,min(127,floor(d2*phrase_gain+0.5)));
       note_key=NOTE_REF_BASE+msg_chan*128+d1; mem[note_key]+=1;
-      midisend(offs,st,d1|(outd2*256))>0?instance_capture_output(INST_CAP,msg_chan*128+d1):instance_route_record>=0?(
+      (instance_route_record>=0?instance_emit(offs,st,d1,outd2):midisend(offs,st,d1|(outd2*256)))>0?instance_capture_output(INST_CAP,msg_chan*128+d1):instance_route_record>=0?(
         mem[note_key]=max(0,mem[note_key]-1);mem[I_FALLBACK_BASE+2048+msg_chan*128+d1]-=1;
       );
     ) :
@@ -2216,8 +2222,14 @@ local(grid,q,target)
 );
 
 function phrase_render_span(vi,until,instant,cycle)
-local(once_layer,once_start,once_end,once_time,phrase_end,count,i,base,evt_t,out_offs,out_status,out_chan,out_d1,out_d2,velmul,is_recorded_noteoff,relative_t)
+local(once_layer,once_start,once_end,once_time,phrase_end,count,i,base,evt_t,out_offs,out_status,out_chan,out_d1,out_d2,velmul,is_recorded_noteoff,relative_t,h)
 (
+  h=instance_header(vi);
+  mem[h+6]>=0 && !instance_poly_routes() ? (
+    mem[h+7]==0 && mem[h+5]==0 && mem[h+9]==0 ? mem[h+6]=-1 : (
+      instance_error=3;instance_rejected+=1;instance_stop_voice(vi,max(0,min(samplesblock-1,-mem[VOICE_POS_BASE+vi])));
+    );
+  );
   once_layer=mem[VOICE_LAYER_BASE+vi];once_start=mem[VOICE_CURSOR_BASE+vi];once_end=until;
   once_time=mem[VOICE_TIME_BASE+vi];phrase_end=max(1,mem[LEN_BASE+once_layer]*once_time);
   count=layer_count(once_layer);i=0;loop(count,
@@ -2251,6 +2263,10 @@ function instance_loop_dispatch(layer,offs,st,note,velocity,inputkey)
 local(v,h,j,safe)
 (
  v=MAX_ONCE_VOICES+layer;h=instance_header(v);safe=instance_poly_routes();
+ !safe && mem[h+11] && mem[h+6]>=0 && (mem[h+5]>0 || mem[h+9]>0)?(
+  instance_error=3;instance_rejected+=1;instance_stop_voice(v,offs);
+  j=0;loop(2048,mem[3008000+layer*2048+j]=0;j+=1;);j=0;loop(16,mem[3040768+layer*16+j]=0;j+=1;);
+ );
  safe && mem[TRIG_BASE+layer]>.5 && (mem[h+11] || instance_serial<9007199254740990)?(
   mem[h+11]==0?(
    instance_serial+=1;mem[h]=instance_serial;mem[h+1]+=1;mem[h+2]=-1;mem[h+3]=-1;mem[h+4]=0;mem[h+5]=0;
@@ -2259,7 +2275,7 @@ local(v,h,j,safe)
   );
   j=0;loop(INST_CAP,mem[h+32+j]=mem[I_EXISTS_BASE+j] && mem[engine_addr(INST_ENABLED_BASE,j)]>.5?mem[I_IDS_BASE+j]:0;mem[h+40+j]=mem[engine_addr(INST_IN_BASE,j)];j+=1;);
   instance_input_key=inputkey;once_route_voice=v;send_once_to_instruments(offs,st,note,velocity,1);once_route_voice=-1;
- ): !safe?(mem[h+5]==0 && mem[h+9]==0?mem[h+6]=-1;sw_playback_origin=1;send_to_instruments(offs,st,note,velocity,1);sw_playback_origin=0;);
+ ): !safe && mem[TRIG_BASE+layer]>.5?(mem[h+5]==0 && mem[h+9]==0?(mem[h+11]?(mem[h+1]+=1;mem[h+11]=0;);mem[h+6]=-1;);sw_playback_origin=1;send_to_instruments(offs,st,note,velocity,1);sw_playback_origin=0;);
 );
 // Native free LOOP source ownership; reuses the existing routing release path.
 function free_loop_stop(layer)
@@ -3013,6 +3029,7 @@ ps_magic==727121 && ps_version==1 && ps_schema==7 && ps_size>0 && ps_size<=20000
 // shared engine functions from @slider and caused REAPER compile failures.
 
 @block
+instance_output_open=1;instance_output_fault=0;
 
 project_restore_pending?project_restore();
 // ReaScript bridge mailbox: one verified JSFX instance per REAPER project.
@@ -3067,7 +3084,11 @@ restore_flash<0 ? restore_flash=0;
 
 
 panic_pending ? (
-  send_all_notes_off();
+  instance_error==6 ? (
+    sw_action(0,SW_PANIC,0,0);
+    // Same bounded emergency channel messages as the native queue fail-safe.
+    instance_recovery_ch=0;loop(16,midisend(0,176|instance_recovery_ch,123,0);midisend(0,176|instance_recovery_ch,120,0);instance_recovery_ch+=1;);
+  ) : send_all_notes_off();
   panic_pending=0;
 );
 
@@ -3233,7 +3254,7 @@ while(left>0)(span=min(left,period-position);count=layer_count(fl);
           // committed prefix until the overdub is finished, avoiding duplicates.
           overdub_layer==fl && (overdub_active || overdub_armed) && free_old_count>0?count=min(count,free_old_count);j=0;
           loop(count,b=layer_base(fl,j);at=mem[b];
-            at>=position && at<position+span?(
+            mem[TRIG_BASE+fl]>.5 && at>=position && at<position+span?(
               st=mem[b+1];d1=mem[b+2];d2=mem[b+3];
               countkey=3008000+fl*2048+(st&15)*128+d1;
               (st&240)==144 && d2>0?mem[countkey]+=1:((st&240)==128 || ((st&240)==144 && d2==0))?mem[countkey]=max(0,mem[countkey]-1);
@@ -3367,6 +3388,8 @@ loop(INST_CAP,
   arp_process_instrument(ii);
   ii+=1;
 );
+
+instance_output_open=0;
 
 @gfx 900 720
 

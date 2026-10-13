@@ -22,12 +22,15 @@ from urllib.parse import urlsplit
 
 ROOT = Path(__file__).parent / 'web'
 
-PATCH_KEYS={'format','schema','work_mem_size','globals','memory','controllerEngine','globalSnapshots'}
+PATCH_KEYS={'format','schema','work_mem_size','globals','memory','controllerEngine','globalSnapshots','conductor'}
 def validate_patch_extensions(patch):
     if not isinstance(patch,dict) or set(patch)-PATCH_KEYS:
         raise ValueError('Unsupported patch fields preserved; refusing to discard configuration.')
     if patch.get('format')!='MIDI_HUMAN_LOOPER_PATCH' or type(patch.get('schema')) is not int or not 1<=patch['schema']<=7:
         raise ValueError('Unsupported patch format/schema preserved; refusing overwrite or load.')
+    if 'conductor' in patch:
+        from conductor import decode as decode_conductor
+        decode_conductor(patch['conductor'])
     for name,versions in (('controllerEngine',(1,2)),('globalSnapshots',(1,2,3,4))):
         if name in patch and (not isinstance(patch[name],dict) or type(patch[name].get('version')) is not int or patch[name]['version'] not in versions):
             raise ValueError('Unsupported patch extension preserved; refusing to discard configuration.')
@@ -81,6 +84,8 @@ class Control:
                     if 'controllerEngine' not in patch:
                         line=line.rstrip('\n')+' controllers '+' '.join(format(v,'.17g') for v in [1]+[0]*64+([0,0,0,0,0,1,0,0,0,0,0,.02,.2,1,1,.5,1,2]+[0,0,0,1,1,0]+[0]*42)*32)+'\n'
                     line=line.rstrip('\n')+' snapshots '+' '.join(format(v,'.17g') for v in snapshot_wire)+'\n'
+            if patch is not None and 'conductor' in patch:
+                line=line.rstrip('\n')+' conductor '+str(len(patch['conductor']['configuration']))+' '+' '.join(str(v) for v in patch['conductor']['configuration'])+'\n'
             with socket.socket(socket.AF_UNIX) as client:
                 client.settimeout(15)
                 client.connect(self.path)
@@ -194,6 +199,18 @@ class Handler(BaseHTTPRequestHandler):
             self.project_command('status');return
         if path == '/api/v1/project/capture':
             self.project_command('capture');return
+        if path == '/api/v1/conductor':
+            try:
+                from conductor import decode as decode_conductor, resolve
+                with self.server.control.lock:
+                    state=self.server.control.request()
+                    patch=self.server.control.request(op=4,revision=state['revision'],session=state['engineSessionId'])
+                if patch.get('format')!='MIDI_HUMAN_LOOPER_PATCH':
+                    self.respond(409,patch);return
+                model=decode_conductor(patch['conductor']) if 'conductor' in patch else None
+                self.respond(200,{'executionSupported':False,'model':model,'missingReferences':resolve(model,{v['id'] for v in state['switches']}) if model else []})
+            except (ValueError,OSError):self.respond(503,{'error':'CONDUCTOR unavailable'})
+            return
         if path == '/api/v1/descriptors':
             document=REGISTRY.document()
             import re
@@ -307,8 +324,18 @@ class Handler(BaseHTTPRequestHandler):
             session=data.get('expectedEngineSessionId')
             if type(session) is not int or not 1<=session<=9007199254740991:raise ValueError('engine session required')
             action = data.get('action')
-            if length>2048 and action!='snapshot_commit':
+            if length>2048 and action not in ('snapshot_commit','conductor_commit'):
                 self.respond(413,{'error':'command size limit'});return
+            if action=='conductor_commit':
+                from conductor import encode
+                extension=encode(data.get('conductor'))
+                with self.server.control.lock:
+                    patch=self.server.control.request(op=4,arg=1,revision=revision,session=session)
+                    if patch.get('format')!='MIDI_HUMAN_LOOPER_PATCH':
+                        self.respond(409,patch);return
+                    patch['conductor']=extension
+                    result=self.server.control.request(op=5,target=patch['schema'],arg=1,revision=revision,session=session,patch=patch)
+                self.respond(200 if result.get('status')=='ok' else 409,result);return
             if action in ('snapshot_capture','snapshot_update','snapshot_duplicate','snapshot_delete','snapshot_move','snapshot_rename','snapshot_recall','snapshot_morph','snapshot_commit'):
                 target=data.get('snapshotId',0)
                 if type(target) is not int or not 0<=target<=16777215 or (action!='snapshot_capture' and not target):raise ValueError()
@@ -493,6 +520,8 @@ class Handler(BaseHTTPRequestHandler):
                 if patch.get('status')=='conflict':self.respond(409,patch);return
                 if patch.get('format')!='MIDI_HUMAN_LOOPER_PATCH':raise ValueError()
                 if self.path.endswith('/export'):
+                    if 'conductor' in patch:
+                        self.respond(422,{'error':'REAPER cannot execute CONDUCTOR yet; export refused, original preserved.'});return
                     snapshots=patch.get('globalSnapshots',{}).get('configuration',[])
                     if len(snapshots)>=4 and snapshots[3]:
                         self.respond(422,{'error':'REAPER cannot yet execute Global Snapshots; export refused to preserve snapshot data.'});return

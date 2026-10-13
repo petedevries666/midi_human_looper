@@ -151,6 +151,8 @@ def materialize(project, sample_rate, adapter='native'):
             patch['memory'][index]=round(patch['memory'][index])
             patch['memory'][index+4]=round(patch['memory'][index+4])
     if adapter == 'reaper':
+        if 'conductor' in patch:
+            raise ValueError('REAPER cannot execute CONDUCTOR yet; portable original retained')
         # Preserve the portable original, reject execution of native-only data.
         ce = patch.get('controllerEngine',{})
         gs = patch.get('globalSnapshots',{})

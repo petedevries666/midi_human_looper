@@ -2,6 +2,7 @@
 // Disk, sockets and JSON are confined to the control worker.
 #include "chain_mode.hpp"
 #include "controller_wire.hpp"
+#include "conductor_wire.hpp"
 #include "parameter_registry.hpp"
 #include "snapshot_wire.hpp"
 #include "ysfx.hpp"
@@ -906,6 +907,7 @@ static void control(int listener, Queue<Request, 64> &commands,
                     controller::Host &controllers,
                     performance::Snapshots &performanceSnapshots,
                     const std::function<bool(int, int, int)> &conflicts) {
+  std::vector<unsigned> conductorConfiguration; // worker-owned, never live MIDI state
   while (!shutdown) {
     pollfd p{listener, POLLIN, 0};
     if (poll(&p, 1, 20) <= 0)
@@ -936,6 +938,7 @@ static void control(int listener, Queue<Request, 64> &commands,
     std::istringstream input(line);
     std::string extra;
     std::vector<double> patchValues;
+    std::vector<unsigned> pendingConductor;
     bool valid = complete &&
                  bool(input >> request.id >> request.op >> request.target >>
                       request.arg >> request.revision >> request.ch >>
@@ -1014,17 +1017,21 @@ static void control(int listener, Queue<Request, 64> &commands,
       if (!input.eof()) {
         input.clear();
         std::string marker;
-        valid = valid && bool(input >> marker) && marker == "controllers" &&
-                controller::readConfiguration(input, request.controllerConfig);
-        input >> std::ws;
-        if (input.peek() != EOF) {
-          std::string snapshotsMarker;
-          valid = valid && bool(input >> snapshotsMarker) &&
-                  snapshotsMarker == "snapshots" &&
-                  performance::readConfiguration(input, request.snapshotConfig);
+        // Ordered optional carriers. Legacy packets keep their original syntax.
+        if (!(input>>marker)) valid=false;
+        if (valid && marker=="controllers") {
+          valid=controller::readConfiguration(input,request.controllerConfig);
+          if (!(input>>marker)) marker.clear();
         }
-        if (input >> extra)
-          valid = false;
+        if (valid && marker=="snapshots") {
+          valid=performance::readConfiguration(input,request.snapshotConfig);
+          if (!(input>>marker)) marker.clear();
+        }
+        if (valid && marker=="conductor") {
+          valid=conductor::read(input,pendingConductor);
+          if (!(input>>marker)) marker.clear();
+        }
+        if (!marker.empty()) valid=false;
       }
     } else if (valid &&
                (request.op == 30 || request.op == 31 || request.op == 32 || request.op == 38)) {
@@ -1209,7 +1216,7 @@ static void control(int listener, Queue<Request, 64> &commands,
           }
           paused.store(false,std::memory_order_release);
         } else if(reply.status==0 && request.op==42){
-          patch.load(7,patch.factory);patch.guardedReady=false;
+          patch.load(7,patch.factory);patch.guardedReady=false;conductorConfiguration.clear();
           send_line(fd,json(reply),shutdown);
         } else if (reply.status == 0 && request.op == 4) {
           auto document =
@@ -1220,6 +1227,8 @@ static void control(int listener, Queue<Request, 64> &commands,
                             ",\"globalSnapshots\":" +
                                 performance::configurationJson(
                                     performanceSnapshots.configuration()));
+          if (!conductorConfiguration.empty())
+            document.insert(document.find_last_of('}'),",\"conductor\":"+conductor::json(conductorConfiguration));
           paused.store(false, std::memory_order_release);
           send_line(fd, document, shutdown);
         } else {
@@ -1248,6 +1257,7 @@ static void control(int listener, Queue<Request, 64> &commands,
             }
           }
           if (reply.status == 0 && request.op == 5) {
+            conductorConfiguration.swap(pendingConductor);
             performanceSnapshots.restore(request.snapshotConfig);
             model.abPosition = performanceSnapshots.ab.position;
             controllers.recall(1, 0, 16, model.abPosition);

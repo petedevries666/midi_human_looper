@@ -1,6 +1,10 @@
 <div align="center">
 
-# 🐧 MIDI BAD MOTHERFUCKER
+# 🐧 MIDI BAD MUTHAFUCKA
+
+**V 1.27.1**
+
+### One wallet. Every MIDI trick.
 
 ### Human timing. Machine memory. No grid required.
 
@@ -25,7 +29,7 @@ This is a **Linux-first live MIDI experiment** with JACK at its core, a native h
 
 ## What is this thing?
 
-**MIDI Bad Motherfucker (MBMF)** is an experimental, musician-led MIDI instrument built around **recording expressive phrases and triggering, transforming and combining them in real time**.
+**MIDI Bad Muthafucka (MBMF)** is an experimental, musician-led MIDI instrument built around **recording expressive phrases and triggering, transforming and combining them in real time**.
 
 Play a chord, a bass figure, a cluster of notes, or an imperfect little accident. Keep its timing, velocity, controller gestures and personality. Then call it back from a MIDI footswitch, route it to another instrument, overlap it with other phrases, or shape what happens next.
 
@@ -178,6 +182,6 @@ Issues, code review and reproducible bug reports are welcome. Please distinguish
 
 **PLAY IT. KEEP IT HUMAN. TRIGGER IT AGAIN.**
 
-*MIDI Bad Motherfucker is an independent experimental project, not affiliated with REAPER, Zynthian or the makers of any connected hardware.*
+*MIDI Bad Muthafucka is an independent experimental project, not affiliated with REAPER, Zynthian or the makers of any connected hardware.*
 
 </div>

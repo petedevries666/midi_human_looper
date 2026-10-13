@@ -1,161 +1,177 @@
-# MIDI Human Looper
+<div align="center">
 
-Experimental free-time MIDI phrase instrument for REAPER JSFX, designed through live playing rather than around a fixed sequencer workflow.
+# MIDI BAD MOTHERFUCKER
 
-For the native Zynthian Piano/Bass/Synthesizer prototype, see
-[installation, chain setup, physical test and rollback](docs/zynthian-native-chains.md).
+### Human timing. Machine memory. No grid required.
 
-## Core vocabulary
+**A playable MIDI phrase instrument for REAPER and Linux / Zynthian.**
 
-- **Phrase**: a recorded expressive MIDI performance. A phrase may contain notes, velocity, CC, sustain, pitch bend and multiple MIDI channels. It can play as LOOP or ONCE.
-- **Instrument**: a routing destination. It listens to ALL or one MIDI input channel and can preserve or remap the output channel. It also owns a velocity multiplier and CC baselines.
-- **Expression A / B**: two modulation sources. In v1.4 they are visible mouse-test sliders. The long-term design is a mapping system where each expression source can drive several parameters with independent ranges.
-- **Patch**: the complete playable state: phrases, instrument routing, expression mappings and performance settings.
+[![Status: experimental](https://img.shields.io/badge/status-experimental-orange)](#project-status)
+[![REAPER](https://img.shields.io/badge/host-REAPER_JSFX-555)](#where-it-runs)
+[![Linux / JACK](https://img.shields.io/badge/host-Linux_%2F_JACK-555)](#where-it-runs)
+[![Zynthian](https://img.shields.io/badge/target-Zynthian-555)](#where-it-runs)
 
-## Design principles
+*Not another piano roll. A way to play with things you already played.*
 
-1. Preserve human timing first. Quantization is optional and non-destructive.
-2. Phrase data should eventually be exportable/importable as standard MIDI (.mid). Musical material must not be trapped in plugin state.
-3. Same-phrase ONE SHOT retriggers may overlap. Retrigger velocity decay makes repeated footswitch presses behave like a human-controlled MIDI echo.
-4. Triggering a different ONE SHOT phrase softly chokes the previous phrase group.
-5. MIDI channels inside phrases remain meaningful. Do not flatten multichannel performances.
-6. Keep the REAPER prototype fast to iterate, even while the eventual engine is intended to be portable to Zynthian/LV2.
+</div>
 
-## Patch compatibility contract (from v1.4.5)
+---
 
-During the v1.x REAPER prototype, the current serialized phrase/event and two-patch-bank memory layout is **frozen**. New persistent features must be appended or explicitly migrated; existing addresses must not be silently moved or reinterpreted.
+## What is this thing?
 
-Header field 9 now carries `PATCH_SCHEMA_VERSION = 1`. Projects saved with v1.4.4 and earlier contain 0 in that reserved field and are intentionally treated as legacy schema 1. This means an existing v1.4.4 REAPER project should reopen with its recorded phrases/patch banks intact after updating the JSFX to v1.4.5.
+**MIDI Bad Motherfucker (MBMF)** is an experimental, musician-led MIDI instrument built around **recording expressive phrases and triggering, transforming and combining them in real time**.
 
-Before any future incompatible storage change, add a migration path first. Do not make musical material collateral damage of UI/engine development.
+Play a chord, a bass figure, a cluster of notes, or an imperfect little accident. Keep its timing, velocity, controller gestures and personality. Then call it back from a MIDI footswitch, route it to another instrument, overlap it with other phrases, or shape what happens next.
 
-## v1.4.1
+The point is not to replace a DAW or force performances onto a timeline. It is to make **musical gestures reusable on stage** without sanding off the human part.
 
-The 16 phrases remain available, but the GUI now shows only **6 compact phrase rows per page**:
-- page 1: P1-P6
-- page 2: P7-P12
-- page 3: P13-P16
+Think of it as a modular MIDI pedalboard: phrase memory, routing, note transformation, expressive controllers and performance logic in one instrument.
 
-This keeps INSTRUMENTS and EXPRESSION controls reachable on smaller screens without abandoning the information-rich line layout.
+> **Design rule:** precision of musical intent, not compulsory quantization.
 
-## v1.4.0
+## Why it exists
 
-- 16 phrase rows, still line-based by design.
-- 2048 MIDI events maximum per phrase to keep the current JSFX memory architecture safe.
-- 8 instrument routing rows:
-  - enable
-  - MIDI IN: ALL or 1..16
-  - MIDI OUT: ORIGINAL or 1..16
-  - velocity multiplier
-  - Level baseline (CC11 concept)
-  - Mod baseline (CC1 concept)
-- EXP A and EXP B are mouse-testable and exposed as REAPER sliders.
-- EXP A currently demonstrates instrument Level / CC11.
-- EXP B currently demonstrates Mod Wheel / CC1.
-- Quantize-grid slider range corrected to expose all six divisions.
+A studio MIDI idea should not need to be rebuilt from scratch to become a live instrument.
 
-### Important persistence note
+MBMF grew out of a practical problem: composing and experimenting in **REAPER**, then wanting the same expressive MIDI material under footswitch control on a **Linux-based Zynthian**. A phrase should be something you can *play*, not just a rectangle on a DAW timeline.
 
-Stock JSFX provides reliable project/preset serialization through `@serialize`, but it does not provide a clean general-purpose writable named-file API suitable for pretending we already have standalone patch files. Therefore v1.4 deliberately keeps REAPER serialization rather than shipping a fake/fragile external SAVE system.
+This is a personal project, written around real rehearsal and performance needs. Its architecture is being developed in public, with reproducible regression tests and explicit compatibility boundaries.
 
-The next persistence milestone should be a **versioned patch schema** that is independent from runtime memory addresses. Standard MIDI files should hold phrase performances; patch metadata should hold routing, modes, decay, expression mappings and other Human Looper-specific state.
+## The building blocks
 
-## Direction
+| Module | What it does |
+| --- | --- |
+| **PHRASES** | Capture and replay MIDI performances, including expressive timing, velocities and controller data. |
+| **INSTRUMENTS** | Route and remap MIDI channels, apply velocity/CC controls, and build instrument-specific processing chains. |
+| **TRANSFORMERS** | Stack note and velocity transformations; use range, transpose, polyphony and arpeggiator tools where supported. |
+| **EXPRESSION** | Map controllers to parameters with independent ranges and editable multipoint curves. |
+| **SMART SWITCHES** | Trigger musical actions from MIDI notes/CCs, with performance gestures and MIDI Learn. |
+| **CONDUCTOR** | A developing STEP × LAYER system for arranging PHRASE references and, later, MOVEMENTS into playable sequences. |
 
-Near-term:
-- robust versioned patch persistence
-- MIDI import/export per phrase
-- configurable expression mapping with min/max and response zones
-- MIDI Learn for phrase triggers, mute/solo and expression sources
-- per-instrument CC configuration
-- targeted note release everywhere to avoid broad panic bursts
+**A PHRASE is a performance, not a quantized pattern.** Timing can remain free. Multiple MIDI channels inside a phrase remain meaningful.
 
-Example live use: six free-time chord phrases can be triggered from Helix footswitches while another performer uses Expression A to reveal velocity layers and progressively introduce another instrument such as Solina. No master tempo is required.
+### The idea in four presses
 
-## v1.21.0 expression assignments
+```text
+                 SMART SWITCH
+                       │
+              PRESS → PRESS → PRESS → PRESS
+                       │
+             ┌─────────┴──────────┐
+             │     CONDUCTOR      │
+             ├──────┬──────┬──────┬──────┤
+             │STEP 1│STEP 2│STEP 3│STEP 4│
+             ├──────┼──────┼──────┼──────┤
+  LAYER 1    │  C   │  Am  │  F   │  G   │
+             └──────┴──────┴──────┴──────┘
+                         │
+                    MIDI OUTPUT
+                         │
+                 PIANO / SYNTH / BASS
+```
 
-Right-click a transformer parameter (or instrument volume) to assign any of the
-four named controllers. Assignment immediately opens its independent multipoint
-curve editor; left-click an assigned rail to reopen it. NONE retains the current value and restores manual control.
-ARP HOLD and ARP ON have separate assignments; ARP ON/OFF is available in the
-shared editor header. Transpose, range, polyphony and ARP-enable changes wait for
-held source notes to release so note-offs retain their original transformation.
+This is the **target interaction** for the new CONDUCTOR work, not a claim that the complete workflow is released on `main`.
 
-Update both the JSFX and the companion Lua ReaScript, and restart the ReaScript.
-Existing schema-1 JSON patches remain readable; new patches use schema 2 with an
-appended expression extension. All old RAM offsets and bank addresses remain
-fixed. The v1.20.1 baseline already uses external JSON rather than project
-`@serialize`; the older project-serialization discussion above is historical.
+## Where it runs
 
-See [the regression audit, migration contract and test instructions](docs/expression-assignments.md).
+### REAPER
 
-## v1.21.1 Transformer Editor UX
+The original instrument is a **JSFX** with a companion Lua/ReaScript workflow. REAPER is the fast experimentation and editing environment.
 
-Transformer rails now match VOLUME's 18px height, with 34px row spacing. Assigned
-rails display their own live multipoint/bend preview. Choosing NONE closes the
-curve only when that parameter is displayed. MIDI processing and schema 2 are
-unchanged; the v1.21.0 GUI/audio counter isolation is retained.
+### Linux / JACK
 
-## v1.22.0 Smart Switches / Phrase Conductor
+A separate **native MIDI engine** and browser-based control interface live in [`headless/`](headless/). This path is being built for reliable Linux/JACK MIDI routing, state persistence and integration with other MIDI instruments.
 
-Four programmable momentary note/CC switches provide TAP, DOUBLE and HOLD actions,
-64-position phrase-reference sequences, independent traversal and RESUME/RESTART
-on section re-entry. Special actions include targeted module control, sequence
-reset, phrase STOP and explicit global PANIC. Scroll below the expression editor
-for configuration and MIDI Learn. Update both JSFX and the Lua patch daemon;
-schema 3 reads existing schema-1/2 patches with switches disabled.
+### Zynthian
 
-See [configuration, persistence, tests and live acceptance](docs/smart-switches.md).
+**Zynthian is the intended live hardware home**, initially on a V4 kit: MBMF as a MIDI tool in a chain, driving piano, bass and synth chains. Physical hardware performance and installation still need explicit validation. A desktop JACK test is not proof of Raspberry Pi real-time performance.
 
-## v1.22.1 Learn, popup, TEST and SAVE fixes
+Start here:
 
-OPTIONS now closes with ×, an outside click or Escape. MIDI Learn has one exact
-switch/controller target, consumes its capture event and offers explicit reassignment
-for conflicts. FORGET clears only the selected MIDI mapping. TEST TAP / DOUBLE /
-HOLD use the same action dispatcher even for disabled switches. SAVE waits for
-pending switch edits before snapshotting the complete patch; update and restart
-the Lua daemon for the patch-script compatibility indication.
+- [Native Zynthian chain setup, test and rollback](docs/zynthian-native-chains.md)
+- [First Linux/Zynthian test](docs/zynthian-first-test.md)
 
-## v1.23.0 Phrase TIME DECAY
+## Project status
 
-PHRASES has an independent bipolar TIME DECAY rail (×0.50–×2.00, neutral ×1.00,
-double-click reset). ONCE/HOLD voices scale original MIDI timestamps using the
-existing VEL DECAY retrigger/reset rules. Active overlapping voices retain their
-own factors. LOOP timing remains unchanged. The existing DECAY label is now VEL
-DECAY. Settings persist with the current schema-3 patch system.
+**Experimental, actively developed. Not a packaged stable release.**
 
-See [timing examples, reset rules and tests](docs/time-decay.md).
+There are two important timelines:
 
-## v1.24.0 — modular UI stage 1
+**Existing project:** the REAPER JSFX, native Linux/JACK host, browser controls, patch compatibility work, Smart Switches, MIDI ownership and regression infrastructure already exist in different stages of maturity.
 
-ADD TRANSFORMER can be dismissed without selecting an effect. Multiple CC MOD
-blocks now have independent settings and expression curves; duplicate destinations
-show a warning and use deterministic last-writer behavior. Save uses schema 4;
-update the companion Lua daemon together with the JSFX. Old patches still load.
+**Next-generation CONDUCTOR:** the new STEP × LAYER design is being built in **draft pull requests**, not silently treated as shipped functionality.
 
-See [CC generator behavior and the following modular stages](docs/modular-cc-generators.md).
+| Workstream | Status |
+| --- | --- |
+| Baseline and regression audit | Draft [#56](../../pull/56) |
+| Independent MIDI instance / note ownership | Draft [#57](../../pull/57) |
+| CONDUCTOR data model and atomic persistence | Draft [#58](../../pull/58) |
+| CONDUCTOR musical execution | In development; do not assume released |
+| MOVEMENTS, JOIN, REVEAL, FECK | Planned / specification stage |
+| REAPER ↔ native CONDUCTOR execution parity | Not yet delivered |
+| Physical Zynthian V4 / Helix validation | Pending |
 
-## v1.25.0 — stateless Transformer stacking
+The [master CONDUCTOR specification](../../pull/55) records the intended behavior. The [PR C technical notes](docs/conductor-data-model.md) describe what is actually implemented in that draft.
 
-Multiple transpose, range and velocity blocks own independent settings and
-expression curves. Stacked note processors use visible serial order; note-changing
-edits wait for source releases to preserve Note Off pairing. ARP and polyphony
-remain single-instance per instrument. See [stacking behavior](docs/transformer-stacking.md).
+**Important:** PRs #56–#58 are stacked drafts. They are not evidence that `main` contains the entire new CONDUCTOR. Some legacy behaviors are intentionally retained, and known UI regressions are tracked rather than presented as passing tests.
 
-## v1.26.0 — dynamic Smart Switches
+## What makes it different?
 
-Compact cards replace the permanent four-switch panel. ADD/EDIT opens one draft
-editor; DONE commits, while Cancel or dismissal discards edits and cancels Learn.
-The engine and patch banks support sixteen independent switches with stable IDs.
-See [workflow and persistence](docs/dynamic-smart-switches.md).
+- **Free-time first.** The phrase's original timing matters; a global clock is not mandatory.
+- **Performance before programming.** The central interaction is playing and triggering, not drawing notes in a grid.
+- **Independent musical layers.** Overlapping phrases should have explicit ownership of their MIDI notes, so one phrase cannot casually silence another.
+- **Portable intent.** Studio composition and live execution should converge instead of becoming two separate workflows.
+- **Modular by design.** Instruments, transforms, controllers and eventually MOVEMENTS are building blocks, not one giant fixed sequencer.
+- **Failure is a feature to design for.** Stuck notes, stale references, patch migration, overload and rollback are first-class engineering concerns.
 
-Dynamic Instrument panels and schema-7 compatibility: [implementation notes](docs/dynamic-instruments.md).
+## Get the code
 
-Project reopen and popup integration: [validation notes](docs/project-persistence.md).
+```bash
+git clone https://github.com/petedevries666/midi_human_looper.git
+cd midi_human_looper
+```
 
-## Zynthian / Linux headless first test
+**Choose the path you actually want to run:**
 
-The runnable JACK MIDI host and reconnecting browser interface live in `headless/`.
-Start with [the first-test guide](docs/zynthian-first-test.md); build/run/test scripts
-are in `scripts/`. This preserves the REAPER JSFX. Physical Pi/Helix validation is
-required; the desktop dummy JACK graph is a functional test, not a latency claim.
+- For **REAPER**, start with the JSFX and companion Lua workflow documented in the [development history](docs/readme-development-history.md) and feature notes under [`docs/`](docs/).
+- For **Linux / JACK / Zynthian**, follow the [first-test guide](docs/zynthian-first-test.md) and the [native chains guide](docs/zynthian-native-chains.md).
+- To **review the next-generation CONDUCTOR**, read [PR #55](../../pull/55) and its stacked implementation PRs. Do not deploy a draft branch to performance hardware without reviewing its prerequisites and rollback procedure.
+
+There is deliberately no magic one-line installer here: the project has multiple runtimes, evolving schemas and hardware-specific routing.
+
+## Engineering notes
+
+MBMF is not only a UI prototype. The native development process includes tests for MIDI behavior, persistence, JACK routing, browser controls, note ownership and failure cases. The current CONDUCTOR draft chain documents its evidence in the relevant PRs.
+
+Useful starting points:
+
+- [Smart Switches](docs/smart-switches.md)
+- [Dynamic Smart Switches](docs/dynamic-smart-switches.md)
+- [Transformer stacking](docs/transformer-stacking.md)
+- [Expression assignments](docs/expression-assignments.md)
+- [CONDUCTOR model, references and migrations](docs/conductor-data-model.md)
+- [Original README / version-by-version development log](docs/readme-development-history.md)
+
+## For Linux people
+
+If you enjoy **JACK, MIDI routing, real-time constraints, state machines, old-school hardware workflows and making small computers behave like actual instruments**, this repository is very much your kind of rabbit hole.
+
+Particularly interesting areas for review:
+
+- deterministic MIDI Note On/Off ownership across overlapping instances;
+- keeping configuration parsing and allocation away from the audio/MIDI callback;
+- atomic patch persistence and schema migration;
+- bounded event scheduling, overload handling and predictable failure;
+- bridging a musician-friendly browser UI to a native Linux MIDI engine.
+
+Issues, code review and reproducible bug reports are welcome. Please distinguish observed behavior on `main` from behavior proposed in draft PRs.
+
+---
+
+<div align="center">
+
+**PLAY IT. KEEP IT HUMAN. TRIGGER IT AGAIN.**
+
+*MIDI Bad Motherfucker is an independent experimental project, not affiliated with REAPER, Zynthian or the makers of any connected hardware.*
+
+</div>

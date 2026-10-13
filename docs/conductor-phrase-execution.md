@@ -17,7 +17,9 @@ The existing physical Note/CC Smart Switch entry, MIDI Learn, quarantine, comman
 THRU policy and TEST mailbox are reused. Sequenced PRESS bypasses delayed gesture
 classification and DOUBLE consumption. A physical held button still has one PRESS
 edge until its RELEASE; two rapid PRESS/RELEASE pairs advance twice. TEST is a
-PRESS-only action. No simulated input is presented as a captured MIDI output.
+PRESS-only manual preview, available even when hardware input is disabled or
+unassigned. Unsupported DOUBLE/HOLD TEST requests report result 4 instead of
+silently invoking a legacy action. No simulated input is presented as a captured MIDI output.
 
 Several PHRASE LAYERS in a STEP start at the same input sample offset. Before any
 attack, the shared engine checks safe routing, nonempty source/duration, bounded

@@ -2424,10 +2424,12 @@ function conductor_release(si,offs,all)
 local(v,h,id)
 (id=mem[sw_cfg(si)+21];v=0;loop(MAX_ONCE_VOICES,h=instance_header(v);
  mem[h+12]==id && mem[VOICE_ACTIVE_BASE+v]>.5 && (all || mem[h+8]==2)?instance_stop_voice(v,offs);v+=1;););
+function conductor_reject_gesture(si) local(h)
+(h=conductor_header(si);mem[h+4]=4;mem[h+5]=0;mem[h+6]=0;mem[sw_rt(si)+17]=4;);
 function conductor_press(si,offs)
 local(h,step,b,n,j,v,free,valid,p,mode,ratio,repeats,last,t,oldmode,oldhold,olddecay,oldtime,id,owner)
 (
- h=conductor_header(si);mem[h+4]=0;mem[h+5]=0;mem[h+6]=0;
+ h=conductor_header(si);mem[h+4]=0;mem[h+5]=0;mem[h+6]=0;mem[sw_rt(si)+11]=SW_NEXT;mem[sw_rt(si)+12]+=1;
  !mem[h+7] || mem[h+1]<=0 ? mem[h+4]=4 : (
   step=(mem[h+3]+1)%mem[h+1];b=mem[h+2]+step*64;
   !mem[b] ? mem[h+4]=mem[b+3]>0?mem[b+3]:4 : (
@@ -2614,7 +2616,7 @@ local(b,r,step,phrase,gi,kind,k,c,found)
 );
 function sw_fire(si,gesture,offs)
 local(b)
-(b=sw_cfg(si);conductor_has(si)?(gesture==0 && mem[b]>0?conductor_press(si,offs);):mem[b]>0 && sw_gesture_action(si,gesture)>0 ? sw_action(si,sw_gesture_action(si,gesture),sw_gesture_target(si,gesture),offs););
+(b=sw_cfg(si);conductor_has(si)?(gesture==0?(mem[b]>0?conductor_press(si,offs);):conductor_reject_gesture(si);):mem[b]>0 && sw_gesture_action(si,gesture)>0 ? sw_action(si,sw_gesture_action(si,gesture),sw_gesture_target(si,gesture),offs););
 function sw_poll(now,offs)
 local(si,b,r,holdms)
 (
@@ -2814,7 +2816,7 @@ local(q,si,op,arg,value,b,r,j,k,n,tmp,target,gi,kind,c,undo,editing)
       op==11 ? sw_begin_edit(si,0) : op==12 ? sw_commit_edit() : op==13 ? sw_end_edit() :
       op==14 ? (j=0;target=-1;loop(SW_COUNT,mem[sw_cfg(j)+20]==0 && target<0?target=j;j+=1;);target>=0?sw_begin_edit(target,1);) :
       op==15 ? sw_delete(si,value) : op==8 ? learn_forget(arg) : op==9 ? learn_confirm() : op==10 ? learn_cancel() :
-      op==0 ? (conductor_has(si)?(arg==0 && mem[b]>0?conductor_press(si,0);):arg>=0 && arg<3 && (mem[b+14+arg]>0 || (snap_host_enabled && mem[I_RUNTIME_END+si*6+arg*2]>0)) ? (sw_preview_target=editing?si:-1;sw_action(si,sw_gesture_action(si,arg),sw_gesture_target(si,arg),0);sw_preview_target=-1;);) : op==1 ? (
+      op==0 ? (conductor_has(si)?(arg==0?conductor_press(si,0):conductor_reject_gesture(si);):arg>=0 && arg<3 && (mem[b+14+arg]>0 || (snap_host_enabled && mem[I_RUNTIME_END+si*6+arg*2]>0)) ? (sw_preview_target=editing?si:-1;sw_action(si,sw_gesture_action(si,arg),sw_gesture_target(si,arg),0);sw_preview_target=-1;);) : op==1 ? (
         // Assign message fields atomically; conflicting assignments remain unchanged.
         sw_assign(si,arg,mem[b+3],value,mem[b+12],mem[b+13]);
       ) : op==2 ? (

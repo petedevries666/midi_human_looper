@@ -141,6 +141,7 @@ No unauthenticated endpoint, token change or browser dependency is added.
 Test commands:
 
 ```sh
+export HEADLESS_BINARY="$PWD/.build/midi-headless-engine"
 scripts/headless-build.sh
 scripts/conductor-execution-test.sh
 python3 tests/test_conductor_execution_native.py

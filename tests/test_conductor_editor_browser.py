@@ -26,6 +26,10 @@ if __name__=='__main__':
    browser=pw.chromium.launch(headless=True,executable_path=os.environ.get('CHROMIUM_PATH','/usr/bin/chromium'),args=['--no-sandbox','--disable-gpu'])
    context=browser.new_context(viewport={'width':1440,'height':900},has_touch=True)
    page=context.new_page();page.goto(api.base);page.get_by_text('CONNECTED · Engine running',exact=True).wait_for()
+   page.locator('[data-switch-id="1"]').get_by_role('button',name='CONDUCTOR',exact=True).click();page.locator('.conductor-editor').wait_for();save_draft(page)
+   empty_model=json.load(__import__('urllib.request').request.urlopen(api.base+'/api/v1/conductor'))['model']
+   assert len(empty_model['switches'][0]['steps'])==1 and not any(l['block'] for l in empty_model['switches'][0]['steps'][0]['layers'])
+   assert not api.call()['instances'],'saving EMPTY must not play'
    page.evaluate('()=>{crypto.randomUUID=undefined;}') # LAN HTTP does not provide secure-context randomUUID.
    author_four_steps(page,touch=True)
    # Local override, two populated layers, move/undo and source isolation.
@@ -72,7 +76,7 @@ if __name__=='__main__':
    source_ids=[s['layers'][0]['block']['sourceId'] for s in model['switches'][0]['steps']]
    assert len(set(source_ids))==4 and model['switches'][0]['steps'][0]['layers'][0]['block']['overrides']['phrase_base_velocity']['value']==.5
    assert api.call()['phrases'][0]['baseVelocity']==1
-   page.get_by_role('button',name='SAVE PATCH',exact=True).click();page.wait_for_function('()=>!pending')
+   page.get_by_role('button',name='SAVE PATCH',exact=True).click();page.get_by_text('PATCH SAVED',exact=True).wait_for()
    page.get_by_role('button',name='LOAD PATCH',exact=True).click();page.wait_for_function('()=>!pending')
    assert not api.call()['instances']
    page.reload();page.get_by_text('CONNECTED · Engine running',exact=True).wait_for()

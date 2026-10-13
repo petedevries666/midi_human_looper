@@ -53,7 +53,8 @@ with tempfile.TemporaryDirectory(prefix='mbmf-conductor-jack-') as tmp:
    pw=sync_playwright().start();browser=pw.chromium.launch(headless=True,executable_path=env.get('CHROMIUM_PATH','/usr/bin/chromium'),args=['--no-sandbox','--disable-gpu'])
    page=browser.new_page(viewport={'width':1440,'height':900});page.goto(url);page.get_by_text('CONNECTED · Engine running',exact=True).wait_for()
    author_four_steps(page);save_draft(page)
-   page.get_by_role('button',name='SAVE PATCH',exact=True).click();page.wait_for_function('()=>!pending')
+   page.get_by_role('button',name='SAVE PATCH',exact=True).click();page.get_by_text('PATCH SAVED',exact=True).wait_for()
+   assert page.locator('#error').inner_text()=='',page.locator('#error').inner_text()
    page.get_by_role('button',name='LOAD PATCH',exact=True).click();page.wait_for_function('()=>!pending')
    page.reload();page.get_by_text('CONNECTED · Engine running',exact=True).wait_for()
    model=json.load(urllib.request.urlopen(url+'/api/v1/conductor'))['model'];sources=model['sources']
@@ -75,7 +76,11 @@ with tempfile.TemporaryDirectory(prefix='mbmf-conductor-jack-') as tmp:
   if os.environ.get('CONDUCTOR_BROWSER_AUTHOR'):
    # Restore the saved four STEP project, then author the two-layer version in the UI.
    command(op=2);page.reload();page.get_by_text('CONNECTED · Engine running',exact=True).wait_for()
+   page.evaluate('refresh()')
    page.get_by_role('button',name='LOAD PATCH',exact=True).click();page.wait_for_function('()=>!pending')
+   assert page.locator('#error').inner_text()=='',page.locator('#error').inner_text()
+   loaded=json.load(urllib.request.urlopen(url+'/api/v1/conductor'))
+   assert len(loaded['model']['switches'][0]['steps'])==4,loaded
    page.locator('[data-switch-id="1"]').get_by_role('button',name='CONDUCTOR',exact=True).click();page.locator('.conductor-editor').wait_for()
    for _ in range(3):page.locator('.conductor-step').nth(1).get_by_role('button',name='DELETE STEP',exact=True).click()
    col=page.locator('.conductor-step').first;col.get_by_role('button',name='Add PHRASE STEP 1 LAYER 2',exact=True).click()

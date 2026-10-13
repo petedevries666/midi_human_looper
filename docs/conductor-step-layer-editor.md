@@ -11,6 +11,8 @@ empty layer. `+` opens PHRASES with actual source names and empty/populated stat
 Selecting a source adds a stable UUID reference and automatically reveals the
 next empty STEP. Four selections create four persisted STEPS; the fifth empty
 insertion column is a draft affordance and is not saved accidentally.
+Saving a completely empty editor retains one valid EMPTY STEP, as C requires;
+it never starts playback. Unsupported stored types are marked UNAVAILABLE.
 
 STEPS are horizontal columns, LAYERS vertical rows. Small viewports wrap columns
 and scroll vertically. EDIT exposes local MODE/VEL/V.DEC/T.DEC INHERIT/OVERRIDE;
@@ -21,7 +23,9 @@ MOVE/REPLACE controls provide a touch/keyboard equivalent. LAYER 01 remains PHRA
 or EMPTY even when loaded unsupported blocks are moved; incompatible moves are
 refused. UNDO restores draft configuration, never promises to undo emitted MIDI.
 
-DONE commits the complete draft through C's existing validated native transaction.
+DONE commits the complete draft through C's existing validated native transaction,
+then observes the new revision **before closing**, so immediate SAVE cannot send
+the pre-commit revision. TEST feedback uses D's authoritative cursor/result.
 CANCEL, ESC and outside dismissal discard it. Then SAVE PATCH persists it to disk.
 LOAD restores configuration but never starts playback. Existing TEST TAP executes
 D's real PRESS path; a fifth PRESS wraps. Physical learned input uses the same

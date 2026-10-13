@@ -29,7 +29,7 @@ async function editConductor(sw){
  const change=fn=>{checkpoint();fn();paint();};
  const source=b=>model.sources.find(s=>s.id===b?.sourceId&&s.type===b?.type);
  const phrase=b=>latest.phrases.find(p=>p.id===source(b)?.slot);
- const label=b=>{const p=phrase(b);return p?`${String(p.id).padStart(2,'0')} · ${p.name||'PHRASE '+p.id}${p.events?'':' · EMPTY'}`:`MISSING · ${b.sourceId||b.type}`;};
+ const label=b=>{if(b.type!=='PHRASE')return `${b.type} · UNAVAILABLE · ${b.sourceId||''}`;const p=phrase(b);return p?`${String(p.id).padStart(2,'0')} · ${p.name||'PHRASE '+p.id}${p.events?'':' · EMPTY'}`:`MISSING · ${b.sourceId||b.type}`;};
  const mode=b=>b.overrides?.playMode?.mode==='OVERRIDE'?b.overrides.playMode.value:['LOOP','ONCE','HOLD'][phrase(b)?.mode]||'—';
  const ensure=s=>{if(!sequence.steps.includes(s))sequence.steps.push(s);};
  const action=(name,fn)=>{const control=button({'EDIT BLOCK':'EDIT','REMOVE BLOCK':'DELETE'}[name]||name,()=>{if(!committing)fn();});control.setAttribute('aria-label',name);control.title=name;return control;};
@@ -96,7 +96,7 @@ async function editConductor(sw){
    column.append(header);
    s.layers.forEach((l,li)=>{
     const cell=node('div',undefined,'conductor-layer');cell.dataset.layerId=l.id;cell.append(node('small',li===0?'01 MASTER':String(li+1).padStart(2,'0')));
-    if(l.block){const b=l.block;cell.dataset.blockId=b.id;cell.classList.toggle('missing-source',!source(b));cell.append(node('strong',label(b)),node('output',`${mode(b)} · ${b.overrides?.trigger?.value||'PRESS'}`));
+    if(l.block){const b=l.block;cell.dataset.blockId=b.id;cell.classList.toggle('missing-source',!source(b));cell.append(node('strong',label(b)),node('output',b.type==='PHRASE'?`${mode(b)} · ${b.overrides?.trigger?.value||'PRESS'}`:'UNSUPPORTED · preserved'));
      cell.append(action('EDIT BLOCK',()=>properties(s,l)),action('REMOVE BLOCK',()=>change(()=>l.block=null)),action('REPLACE BLOCK',()=>choose(s,l,cell.lastElementChild)));
     }else{const add=action(`Add PHRASE STEP ${index+1} LAYER ${li+1}`,()=>choose(s,l,add));add.textContent='+';add.className='conductor-add';cell.append(add,node('small','EMPTY'));}
     if(sequence.steps.includes(s)){
@@ -117,8 +117,9 @@ async function editConductor(sw){
  const addStep=action('ADD STEP',()=>change(()=>{sequence.steps.push(step());selected=sequence.steps.at(-1).id;}));
  const done=action('DONE',async()=>{
   if(engineSession!==session||revision!==rev){error.textContent='Configuration changed. CANCEL and reopen; draft retained.';return;}
+  if(!sequence.steps.length)sequence.steps.push(empty); // C requires one valid EMPTY STEP, never an invalid zero-step document.
   committing=true;const controls=[...root.querySelectorAll('button,input,select')],wasDisabled=controls.map(control=>control.disabled);controls.forEach(control=>control.disabled=true);
-  try{await request('/api/v1/command',{protocolVersion:1,expectedRevision:rev,expectedEngineSessionId:session,action:'conductor_commit',conductor:model});dialog.close();await refresh();}
+  try{await request('/api/v1/command',{protocolVersion:1,expectedRevision:rev,expectedEngineSessionId:session,action:'conductor_commit',conductor:model});render(await request('/api/v1/state'));dialog.close();}
   catch(e){error.textContent=e.message==='conflict'?'Configuration changed. CANCEL and reopen; draft retained.':`${e.message} · STOP/PANIC before DONE; draft retained.`;}
   finally{committing=false;controls.forEach((control,index)=>control.disabled=wasDisabled[index]);}
  });

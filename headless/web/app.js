@@ -298,12 +298,12 @@ function render(s){
   if(engineSession===s.engineSessionId&&s.revision<revision)return;
   engineSession=s.engineSessionId;revision=s.revision;latest=s;
   $('connection').textContent='CONNECTED · Engine running';
-  $('stop-native').hidden=!s.chainMode;paintPhraseStates(s);paintEffectiveRails(s);
+  $('stop-native').hidden=!s.chainMode;paintPhraseStates(s);paintEffectiveRails(s);paintConductorRuntime(s);
   $('transport-state').textContent=s.chainMode?`NATIVE · ${s.chainRecording?'RECORDING':s.chainArmed?'RECORD ARMED':s.chainRunning?'PLAYING':'STOPPED'} · ${s.activeNotes} ACTIVE NOTES`:`ENGINE RUNNING · ${s.activeNotes} ACTIVE NOTES`;
   $('metrics').replaceChildren(...[`Build ${s.buildRevision||'unknown'}`,`Backend ${s.backend} · ${s.sampleRate} Hz / ${s.blockSize}`,`Sample clock ${s.sampleClock}`,`MIDI messages ${s.midiCount}`,`Active notes ${s.activeNotes}`,`Maximum callback ${s.maxCallbackUs.toFixed(1)} µs`,`JACK XRUN notifications ${s.lateBlocks}`,`Output overflow ${s.outputOverflow}`].map(v=>node('span',v)));
   if(s.chainMode)$('metrics').append(node('span',`Zynthian · ${s.chainCaptureMode==='free-time'?'FREE TIME':'TWO BARS'} · ${s.chainBpm} BPM · ${s.chainError?'CLOCK / CAPACITY ERROR — stopped':s.chainRecording?'RECORDING':s.chainArmed?(s.chainCaptureMode==='free-time'?'WAITING FOR FIRST NOTE':'WAITING FOR NEXT LOOP'):s.chainRunning?'PLAYING':'STOPPED'}`));
   $('last-midi').textContent=`Last MIDI · sample ${s.lastEvent[0]} · status ${s.lastEvent[1]} · number ${s.lastEvent[2]} · value ${s.lastEvent[3]}`;
-  for(const sw of s.switches){const el=document.querySelector(`[data-switch-id="${sw.id}"] .step`);if(el)el.textContent=`STEP ${sw.step} / ${sw.length}`;}
+  for(const sw of s.switches){const el=document.querySelector(`[data-switch-id="${sw.id}"] .step`);if(el)el.textContent=`STEP ${sw.conductor?.steps?sw.conductor.step:sw.step} / ${sw.conductor?.steps||sw.length}`;}
   $('capture-snapshot').onclick=()=>command({action:'snapshot_capture'});
   const snapshotKey=JSON.stringify([s.engineSessionId,(s.snapshots||[]).map(r=>[r.id,r.name,r.seconds,r.ease,r.switching])]);
   if(renderedSnapshotSession!==s.engineSessionId || (snapshotKey!==renderedSnapshots && !document.activeElement?.hasAttribute('data-snapshot-name') && !document.querySelector('.snapshot-actions[open]'))) {
@@ -328,14 +328,14 @@ function render(s){
   }
   renderAB(s);
   if(!document.activeElement?.closest('#controllers .name-input'))renderControllers(s);
-  if(document.activeElement?.classList.contains('name-input')||document.activeElement?.type==='range'||document.querySelector('[data-live-release=held]'))return;
-  const model=JSON.stringify([s.controllerEngine,s.controllerLearn,s.phrases.map(p=>({...p,state:undefined,events:0})),s.instruments,s.switches.map(v=>({...v,step:0,actionCount:0,lastAction:0,result:0})),s.snapshotActions]);if(model===renderedModel)return;renderedModel=model;
+  if(uiPointerHeld||document.activeElement?.tagName==='SELECT'||document.activeElement?.classList.contains('name-input')||document.activeElement?.type==='range'||document.querySelector('[data-live-release=held]'))return;
+  const model=JSON.stringify([s.controllerEngine,s.controllerLearn,s.phrases.map(p=>({...p,state:undefined,events:0})),s.instruments,s.switches.map(v=>({...v,step:0,actionCount:0,lastAction:0,result:0,conductor:undefined})),s.snapshotActions]);if(model===renderedModel)return;renderedModel=model;
   compactPhrases(s);
   paintPhraseStates(s);
   $('instruments').replaceChildren(...s.instruments.map(compactInstrument));
   const openSwitchTests=new Set([...document.querySelectorAll('.switch-test[open]')].map(e=>e.closest('[data-switch-id]').dataset.switchId));
   $('switches').replaceChildren(...s.switches.map(sw=>{
-    const n=node('article',undefined,'switch');n.dataset.switchId=sw.id;n.append(node('strong',sw.name||`SWITCH ${sw.id}`),node('small',`${sw.kind===1?'NOTE':sw.kind===2?'CC':'UNASSIGNED'} ${sw.number} · CH ${sw.channel}`),node('small',`STEP ${sw.step} / ${sw.length}`,'step'),button('OPTIONS',()=>editSwitchSequence(sw)),button('SNAPSHOTS',()=>editSwitchSnapshots(sw)));
+    const n=node('article',undefined,'switch');n.dataset.switchId=sw.id;n.append(node('strong',sw.name||`SWITCH ${sw.id}`),node('small',`${sw.kind===1?'NOTE':sw.kind===2?'CC':'UNASSIGNED'} ${sw.number} · CH ${sw.channel}`),node('small',`STEP ${sw.conductor?.steps?sw.conductor.step:sw.step} / ${sw.conductor?.steps||sw.length}`,'step'),button('OPTIONS',()=>editSwitchSequence(sw)),button('CONDUCTOR',()=>editConductor(sw)),button('SNAPSHOTS',()=>editSwitchSnapshots(sw)));
     const tests=node('div',undefined,'tests');for(const gesture of ['tap','double','hold']){const b=button(`TEST ${gesture.toUpperCase()}`,()=>testSwitch(sw.id,gesture));b.dataset.valid='1';b.title=`${gesture.toUpperCase()} preview · no MIDI assignment required`;tests.append(b);}
     const hardware=button('SIMULATE FOOTSWITCH',async()=>{if(await command({action:'midi',channel:sw.channel,note:sw.number,value:100}))await command({action:'midi',channel:sw.channel,note:sw.number,value:0});});hardware.className='hardware';hardware.dataset.valid=sw.kind===1?'1':'0';hardware.disabled=sw.kind!==1;const tools=node('details',undefined,'switch-test');tools.open=openSwitchTests.has(String(sw.id));tools.append(node('summary','TEST'),tests,hardware);n.append(tools,node('output',switchTestFeedback.get(sw.id)||'','switch-test-feedback'));return n;
   }));
@@ -351,7 +351,12 @@ async function testSwitch(id,gesture){
 }
 async function refresh(){try{render(await request('/api/v1/state'));}catch(e){$('connection').textContent='DISCONNECTED · Engine continues independently';$('error').textContent=e.message;}}
 function setPending(value){pending=value;for(const b of document.querySelectorAll('main button:not([data-live-release=held])')){if(value){b.dataset.pendingDisabled=b.disabled?'1':'0';b.disabled=true;}else if(b.dataset.pendingDisabled!==undefined){b.disabled=b.dataset.pendingDisabled==='1';delete b.dataset.pendingDisabled;}}}
-async function command(value){if(pending)return false;setPending(true);try{render(await request('/api/v1/command',{protocolVersion:1,expectedRevision:revision,expectedEngineSessionId:engineSession,...value}));$('error').textContent='';return true;}catch(e){$('error').textContent=value.action?.startsWith('snapshot_')&&e.message==='unknown_target'?'Recall was not applied: a target is missing or has a legacy expression assignment.':e.message;await refresh();return false;}finally{setPending(false);}}
+let commandQueue=Promise.resolve(),uiPointerHeld=false;
+document.addEventListener('pointerdown',()=>uiPointerHeld=true,true);
+for(const event of ['pointerup','pointercancel'])document.addEventListener(event,()=>{uiPointerHeld=false;setTimeout(()=>{if(latest&&!pending)render(latest);},0);},true);
+window.addEventListener('blur',()=>uiPointerHeld=false);
+function command(value){const session=engineSession;const job=commandQueue.then(()=>executeCommand(value,session));commandQueue=job.catch(()=>{});return job;}
+async function executeCommand(value,session){while(pending)await new Promise(resolve=>setTimeout(resolve,10));if(session!==engineSession){$('error').textContent='Engine restarted; action cancelled.';return false;}setPending(true);try{render(await request('/api/v1/command',{protocolVersion:1,expectedRevision:revision,expectedEngineSessionId:engineSession,...value}));$('error').textContent='';return true;}catch(e){$('error').textContent=value.action?.startsWith('snapshot_')&&e.message==='unknown_target'?'Recall was not applied: a target is missing or has a legacy expression assignment.':e.message;await refresh();return false;}finally{setPending(false);}}
 function connectStream(){
   if(ws){ws.onclose=null;ws.close();}
   ws=new WebSocket(`${location.protocol==='https:'?'wss':'ws'}://${location.host}/api/v1/ws`);

@@ -1,6 +1,5 @@
 """Deterministic real-browser/API reproduction; delay only a private PANIC reply.
-Reports the missing parameter POST, then proves the same edit succeeds idle.
-Exit 1 denotes the unmet user-action contract, not successful functionality.
+Regression: the enabled edit queues behind the real pending reply and must apply.
 """
 import os,sys
 from pathlib import Path
@@ -35,7 +34,8 @@ try:
   select=page.get_by_label('Play mode Phrase 1',exact=True)
   assert select.is_enabled(),'fixture needs the currently enabled control'
   select.select_option('0')
-  page.wait_for_function('()=>!pending && !window.__panicReplyHeld')
+  page.wait_for_function('()=>!pending && !window.__panicReplyHeld && window.__parameterPosts.length===1')
+  api.wait_for(lambda:api.call()['phrases'][0]['mode']==0,'queued LOOP edit applies')
   first=api.call()['phrases'][0]['mode'];posts=page.evaluate('window.__parameterPosts')
   print('PENDING EDIT OBSERVATION',json.dumps({'requestedMode':0,'nativeMode':first,'parameterPosts':posts,'uiError':page.locator('#error').inner_text()}),flush=True)
   # Positive control: identical target and value after the previous command ends.
@@ -43,9 +43,7 @@ try:
   api.wait_for(lambda:api.call()['phrases'][0]['mode']==0,'idle positive control applies LOOP')
   print('IDLE POSITIVE CONTROL',json.dumps({'nativeMode':api.call()['phrases'][0]['mode'],'parameterPosts':page.evaluate('window.__parameterPosts')}),flush=True)
   browser.close()
- if first==1 and not posts:
-  print('FAIL contract: enabled control silently drops edit while PANIC reply is pending; positive control succeeds',flush=True)
-  raise SystemExit(1)
- raise AssertionError('Baseline mechanism changed; investigate observation before classification')
+ assert first==0 and len(posts)==1,(first,posts)
+ print('PASS pending-command enabled edit: one real POST, correct target/value, idle control preserved',flush=True)
 finally:
  api.tearDownClass()

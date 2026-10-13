@@ -1,5 +1,5 @@
 """Real native edit during pointer-down reproduces a lost module click.
-No app code change or mocked engine; desired interaction remains FAIL (exit 1).
+Regression: retain the pointer-down target through actual engine telemetry.
 """
 import os,sys
 from pathlib import Path
@@ -23,20 +23,20 @@ try:
   button.evaluate('(node)=>window.__pressedEdit=node');box=button.bounding_box()
   page.mouse.move(box['x']+box['width']/2,box['y']+box['height']/2);page.mouse.down()
   api.command('parameter_set',targetId=1,moduleId=module,kind=7,value=12)
-  page.wait_for_function('()=>!window.__pressedEdit.isConnected')
+  page.wait_for_function('()=>latest.instruments[0].transformers[0].parameters[0].value===12')
+  assert page.evaluate('window.__pressedEdit.isConnected'),'telemetry detached the pressed target'
+  detached=not page.evaluate('window.__pressedEdit.isConnected')
   page.mouse.up()
   # Wait for browser event processing, not for a hoped-for passing condition.
-  page.wait_for_timeout(150)
+  page.get_by_role('slider',name='VELOCITY',exact=True).wait_for()
   missed=page.get_by_role('slider',name='VELOCITY',exact=True).count()==0
-  print('EDITOR CLICK OBSERVATION',json.dumps({'oldButtonDetached':True,'velocityEditorOpened':not missed,'nativeTranspose':api.call()['instruments'][0]['transformers'][0]['parameters'][0]['value']}),flush=True)
+  print('EDITOR CLICK OBSERVATION',json.dumps({'oldButtonDetached':detached,'velocityEditorOpened':not missed,'nativeTranspose':api.call()['instruments'][0]['transformers'][0]['parameters'][0]['value']}),flush=True)
   # Same actual button/action after the observation repaint finishes.
   panel.locator('.module').nth(1).get_by_role('button',name='EDIT',exact=True).click()
   page.get_by_role('slider',name='VELOCITY',exact=True).wait_for()
   print('IDLE EDITOR POSITIVE CONTROL: VELOCITY opened',flush=True)
   browser.close()
- if missed:
-  print('FAIL contract: module EDIT click lost when actual parameter telemetry replaces its pointer-down target',flush=True)
-  raise SystemExit(1)
- raise AssertionError('Expected lost-click mechanism changed; examine actual observation')
+ assert not missed,'actual EDIT click was lost'
+ print('PASS telemetry preserves pointer target and real EDIT interaction',flush=True)
 finally:
  api.tearDownClass()

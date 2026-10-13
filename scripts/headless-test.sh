@@ -15,6 +15,7 @@ if [[ "${RUN_JACK_TESTS:-0}" == 1 ]];then
   c++ -std=c++11 -O2 tests/headless_jack.cpp "${jack_flags[@]}" -lpthread -o "$test_dir/jack-smoke"
   c++ -std=c++11 -O2 tests/conductor_jack.cpp "${jack_flags[@]}" -lpthread -o "$test_dir/conductor-probe"
   CONDUCTOR_JACK_PROBE="$test_dir/conductor-probe" "${TEST_PYTHON:-python3}" tests/test_conductor_execution_jack.py
+  if [[ "${RUN_CHAIN_BROWSER:-0}" == 1 ]];then CONDUCTOR_JACK_PROBE="$test_dir/conductor-probe" "${TEST_PYTHON:-python3}" tests/test_conductor_editor_jack.py;fi
   c++ -std=c++11 -O2 tests/zynthian_chain_jack.cpp "${jack_flags[@]}" -lpthread -o "$test_dir/chain-probe"
   CHAIN_JACK_PROBE="$test_dir/chain-probe" "${TEST_PYTHON:-python3}" tests/test_instance_ownership_jack.py
   CHAIN_JACK_PROBE="$test_dir/chain-probe" "${TEST_PYTHON:-python3}" tests/test_instance_output_overflow_jack.py

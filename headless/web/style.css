@@ -173,3 +173,18 @@ dialog[data-contextual][open]{position:relative;inset:auto;width:100%;max-width:
 .switch-test-feedback{display:block;flex-basis:100%;grid-column:1/-1;grid-row:4;min-width:0;font:9px monospace;color:var(--active);overflow-wrap:anywhere}
 
 .switch-test-feedback:empty{display:none}
+/* CONDUCTOR: compact horizontal steps, vertical layers; wraps on small screens. */
+#editor[data-kind=conductor]{width:min(1120px,calc(100vw - 24px));max-width:calc(100vw - 24px)}
+.conductor-toolbar{display:flex;flex-wrap:wrap;gap:4px;align-items:center}.conductor-toolbar h2{flex:1;min-width:150px;margin:4px 0}
+.conductor-board{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(190px,100%),1fr));gap:6px;align-items:start;margin:8px 0}
+.conductor-step{border:1px solid #555;padding:4px;min-width:0}.conductor-step.selected-step{border-color:#ddd}.conductor-step.active-step{border-color:#fff020;background:#202015}
+.conductor-step-header{display:flex;gap:2px;flex-wrap:wrap}.conductor-step-header button:first-child{flex:1}.conductor-step-header button{padding:3px;font-size:9px}
+.conductor-layer{position:relative;border-top:1px solid #444;display:flex;flex-wrap:wrap;gap:4px;padding:5px 0;min-width:0}.conductor-layer>strong,.conductor-layer>output{flex-basis:100%;overflow-wrap:anywhere}.conductor-layer>strong{color:#fff020;font-size:11px}.conductor-layer>small:first-child{flex-basis:100%;color:#999;font-size:9px}
+.conductor-layer button{padding:4px;font-size:9px}.conductor-layer .conductor-add{width:100%;font-size:23px;min-height:35px;color:#fff020}
+.conductor-add-menu{flex-basis:100%;width:100%;max-height:190px;overflow:auto;border:1px solid #888;background:#161616;padding:4px;z-index:2}.conductor-add-menu details button{display:block;width:100%;text-align:left;white-space:normal}.conductor-add-menu>small{display:block;color:#888}
+.conductor-properties:empty{display:none}.conductor-properties{border:1px solid #666;padding:6px}.conductor-option{display:grid;grid-template-columns:45px 100px minmax(30px,1fr) 35px;gap:4px;align-items:center;margin:6px 0}.conductor-option input{width:100%;min-width:0}.conductor-status{color:#fff020;font-size:10px}.conductor-error,.missing-source>strong{color:#ff9970}.conductor-error:empty{display:none}
+@media(max-width:500px){.conductor-option{grid-template-columns:40px 95px minmax(25px,1fr)}.conductor-option output{grid-column:3}.conductor-toolbar h2{flex-basis:100%}}
+#switches .switch>button[aria-label=CONDUCTOR]{font-size:8px;padding:3px;grid-column:1/-1}
+@media(min-width:1000px){#switches .switch>button[aria-label=CONDUCTOR]{grid-row:3}#switches .switch>.switch-test[open]{grid-row:4}#switches .switch>.switch-test-feedback{grid-row:5}}
+.conductor-option input[type=range]{accent-color:#fff020}
+.conductor-add-menu{position:absolute;left:0;top:45px;width:100%;box-sizing:border-box}

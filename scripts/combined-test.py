@@ -53,6 +53,7 @@ try:
         run([sys.executable,'tests/test_instance_ownership_native.py'])
         run(['tests/run_host_tests.sh'])
         run(['scripts/portable-test.sh'],{'TEST_PYTHON':sys.executable})
+        run(['scripts/conductor-persistence-test.sh'],{'TEST_PYTHON':sys.executable})
         run([sys.executable,'tests/test_patch_io.py'])
     if a.browser=='stock-firefox':run([sys.executable,'tests/test_headless_firefox.py'])
     elif a.browser!='none':

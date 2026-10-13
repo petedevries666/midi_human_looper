@@ -2938,6 +2938,10 @@ int main(int argc, char **argv) {
     NSEEL_code_free(structure);
     NSEEL_code_free(instrumentLifecycle);
     NSEEL_code_free(phraseAssign);
+    // Existing bridges are owned until processing/control threads have stopped.
+    NSEEL_code_free(controllerApply);
+    NSEEL_code_free(legacyConflict);
+    NSEEL_code_free(cancelLearn);
     NSEEL_code_free(safeApply);
     NSEEL_code_free(cancelPending);
   } catch (const std::exception &e) {

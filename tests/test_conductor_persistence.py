@@ -86,6 +86,18 @@ class ConductorPersistence(HeadlessTests):
         # Native worker rejection after adapter validation (actual rollback path).
         broken=copy.deepcopy(before);broken['memory'][164892]=999
         self.load(broken,'invalid');self.assertEqual(before,self.save())
+        # Post-handoff rollback: valid carrier/patch, but a Controller binding
+        # cannot resolve its instrument after patch activation. Keep old model.
+        from controller_config import binding_wire
+        replacement=copy.deepcopy(self.model)
+        replacement['switches'][0]['traversal']='BACKWARD'
+        broken=copy.deepcopy(before);broken['conductor']=conductor.encode(replacement)
+        record=[0,0,0,0,0,1,0,0,0,0,0,.02,.2,1,1,.5,1,2]+[0,0,0,1,1,0]+[0]*42
+        wire=[1]+[0]*64+record*32
+        wire[1:5]=[101,0,0,0]
+        wire[65:131]=binding_wire(dict(id=1,sourceId=101,targetId=555,instrumentId=999,kind=1))
+        broken['controllerEngine']=dict(version=1,configuration=wire)
+        self.load(broken,'invalid');self.assertEqual(before,self.save())
     def test_native_socket_rejects_invalid_typed_document_before_handoff(self):
         self.commit(self.model);before=self.save();state=self.call()
         invalid=copy.deepcopy(self.model)

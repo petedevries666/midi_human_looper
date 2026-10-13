@@ -3,7 +3,7 @@
 
 **Projet :** MIDI BAD MOTHERFUCKER (MBMF)  
 **Dépôt :** https://github.com/petedevries666/midi_human_looper  
-**Socle d'audit :** PR #50, branche \`fix/free-time-capture-origin\`, commit observé \`25fcb1e458ffdce7286ff4c60cd4546d586e19a4\`  
+**Socle d'audit :** PR #50, branche `fix/free-time-capture-origin`, commit observé `25fcb1e458ffdce7286ff4c60cd4546d586e19a4`  
 **Cibles :** REAPER JSFX et moteur natif Zynthian/JACK avec interface Web  
 **Nature :** contrat fonctionnel, UX, moteur musical, intégration et validation  
 **Statut :** décisions produit validées ; aucune implémentation de ce cahier des charges n'est présumée livrée.
@@ -716,7 +716,7 @@ PRESS lance PHRASE immédiatement. HOLD lance MOVEMENT. RELEASE laisse MOVEMENT 
 ## 23. Tests hôtes et captures
 
 Cloud/desktop :
-- Lancer suites existantes pertinentes : \`scripts/combined-test.py\`, \`scripts/controller-test.sh\`, \`scripts/screenshots.sh\` et suites de migration/SMF/browser/JSFX/JACK.
+- Lancer suites existantes pertinentes : `scripts/combined-test.py`, `scripts/controller-test.sh`, `scripts/screenshots.sh` et suites de migration/SMF/browser/JSFX/JACK.
 - Tests **moteur réel**, pas mock de couche HTTP seulement.
 - Sanitizers, overlap des notes, callback safe, bounded queue et regressions précédentes.
 - Ne pas désactiver asserts / relâcher guards pour obtenir PASS.

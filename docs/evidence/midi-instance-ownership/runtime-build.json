@@ -1,0 +1,7 @@
+{
+  "buildRevision": "ffdc4d0ba829ba07b3e6c40d9c947ab31f70aa76",
+  "sampleRate": 48000,
+  "blockSize": 128,
+  "chainCaptureMode": "free-time",
+  "chainTimingVersion": 1
+}

@@ -1,0 +1,5 @@
+Traceback (most recent call last):
+  File "/workspace/mbmf-conductor-a/tests/test_instance_ownership_jack.py", line 23, in <module>
+    assert engine.poll() is None,'engine failed to start';time.sleep(.05)
+           ^^^^^^^^^^^^^^^^^^^^^
+AssertionError: engine failed to start

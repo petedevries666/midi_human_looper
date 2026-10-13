@@ -156,3 +156,28 @@ with per-instance ownership unsupported. A previously safe legacy voice may
 enter that path only with no outstanding ledger/pedal claims. Unsafe transitions
 with outstanding claims retire the affected source explicitly. These restrictions
 are deliberate and are not claims of safe arbitrary layered mono/ARP routing.
+
+## Final executed gate
+
+Production build: `ffdc4d0ba829ba07b3e6c40d9c947ab31f70aa76`.
+[Manifest, hashes and all outcomes](evidence/midi-instance-ownership/summary.json).
+
+| Check | Result |
+|---|---|
+| Complete combined native/JACK/Chromium regression | PASS, exit 0 |
+| Actual EEL/GUI/MIDI | 18,383 checks PASS |
+| Capture / free-capture SMF | 18 / 36 fixtures PASS |
+| Controller normal and ASAN | 162,709 core + 558 adapter checks each PASS |
+| Focused actual EEL ownership host ASAN/UBSAN | 6,698 checks PASS |
+| Separate three-chain JACK, no Chromium load | 2/2 PASS |
+| Controlled private callback interruption | PASS guard: error 1, stopped capture/playback, no active notes/output overflow |
+| Pending-command UI counterexample | FAIL exit 1, unchanged signature and successful idle control |
+| Telemetry EDIT counterexample | FAIL exit 1, unchanged signature and successful idle control |
+| Legacy cross-source ONCE | Explicit XFAIL retained in shared/native contexts; separate independent tests PASS |
+
+**Conditional GO for scoped PR B review.** This is not a release or physical
+hardware qualification. The failed/interrupted earlier global runs, diagnostics,
+actual MIDI before/after and their classifications are retained beside the final
+logs. No new runtime regression was found after the fixes. Source/hash verification
+confirms all six web files, the entire JSFX `@gfx` section and the original 25
+issue54 working files are unchanged. No merge, installation or deployment occurred.

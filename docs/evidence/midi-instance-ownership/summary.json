@@ -1,0 +1,158 @@
+{
+  "recordedAtUTC": "2026-10-13T16:11:02.041671+00:00",
+  "implementationCommit": "ffdc4d0ba829ba07b3e6c40d9c947ab31f70aa76",
+  "baseCommit": "0e21ac5853a77370d536ecae80f4ed3332854cda",
+  "dependencyPR50": "25fcb1e458ffdce7286ff4c60cd4546d586e19a4",
+  "specCommit": "73cdee5604992ca3bd68e4c6c3b97c545333b127",
+  "binarySha256": "ae5743bfa41cf708807a53d0a64d793ec333c8581da5abb22e5389b8a06f0d6f",
+  "sourceHashes": {
+    "docs/midi-instance-ownership.md": "d3f46a9b0e4f811c7c1e9c88594ebb0bf40c16f1b7da8df29f4ac862fb1c4001",
+    "headless/chain_mode.hpp": "f3bd4a1fda1f8905efb173fcaa98661aafcb2a3deb95315537853e6b590ad8f6",
+    "headless/engine.cpp": "dce8a6e76dadde47e722457c662ee7ef64d3c1cc5e85861b54d96e177f12b923",
+    "headless/server.py": "dfb887cab15ca5ce8adbe5eef66c4dc9178538ae69b81dea843964ce0212491e",
+    "midi_human_looper.jsfx": "75e776e3fb0392a8dcef17f8c19fa4eae8c68d136d9798c902df4a19438ccd15",
+    "scripts/combined-test.py": "07a25d59a2c8b3aef2433d04309c473963e48e445ec5be40f67c4010a4a0e36b",
+    "scripts/headless-test.sh": "4b9cf42cbd23d63e9013a9e9de6fac8fa71780a2d7f233487cff20dc7f5577fa",
+    "scripts/instance-ownership-test.sh": "8959044a42868414c3751f3849043d9c55d81431211bc140b3f2e3ee3e5d6705",
+    "tests/conductor_baseline_cases.hpp": "e51feeecd9e01974372b9b572001bf958c340bf43f15bb8190699ec864a74de3",
+    "tests/conductor_diagnostics/delayed_jack_activate.cpp": "7a4cdd38e7c9a26185f2419dc4c0e1e56d4cc3a34671b0df3bab373063be3851",
+    "tests/conductor_diagnostics/jack_readiness.py": "433be4d1ad58a1b0b3b3c86f3346987010983847900d987d90ca70fd397b8c75",
+    "tests/expression_host.cpp": "d5a56ef0d0b77edbf0f6961f29474c22ad5c38c47c3d22ad8f511dc97896a9fc",
+    "tests/instance_ownership_cases.hpp": "c9cea0560c9360bbd98ff09dae1de0b5571dba900a745af6c9726868aa94e6ba",
+    "tests/test_instance_output_overflow_jack.py": "0a58d500278390801a2f94c4c371133bc3169892665d5e25f4adfbc2de0080c0",
+    "tests/test_instance_ownership_jack.py": "e84da652d06cd0f011dc54c3bfc8a09517cd5e3658f4df9ce2b8073203b180a4",
+    "tests/test_instance_ownership_native.py": "1d1b2e246817c4b497c976182f01ae7cf796f431234ceae00598c30c94012bf8",
+    "tests/test_jack_graph.py": "df14aed162fd04692c91dd6fc035cd0c98f0971af9b7c635e72e383e069cec46"
+  },
+  "results": {
+    "combined": {
+      "exitCode": 0,
+      "status": "PASS",
+      "log": "combined.log"
+    },
+    "asan": {
+      "exitCode": 0,
+      "status": "PASS",
+      "log": "asan.log"
+    },
+    "jack1": {
+      "exitCode": 0,
+      "status": "PASS",
+      "log": "jack1.log"
+    },
+    "jack2": {
+      "exitCode": 0,
+      "status": "PASS",
+      "log": "jack2.log"
+    },
+    "gap": {
+      "exitCode": 0,
+      "status": "PASS",
+      "log": "gap.log"
+    },
+    "ui1": {
+      "exitCode": 1,
+      "status": "FAIL",
+      "log": "ui1.log"
+    },
+    "ui2": {
+      "exitCode": 1,
+      "status": "FAIL",
+      "log": "ui2.log"
+    }
+  },
+  "eelGuiMidiChecks": 18383,
+  "captureFixtures": 18,
+  "freeCaptureSmfFixtures": 36,
+  "focusedOwnershipHostChecks": 6698,
+  "controllerChecks": 162709,
+  "controllerAdapterChecks": 558,
+  "legacyCompatibilityXfail": "ONCE_CROSS_SOURCE_CHOKE (shared EEL and native adapter contexts)",
+  "ownershipPromotions": [
+    "VOICE_EXHAUSTION_GLOBAL_RELEASE",
+    "CHOKE_RELEASES_LIVE_OWNER"
+  ],
+  "webFilesByteIdentical": 6,
+  "gfxByteIdentical": true,
+  "issue54UnchangedFiles": 25,
+  "gate": "GO for scoped PR B review under PR56 conditional gate; not hardware/release qualification",
+  "remaining": [
+    "pre-existing pending-command UI loss",
+    "pre-existing telemetry EDIT loss",
+    "independent mono/ARP unsupported",
+    "physical REAPER/ARM64/V4/Helix and low-buffer real-time validation pending",
+    "Q3 future CONDUCTOR limits undecided"
+  ],
+  "priorFailures": [
+    {
+      "log": "combined-interrupted-source-edit.log",
+      "classification": "invalid mixed-source run interrupted by in-session syntax error; repaired before frozen validation"
+    },
+    {
+      "log": "combined-frozen-startup-failure.log",
+      "classification": "pre-existing JACK fixture startup race; forced reproduction exit 3 on clean PR50 and B; real callback readiness added, all MIDI assertions retained"
+    },
+    {
+      "log": "outbound-before.log",
+      "classification": "real shared-buffer rejection missing diagnostics; fixed with explicit existing PANIC and native queue recovery"
+    },
+    {
+      "log": "native-legacy-choke-before.log",
+      "classification": "real native legacy release attempted outside DSP output window; corrected through existing FIFO"
+    },
+    {
+      "log": "fixture-wrong-delete-op.log",
+      "classification": "incorrect new test opcode; fixture corrected"
+    },
+    {
+      "log": "fixture-wrong-client-flag.log",
+      "classification": "incorrect new test CLI flag; fixture corrected"
+    },
+    {
+      "log": "fixture-panic-off-expectation.log",
+      "classification": "incorrect new test expectation for global PANIC; targeted STOP tested instead"
+    }
+  ],
+  "evidenceHashes": {
+    "native-legacy-choke-after.log": "b49eaf014d353564e98878b5e7261227bf2f36b32460cbaac899c12cc99eee13",
+    "jack-owned-initial.log": "c6e0d82bcc973161374145394f418974f7d31773224d677f97b1a24e39629492",
+    "ui-pending-initial.log": "252dcbf8162de1f2c0495873e835182425ddd42cb3df20dd8bc3d56c0a85c5dc",
+    "asan.log": "511c21610759fbe76fe9ba0bdc30875989f47fe6aeddfc5a5974c144f0dc76b5",
+    "jack-startup-fixed-delayed.log": "2afe03c4a4ce830b25e611cc5b2ba55b87866eaafd45b859b4e23b107341a896",
+    "focused-final.log": "d92d3809f264a733ad2c082ffa00287d333f623d6c0bb9e17d98cd3379028073",
+    "combined-frozen-startup-failure.log": "a4b9f786d7818da37504ef95430a227966eea4802f2f299fa6034ee1acda58e4",
+    "jack-startup-forced-b.log": "7242d9a7972f46f743028c1b4ed95ab8ead5c15e1e196aa9dddbc051a7e0ce03",
+    "fixture-wrong-delete-op.log": "7bce5711390aad79bc8d36012e06a80c4388dd0bb6eecb456d30004d7c796ba9",
+    "jack2.log": "5161f67471c82e82ce92458d4e99ce112c98a326ffbb588895ee9d2796de1bf1",
+    "native-legacy-choke-before.log": "f17b7fb0839ed028c574777dfbda7a141e7ea921b13806e5534faa3c1f303d46",
+    "build-final.log": "6efe0aa970d75ae882a77cc71fb3bb9a055bdf9bab8bf4b69fbfa3640c3fd057",
+    "jack-three-chains-initial-1.log": "5161f67471c82e82ce92458d4e99ce112c98a326ffbb588895ee9d2796de1bf1",
+    "focused-pedal-deletion.log": "d92d3809f264a733ad2c082ffa00287d333f623d6c0bb9e17d98cd3379028073",
+    "build-validated.log": "6efe0aa970d75ae882a77cc71fb3bb9a055bdf9bab8bf4b69fbfa3640c3fd057",
+    "combined-initial.log": "72367453e53146adcc3a73a0211bb1d9b50ec059df852f5b9378535fd9242eaf",
+    "runtime-build.json": "7514895a3477e09c6b80afaa319e429d1ec3c566791a52158c24d80e3b587c8b",
+    "outbound-after.log": "511c21610759fbe76fe9ba0bdc30875989f47fe6aeddfc5a5974c144f0dc76b5",
+    "baseline.json": "9986948863d28a978220712ca3f05a9bb2667fdf16b8a3307ad53ef1f41080af",
+    "jack-shared-buffer-overload.log": "24f1827af8cfddedfb84ed59115b7b1440bde49f701c4e88eba671bf1451cd8f",
+    "ui2.log": "6717ad24719a1418d8999b1bafc9522b9697ecb217203a427eee279db8c00045",
+    "gap.log": "a340589cbd16e963f367909227bbcd06e75d7b2a2b0b787f104bae9c1a81ca97",
+    "combined-validated-intermediate.log": "c4d959410a39a04afd5e0f109f5dd410de3a1367b509bd9c62b37ca90ef39eec",
+    "callback-interruption-initial.log": "cadd957612d8d1636feaed0dfe59d63ab80adc9d3ed889bf914c981e69c8579d",
+    "jack1.log": "5161f67471c82e82ce92458d4e99ce112c98a326ffbb588895ee9d2796de1bf1",
+    "jack-startup-forced-base.log": "6a49629dc7eced0ffdb2d3253383a54e2f9812f0e33e00cee5babbb2b0a9f012",
+    "focused-initial.log": "f8d7dc453f670a9fa90575ae55d5f450b66499827648fe74b92eda8617281b32",
+    "fixture-panic-off-expectation.log": "52bea21f4e54161998c6bda6d893066be0e17f37f7fa2e69f8d0d5dd014c7722",
+    "jack-three-chains-initial-2.log": "5161f67471c82e82ce92458d4e99ce112c98a326ffbb588895ee9d2796de1bf1",
+    "ui1.log": "6cd4bed62c9e1265d11af959ec6fdcbd58ea4c7bcfe1402b55b1432b71760f22",
+    "eel-before-final-complete.log": "4d73fcd53a8ca952e07c3c4bc93f30f9dd6e79c682c679cd06e209ac03422d6f",
+    "combined-interrupted-source-edit.log": "90edb7b9391c2ac81886a21f11c7652fa5515cefdf9aff4f628a7181b4d546f2",
+    "ui-editor-initial.log": "6717ad24719a1418d8999b1bafc9522b9697ecb217203a427eee279db8c00045",
+    "combined.log": "091b695ab873dc9fdc7eded85cc1c6a5e4b02a46bc5f7763759c029aa262d2d9",
+    "asan-initial.log": "f8d7dc453f670a9fa90575ae55d5f450b66499827648fe74b92eda8617281b32",
+    "build-complete.log": "6efe0aa970d75ae882a77cc71fb3bb9a055bdf9bab8bf4b69fbfa3640c3fd057",
+    "syntax-caught-and-fixed.log": "53d3f87263f757b02499950b43b089cde4c4752aab017f793c3c2aaa20fb9ad7",
+    "fixture-wrong-client-flag.log": "155456b02c130fd83e730ccd13ee381474015a014cdd2425610240a958b9a5ba",
+    "jack-startup-unforced-diagnostic.log": "788cc4bb0705677ea282614ed284c79521dea9ae8eecbb3159cbd978b0b2f440",
+    "outbound-before.log": "2b4ffdcc5e60136062414c210e8d11835efd55636573f4dc61ff73e938d58f45"
+  }
+}

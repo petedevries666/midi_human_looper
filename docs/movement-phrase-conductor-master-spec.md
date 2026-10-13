@@ -335,7 +335,7 @@ JOIN utilise un temps réellement écoulé sur la timeline de référence. **Ce 
 - Les Note Off correspondant à des Note On non émis ne doivent pas être envoyés comme événements autonomes qui coupent des notes d'autres instances.
 - Associer chaque Note On/Off à sa propriété effective ; pas de Note Off orphelins.
 
-Voir les questions ouvertes §26 pour le cas *JOIN PHRASE non bouclée au-delà de sa durée*.
+**Arbitrage Q2 VALIDÉ (option A) :** si JOIN demande une position au-delà de la durée d'une **PHRASE non bouclée**, la PHRASE est déclenchée **normalement depuis le début (temps 0)**, avec son PLAY MODE et ses propriétés habituelles. Elle n'est ni étirée, ni raccourcie, ni artificiellement synchronisée. Cette règle s'applique à la PHRASE comme la règle de repli déjà validée pour MOVEMENT.
 
 ## 12. REVEAL
 
@@ -622,7 +622,8 @@ H06 Position > durée MOVEMENT => début 0.
 H07 Aucun MASTER => départ 0 MOVEMENT.  
 H08 JOIN PHRASE mi-note : pas de faux Note On.  
 H09 Pas de Note Off orphelin coupant autre instance.  
-H10 MASTER s'arrête après JOIN -> MOVEMENT continue.
+H10 MASTER s'arrête après JOIN -> MOVEMENT continue.  
+H11 JOIN PHRASE non-LOOP, position demandée au-delà de sa durée -> démarrage à temps 0, PLAY MODE et propriétés conservés, sans time-stretch.
 
 ### I. REVEAL
 
@@ -802,7 +803,7 @@ L'ordre interne de fondations peut être adapté si une dépendance réelle l'ex
 
 **Q1. Premier PRESS après FECK — RÉSOLU, option A validée :** FECK conserve le STEP sélectionné ; le premier PRESS suivant **rejoue ce STEP depuis le début**, avec toutes ses sources et règles habituelles ; le PRESS suivant reprend le parcours normal. **Aucune demande d'arbitrage supplémentaire sur Q1.**
 
-**Q2. JOIN PHRASE non-LOOP au-delà de sa durée :** pour MOVEMENT, le retour à zéro est validé. Pour PHRASE, ce cas n'a pas de règle générale validée ; **ne pas extrapoler**.
+**Q2. JOIN PHRASE non-LOOP au-delà de sa durée — RÉSOLU, option A validée :** redémarrer la PHRASE au **temps 0** en cas de JOIN demandé au-delà de sa durée ; respecter PLAY MODE et propriétés, sans stretching. Aucun arbitrage supplémentaire requis sur Q2.
 
 **Q3. Paramètres numériques/limites d'implémentation non décidés :** fréquence maximale d'update MOVEMENT, maximum de LAYERS/MOVEMENTS/instances, durée chiffrée d'un SOFT handover, limites exactes de courbes, stockage. **Auditer les capacités réelles, mesurer, proposer**, ne pas prétendre que l'utilisateur a validé des chiffres.
 

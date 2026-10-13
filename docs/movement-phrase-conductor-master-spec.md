@@ -377,7 +377,7 @@ FECK doit immédiatement :
 
 **FECK CONSERVE le STEP sélectionné** : il **ne remet pas le curseur à STEP 01**. RESET est distinct.
 
-**Point restant à arbitrer :** premier PRESS après FECK rejoue-t-il ce STEP conservé ou avance-t-il au suivant ? Ne rien inventer (voir §26).
+**Arbitrage Q1 VALIDÉ (option A) :** après FECK, **le prochain PRESS rejoue depuis le début le STEP conservé**, en relançant normalement les PHRASES, MOVEMENTS et actions de ce STEP selon leurs règles habituelles. Le PRESS suivant reprend le parcours normal vers le STEP suivant selon le mode configuré. FECK ne remet jamais le curseur à STEP 01 à lui seul. Exemple SEQUENTIAL : `STEP 03 → FECK → PRESS (rejoue STEP 03) → PRESS (STEP 04)`. Une transition QUEUED annulée par FECK ne doit pas se déclencher après la reprise.
 
 L'interaction entre panic d'urgence et notes physiquement jouées en direct doit respecter la sécurité du moteur et les limitations du MIDI partagé ; documenter le contrat et le tester.
 
@@ -648,6 +648,8 @@ J07 STOP + RESET combine effets.
 J08 FECK coupe PHRASES, MOVEMENTS, pending/QUEUED.  
 J09 FECK ne remet pas STEP 01.  
 J10 Pas de Note Off parasite, stuck note ou ownership ancien après FECK.  
+J11 Après FECK, le premier PRESS rejoue **depuis le début** le STEP conservé avec ses règles habituelles ; le PRESS suivant avance selon le parcours normal.  
+J12 Aucune transition QUEUED antérieure au FECK ne se déclenche après le redémarrage.  
 J11 STOP caché/revealed/joined.
 
 ### K. Web Controller TEST
@@ -798,7 +800,7 @@ L'ordre interne de fondations peut être adapté si une dépendance réelle l'ex
 
 ## 26. Points EXPRESSÉMENT non validés : demander, ne pas improviser
 
-**Q1. Premier PRESS après FECK :** FECK conserve le STEP sélectionné (validé). Mais le premier PRESS suivant doit-il *rejouer ce STEP conservé* ou *avancer au suivant* ? **Non tranché**. Ne pas imposer un choix sans le demander.
+**Q1. Premier PRESS après FECK — RÉSOLU, option A validée :** FECK conserve le STEP sélectionné ; le premier PRESS suivant **rejoue ce STEP depuis le début**, avec toutes ses sources et règles habituelles ; le PRESS suivant reprend le parcours normal. **Aucune demande d'arbitrage supplémentaire sur Q1.**
 
 **Q2. JOIN PHRASE non-LOOP au-delà de sa durée :** pour MOVEMENT, le retour à zéro est validé. Pour PHRASE, ce cas n'a pas de règle générale validée ; **ne pas extrapoler**.
 

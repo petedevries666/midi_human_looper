@@ -679,9 +679,11 @@ static void stress(Host &h, bool historical, bool cc_instances = false, bool dyn
 #include "free_capture_cases.hpp"
 #include "recovery_arp_cases.hpp"
 #include "recovery_recording_cases.hpp"
+#include "conductor_baseline_cases.hpp"
 int main(int argc, char **argv) {
   if (argc < 2)
     return 2;
+  if (argc>2 && std::string(argv[2])=="--conductor-baseline") return conductor_baseline_tests(argv[1],argc>3 && std::string(argv[3])=="--strict");
   if (argc>2 && std::string(argv[2])=="--recovery-recording") {recovery_recording_tests(argv[1]);printf("PASS: %d recording lifecycle checks\n",checks);return 0;}
   if (argc>2 && std::string(argv[2])=="--recovery-arp") {recovery_arp_tests(argv[1]);printf("PASS: %d real ARP checks\n",checks);return 0;}
   if (argc>2 && std::string(argv[2])=="--free-capture") {free_capture_tests(argv[1]);printf("PASS: %d free capture checks\n",checks);return 0;}

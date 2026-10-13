@@ -1,0 +1,3 @@
+PENDING EDIT OBSERVATION {"requestedMode": 0, "nativeMode": 1, "parameterPosts": [], "uiError": ""}
+IDLE POSITIVE CONTROL {"nativeMode": 0, "parameterPosts": [{"protocolVersion": 1, "expectedRevision": 2, "expectedEngineSessionId": 995160804008425, "action": "parameter_set", "targetId": 1, "moduleId": 0, "kind": 20, "value": 0}]}
+FAIL contract: enabled control silently drops edit while PANIC reply is pending; positive control succeeds

@@ -1,0 +1,3 @@
+Cannot lock down 107341340 byte memory area (Cannot allocate memory)
+PASS three native-chain Chromium editors: independent sources and chain telemetry
+PASS native Zynthian adapter: three isolated chains, sequential recording during playback, shared phase, Note Offs, per-chain STOP/SAVE/LOAD and snapshot recreation

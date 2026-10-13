@@ -356,8 +356,11 @@ REVEAL est une PHRASE qui **démarre silencieusement à PRESS, partage l'origine
 - **STOP** peut cibler **PHRASE / MUTE GROUP / ALL PHRASES**.
 - **STOP ciblant une PHRASE** : arrête **TOUTES ses instances globalement**, incluant instances cachées, révélées, joined, provenant de n'importe quel Smart Switch.
 - **STOP ALL** : arrête **PHRASES seulement**, **MOVEMENTS continuent**.
-- **PAUSE** conserve la position ; **RESUME explicite par défaut**. Advanced : reprendre au prochain PLAY.
-- Les notes physiquement actives doivent être relâchées ou protégées correctement en cas de PAUSE.
+- **PAUSE** fige la position temporelle des instances de PHRASE ciblées et **libère proprement leurs notes effectivement actives** (Note Off correspondant à chaque Note On émis). Il ne coupe pas les notes jouées en direct ni celles des autres instances non ciblées.
+- **RESUME explicite par défaut** : la lecture repart exactement de la position temporelle mémorisée, **sans rejouer les notes interrompues par PAUSE**, même si leur durée théorique n'est pas terminée. Seuls les **nouveaux Note On rencontrés après RESUME** sont émis.
+- Les anciens Note Off des notes interrompues par PAUSE ne doivent **pas** être réémis au passage sur leur position historique. Cela doit rester sûr en présence d'autres instances jouant le même canal/pitch.
+- Option avancée existante/à étendre : reprendre au prochain PLAY au lieu d'un RESUME explicite ; **cette option ne change pas la politique des notes interrompues**.
+- **Q4 résolu (option B validée)** : aucune réattaque artificielle lors de RESUME et aucune note maintenue indéfiniment par PAUSE.
 - **RESET CURSOR** : annule QUEUED, remet le curseur au **STEP 01**, **sans arrêter les sources** déjà actives.
 - **RESET SHUFFLE BAG** : réinitialise/remixe bag.
 - **STOP + RESET** : action distincte associant les effets correspondants.
@@ -643,15 +646,17 @@ J01 STOP ALL PHRASES laisse MOVEMENTS.
 J02 RESET STEP 01 sans STOP.  
 J03 RESET annule QUEUED.  
 J04 PRESS après RESET suit politique d'instance normale.  
-J05 PAUSE préserve position et notes de façon sûre.  
-J06 RESUME explicite par défaut.  
+J05 PAUSE conserve la position et émet les Note Off correspondant aux notes de l'instance effectivement actives, sans couper notes live ou autres instances.  
+J06 RESUME explicite par défaut repart de la position mémorisée, sans réattaquer les notes interrompues ; seuls les prochains nouveaux Note On jouent.  
+J06a Les Note Off historiques des notes interrompues par PAUSE sont ignorés après RESUME et ne coupent pas les notes d'une autre instance, y compris sur même canal/pitch.  
+J06b Après PAUSE/RESUME avec accord tenu : aucune note bloquée, aucune attaque synthétique, position et événements MIDI suivants conservés.  
 J07 STOP + RESET combine effets.  
 J08 FECK coupe PHRASES, MOVEMENTS, pending/QUEUED.  
 J09 FECK ne remet pas STEP 01.  
 J10 Pas de Note Off parasite, stuck note ou ownership ancien après FECK.  
 J11 Après FECK, le premier PRESS rejoue **depuis le début** le STEP conservé avec ses règles habituelles ; le PRESS suivant avance selon le parcours normal.  
 J12 Aucune transition QUEUED antérieure au FECK ne se déclenche après le redémarrage.  
-J11 STOP caché/revealed/joined.
+J13 STOP caché/revealed/joined.
 
 ### K. Web Controller TEST
 
@@ -807,7 +812,7 @@ L'ordre interne de fondations peut être adapté si une dépendance réelle l'ex
 
 **Q3. Paramètres numériques/limites d'implémentation non décidés :** fréquence maximale d'update MOVEMENT, maximum de LAYERS/MOVEMENTS/instances, durée chiffrée d'un SOFT handover, limites exactes de courbes, stockage. **Auditer les capacités réelles, mesurer, proposer**, ne pas prétendre que l'utilisateur a validé des chiffres.
 
-**Q4. Comportement détaillé de quelques cas PAUSE/RESUME sur notes tenues et limites MIDI partagées :** le contrat impose position conservée et Note Off sûrs. Les modalités d'implémentation doivent être documentées et testées, pas supposées validées au-delà de ce contrat.
+**Q4. PAUSE/RESUME sur notes tenues — RÉSOLU, option B validée :** PAUSE fige le curseur et libère les notes effectivement actives de la PHRASE ciblée ; RESUME reprend à la position mémorisée **sans réattaquer ces notes**, et n'émet que les futurs nouveaux Note On ; les anciens Note Off devenus orphelins sont filtrés sans couper les autres instances. Les notes jouées en direct restent indépendantes. Aucun arbitrage supplémentaire requis sur Q4 ; l'implémentation respecte le registre d'ownership et les limites physiques du MIDI partagé.
 
 Ne pas redemander les dizaines d'arbitrages *déjà* tranchés dans les sections précédentes.
 

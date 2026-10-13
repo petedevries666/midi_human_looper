@@ -29,7 +29,7 @@ async function editConductor(sw){
  const change=fn=>{checkpoint();fn();paint();};
  const source=b=>model.sources.find(s=>s.id===b?.sourceId&&s.type===b?.type);
  const phrase=b=>latest.phrases.find(p=>p.id===source(b)?.slot);
- const label=b=>{const p=phrase(b);return p?`${String(p.id).padStart(2,'0')} · ${p.name||'PHRASE '+p.id}`:`MISSING · ${b.sourceId||b.type}`;};
+ const label=b=>{const p=phrase(b);return p?`${String(p.id).padStart(2,'0')} · ${p.name||'PHRASE '+p.id}${p.events?'':' · EMPTY'}`:`MISSING · ${b.sourceId||b.type}`;};
  const mode=b=>b.overrides?.playMode?.mode==='OVERRIDE'?b.overrides.playMode.value:['LOOP','ONCE','HOLD'][phrase(b)?.mode]||'—';
  const ensure=s=>{if(!sequence.steps.includes(s))sequence.steps.push(s);};
  const action=(name,fn)=>{const control=button({'EDIT BLOCK':'EDIT','REMOVE BLOCK':'DELETE'}[name]||name,()=>{if(!committing)fn();});control.setAttribute('aria-label',name);control.title=name;return control;};

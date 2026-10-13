@@ -344,8 +344,9 @@ const switchTestFeedback=new Map();
 async function testSwitch(id,gesture){
  const before=latest.switches.find(v=>v.id===id)?.actionCount;
  if(!await command({action:'test',switchId:id,gesture}))return;
+ await refresh();
  const sw=latest.switches.find(v=>v.id===id);
- const message=sw.actionCount===before?'NO ACTION · OPTIONS':sw.result===2?'EMPTY SEQUENCE / PHRASE · OPTIONS':sw.result===4?'MISSING MODULE TARGET':sw.result===5?'ACTION QUEUE FULL':`ACTION ${sw.lastAction>=101?'SNAPSHOT':({1:'NEXT',2:'STOP',3:'RESET',4:'RESET ALL',5:'STOP + RESET',6:'PANIC'}[sw.lastAction]||'MODULE')} · STEP ${sw.step}`;
+ const message=sw.conductor?.steps?`STEP ${sw.conductor.step} / ${sw.conductor.steps} · ${sw.conductor.result?({1:'MISSING SOURCE',2:'12 VOICES · REFUSED',3:'UNSAFE SOURCE',4:'UNSUPPORTED',5:'INSTANCE ID LIMIT'}[sw.conductor.result]||'REFUSED'):'ADMITTED '+sw.conductor.admitted}`:sw.actionCount===before?'NO ACTION · OPTIONS':sw.result===2?'EMPTY SEQUENCE / PHRASE · OPTIONS':sw.result===4?'MISSING MODULE TARGET':sw.result===5?'ACTION QUEUE FULL':`ACTION ${sw.lastAction>=101?'SNAPSHOT':({1:'NEXT',2:'STOP',3:'RESET',4:'RESET ALL',5:'STOP + RESET',6:'PANIC'}[sw.lastAction]||'MODULE')} · STEP ${sw.step}`;
  switchTestFeedback.set(id,`${gesture.toUpperCase()} · ${message}`);
  const output=document.querySelector(`[data-switch-id="${id}"] .switch-test-feedback`);if(output)output.textContent=switchTestFeedback.get(id);
 }

@@ -80,6 +80,7 @@ if __name__=='__main__':
     panel=page.locator('[data-switch-id="1"]');panel.locator('.switch-test').evaluate('e=>e.open=true');panel.get_by_role('button',name='TEST TAP',exact=True).click()
     api.wait_for(lambda:len(api.call()['instances'])==i+1,'actual browser admission')
     assert api.call()['switches'][0]['conductor']['step']==i%4+1
+    panel.locator('.switch-test-feedback').filter(has_text=f'STEP {i%4+1} / 4 · ADMITTED 1').wait_for()
    api.command('panic');page.reload();page.get_by_text('CONNECTED · Engine running',exact=True).wait_for()
    # Two independent browser sessions cannot overwrite one another.
    other=context.new_page();other.goto(api.base);other.get_by_text('CONNECTED · Engine running',exact=True).wait_for()

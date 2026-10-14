@@ -60,9 +60,23 @@ and classifications distinguish proven defects from limits / historical risks.
 | A19 | P2, compatibility risk not dynamically proven | older runtime versus #68 channel policy | New phrase channel policy uses spare schema-7 cells; old binaries may retain bytes without executing the policy. Schema/fingerprint equivalence alone is not behavioral parity. | Audit downgrade capabilities with actual old/new binaries before authorizing rollback across #68; no silent truncation/retargeting. |
 | A20 | P2, protected independent WIP | original checkout, issue #54 | 25 files differ independently of tracked stack; SHA manifest is the protection boundary. | Preserve byte-identically, never “consolidate” by reset or wholesale checkout. |
 
+
+| A21 | P1, actual native runtime reproduced | `headless/controller_host.hpp:137–145,217–230`; `docs/evidence/mega-audit/source-learn-cancels-movement.json` | Start CH1/CC11 MOVEMENT (60 s), learn an unrelated source on CH2/CC21: active 1→0, cancelled +1. Existing-source `source()` invokes global Controller panic. This is authoritative native cancellation, not a claimed captured CC trace. | Leave musical policy unchanged in this audit; next ownership fix must scope source reconfiguration and demonstrate Controller/Snapshot/MOVEMENT isolation. Avoid Learn while auditioning automation meanwhile. |
+| A22 | P1, activation function reproduced with service fixtures | `scripts/zynthian-update.py:247–254`; `backend.py:149–177` | Prepare update on port 8765, edit persisted config to 9000, activate old candidate: port returns to 8765, service stop/start called. Pending journal also carries outdated previous config. | Separate compare-before-activation fix: configuration mismatch refuses before journal/service/component mutation, with native-independent transaction tests. |
+| A23 | P1, source audit / lifecycle gap | `headless/engine.cpp:1397–1407,2976–2997` | Host captures JACK sample rate/buffer size once; no size/rate-change callbacks are registered. Matrix tests launch separate clients at each buffer, not a live resize. Telemetry/deadline calculation may therefore retain startup values. | Treat runtime resize/restart as unqualified; verify Oram recreation/cleanup on V4. No callback reconfiguration/allocator changes in this audit. |
+| A24 | P2, fixture/API mismatch | `tests/test_movement_persistence.py:27`; `controller_config.py:3–4` | Movement takeover fixture submits `returnPolicy=0`, whereas production wire uses `returnMode`; the unknown field is ignored and default OFF makes the test pass. That case does not validate explicit return-policy transfer. | Correct/extend fixture in a focused controller-ownership follow-up; existing policy-core return tests remain useful. Do not claim this test proves BACK TO STATE integration. |
+
 No new universally reproducible P0 musical corruption is asserted. **P0 release
 blocker** is making a concert-stability claim before resolving A04/A06 and actual
 V4 validation. Confirmed A01 must be fixed before claiming lossless persistence.
+
+## Safe implementation slices
+
+#72 refuses unknown native extension envelopes and extends missing aggregate gates;
+#73 shares already-observed immutable JSON bytes only. UPDATE configuration-CAS
+refusal is a separately tested slice, not a musical ownership change. See the
+final evidence README for executed outcomes and delivered PR heads. Confirmed A21
+remains open: a green suite is not proof that source reconfiguration is isolated.
 
 ## Native safety and retained behavior
 

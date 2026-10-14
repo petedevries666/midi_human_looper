@@ -27,6 +27,7 @@ Type=simple
 ExecStart=/usr/bin/python3 $root/scripts/mbmf-update-control.py
 Restart=on-failure
 RestartSec=3
+Nice=10
 RuntimeDirectory=mbmf-update-control
 ExecStartPre=/usr/bin/rm -f /run/mbmf-update.sock
 [Install]

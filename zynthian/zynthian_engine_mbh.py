@@ -222,7 +222,7 @@ class zynthian_engine_mbh(zynthian_engine):
             if action=='status':
                 candidate=status.get('available')
                 available=('\nAVAILABLE '+candidate['name']+' '+candidate['revision'][:12]+'\n'+candidate['changes'][:180]) if candidate else '\nNo reviewed update checked'
-                gui.show_info('INSTALLED '+status['installed'][:12]+available+'\n'+status['progress']['phase']+'\n'+status['progress']['message']);return
+                gui.show_info('INSTALLED V'+status.get('version','?')+' '+status['installed'][:12]+available+'\n'+status['progress']['phase']+'\n'+status['progress']['message']);return
             if action=='check':
                 client('check',native=True)
                 gui.show_info('Checking reviewed releases.\nUse UPDATE STATUS for result.');return

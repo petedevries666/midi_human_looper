@@ -148,7 +148,7 @@ class Runtime:
         result={}
         for socket in directory.glob('processor-*/control.sock'):
             state=self.Control(str(socket)).request()
-            if state.get('chainRunning') or state.get('chainRecording') or state.get('chainArmed') or state.get('recording') or state.get('activeNotes') or state.get('targetSnapshotId') or state.get('movements',{}).get('active'):
+            if state.get('chainRunning') or state.get('chainRecording') or state.get('chainArmed') or state.get('recording') or state.get('activeNotes') or state.get('targetSnapshotId') or state.get('movements',{}).get('active') or state.get('instances'):
                 raise ValueError('STOP all MBMF processors, finish REC and morphs before updating')
             store=self.ProjectStore(socket.parent,self.Control(str(socket)))
             captured=store.capture()

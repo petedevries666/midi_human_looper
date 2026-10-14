@@ -101,6 +101,13 @@ class Updates(unittest.TestCase):
                     with self.assertRaisesRegex(ValueError,'independent LOOP'):u.validate_grid_restore(patch,state,timing)
                     memory[163904]=1 # ONCE supports its own length on the previous runtime.
                     u.validate_grid_restore(patch,state,timing)
+    def test_independent_instance_rest_or_movement_refuses_checkpoint(self):
+        runtime=u.Runtime(ROOT)
+        for state in ({'instances':[{'active':True,'ownedOutputs':0}]},{'movements':{'active':1}}):
+            data=self.directory/'processor-1';data.mkdir(exist_ok=True)
+            (data/'control.sock').touch()
+            runtime.Control=lambda path:types.SimpleNamespace(request=lambda:state)
+            with self.assertRaisesRegex(ValueError,'STOP all'):runtime.checkpoint(self.directory)
     def test_checkpoint_precedes_candidate_validation(self):
         source=(ROOT/'scripts/zynthian-update.py').read_text()
         self.assertLess(source.index('expected=runtime.checkpoint(directory)'),source.index('verified_revision=runtime.preflight(new,directory)'))

@@ -15,7 +15,7 @@ Trois corrections isolées et testées sont livrées en drafts :
   Sur un état natif réel de 11 714 octets, une lecture déjà encodée coûte en médiane
   0,36 µs de CPU worker contre 144,65 µs pour un réencodage. Ce résultat ne mesure
   ni le callback MIDI ni les XRUN ; le premier encodage reste nécessaire.
-- La correction UPDATE A22 refuse une configuration devenue différente pendant
+- #74 : la correction UPDATE A22 refuse une configuration devenue différente pendant
   la préparation, avant journalisation et arrêt des services. Le test conserve le
   port modifié 9000 et n'appelle aucun service. Le redémarrage global de l'UI n'est
   pas transformé en hot-update MBMF.

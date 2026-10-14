@@ -42,7 +42,7 @@ and classifications distinguish proven defects from limits / historical risks.
 | A01 | P1, reproduced production API | `headless/server.py:34–36,562–589`; `controller_config.py:25` | Add unknown data under known-version `controllerEngine` or `globalSnapshots` to patch1, then SAVE: HTTP 200; bytes overwritten and extra data lost. LOAD also serializes only known wire data. | Isolated strict extension-envelope refusal + real native HTTP SAVE/LOAD and immutable-project staging tests. No schema or musical change. |
 | A02 | P2, measured redundant work | `headless/server.py:48–54,136–140` | Several WebSocket consumers share the same observation object but each re-encodes JSON. Before benchmark captures actual 11,714-byte native state. | Cache serialized bytes within existing observation window; invalidate with commands/expiry. Separate worker-only benchmark; no RT claim. |
 | A03 | P1, proven gate omission | `scripts/combined-test.py:31–54,67–91`; `tests/run_host_tests.sh:12` | Combined suite does not invoke #67 channel-source tests, #68 dedicated phrase-output suite or #71 new administrator tests/browser. A green combined run alone does not qualify those PRs. | Add targeted existing test entry points with correct native/JACK/browser gates. Never weaken existing gates. |
-| A04 | P1, archived real dummy-JACK measurements, unresolved cause | #63 `docs/movement-realtime-qualification.md:13–110`, traces on `d6169f9` | LIGHT/NORMAL without browser have XRUNs/deadline excursions; 26.849 ms wall / 2.437 ms CPU at 512. Other actual CPU spikes remain partly unattributed. | No benchmark-driven engine patch. Instrumentation not inherited in #71; controlled V4 measurement required. Concert qualification NO-GO. |
+| A04 | P1, archived real dummy-JACK measurements, unresolved cause | #63 `docs/movement-realtime-qualification.md:13–110`, traces on `d6169f9` | LIGHT/NORMAL without browser have XRUNs/deadline excursions; Separate matrix peak: 26.849 ms wall / 2.437 ms CPU at 512, three MOVEMENTS at 100 Hz, no command in that callback. Other actual CPU spikes remain partly unattributed. | No benchmark-driven engine patch. Instrumentation not inherited in #71; controlled V4 measurement required. Concert qualification NO-GO. |
 | A05 | P1, current metric limitation | `headless/engine.cpp:2090,2967–2971` | `maxCallbackUs` starts after input intake; excludes ingress and early flush. It is wall time, not thread CPU. It cannot locate old spikes or certify the whole callback. | Document; transplant #63 instrumentation selectively only after reconciling current output policy. No new parallel trace system. |
 | A06 | P1, source and existing overload fixtures | `headless/engine.cpp:1973–1981,2860–2930`; `movement_engine.hpp:107–110` | JACK drains only 64 messages/block; MOVEMENT budget reserves CC cadence but not arbitrary phrase bursts. Backlog offsets collapse to 0 next callback; overload deliberately triggers emergency cleanup. | Preserve bounds/guards; large-buffer functional success is not low-latency throughput qualification. Measure density/receiver limits physically. |
 | A07 | P1, documented restart scope | `scripts/zynthian-update.py:221–248,activate`; `zynthian/update/backend.py:104,176–181` | Installing compatible runtime recreates UI-owned children via stop/start `zynthian`, potentially interrupting other synths. Not MBMF-only hot activation. | Keep explicit confirmation and stopped gate; no deployment approval. Future host-lifecycle work must be separate. |
@@ -131,3 +131,27 @@ compatibility tests. Native + Web are exclusive new-feature targets. Existing
 shared EEL behavior may be reused; that does not authorize an automatic REAPER
 port. Native work must not wait for frozen-platform execution/UI parity. Current
 JSFX baseline blob/hash is recorded separately; no JSFX modification in this audit.
+
+## Final delivery and qualification
+
+Drafts: #72 (preservation/freeze/gates), #73 (shared observer bytes), #74 (stale
+installation config refusal), stacked in that order above #71. No merge/deployment.
+Complete corrected #73 combined suite exited 0, including actual EEL/JACK, Chromium,
+Webconf, administrator tests, 704 phrase-output checks and both UI race tests.
+Final #74 updater-only change passed all 15 updater + 8 backend + 4 native-menu
+tests; preservation/observer suites were rerun too. No second final full combined
+run is claimed for that updater-only change. Legacy ONCE XFAIL remains explicit.
+
+Native/EEL/JSFX/UI source and #67 routing are unchanged by these audit fixes. The
+25 issue #54 files were verified SHA256-identical. Four Webconf captures from both
+combined runs were visually inspected; release-check PNG is explicitly an external
+release-catalog fixture, not an available real update. The existing private native
+binary reports #71 SHA `74c72d8`, whose native sources are byte-identical to delivered
+code; Python control/activation fixes execute from the current checkout.
+
+No ARM64 build, physical Oram activation/rollback, real receiver routing, Helix,
+Firefox hardware, dynamic JACK resize or concert deadline qualification performed.
+JACK loss can prevent final cleanup delivery altogether; receiver state after
+port/server interruption must be measured, not inferred from an empty new process.
+See [French executive summary](audit-executive-fr.md) for the first controlled
+V4 test priorities and [evidence](evidence/mega-audit/README.md) for commands/logs.

@@ -27,7 +27,7 @@ class Updates(unittest.TestCase):
         history=json.loads((self.directory/'runtime-update.json').read_text())
         self.assertEqual(history['previous'],self.old);self.assertEqual(history['phase'],'active')
     def test_preflight_journal_refuses_concurrent_config_edit_before_any_mutation(self):
-        history=self.directory/'runtime-update.json';history.write_text('previous rollback authority')
+        history=self.directory/'runtime-update.json';history.write_text(json.dumps(dict(version=1,phase='active',previous=self.old,candidate=self.new,expected={})))
         prior=history.read_bytes();changed={**self.old,'web_port_base':9000,'unknown':{'keep':'concurrent'}}
         u.atomic(self.config,changed);config_bytes=self.config.read_bytes()
         journal=dict(version=1,phase='pending',previous=self.old,candidate=self.new,expected={})

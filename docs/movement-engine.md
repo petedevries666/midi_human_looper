@@ -28,7 +28,7 @@ is passed unchanged through the existing MIDI path and cancels Movement on that
 MAIN/channel/CC target. The current implementation advances the curve from PRESS
 while GLIDE runs, without lengthening the curve. GLIDE uses the shared Controller
 Engine response; for shorter curves it ends by the curve endpoint. This timeline
-choice was presented separately and is provisional pending that optional answer.
+choice was explicitly confirmed by the user before final qualification.
 
 The worker validates and prepares all JSON, UUID references and curves while the
 engine is paused. The callback only holds immutable definition pointers, existing
@@ -55,6 +55,8 @@ are explicitly refused as automation; live safety messages remain unthrottled.
 No Zynthian-specific chain IDs enter a project. Parameter automation uses existing
 normalized descriptors and safe application/deferred paths at block boundaries;
 it does **not** claim sample-accurate intra-block parameter changes to phrase notes.
+New STEP parameter automation is dispatched after shared DSP and first affects the
+next note-processing block; raw CC initial output uses the actual trigger offset.
 
 ## Persistence and compatibility
 
@@ -151,7 +153,7 @@ scripts/movement-test.sh
 SANITIZE=1 scripts/movement-test.sh
 python3 tests/test_movement_persistence.py
 MOVEMENT_BROWSER_AUTHOR=1 scripts/movement-jack-test.sh
-scripts/combined-test.py --native --jack --browser chromium --timeout 240
+"${TEST_PYTHON:-python3}" scripts/combined-test.py --native --jack --browser chromium --timeout 240
 scripts/screenshots.sh
 ```
 
@@ -167,3 +169,5 @@ Disconnect Firefox/network and verify the ramp finishes. Test STOP PHRASES separ
 from Movement STOP/PANIC. Save, restart and reload: neither source should start until
 triggered. V4/ARM64, Firefox/touch, real Helix, receiver CC behavior, small-buffer XRUN
 and concurrent note-burst latency require physical validation; Cloud JACK is not that.
+
+Executed results and phase verdict: [evidence/movement-engine/README.md](evidence/movement-engine/README.md).

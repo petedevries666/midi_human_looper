@@ -232,7 +232,7 @@ def run(output, performance=False):
             artifacts.extend(recovery['artifacts'])
             for artifact in recovery['artifacts']:artifact['runtimeBuildRevision']=recovery['runtimeBuildRevision'];artifact['data']=recovery['data']
         manifest=dict(browser=browser.version,sourceRevision=subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip(),sourceDirty=bool(subprocess.check_output(['git','status','--porcelain','--untracked-files=no'],cwd=ROOT,text=True).strip()),runtimeBuildRevision=api.call()['buildRevision'],application='MIDI BAD MOTHERFUCKER',data='Native --demo views plus actual native --chain recovery: named CC source, real ARP MIDI, observed recording states and explicitly configured reference chains',artifacts=artifacts,
-                      unsupported={'CONDUCTOR':'No implemented CONDUCTOR editor on the integration candidate; no mock screenshot supplied.'})
+                      unsupported={'MOVEMENT advanced execution':'GATED/HOLD admissions, JOIN/REVEAL/FECK and musical durations are not enabled; screenshots cover implemented source and layer editing.'})
         (output/'manifest.json').write_text(json.dumps(manifest,indent=2)+'\n')
         failures=[a for a in artifacts if a['checks']]
         if failures:

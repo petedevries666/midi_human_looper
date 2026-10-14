@@ -45,6 +45,14 @@ with tempfile.TemporaryDirectory(prefix='mbmf-movement-jack-') as tmp:
   install(25,[m],[step([block(src),block(m['id'],'MOVEMENT')])]);event(144,110,127);event(128,110,0);assert c.request()['instances'] and c.request()['movements']['active']==1,c.request()
   sw=c.request()['switches'][1]['settings'];sw[0]=1;sw[12]=2;command(op=41,target=2,settings=sw+[0]*64+[0]*16);command(op=1,target=2);time.sleep(.3);assert not c.request()['instances'];assert c.request()['movements']['active']==1,c.request()
   command(op=2);time.sleep(.3);assert c.request()['movements']['active']==0;assert c.request()['outputOverflow']==0
+  # Two destinations continue independently across a STEP change; HOLD points
+  # are sampled at cadence, not mistaken for prerecorded phrase CC events.
+  a=movement();a.update(duration=3,retrigger='DIRECT',points=[[0,0],[1,1]]);a['target']['number']=21
+  b=movement();b.update(duration=1,retrigger='DIRECT',interpolation='HOLD',points=[[0,0],[.25,.2],[.5,.9],[1,.1]]);b['target'].update(channel=2,number=22)
+  install(25,[a,b],[step([None,block(a['id'],'MOVEMENT')]),step([None,block(b['id'],'MOVEMENT')])]);event(144,110,127);event(128,110,0);event(144,110,127);event(128,110,0);time.sleep(1.2);assert c.request()['movements']['active']==1,c.request();time.sleep(1.4);assert not c.request()['movements']['active']
+  short=movement();short.update(duration=.01,retrigger='DIRECT',points=[[0,0],[1,1]]);short['target']['number']=23;install(100,[short]);event(144,110,127);event(128,110,0);assert not c.request()['movements']['active']
+  soft=movement();soft.update(duration=1,points=[[0,0],[1,1]]);soft['target']['number']=24;install(25,[soft]);event(176,24,100);event(144,110,127);event(128,110,0);time.sleep(1.1);assert not c.request()['movements']['active']
+  install(25,[m],[step([block(src),block(m['id'],'MOVEMENT')])])
   if os.environ.get('MOVEMENT_BROWSER_AUTHOR')=='1':
    import socket,urllib.request
    from playwright.sync_api import sync_playwright
@@ -71,6 +79,12 @@ with tempfile.TemporaryDirectory(prefix='mbmf-movement-jack-') as tmp:
   events=[e for e in trace if e[2]==176 and e[3]==14];assert events[-1][4]==77 and sum(e[4]==77 for e in events)==1,events
   assert [e[4] for e in trace if e[2]==176 and e[3]==15]==[25,102]
   same=[e for e in trace if e[2]==176 and e[3]==18];assert len(same)==2 and same[0][0]==same[1][0] and [e[1] for e in same]==[16,220] and [e[4] for e in same]==[0,77],same
+  soft_events=[e for e in trace if e[2]==176 and e[3]==24];assert soft_events[0][4]==100,soft_events
+  expected=[int(((100/127)*(1-min(1,(i/25)/.2))+(i/25)*min(1,(i/25)/.2))*127+.5) for i in range(26)]
+  assert [e[4] for e in soft_events[1:]]==expected,soft_events
+  independent=[e for e in trace if e[2]==176 and e[3]==21];assert len(independent)==76 and independent[0][4]==0 and independent[-1][4]==127,independent
+  stepped=[e for e in trace if e[2]==177 and e[3]==22];origin=stepped[0][0]+stepped[0][1];assert [e[4] for e in stepped]==[0,25,114,13],stepped;assert [e[0]+e[1]-origin for e in stepped]==[0,13440,24960,48000],stepped
+  short_events=[e for e in trace if e[2]==176 and e[3]==23];assert len(short_events)==2 and [e[4] for e in short_events]==[0,127] and short_events[1][0]+short_events[1][1]-short_events[0][0]-short_events[0][1]==480,short_events
   if os.environ.get('MOVEMENT_BROWSER_AUTHOR')=='1':
    web_events=[e for e in trace if e[2]==176 and e[3]==17];assert len(web_events)==26 and web_events[0][4]==0 and web_events[-1][4]==127,web_events
   assert any(e[2]==144 and e[3]==60 for e in trace),trace

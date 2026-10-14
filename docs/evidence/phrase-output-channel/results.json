@@ -33,5 +33,11 @@
     "ALL refused on existing unsafe shared mono/ARP path",
     "Web-only selector; shared EEL playback supports serialized setting",
     "existing SMF import remains note-only"
-  ]
+  ],
+  "testedCodeCommit": "6597faa3dac68cc0941ac198f898d8207abc2a68",
+  "cleanBuildAndRetest": {
+    "buildExit": 0,
+    "browserExit": 0,
+    "jackExit": 0
+  }
 }

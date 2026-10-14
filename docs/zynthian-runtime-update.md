@@ -32,10 +32,11 @@ bash -o pipefail -c 'curl -fsSL https://raw.githubusercontent.com/petedevries666
 
 This requires the existing `curl` command; it installs no packages. The script
 reads the existing installation configuration. No manual removal or re-registration
-is needed. Releases are isolated under
+is needed. Source is fetched into the existing checkout, then staged as archives (not
+additional application clones). Releases are isolated under
 `/zynthian/zynthian-my-data/midi-human-looper/releases/<sha>/`.
 
-The pinned ysfx/WDL library and application are built with `-fsigned-char` on
+The pinned ysfx/WDL library is reused from a shared `build-cache/ysfx`; the library and application are built with `-fsigned-char` on
 ARM64. No third-party source editing or package installation occurs. Configuration
 replacement uses fsync and atomic rename. The token, network ports, timing version
 and unknown configuration keys are retained.
@@ -98,3 +99,11 @@ rather than attempting a destructive reinstall.
 Automated tests use a real native preflight engine and mocked service transitions.
 No real Oram restart, ARM64 build or physical device update has been executed in
 Codex Cloud. Those are mandatory physical acceptance tests before release.
+
+## Browser / physical UPDATE controls
+
+The separately authorized opt-in worker and native/Web workflow are described in
+[mbmf-update-controls.md](mbmf-update-controls.md). Its component journals include
+adapter bytes and installer metadata: use that worker for rollback/recovery. The
+legacy runtime-only CLI refuses component journals instead of restoring only part
+of the installation. No automatic installation of draft commits is offered.

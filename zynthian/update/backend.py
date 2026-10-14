@@ -95,8 +95,7 @@ class Backend:
             except (OSError,ValueError,KeyError):pass
         if observed:installed=', '.join(sorted(set(observed)))
         if not installed:
-            try:installed=subprocess.check_output(['git','-C',config['repository'],'rev-parse','HEAD'],text=True,timeout=2).strip()
-            except (OSError,subprocess.SubprocessError):installed='unknown'
+            installed='unknown (no active processor or recorded installed revision)'
         history=self.directory/'runtime-update.json'
         journal=json.loads(history.read_text()) if history.exists() else {}
         with self.lock:

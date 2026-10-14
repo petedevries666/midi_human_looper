@@ -73,7 +73,8 @@ def build(directory, revision, checkout=None):
     else:
         root.parent.mkdir(exist_ok=True)
         if checkout is None:
-            checkout=Path(json.loads((directory/'install.json').read_text())['repository'])
+            installed=json.loads((directory/'install.json').read_text())
+            checkout=Path(installed.get('update_checkout',installed['repository']))
         checkout=Path(checkout)
         run('git','-C',str(checkout),'fetch',REPOSITORY,revision)
         root.mkdir()
@@ -297,7 +298,8 @@ def main():
             new=previous['previous']
         else:
             root,binary=build(directory,args.revision)
-            new={**old,'repository':str(root),'binary':str(binary),'runtime_revision':args.revision}
+            new={**old,'repository':str(root),'binary':str(binary),'runtime_revision':args.revision,
+                 'update_checkout':old.get('update_checkout',old['repository'])}
         # Checkpoint current stopped musical data before validating the candidate.
         expected=runtime.checkpoint(directory)
         verified_revision=runtime.preflight(new,directory)

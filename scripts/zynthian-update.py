@@ -228,7 +228,6 @@ class Runtime:
                     if state.get('buildRevision')!=config.get('runtime_revision',observation['buildRevision']) or capture['fingerprint']!=observation['fingerprint']:
                         raise ValueError('Restored processor revision or musical state differs')
                     import urllib.request
-import urllib.error
                     port=config.get('web_port_base',8765)+int(name.split('-')[1])
                     headers={}
                     if config.get('token_file'):headers['X-Engine-Token']=Path(config['token_file']).read_text().strip()

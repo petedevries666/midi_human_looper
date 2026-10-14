@@ -18,13 +18,15 @@ static int process(jack_nframes_t frames,void*){
     if(jack_midi_event_write(out,std::min(p.offset,unsigned(frames-1)),bytes,3))return 1;++read;}
   auto in=jack_port_get_buffer(input,frames);
   for(unsigned j=0;j<jack_midi_get_event_count(in);++j){jack_midi_event_t e;jack_midi_event_get(&e,in,j);
-#ifdef MBMF_TEST_CAPTURE_ALL_CC
+#if defined(MBMF_TEST_CAPTURE_CHANNEL_VOICE)
+    if((e.size==2||e.size==3)&&(e.buffer[0]&240)>=128&&(e.buffer[0]&240)<240){
+#elif defined(MBMF_TEST_CAPTURE_ALL_CC)
     if(e.size==3&&((e.buffer[0]&240)==128||(e.buffer[0]&240)==144||(e.buffer[0]&240)==176)){
 #else
     if(e.size==3&&((e.buffer[0]&240)==128||(e.buffer[0]&240)==144||((e.buffer[0]&240)==176&&(e.buffer[1]==64||e.buffer[1]>=120)))){
 #endif
       if(count==events.size()){overflow=true;continue;}
-      auto &v=events[count++];v.frame=jack_last_frame_time(client);v.offset=e.time;v.st=e.buffer[0];v.note=e.buffer[1];v.value=e.buffer[2];}}
+      auto &v=events[count++];v.frame=jack_last_frame_time(client);v.offset=e.time;v.st=e.buffer[0];v.note=e.buffer[1];v.value=e.size==3?e.buffer[2]:0;}}
   return 0;
 }
 int main(){jack_status_t status;client=jack_client_open("conductor_probe",JackNoStartServer,&status);if(!client)return 2;

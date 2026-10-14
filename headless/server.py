@@ -497,6 +497,10 @@ class Handler(BaseHTTPRequestHandler):
                 target=data.get('instrumentId');field=data.get('field','enabled');value=data.get('value')
                 if type(target) is not int or not 1<=target<=16777215 or field not in ('input','output','level','enabled') or type(value) is not int or not 0<=value<=(127 if field=='level' else 1 if field=='enabled' else 16):raise ValueError()
                 args=dict(op=10 if field=='enabled' else 9,target=target,arg=('input','output','level').index(field) if field!='enabled' else 0,value=value)
+            elif action=='phrase_output':
+                target=data.get('phraseId');channel=data.get('channel')
+                if type(target) is not int or not 1<=target<=16 or type(channel) is not int or not 0<=channel<=17:raise ValueError('invalid phrase output channel')
+                args=dict(op=49,target=target-1,value=channel)
             elif action=='phrase_cancel':
                 target=data.get('phraseId')
                 if type(target) is not int or not 1<=target<=16:raise ValueError()

@@ -499,6 +499,12 @@ function phraseOptions(phraseId){
   const dismiss=()=>{if(!committing)dialog.close();};
   content.replaceChildren(node('h2',`PHRASE ${phraseId} · MIDI`),button('×',dismiss));
   const error=node('p','');error.setAttribute('role','alert');
+  const outputWrap=node('label','OUTPUT CHANNEL','inline-control'),output=node('select');
+  output.setAttribute('aria-label',`OUTPUT CHANNEL Phrase ${phraseId}`);output.title='Playback only · applies on the next trigger';
+  for(const [value,label] of [[0,'ORIGINAL'],[17,'ALL'],...Array.from({length:16},(_,i)=>[i+1,`CH${i+1}`])]){const option=node('option',label);option.value=value;output.append(option);}
+  output.value=latest.phrases.find(p=>p.id===phraseId)?.outputChannel??0;
+  output.onchange=async()=>{if(committing)return;committing=true;output.disabled=true;try{if(!await command({action:'phrase_output',phraseId,channel:Number(output.value)}))output.value=latest.phrases.find(p=>p.id===phraseId)?.outputChannel??0;}finally{committing=false;output.disabled=false;}};
+  outputWrap.append(output);content.append(outputWrap);
   const file=node('input');file.type='file';file.accept='.mid,.midi,audio/midi';file.setAttribute('aria-label','MIDI file');
   content.append(button('IMPORT MIDI',()=>file.click()),file,button('EXPORT MIDI',async()=>{
     try{

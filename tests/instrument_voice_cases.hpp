@@ -52,7 +52,7 @@ static void instrument_voice_tests(Host &h) {
   check(off, "absent-slot release does not poison future ownership");
   // Same-phrase overlapping voices have independent creation-time instrument
   // IDs.
-  h.run("mem[COUNT_BASE]=0;store_event(0,0,144,60,90,0);store_event(0,512,128,"
+  h.run("mem[phrase_output_addr(0)]=2;mem[COUNT_BASE]=0;store_event(0,0,144,60,90,0);store_event(0,512,128,"
         "60,0,0);"
         "mem[LEN_BASE]=10000;mem[MODE_BASE]=1;mem[DECAY_BASE]=1;trigger_"
         "request=0;");

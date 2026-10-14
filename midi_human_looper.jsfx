@@ -327,7 +327,7 @@ once_route_voice=-1;i_release_mask=0;i_init_q=0;loop(INST_CAP*2048+INST_CAP,mem[
 // Runtime-only owner storage. Reuse existing voice/event bounds, not future
 // CONDUCTOR limits. Pre-touch RAM pages at init before audio/JACK activation.
 INSTANCE_BASE=3100000;INSTANCE_HEADER=48;INSTANCE_OWNERS=MAX_ONCE_VOICES+LAYERS;INSTANCE_ROWS=MAX_EVENTS_PER_LAYER;
-INSTANCE_ROW=4+(INST_CAP+1)*3;
+INSTANCE_ROW=4+(INST_CAP+1)*3; // output key packs emitted channel mask + pitch
 INSTANCE_QUEUE_BASE=INSTANCE_BASE+INSTANCE_OWNERS*INSTANCE_HEADER;
 INSTANCE_POOL_BASE=INSTANCE_QUEUE_BASE+INSTANCE_OWNERS*2048*3;
 INSTANCE_END=INSTANCE_POOL_BASE+INSTANCE_OWNERS*INSTANCE_ROWS*INSTANCE_ROW;
@@ -602,6 +602,12 @@ local(addr)
 // Reserved schema-3 fields +112..115 hold four phrase timing ratios per record.
 function phrase_time_addr(layer)
 (SW_CFG_BASE+1+floor(layer/4)*SW_STRIDE+112+layer%4;);
+// Reserved schema-7 carrier: 0 ORIGINAL, 1..16 fixed, 17 ALL.
+// Source events and Instrument/MOVEMENT routing remain untouched.
+function phrase_output_addr(layer)
+(SW_CFG_BASE+1+floor(layer/4)*SW_STRIDE+116+layer%4;);
+function phrase_output_policy(layer) (mem[phrase_output_addr(layer)];);
+phrase_route_policy=-1;
 function phrase_time_ratio(layer)
 local(r)
 (r=mem[phrase_time_addr(layer)];r<=0?1:max(.5,min(2,r)););
@@ -1288,8 +1294,13 @@ local(h,r,b,q,tail,j)
  );r;
 );
 function instance_capture_output(gi,key)
-local(b)
-(instance_route_record>=0?(b=instance_row(once_route_voice,instance_route_record)+4+gi*3;mem[b]=key;mem[instance_header(once_route_voice)+13]+=1;mem[b+1]=gi<INST_CAP?mem[I_IDS_BASE+gi]:0;););
+local(b,mask,bit)
+(instance_route_record>=0?(
+ b=instance_row(once_route_voice,instance_route_record)+4+gi*3;
+ bit=1<<floor(key/128);mask=mem[b]<0?0:floor(mem[b]/128);
+ !(mask&bit)?mem[instance_header(once_route_voice)+13]+=1;
+ mem[b]=((mask|bit)*128)+(key%128);mem[b+1]=gi<INST_CAP?mem[I_IDS_BASE+gi]:0;
+););
 function instance_poly_routes() local(j,ok)
 (ok=1;j=0;loop(INST_CAP,
  mem[I_EXISTS_BASE+j] && mem[engine_addr(INST_ENABLED_BASE,j)]>.5 &&
@@ -1425,19 +1436,22 @@ local(gi,j,idx)
 function instance_inst_id(v,i) (v<MAX_ONCE_VOICES?mem[VOICE_INST_IDS_BASE+v*INST_CAP+i]:mem[instance_header(v)+32+i];);
 function instance_inst_input(v,i) (v<MAX_ONCE_VOICES?mem[VOICE_INST_IN_BASE+v*INST_CAP+i]:mem[instance_header(v)+40+i];);
 function instance_clear_record(v,r,offs)
-local(h,b,j,k,id,tracked,idx)
+local(h,b,j,k,id,tracked,idx,mask,ch,note)
 (
  h=instance_header(v);b=instance_row(v,r);j=0;loop(INST_CAP+1,
-  k=mem[b+4+j*3];id=mem[b+5+j*3];tracked=mem[b+6+j*3];k>=0?mem[h+13]=max(0,mem[h+13]-1);
+  k=mem[b+4+j*3];id=mem[b+5+j*3];tracked=mem[b+6+j*3];
   (j==INST_CAP || (mem[I_EXISTS_BASE+j] && mem[I_IDS_BASE+j]==id))?(
    tracked>=0 && j<INST_CAP?param_track_input(j,floor(tracked/128),tracked%128,0,1);
    k>=0?(
-    j<INST_CAP?(
-     idx=j*2048+k;mem[engine_addr(SW_PHRASE_OUT_BASE,idx)]=max(0,mem[engine_addr(SW_PHRASE_OUT_BASE,idx)]-1);
-     mem[I_ONCE_OUT_BASE+idx]=max(0,mem[I_ONCE_OUT_BASE+idx]-1);
-    ):mem[I_FALLBACK_BASE+2048+k]=max(0,mem[I_FALLBACK_BASE+2048+k]-1);
-    mem[NOTE_REF_BASE+k]=max(0,mem[NOTE_REF_BASE+k]-1);
-    instrument_output_owners(floor(k/128),k%128,-1)<=0?instance_emit(offs,128|floor(k/128),k%128,0);
+    mask=floor(k/128);note=k%128;ch=0;loop(16,mask&(1<<ch)?(
+     mem[h+13]=max(0,mem[h+13]-1);idx=ch*128+note;
+     j<INST_CAP?(
+      mem[engine_addr(SW_PHRASE_OUT_BASE,j*2048+idx)]=max(0,mem[engine_addr(SW_PHRASE_OUT_BASE,j*2048+idx)]-1);
+      mem[I_ONCE_OUT_BASE+j*2048+idx]=max(0,mem[I_ONCE_OUT_BASE+j*2048+idx]-1);
+     ):mem[I_FALLBACK_BASE+2048+idx]=max(0,mem[I_FALLBACK_BASE+2048+idx]-1);
+     mem[NOTE_REF_BASE+idx]=max(0,mem[NOTE_REF_BASE+idx]-1);
+     instrument_output_owners(ch,note,-1)<=0?instance_emit(offs,128|ch,note,0);
+    );ch+=1;);
    );
   );
   mem[b+4+j*3]=-1;mem[b+5+j*3]=-1;mem[b+6+j*3]=-1;j+=1;
@@ -1461,25 +1475,25 @@ function instance_release_input(v,key,offs) local(h,q,r)
   r=mem[q+1];mem[q+1]=mem[instance_row(v,r)];mem[q+1]<0?mem[q+2]=-1;
   instance_release_record(v,r,offs);
  ););
-function instance_remove_destination(gi,id) local(v,h,r,b,next,ch,p,out,j,remaining,mask)
+function instance_remove_destination(gi,id) local(v,h,r,b,next,ch,p,out,j,remaining,mask,k)
 (v=0;loop(INSTANCE_OWNERS,h=instance_header(v);r=mem[h+2];
  loop(min(INSTANCE_ROWS,max(0,mem[h+5])),r>=0?(
   next=mem[instance_row(v,r)+1];b=instance_row(v,r)+4+gi*3;
-  mem[b+1]==id?(mem[b]>=0?mem[h+13]=max(0,mem[h+13]-1);mem[b]=-1;mem[b+1]=-1;mem[b+2]=-1;);
+  mem[b+1]==id?(mem[b]>=0?(mask=floor(mem[b]/128);k=0;loop(16,mask&(1<<k)?mem[h+13]=max(0,mem[h+13]-1);k+=1;););mem[b]=-1;mem[b+1]=-1;mem[b+2]=-1;);
   r=next;
  ););
  ch=0;loop(16,
   mask=mem[h+16+ch];p=instance_pedal(v,ch,gi);
   mask>0 && mem[p]==id?(
    out=mem[p+1];mem[p]=-1;mem[p+1]=-1;remaining=0;j=0;loop(INST_CAP+1,
-    b=instance_pedal(v,ch,j);mem[b]>=0 && mem[b+1]==out?remaining=1;j+=1;);
-   !remaining && out>=0 && (mask&(1<<out))?(
-    mask-=1<<out;mem[h+16+ch]=mask;mask==0?mem[h+9]=max(0,mem[h+9]-1);
-    mem[SUSTAIN_REF_BASE+out]=max(0,mem[SUSTAIN_REF_BASE+out]-1);
-    mem[SUSTAIN_REF_BASE+out]<=0 && mem[SW_LIVE_SUSTAIN_BASE+out]<64?(
-     mem[SW_PHRASE_SUSTAIN_BASE+out]=0;instance_emit(0,176|out,64,0);
+    b=instance_pedal(v,ch,j);mem[b]>=0?remaining|=mem[b+1];j+=1;);
+   k=0;loop(16,(out&(65535-remaining)&mask)&(1<<k)?(
+    mask-=1<<k;
+    mem[SUSTAIN_REF_BASE+k]=max(0,mem[SUSTAIN_REF_BASE+k]-1);
+    mem[SUSTAIN_REF_BASE+k]<=0 && mem[SW_LIVE_SUSTAIN_BASE+k]<64?(
+     mem[SW_PHRASE_SUSTAIN_BASE+k]=0;instance_emit(0,176|k,64,0);
     );
-   );
+   );k+=1;);mem[h+16+ch]=mask;mask==0?mem[h+9]=max(0,mem[h+9]-1);
   );ch+=1;
  );v+=1;);
 );
@@ -1512,19 +1526,19 @@ function instance_request_stop(id,generation) local(v,h,found,a)
 );
 
 function instance_sustain(v,sourcech,st,value,offs)
-local(h,mask,j,in_ch,out_ch,ch,k,p)
+local(h,mask,j,in_ch,out_ch,ch,k,p,policy,destmask)
 (
- h=instance_header(v);mask=mem[h+16+sourcech];
+ h=instance_header(v);mask=mem[h+16+sourcech];policy=mem[h+15];
  value<64?instance_release_pedal(v,sourcech,offs):mask==0?(
   j=0;loop(INST_CAP+1,p=instance_pedal(v,sourcech,j);mem[p]=-1;mem[p+1]=-1;j+=1;);
   j=0;loop(INST_CAP,
    mem[I_EXISTS_BASE+j] && mem[engine_addr(INST_ENABLED_BASE,j)]>.5 && instance_inst_id(v,j)==mem[I_IDS_BASE+j]?(
     in_ch=mem[engine_addr(INST_IN_BASE,j)];in_ch==0 || in_ch==(st&15)+1?(
-     out_ch=mem[engine_addr(INST_OUT_BASE,j)];ch=out_ch>0?out_ch-1:st&15;mask|=1<<ch;
-     p=instance_pedal(v,sourcech,j);mem[p]=mem[I_IDS_BASE+j];mem[p+1]=ch;
+     ch=policy>0 && policy<=16?policy-1:st&15;destmask=policy==17?65535:1<<ch;mask|=destmask;
+     p=instance_pedal(v,sourcech,j);mem[p]=mem[I_IDS_BASE+j];mem[p+1]=destmask;
     );
    );j+=1;
-  );mask==0?(mask=1<<(st&15);p=instance_pedal(v,sourcech,INST_CAP);mem[p]=0;mem[p+1]=st&15;);mem[h+16+sourcech]=mask;mem[h+9]+=1;
+  );mask==0?(ch=policy>0 && policy<=16?policy-1:st&15;mask=policy==17?65535:1<<ch;p=instance_pedal(v,sourcech,INST_CAP);mem[p]=0;mem[p+1]=mask;);mem[h+16+sourcech]=mask;mem[h+9]+=1;
   k=0;loop(16,mask&(1<<k)?(mem[SUSTAIN_REF_BASE+k]+=1;mem[SW_PHRASE_SUSTAIN_BASE+k]=127;instance_emit(offs,176|k,64,value););k+=1;);
  );
 );
@@ -1541,7 +1555,7 @@ local(srcch,typ,ii,in_ch,out_ch,outst,outd2,matched,velmul,nmode,tn,input_ok)
       in_ch=mem[engine_addr(INST_IN_BASE,ii)];
       (in_ch==0 || in_ch==srcch) ? (
         matched=1;
-        out_ch=mem[engine_addr(INST_OUT_BASE,ii)];
+        out_ch=sw_playback_origin && phrase_route_policy>=0?phrase_route_policy:mem[engine_addr(INST_OUT_BASE,ii)];
         outst=st;
         out_ch>0 ? outst=(st&240)|(max(1,min(16,out_ch))-1);
         outd2=d2;
@@ -1582,7 +1596,7 @@ local(srcch,typ,ii,in_ch,out_ch,outst,outd2,matched,velmul,nmode,tn,input_ok)
       typ==144 && d2>0 ? mem[tn]+=1 : mem[tn]=max(0,mem[tn]-1);
     );
     typ==176 && d1==64 ? (mem[I_FALLBACK_SUSTAIN_BASE+(st&15)]=d2;sw_playback_origin?mem[SW_PHRASE_SUSTAIN_BASE+(st&15)]=d2:mem[SW_LIVE_SUSTAIN_BASE+(st&15)]=d2;);
-    midisend(offs,st,d1|(d2*256));
+    outst=sw_playback_origin && phrase_route_policy>0 && phrase_route_policy<=16 && typ>=128 && typ<240?typ|(phrase_route_policy-1):st;midisend(offs,outst,d1|(d2*256));
   );
 );
 
@@ -1606,10 +1620,10 @@ local(ii,out_ch,ch,lev,mod)
 );
 
 function send_once_to_instruments(offs, st, d1, d2, phrase_gain)
-local(srcch,typ,ii,in_ch,out_ch,outst,outd2,matched,velmul,msg_chan,note_key,nmode,tn,original_match,j)
+local(srcch,typ,ii,in_ch,out_ch,outst,outd2,matched,velmul,msg_chan,note_key,nmode,tn,original_match,j,policy,channel_index,channels)
 (
   srcch=(st&15)+1;
-  typ=st&240;
+  typ=st&240;policy=once_route_voice>=0?mem[instance_header(once_route_voice)+15]:0;channels=policy==17 && typ>=128 && typ<240?16:1;
   (once_route_voice>=0 && mem[instance_header(once_route_voice)+6]>=0 &&
    ((typ==128)||(typ==144 && d2==0))) ? instance_release_input(once_route_voice,instance_input_key,offs) : (
   (once_route_voice>=0 && mem[instance_header(once_route_voice)+6]>=0 && typ==176 && d1==64) ? instance_sustain(once_route_voice,floor(instance_input_key/128),st,d2,offs) : (
@@ -1630,15 +1644,16 @@ local(srcch,typ,ii,in_ch,out_ch,outst,outd2,matched,velmul,msg_chan,note_key,nmo
       in_ch=mem[engine_addr(INST_IN_BASE,ii)];
       (in_ch==0 || in_ch==srcch) ? (
         matched=1;
-        out_ch=mem[engine_addr(INST_OUT_BASE,ii)];
+        channel_index=0;loop(channels,
+        out_ch=policy==17?channel_index+1:policy;
         outst=st;
-        out_ch>0 ? outst=(st&240)|(max(1,min(16,out_ch))-1);
+        out_ch>0 && typ>=128 && typ<240 ? outst=(st&240)|(max(1,min(16,out_ch))-1);
         msg_chan=outst&15;
         outd2=d2;
         nmode=transformer_on(ii,3) ? floor(mem[engine_addr(INST_NOTE_MODE_BASE,ii)]+0.5) : 0;
 
         (typ==144 && d2>0) ? (
-          param_track_input(ii,srcch-1,d1,1,1);
+          channel_index==0?param_track_input(ii,srcch-1,d1,1,1);
           instance_route_record>=0 ? (
             mem[instance_row(once_route_voice,instance_route_record)+5+ii*3]=mem[I_IDS_BASE+ii];
             mem[instance_row(once_route_voice,instance_route_record)+6+ii*3]=(srcch-1)*128+d1;
@@ -1651,7 +1666,7 @@ local(srcch,typ,ii,in_ch,out_ch,outst,outd2,matched,velmul,msg_chan,note_key,nmo
           );
         ) :
         ((typ==128) || (typ==144 && d2==0)) ? (
-          param_track_input(ii,srcch-1,d1,0,1);
+          channel_index==0?param_track_input(ii,srcch-1,d1,0,1);
           tn=tf_pitch(ii,d1);
           tn>=0 && tn<=127 ? (
             nmode>0 ? route_mono_note(ii,offs,outst,tn,0,0,1) :
@@ -1668,12 +1683,14 @@ local(srcch,typ,ii,in_ch,out_ch,outst,outd2,matched,velmul,msg_chan,note_key,nmo
             mem[SUSTAIN_REF_BASE+msg_chan]<=0 ? midisend(offs,outst,d1);
           );
         ) : midisend(offs,outst,d1|(d2*256));
+        channel_index+=1;);
       );
     );
     ii+=1;
   );
   matched==0 && !original_match ? (
-    msg_chan=st&15;
+    channel_index=0;loop(channels,
+    msg_chan=policy==17?channel_index:policy>0?policy-1:st&15;outst=typ>=128 && typ<240?typ|msg_chan:st;
     typ==144 || typ==128 ? (
       note_key=I_FALLBACK_BASE+2048+msg_chan*128+d1;
       typ==144 && d2>0?mem[note_key]+=1:mem[note_key]=max(0,mem[note_key]-1);
@@ -1682,14 +1699,15 @@ local(srcch,typ,ii,in_ch,out_ch,outst,outd2,matched,velmul,msg_chan,note_key,nmo
     (typ==144 && d2>0) ? (
       outd2=max(1,min(127,floor(d2*phrase_gain+0.5)));
       note_key=NOTE_REF_BASE+msg_chan*128+d1; mem[note_key]+=1;
-      (instance_route_record>=0?instance_emit(offs,st,d1,outd2):midisend(offs,st,d1|(outd2*256)))>0?instance_capture_output(INST_CAP,msg_chan*128+d1):instance_route_record>=0?(
+      (instance_route_record>=0?instance_emit(offs,outst,d1,outd2):midisend(offs,outst,d1|(outd2*256)))>0?instance_capture_output(INST_CAP,msg_chan*128+d1):instance_route_record>=0?(
         mem[note_key]=max(0,mem[note_key]-1);mem[I_FALLBACK_BASE+2048+msg_chan*128+d1]-=1;
       );
     ) :
     ((typ==128)||(typ==144&&d2==0)) ? (
       note_key=NOTE_REF_BASE+msg_chan*128+d1; mem[note_key]=max(0,mem[note_key]-1);
       mem[note_key]<=0 && instrument_output_owners(msg_chan,d1,-1)<=0 ? midisend(offs,128|msg_chan,d1);
-    ) : midisend(offs,st,d1|(d2*256));
+    ) : midisend(offs,outst,d1|(d2*256));
+    channel_index+=1;);
   );
   );instance_route_record=-1;
   );
@@ -2239,7 +2257,7 @@ local(once_layer,once_start,once_end,once_time,phrase_end,count,i,base,evt_t,out
     base=layer_base(once_layer,i);relative_t=mem[base]*once_time;evt_t=relative_t+cycle*phrase_end;
     mem[instance_header(vi)+11]>.5 && (instant?evt_t==0:(evt_t>=once_start && evt_t<once_end && !(evt_t==0 && mem[VOICE_FIRST_BASE+vi]))) && (relative_t<phrase_end || ((mem[h+7]>0 || native_hold_enabled) && mode==2 && relative_t==phrase_end && ((mem[base+1]&240)==128 || ((mem[base+1]&240)==144 && mem[base+3]==0)))) ? (
       out_offs=evt_t-mem[VOICE_POS_BASE+vi];
-      slider8==0?out_status=mem[base+1]&255:(out_chan=max(1,min(16,slider8))-1;out_status=(mem[base+1]&240)|out_chan;);
+      out_status=mem[base+1]&255;
       out_d1=mem[base+2]&127;out_d2=mem[base+3]&127;
       velmul=slider9*(mem[h+12]>0 && mem[h+14]>=0?mem[h+14]:mem[VEL_BASE+once_layer])*mem[VOICE_GAIN_BASE+vi];
       is_recorded_noteoff=((out_status&240)==128)||((out_status&240)==144 && out_d2==0);
@@ -2276,12 +2294,14 @@ local(v,h,j,safe)
  safe && mem[TRIG_BASE+layer]>.5 && (mem[h+11] || instance_serial<9007199254740990)?(
   mem[h+11]==0?(
    instance_serial+=1;mem[h]=instance_serial;mem[h+1]+=1;mem[h+2]=-1;mem[h+3]=-1;mem[h+4]=0;mem[h+5]=0;
-   mem[h+6]=1;mem[h+7]=0;mem[h+8]=0;mem[h+9]=0;mem[h+10]=layer;mem[h+11]=1;mem[h+13]=0;
+   mem[h+6]=1;mem[h+7]=0;mem[h+8]=0;mem[h+9]=0;mem[h+10]=layer;mem[h+15]=phrase_output_policy(layer);mem[h+11]=1;mem[h+13]=0;
    j=0;loop(16,mem[h+16+j]=0;j+=1;);
   );
   j=0;loop(INST_CAP,mem[h+32+j]=mem[I_EXISTS_BASE+j] && mem[engine_addr(INST_ENABLED_BASE,j)]>.5?mem[I_IDS_BASE+j]:0;mem[h+40+j]=mem[engine_addr(INST_IN_BASE,j)];j+=1;);
   instance_input_key=inputkey;once_route_voice=v;send_once_to_instruments(offs,st,note,velocity,1);once_route_voice=-1;
- ): !safe && mem[TRIG_BASE+layer]>.5?(mem[h+5]==0 && mem[h+9]==0?(mem[h+11]?(mem[h+1]+=1;mem[h+11]=0;);mem[h+6]=-1;);sw_playback_origin=1;send_to_instruments(offs,st,note,velocity,1);sw_playback_origin=0;);
+ ): !safe && phrase_output_policy(layer)!=17 && mem[TRIG_BASE+layer]>.5?(mem[h+5]==0 && mem[h+9]==0?(mem[h+11]?(mem[h+1]+=1;mem[h+11]=0;);mem[h+6]=-1;);sw_playback_origin=1;phrase_route_policy=phrase_output_policy(layer);send_to_instruments(offs,st,note,velocity,1);phrase_route_policy=-1;sw_playback_origin=0;) : !safe && phrase_output_policy(layer)==17 && mem[TRIG_BASE+layer]>.5?(
+  instance_error=3;instance_rejected+=1;free_play_error=layer+1;mem[TRIG_BASE+layer]=0;
+ );
 );
 // Native free LOOP source ownership; reuses the existing routing release path.
 function free_loop_stop(layer)
@@ -2353,6 +2373,7 @@ trigger_request>=0 ? (
   trigger_request=-1;
   held=native_hold_enabled && mem[MODE_BASE+requested_layer]==2;
   safe=instance_poly_routes();
+  phrase_output_policy(requested_layer)==17 && !safe?(instance_error=3;instance_rejected+=1;) : (
   instance_serial>=9007199254740990 ? (instance_error=5;instance_rejected+=1;) : (
   !(instance_independent_request && (!safe || layer_count(requested_layer)<=0 || mem[LEN_BASE+requested_layer]<=0 ||
     (mem[MODE_BASE+requested_layer]!=1 && mem[LEN_BASE+requested_layer]*phrase_time_factor(requested_layer)<max(128,samplesblock/8)))) &&
@@ -2391,7 +2412,7 @@ trigger_request>=0 ? (
     requested_layer==last_trigger_layer?mem[REPEAT_BASE+requested_layer]+=1:mem[REPEAT_BASE+requested_layer]=0;
     last_trigger_layer=requested_layer;instance_gain=pow(mem[DECAY_BASE+requested_layer],mem[REPEAT_BASE+requested_layer]);instance_time=phrase_time_factor(requested_layer);
   );
-  h=instance_header(voice_slot);mem[h+10]=requested_layer;mem[h+11]=1;mem[h+13]=0;mem[h+12]=0;mem[h+14]=-1;instance_serial+=1;mem[h]=instance_serial;mem[h+1]+=1;
+  h=instance_header(voice_slot);mem[h+15]=phrase_output_policy(requested_layer);mem[h+10]=requested_layer;mem[h+11]=1;mem[h+13]=0;mem[h+12]=0;mem[h+14]=-1;instance_serial+=1;mem[h]=instance_serial;mem[h+1]+=1;
   mem[h+2]=-1;mem[h+3]=-1;mem[h+4]=0;mem[h+5]=0;mem[h+6]=safe?1:-1;mem[h+7]=instance_independent_request>0;mem[h+8]=mem[MODE_BASE+requested_layer];
   vgi=0;loop(16,mem[h+16+vgi]=0;vgi+=1;);instance_last_admitted=instance_serial;
   vgi=0;loop(INST_CAP,
@@ -2408,6 +2429,7 @@ trigger_request>=0 ? (
   );
   ) : (instance_error=3;instance_rejected+=1;);
   );
+);
 );
 );
 function phrase_admit_independent(layer,offs) local(result)
@@ -3352,12 +3374,7 @@ native_free_time && state==STATE_PLAYING?free_loop_render();
           evt_q>=play_sample_pos && evt_q<play_sample_pos+segment ? (
             out_offs=block_cursor+(evt_q-play_sample_pos);
 
-            slider8==0 ? (
-              out_status=mem[base+1]&255;
-            ) : (
-              out_chan=max(1,min(16,slider8))-1;
-              out_status=(mem[base+1]&240)|out_chan;
-            );
+            out_status=mem[base+1]&255;
 
             out_d1=mem[base+2]&127;
             out_d2=mem[base+3]&127;

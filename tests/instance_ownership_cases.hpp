@@ -31,11 +31,11 @@ static void instance_ownership_tests(const char *source) {
   }
   {
     Host h(source);conductor_fixture(h);
-    h.run("mem[INST_TRANSFORM_COUNT_BASE]=1;mem[INST_TRANSFORM_TYPE_BASE]=1;mem[INST_TRANSPOSE_BASE]=12;mem[INST_OUT_BASE]=3;a=phrase_admit_independent(0,0);");h.block();auto output=h.events();
+    h.run("mem[INST_TRANSFORM_COUNT_BASE]=1;mem[INST_TRANSFORM_TYPE_BASE]=1;mem[INST_TRANSPOSE_BASE]=12;mem[INST_OUT_BASE]=3;mem[phrase_output_addr(0)]=3;a=phrase_admit_independent(0,0);");h.block();auto output=h.events();
     check(conductor_count(output,144,60)==1 && output.back()[0]==146,"ledger observes transformed pitch and routed channel");
     // Adversarial direct write: release must use emission route even if a host
     // bypasses the normal parameter deferral guard.
-    h.run("mem[INST_TRANSPOSE_BASE]=-12;mem[INST_OUT_BASE]=7;mem[LEN_BASE]=256;");h.block();output=h.events();
+    h.run("mem[INST_TRANSPOSE_BASE]=-12;mem[INST_OUT_BASE]=7;mem[phrase_output_addr(0)]=7;mem[LEN_BASE]=256;");h.block();output=h.events();
     bool exact=false,wrong=false;for(auto e:output){if(e[0]==130 && e[1]==60)exact=true;if((e[0]&240)==128 && (e[1]==36 || (e[0]&15)==6))wrong=true;}
     check(exact && !wrong,"release freezes exact emission destination/pitch across parameter changes");
   }
@@ -75,7 +75,7 @@ static void instance_ownership_tests(const char *source) {
   }
   {
     Host h(source);conductor_fixture(h);
-    h.run("clear_layer(0);store_event(0,0,144,48,90,0);store_event(0,64,145,60,90,0);store_event(0,128,176,123,0,0);store_event(0,192,144,48,81,0);store_event(0,256,128,48,0,0);store_event(0,384,128,48,0,0);mem[LEN_BASE]=8192;phrase_admit_independent(0,0);");
+    h.run("mem[phrase_output_addr(0)]=1;clear_layer(0);store_event(0,0,144,48,90,0);store_event(0,64,145,60,90,0);store_event(0,128,176,123,0,0);store_event(0,192,144,48,81,0);store_event(0,256,128,48,0,0);store_event(0,384,128,48,0,0);mem[LEN_BASE]=8192;phrase_admit_independent(0,0);");
     h.block();h.events();h.block();auto output=h.events();
     check(conductor_count(output,128,60)==0,"source channel-mode clear preserves other-channel owner");
     h.eq("mem[NOTE_REF_BASE+60]",1,"other source channel still owns routed pitch");
@@ -140,7 +140,11 @@ static void instance_ownership_tests(const char *source) {
   }
   for(unsigned secondChannel:{1u,2u}) {
     Host h(source);conductor_fixture(h);
-    h.run("mem[INST_ENABLED_BASE+1]=1;mem[INST_OUT_BASE+1]="+std::to_string(secondChannel)+";clear_layer(0);store_event(0,0,176,64,127,0);store_event(0,1,144,48,90,0);mem[LEN_BASE]=8192;a=phrase_admit_independent(0,0);ag=mem[instance_header(0)+1];oldid=mem[I_IDS_BASE];");h.block();h.events();
+    h.run("mem[INST_ENABLED_BASE+1]=1;mem[INST_OUT_BASE+1]="+std::to_string(secondChannel)+";clear_layer(0);store_event(0,0,176,64,127,0);store_event(0,1,144,48,90,0);mem[LEN_BASE]=8192;");
+    // ORIGINAL now preserves source channels, independently of Instrument OUT.
+    // Retain the two-destination deletion guard using explicit source routing.
+    if(secondChannel==2)h.run("mem[INST_IN_BASE]=1;mem[INST_IN_BASE+1]=2;store_event(0,2,177,64,127,0);store_event(0,3,145,48,90,0);");
+    h.run("a=phrase_admit_independent(0,0);ag=mem[instance_header(0)+1];oldid=mem[I_IDS_BASE];");h.block();h.events();
     h.run("i_submit(2,0,oldid);");h.block();auto output=h.events();
     bool wrongPedal=false;for(auto e:output)if(e[0]==int(175+secondChannel) && e[1]==64 && e[2]==0)wrongPedal=true;
     check(!wrongPedal,"destination deletion preserves the remaining instrument pedal");

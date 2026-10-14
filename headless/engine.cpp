@@ -101,7 +101,7 @@ struct Phrase {
   char name[17]{};
   int events = 0, mode = 0, state = 0;
   double time = 1, velocityDecay = .8, baseVelocity = 1;
-  int mute = 0, solo = 0, triggerNote = -1, triggerChannel = 0;
+  int mute = 0, solo = 0, triggerNote = -1, triggerChannel = 0, outputChannel = 0;
 };
 struct Snapshot {
   uint64_t samples = 0, blocks = 0, midi = 0, late = 0, last_sample = 0;
@@ -196,7 +196,7 @@ struct Model {
   double *instanceError,*instanceRejected,*instanceFault;
   std::array<std::array<double *, 28>, 16> sw;
   std::array<std::array<double *, 22>, 8> inst;
-  std::array<std::array<double *, 10>, 16> phrase;
+  std::array<std::array<double *, 11>, 16> phrase;
   std::array<std::array<double *, 16>, 16> phraseNames;
   std::array<double *, 8> tfCount, levelAssignment, levelPending;
   std::array<std::array<double *, 6>, 8> tfCodes;
@@ -334,6 +334,7 @@ struct Model {
         phraseNames[i][j]=cell(fx,unsigned(variable(fx,"PHRASE_NAME_BASE"))+i*16+j);
       phrase[i][8] = cell(fx, unsigned(variable(fx, "PHRASE_NOTE_BASE")) + i);
       phrase[i][9] = cell(fx, unsigned(variable(fx, "SW_CFG_BASE")) + 1 + (i / 4) * 128 + 27 + i % 4);
+      phrase[i][10] = cell(fx, unsigned(variable(fx, "SW_CFG_BASE")) + 1 + (i / 4) * 128 + 116 + i % 4);
       phrase[i][3] = cell(fx, unsigned(variable(fx, "DECAY_BASE")) + i);
       const char *extra[] = {"VEL_BASE", "MUTE_BASE", "SOLO_BASE", "MODE_BASE"};
       for (unsigned j = 0; j < 4; ++j)
@@ -544,6 +545,7 @@ struct Model {
       s.phrases[i].solo = int(*phrase[i][6]);
       s.phrases[i].triggerNote = int(*phrase[i][8]);
       s.phrases[i].triggerChannel = int(*phrase[i][9]);
+      s.phrases[i].outputChannel = int(*phrase[i][10]);
     }
     for (unsigned i = 0; i < 8; ++i) {
       auto &v = s.instruments[i];
@@ -685,6 +687,7 @@ static std::string json(const Reply &r) {
     o << "{\"id\":" << i + 1 << ",\"events\":" << s.phrases[i].events
       << ",\"name\":" << quote(s.phrases[i].name)
       << ",\"state\":" << quote(std::array<const char*,9>{{"IDLE","ARMED","RECORDING","FINISHED","PLAYING","OVERDUB ARMED","OVERDUB ACTIVE","STOPPED","ERROR"}}[s.phrases[i].state])
+      << ",\"outputChannel\":" << s.phrases[i].outputChannel
       << ",\"mode\":" << s.phrases[i].mode
       << ",\"timeDecay\":" << s.phrases[i].time
       << ",\"velocityDecay\":" << s.phrases[i].velocityDecay
@@ -837,6 +840,10 @@ struct PatchModel {
     for (unsigned i = 0; i + 1 < schema; ++i)
       if (v[9 + markers[i]] != double(i + 2))
         return false;
+    if(schema>=3)for(unsigned i=0;i<16;++i){
+      const auto channel=v[9+markers[1]+1+(i/4)*128+116+i%4];
+      if(channel<0 || channel>17 || channel!=std::floor(channel))return false;
+    }
     return v[0] >= 0 && v[0] <= 48000.0 * 3600 && v[8] >= 0 && v[8] < 16;
   }
   bool unchanged() const {
@@ -969,7 +976,7 @@ static void control(int listener, Queue<Request, 64> &commands,
                       request.arg >> request.revision >> request.ch >>
                       request.note >> request.value) &&
                  request.id > 0 && request.id <= 9007199254740991ULL &&
-                 request.op >= 0 && (request.op <= 48) && request.arg >= 0 &&
+                 request.op >= 0 && (request.op <= 49) && request.arg >= 0 &&
                  request.arg <= (request.op == 13   ? 5
                                  : request.op == 40 ? 7
                                  : request.op == 15 || request.op == 34 ? 3
@@ -1152,6 +1159,8 @@ static void control(int listener, Queue<Request, 64> &commands,
       valid = request.arg <= 1 && request.note <= 16;
     if (valid && request.op >= 11 && request.op <= 18)
       valid = request.target > 0 && request.target <= 16777215;
+    if (valid && request.op == 49)
+      valid = request.target >= 0 && request.target < 16 && request.value <= 17;
     if (valid && request.op == 40)
       valid = request.target >= 0 && request.target < 16;
     if (!valid)
@@ -2110,6 +2119,14 @@ int main(int argc, char **argv) {
                [&](){for(unsigned j=0;j<12;++j)if(*model.voiceActive[j]>.5 && *model.voiceLayer[j]==request.target)return true;return false;}()))) reply.status=3;
           else if(request.arg==2){*phraseTarget=request.target;NSEEL_code_execute(phraseClear);++state.revision;}
           else { maintenance=true; if(request.arg!=0) ++state.revision; }
+        }
+        else if(request.op==49){
+          // Safe instances latch the policy. Legacy mono/ARP LOOP has no
+          // independent route ledger, so refuse an edit until it is stopped.
+          bool unsafeLoop=*model.phrase[request.target][1]<.5 && *model.musicalState==3 &&
+              *model.phraseTriggers[request.target]>.5 && *model.instances[12+request.target][6]<0;
+          if(unsafeLoop)reply.status=3;
+          else {*model.phrase[request.target][10]=request.value;++state.revision;}
         }
         else if(request.op==45){
           bool found=false;

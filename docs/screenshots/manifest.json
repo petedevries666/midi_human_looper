@@ -1,8 +1,8 @@
 {
   "browser": "151.0.7922.173",
-  "sourceRevision": "a4cb1b8d8fd91bc8c5ec5f9ae944d7e9077c583c",
-  "sourceDirty": false,
-  "runtimeBuildRevision": "d550d7a0c3033ec089af86eba7c6a30ae4438000",
+  "sourceRevision": "e56e9c30d21ad2912268e8d5925eb7356724e5f9",
+  "sourceDirty": true,
+  "runtimeBuildRevision": "e56e9c30d21ad2912268e8d5925eb7356724e5f9.dirty",
   "application": "MIDI BAD MOTHERFUCKER",
   "data": "Native --demo views plus actual native --chain recovery: named CC source, real ARP MIDI, observed recording states and explicitly configured reference chains",
   "artifacts": [
@@ -1553,7 +1553,7 @@
       ],
       "file": "recovery-arp-editor-1904x1032.png",
       "checks": [],
-      "runtimeBuildRevision": "a4cb1b8d8fd91bc8c5ec5f9ae944d7e9077c583c",
+      "runtimeBuildRevision": "e56e9c30d21ad2912268e8d5925eb7356724e5f9.dirty",
       "data": "Actual native --chain; real CC mapping and recording actions"
     },
     {
@@ -1564,7 +1564,7 @@
       ],
       "file": "recovery-modulator-menu-1904x1032.png",
       "checks": [],
-      "runtimeBuildRevision": "a4cb1b8d8fd91bc8c5ec5f9ae944d7e9077c583c",
+      "runtimeBuildRevision": "e56e9c30d21ad2912268e8d5925eb7356724e5f9.dirty",
       "data": "Actual native --chain; real CC mapping and recording actions"
     },
     {
@@ -1575,7 +1575,7 @@
       ],
       "file": "recovery-curve-editor-1904x1032.png",
       "checks": [],
-      "runtimeBuildRevision": "a4cb1b8d8fd91bc8c5ec5f9ae944d7e9077c583c",
+      "runtimeBuildRevision": "e56e9c30d21ad2912268e8d5925eb7356724e5f9.dirty",
       "data": "Actual native --chain; real CC mapping and recording actions"
     },
     {
@@ -1586,7 +1586,7 @@
       ],
       "file": "recovery-record-armed-1904x1032.png",
       "checks": [],
-      "runtimeBuildRevision": "a4cb1b8d8fd91bc8c5ec5f9ae944d7e9077c583c",
+      "runtimeBuildRevision": "e56e9c30d21ad2912268e8d5925eb7356724e5f9.dirty",
       "data": "Actual native --chain; real CC mapping and recording actions"
     },
     {
@@ -1597,7 +1597,7 @@
       ],
       "file": "recovery-recording-1904x1032.png",
       "checks": [],
-      "runtimeBuildRevision": "a4cb1b8d8fd91bc8c5ec5f9ae944d7e9077c583c",
+      "runtimeBuildRevision": "e56e9c30d21ad2912268e8d5925eb7356724e5f9.dirty",
       "data": "Actual native --chain; real CC mapping and recording actions"
     },
     {
@@ -1608,7 +1608,7 @@
       ],
       "file": "recovery-performance-1904x1032.png",
       "checks": [],
-      "runtimeBuildRevision": "a4cb1b8d8fd91bc8c5ec5f9ae944d7e9077c583c",
+      "runtimeBuildRevision": "e56e9c30d21ad2912268e8d5925eb7356724e5f9.dirty",
       "data": "Actual native --chain; real CC mapping and recording actions"
     },
     {
@@ -1619,7 +1619,7 @@
       ],
       "file": "recovery-instrument-chains-1904x1032.png",
       "checks": [],
-      "runtimeBuildRevision": "a4cb1b8d8fd91bc8c5ec5f9ae944d7e9077c583c",
+      "runtimeBuildRevision": "e56e9c30d21ad2912268e8d5925eb7356724e5f9.dirty",
       "data": "Actual native --chain; real CC mapping and recording actions"
     },
     {
@@ -1630,7 +1630,7 @@
       ],
       "file": "recovery-transformer-editor-1904x1032.png",
       "checks": [],
-      "runtimeBuildRevision": "a4cb1b8d8fd91bc8c5ec5f9ae944d7e9077c583c",
+      "runtimeBuildRevision": "e56e9c30d21ad2912268e8d5925eb7356724e5f9.dirty",
       "data": "Actual native --chain; real CC mapping and recording actions"
     }
   ],

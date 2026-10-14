@@ -241,11 +241,14 @@ class Runtime:
             except (OSError,ValueError,RuntimeError):time.sleep(.5)
         raise ValueError('Runtime health/state verification failed; inspect engine.log')
 
-def activate(config_path, new, runtime, expected, journal=None):
+def activate(config_path, new, runtime, expected, journal=None, expected_config=None):
     """Journal precedes stop/config replacement; every failure restores old config."""
     config_path=Path(config_path);directory=config_path.parent
     history=directory/'runtime-update.json'
     old=json.loads(config_path.read_text())
+    baseline=expected_config if expected_config is not None else journal.get('previous') if journal is not None else old
+    if old!=baseline:
+        raise ValueError('Installation configuration changed after preflight; no activation performed. Check and confirm again.')
     if journal is None:journal={'version':1,'phase':'pending','previous':old,'candidate':new,'expected':expected}
     atomic(history,journal)
     try:
@@ -315,7 +318,7 @@ def main():
             for data in directory.glob('processor-*'):
                 if data.is_dir():shutil.copytree(data,backup/data.name,ignore=shutil.ignore_patterns('*.sock','*.log'))
             if old.get('token_file'):shutil.copy2(old['token_file'],backup/'token')
-        activate(args.config,new,runtime,expected)
+        activate(args.config,new,runtime,expected,expected_config=old)
         print('Runtime activated. Backup:',backup if backup else 'skipped (opt in with --backup)',
               'Revision:',new.get('runtime_revision','legacy'))
 

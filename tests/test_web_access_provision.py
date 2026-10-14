@@ -30,6 +30,31 @@ class Provision(unittest.TestCase):
         for p in ('editor.token','install.json'):self.assertEqual((self.data/p).read_bytes(),before['data/'+p])
         self.apply(rollback=True);self.assertEqual(self.web.read_bytes(),before['zynthian_webconf.py'])
         self.assertFalse((self.data/'web-access.json').exists())
+    def test_hub_install_upgrade_repeat_disable_and_full_rollback(self):
+        original=self.web.read_bytes();self.apply(mode='token')
+        self.apply(hub=True);self.assertTrue(json.loads((self.data/'web-access.json').read_text())['hub'])
+        before=self.state();self.apply();self.assertEqual(self.state(),before)
+        self.assertEqual(json.loads((self.data/'web-access.json').read_text())['auth'],'token')
+        self.assertEqual(self.web.read_bytes().count(b'BEGIN MBMF'),1)
+        for f in provision.HUB_FILES:self.assertTrue((self.lib/f).is_file())
+        self.apply(hub=False)
+        self.assertNotIn('hub',json.loads((self.data/'web-access.json').read_text()))
+        for f in provision.HUB_FILES:self.assertFalse((self.lib/f).exists())
+        self.assertTrue((self.lib/'mbmf_web_entry.py').exists())
+        self.apply(hub=True);self.apply(rollback=True);self.assertEqual(self.web.read_bytes(),original)
+    def test_hub_fresh_install_and_transaction_failure(self):
+        before=self.state();real=provision.owned.atomic
+        def fail(path,data):
+            if path==self.lib/'az-app.js':raise OSError('injected hub installation failure')
+            return real(path,data)
+        with patch.object(provision.owned,'atomic',side_effect=fail):
+            with self.assertRaises(OSError):self.apply(hub=True)
+        self.assertEqual(self.state(),before)
+        self.apply(hub=True);before=self.state();self.apply(hub=True,check=True);self.assertEqual(self.state(),before)
+        (self.lib/'az-app.js').write_text('modified by another installer');before=self.state()
+        with self.assertRaises(ValueError):self.apply(hub=False)
+        self.assertEqual(self.state(),before)
+
     def test_modified_owned_files_and_unknown_webconf_rejected(self):
         self.apply();self.web.write_text(self.web.read_text()+'# unrelated edit\n');before=self.state()
         for kwargs in ({'check':True},{},{'rollback':True}):
@@ -86,5 +111,10 @@ class Provision(unittest.TestCase):
         batches=iter([[(2,'192.168.1.2')],[(3,'10.42.0.1')]])
         mdns.run(Stop(),Bus,lambda:next(batches))
         self.assertEqual(calls,['reset',(2,0,0,'mbmf.local','192.168.1.2'),'commit','reset',(3,0,0,'mbmf.local','10.42.0.1'),'commit','free'])
+        calls.clear()
+        mdns.run(Stop(),Bus,lambda:[(2,'192.168.1.2')],hostname='az.local')
+        self.assertIn((2,0,0,'az.local','192.168.1.2'),calls)
+        self.assertNotIn((2,0,0,'mbmf.local','192.168.1.2'),calls)
+
 
 if __name__=='__main__':unittest.main()

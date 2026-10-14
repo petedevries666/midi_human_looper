@@ -14,6 +14,7 @@ spec=importlib.util.spec_from_file_location('mbmf_owned_install',SOURCE/'zynthia
 owned=importlib.util.module_from_spec(spec);spec.loader.exec_module(owned)
 ANCHOR='    app = make_app()\n'
 FILES=('mbmf_web_entry.py','mbmf_web_policy.py','mbmf_web_mdns.py')
+HUB_FILES=('az_lumaz.py','az_hub.py','az-index.html','az-style.css','az-app.js')
 def hook(lib):
     return ('    # BEGIN MBMF local Web access\n'
             '    try:\n'
@@ -38,14 +39,22 @@ def trusted_parent(path,boundary=Path("/")):
         if info.st_uid not in (0,os.geteuid()) or info.st_mode & 0o022:
             raise ValueError('trusted directory is writable by other accounts: '+str(directory))
 
-def configure(webconf,lib,data,mode=None,rollback=False,check=False,dependencies=True,trust_root=Path("/")):
+def configure(webconf,lib,data,mode=None,rollback=False,check=False,dependencies=True,trust_root=Path("/"),hub=None):
     webconf,lib,data=map(Path,(webconf,lib,data))
     trusted_parent(lib,trust_root);trusted_parent(data,trust_root);trusted_parent(webconf.parent,trust_root)
     config=data/'web-access.json';manifest=data/'web-access-installation.json'
-    paths=[webconf,config,*[lib/f for f in FILES]]
+    if manifest.is_symlink():raise ValueError('refusing manifest symlink')
+    metadata=json.loads(manifest.read_text()) if manifest.exists() else None
+    if metadata is not None and not isinstance(metadata,dict):raise ValueError('invalid Web access manifest')
+    if hub is False and metadata is None:raise ValueError('No owned AZ installation to remove')
+    existing_hub=bool(metadata and str(lib/'az_hub.py') in metadata.get('files',{}))
+    selected_hub=existing_hub if hub is None else hub
+    if type(selected_hub) is not bool:raise ValueError('hub must be boolean')
+    existing_files=FILES+(HUB_FILES if existing_hub else ())
+    selected_files=FILES+(HUB_FILES if selected_hub else ())
+    paths=[webconf,config,*[lib/f for f in existing_files]]
     for path in [*paths,manifest,lib,data]:
         if path.is_symlink():raise ValueError('refusing managed symlink: '+str(path))
-    metadata=json.loads(manifest.read_text()) if manifest.exists() else None
     if metadata:
         if metadata.get('version')!=1 or set(metadata.get('files',{}))!={str(p) for p in paths}:raise ValueError('invalid Web access manifest')
         for path in paths:
@@ -77,6 +86,10 @@ def configure(webconf,lib,data,mode=None,rollback=False,check=False,dependencies
                 original=backup.read_text()
             changes.append((path,original,record['mode']))
         changes.append((manifest,None,0));owned.transaction(changes);return
+    for f in HUB_FILES:
+        path=lib/f
+        if path.is_symlink():raise ValueError('refusing managed symlink: '+str(path))
+        if selected_hub and not existing_hub and path.exists():raise ValueError('unmanaged hub file: '+str(path))
     if dependencies:
         subprocess.run([sys.executable,'-c','import tornado.web; import dbus'],check=True,capture_output=True)
         subprocess.run(['/usr/sbin/ip','-j','-4','address','show','up'],check=True,capture_output=True)
@@ -87,8 +100,8 @@ def configure(webconf,lib,data,mode=None,rollback=False,check=False,dependencies
         token=Path(install.get('token_file',''))
         if not token.is_file() or token.is_symlink() or not token.read_text().strip():
             raise ValueError('token mode requires an existing editor token; none was modified')
-    after={webconf:before.replace(ANCHOR,ANCHOR+hook(lib)),config:json.dumps(dict(version=1,auth=selected),indent=2)+'\n'}
-    for f in FILES:after[lib/f]=(SOURCE/'zynthian/web_access'/f).read_text()
+    after={webconf:before.replace(ANCHOR,ANCHOR+hook(lib)),config:json.dumps(dict(version=1,auth=selected,**({'hub':True} if selected_hub else {})),indent=2)+'\n'}
+    for f in selected_files:after[lib/f]=(SOURCE/'zynthian/web_access'/f).read_text()
     for path,text in after.items():
         if path.suffix=='.py':ast.parse(text)
     if check:return dict(auth=selected,webconfCompatible=True,writesPerformed=False)
@@ -96,9 +109,9 @@ def configure(webconf,lib,data,mode=None,rollback=False,check=False,dependencies
     backup_dir=data/'web-access-backups'
     if backup_dir.is_symlink():raise ValueError('backup directory is a symlink')
     # Dependencies first, source activation last; no service operation here.
-    for path in [*[lib/f for f in FILES],config,webconf]:
+    for path in [*[lib/f for f in selected_files],config,webconf]:
         text=after[path]
-        if metadata:record=dict(metadata['files'][str(path)])
+        if metadata and str(path) in metadata['files']:record=dict(metadata['files'][str(path)])
         else:
             original=path.read_bytes() if path.exists() else None
             sha=owned.digest(original) if original is not None else None
@@ -109,6 +122,11 @@ def configure(webconf,lib,data,mode=None,rollback=False,check=False,dependencies
                 changes.append((backup,original.decode(),0o600))
         record['installed']=owned.digest(text.encode());records[str(path)]=record
         changes.append((path,text,0o600 if path==config else 0o644))
+    if existing_hub and not selected_hub:
+        for f in HUB_FILES:
+            path=lib/f
+            if metadata['files'][str(path)]['original'] is not None:raise ValueError('hub rollback has unexpected original file')
+            changes.append((path,None,0))
     changes.append((manifest,json.dumps(dict(version=1,files=records),indent=2)+'\n',0o600))
     owned.transaction(changes)
     return dict(auth=selected,webconfCompatible=True,writesPerformed=True)
@@ -119,9 +137,12 @@ def main():
     p.add_argument('--lib',type=Path,default=Path('/usr/local/lib/mbmf-web-access'))
     p.add_argument('--data',type=Path,default=Path('/zynthian/zynthian-my-data/midi-human-looper'))
     p.add_argument('--auth',choices=('none','token'),help='explicit trusted/private-network none, or retained token')
+    h=p.add_mutually_exclusive_group()
+    h.add_argument('--hub',action='store_const',const=True,default=None,dest='hub',help='enable the separate az.local portal')
+    h.add_argument('--hub-rollback',action='store_const',const=False,dest='hub',help='remove only AZ, retain MBMF access')
     p.add_argument('--check',action='store_true');p.add_argument('--rollback',action='store_true')
     a=p.parse_args()
     if a.check and a.rollback:p.error('check and rollback are mutually exclusive')
-    print(json.dumps(configure(a.webconf,a.lib,a.data,a.auth,a.rollback,a.check),indent=2))
+    print(json.dumps(configure(a.webconf,a.lib,a.data,a.auth,a.rollback,a.check,hub=a.hub),indent=2))
     print('No services restarted. Reload only zynthian-webconf when ready; MIDI/UI/JACK remain running.')
 if __name__=='__main__':main()

@@ -1,0 +1,41 @@
+.........
+----------------------------------------------------------------------
+Ran 9 tests in 0.152s
+
+OK
+.503 GET / (127.0.0.1) 106.52ms
+....404 GET /favicon.ico (127.0.0.1) 29.32ms
+401 GET /mbmf/api/v1/descriptors (127.0.0.1) 16.32ms
+401 GET /mbmf/api/v1/state (127.0.0.1) 21.51ms
+..401 GET /api/v1/state (127.0.0.1) 154.11ms
+403 GET /api/v1/state (127.0.0.1) 1.83ms
+.403 POST /api/v1/auth/pair (127.0.0.1) 1.10ms
+.
+----------------------------------------------------------------------
+Ran 9 tests in 12.451s
+
+OK
+401 POST /az/api/action (127.0.0.1): Sign in to Webconf for LUMAZ options
+401 POST /az/api/action (127.0.0.1) 1.91ms
+409 POST /az/api/action (127.0.0.1) 1.01ms
+409 POST /az/api/action (127.0.0.1) 0.97ms
+409 POST /az/api/action (127.0.0.1) 0.85ms
+403 POST /az/api/action (127.0.0.1): Same origin required
+403 POST /az/api/action (127.0.0.1) 0.96ms
+403 POST /az/api/action (127.0.0.1) 0.80ms
+409 POST /az/api/action (127.0.0.1) 1.72ms
+409 POST /az/api/action (127.0.0.1) 1.80ms
+409 POST /az/api/action (127.0.0.1) 14.25ms
+.404 GET /favicon.ico (127.0.0.1) 13.97ms
+.409 POST /az/api/action (127.0.0.1) 1.08ms
+409 POST /az/api/action (127.0.0.1): Operation already in progress
+409 POST /az/api/action (127.0.0.1) 1.28ms
+.403 GET /az/api/status (127.0.0.1): Same origin required
+403 GET /az/api/status (127.0.0.1) 0.96ms
+403 GET /az/api/status (127.0.0.1) 0.76ms
+.404 GET /az/api/status (127.0.0.1) 5.18ms
+.
+----------------------------------------------------------------------
+Ran 5 tests in 19.377s
+
+OK

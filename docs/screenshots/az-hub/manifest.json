@@ -1,0 +1,12 @@
+{
+  "source": "Actual AZ/Tornado + production native MBMF + editor; LUMAZ MPV/systemd and Oram login/RFB are fixtures. Not hardware validation.",
+  "screenshots": [
+    "portal-1440.png",
+    "portal-390.png",
+    "portal-320.png",
+    "options-390.png",
+    "video-390.png",
+    "audio-390.png",
+    "midi-390.png"
+  ]
+}

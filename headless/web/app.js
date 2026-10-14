@@ -38,8 +38,8 @@ function musicalValue(p,value){return p?.choices?.[Math.round(value)]??`${Number
 function parameter(kind){return catalog?.parameters.find(p=>p.engineKind===kind);}
 async function loadDescriptors(){try{catalog=await request('/api/v1/descriptors');$('app-version').textContent=`V ${catalog.applicationVersion||'UNKNOWN'}`;renderedModel='';if(latest)render(latest);}catch(e){$('error').textContent=e.message;}}
 function mappingFor(binding){return controllerConfiguration().mappings.find(m=>m.instrumentId===binding.instrumentId&&m.moduleId===binding.moduleId&&m.kind===binding.kind&&m.enabled);}
-function curveY(points,x){let y=points.at(-1)[1];for(let i=1;i<points.length;i++)if(x<=points[i][0]){const a=points[i-1],b=points[i];let t=(x-a[0])/(b[0]-a[0]),power=1+5*Math.abs(a[2]);t=a[2]>0?Math.pow(t,power):a[2]<0?1-Math.pow(1-t,power):t;return a[1]+(b[1]-a[1])*t;}return y;}
-function previewCurve(points){const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');svg.setAttribute('viewBox','0 0 100 20');svg.classList.add('rail-curve');svg.setAttribute('aria-hidden','true');const path=document.createElementNS(svg.namespaceURI,'path');path.setAttribute('d',Array.from({length:101},(_,x)=>`${x?'L':'M'}${x},${20*(1-curveY(points,x/100))}`).join(' '));svg.append(path);return svg;}
+function curveY(points,x,hold=false){let y=points.at(-1)[1];for(let i=1;i<points.length;i++)if(x<points[i][0]||(!hold&&x===points[i][0])){const a=points[i-1],b=points[i];let t=hold?0:(x-a[0])/(b[0]-a[0]),power=1+5*Math.abs(a[2]||0);t=a[2]>0?Math.pow(t,power):a[2]<0?1-Math.pow(1-t,power):t;return a[1]+(b[1]-a[1])*t;}return y;}
+function previewCurve(points,hold=false){const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');svg.setAttribute('viewBox','0 0 100 20');svg.classList.add('rail-curve');svg.setAttribute('aria-hidden','true');const path=document.createElementNS(svg.namespaceURI,'path');path.setAttribute('d',Array.from({length:101},(_,x)=>`${x?'L':'M'}${x},${20*(1-curveY(points,x/100,hold))}`).join(' '));svg.append(path);return svg;}
 function closeAssignment(){document.getElementById('assignment-menu')?.remove();}
 function bindModulation(control,binding){
  control.mbmfBinding=binding;
@@ -298,7 +298,7 @@ function render(s){
   if(engineSession===s.engineSessionId&&s.revision<revision)return;
   engineSession=s.engineSessionId;revision=s.revision;latest=s;
   $('connection').textContent='CONNECTED · Engine running';
-  $('stop-native').hidden=!s.chainMode;paintPhraseStates(s);paintEffectiveRails(s);paintConductorRuntime(s);
+  $('stop-native').hidden=!s.chainMode;paintPhraseStates(s);paintEffectiveRails(s);paintConductorRuntime(s);if(typeof refreshMovements==='function')refreshMovements(s);
   $('transport-state').textContent=s.chainMode?`NATIVE · ${s.chainRecording?'RECORDING':s.chainArmed?'RECORD ARMED':s.chainRunning?'PLAYING':'STOPPED'} · ${s.activeNotes} ACTIVE NOTES`:`ENGINE RUNNING · ${s.activeNotes} ACTIVE NOTES`;
   $('metrics').replaceChildren(...[`Build ${s.buildRevision||'unknown'}`,`Backend ${s.backend} · ${s.sampleRate} Hz / ${s.blockSize}`,`Sample clock ${s.sampleClock}`,`MIDI messages ${s.midiCount}`,`Active notes ${s.activeNotes}`,`Maximum callback ${s.maxCallbackUs.toFixed(1)} µs`,`JACK XRUN notifications ${s.lateBlocks}`,`Output overflow ${s.outputOverflow}`].map(v=>node('span',v)));
   if(s.chainMode)$('metrics').append(node('span',`Zynthian · ${s.chainCaptureMode==='free-time'?'FREE TIME':'TWO BARS'} · ${s.chainBpm} BPM · ${s.chainError?'CLOCK / CAPACITY ERROR — stopped':s.chainRecording?'RECORDING':s.chainArmed?(s.chainCaptureMode==='free-time'?'WAITING FOR FIRST NOTE':'WAITING FOR NEXT LOOP'):s.chainRunning?'PLAYING':'STOPPED'}`));
@@ -432,19 +432,20 @@ function renderControllers(s){
     return card;
   }));
 }
-function curveEditor(points){
+function curveEditor(points,options={}){
+  const maximum=options.maximum??16;
   const root=node('div'),canvas=node('canvas');canvas.width=400;canvas.height=120;canvas.className='curve-preview';root.append(canvas);
   const precision=node('details');precision.className='curve-precision';precision.append(node('summary','POINTS / PRECISION'));const controls=node('div');precision.append(controls);root.append(precision);
-  function draw(){const c=canvas.getContext('2d');c.clearRect(0,0,400,120);c.strokeStyle='#ffe34d';c.beginPath();for(let pixel=0;pixel<=400;pixel++){const x=pixel/400;let y=points[points.length-1][1];for(let i=1;i<points.length;i++)if(x<=points[i][0]){const a=points[i-1],b=points[i];let t=(x-a[0])/(b[0]-a[0]),power=1+5*Math.abs(a[2]);t=a[2]>0?Math.pow(t,power):a[2]<0?1-Math.pow(1-t,power):t;y=a[1]+(b[1]-a[1])*t;break;}const sy=120*(1-y);if(pixel)c.lineTo(pixel,sy);else c.moveTo(pixel,sy);}c.stroke();c.fillStyle='#ffe34d';for(const p of points){c.beginPath();c.arc(p[0]*400,(1-p[1])*120,4,0,Math.PI*2);c.fill();}}
-  function rows(){controls.replaceChildren();points.forEach((p,index)=>{const row=node('div',undefined,'curve-point');['X','Y','BEND'].forEach((name,k)=>{const label=node('label',name),input=node('input');input.type='number';input.min=k===2?-.98:0;input.max=k===2?.98:1;input.step=.01;input.value=p[k];input.disabled=k===0&&(index===0||index===points.length-1);input.setAttribute('aria-label',`${name} point ${index+1}`);input.addEventListener('input',()=>{p[k]=Number(input.value);draw();});label.append(input);row.append(label);});if(index&&index<points.length-1)row.append(button('REMOVE POINT',()=>{points.splice(index,1);rows();draw();}));controls.append(row);});draw();}
+  function draw(){const c=canvas.getContext('2d');c.clearRect(0,0,400,120);c.strokeStyle='#ffe34d';c.beginPath();for(let pixel=0;pixel<=400;pixel++){const x=pixel/400;let y=points[points.length-1][1];for(let i=1;i<points.length;i++)if(x<points[i][0]||(!options.hold?.()&&x===points[i][0])){const a=points[i-1],b=points[i];let t=options.hold?.()?0:(x-a[0])/(b[0]-a[0]),power=1+5*Math.abs(a[2]||0);t=a[2]>0?Math.pow(t,power):a[2]<0?1-Math.pow(1-t,power):t;y=a[1]+(b[1]-a[1])*t;break;}const sy=120*(1-y);if(pixel)c.lineTo(pixel,sy);else c.moveTo(pixel,sy);}c.stroke();c.fillStyle='#ffe34d';for(const p of points){c.beginPath();c.arc(p[0]*400,(1-p[1])*120,4,0,Math.PI*2);c.fill();}}
+  function rows(){controls.replaceChildren();points.forEach((p,index)=>{const row=node('div',undefined,'curve-point');(options.linearOnly?['X','Y']:['X','Y','BEND']).forEach((name,k)=>{const label=node('label',name),input=node('input');input.type='number';input.min=k===2?-.98:0;input.max=k===2?.98:1;input.step=.01;input.value=p[k];input.disabled=k===0&&(index===0||index===points.length-1);input.setAttribute('aria-label',`${name} point ${index+1}`);input.addEventListener('input',()=>{p[k]=Number(input.value);draw();});label.append(input);row.append(label);});if(index&&index<points.length-1)row.append(button('REMOVE POINT',()=>{points.splice(index,1);rows();draw();}));controls.append(row);});draw();}
   let dragged=-1;canvas.setAttribute('aria-label','Drag curve points; numeric controls below provide keyboard editing');canvas.style.touchAction='none';
   canvas.onpointerdown=e=>{const r=canvas.getBoundingClientRect(),x=(e.clientX-r.left)/r.width,y=1-(e.clientY-r.top)/r.height;dragged=points.reduce((best,p,i)=>Math.hypot(p[0]-x,p[1]-y)<Math.hypot(points[best][0]-x,points[best][1]-y)?i:best,0);canvas.setPointerCapture(e.pointerId);};
   canvas.onpointermove=e=>{if(dragged<0)return;const r=canvas.getBoundingClientRect(),p=points[dragged];p[1]=Math.max(0,Math.min(1,1-(e.clientY-r.top)/r.height));if(dragged>0&&dragged<points.length-1)p[0]=Math.max(points[dragged-1][0]+.001,Math.min(points[dragged+1][0]-.001,(e.clientX-r.left)/r.width));rows();};canvas.onpointerup=canvas.onpointercancel=()=>dragged=-1;
-  root.append(button('ADD POINT',()=>{if(points.length>=16)return;let at=1;for(let i=2;i<points.length;i++)if(points[i][0]-points[i-1][0]>points[at][0]-points[at-1][0])at=i;points.splice(at,0,[(points[at-1][0]+points[at][0])/2,(points[at-1][1]+points[at][1])/2,0]);rows();}));rows();
+  root.append(button('ADD POINT',()=>{if(points.length>=maximum)return;let at=1;for(let i=2;i<points.length;i++)if(points[i][0]-points[i-1][0]>points[at][0]-points[at-1][0])at=i;points.splice(at,0,[(points[at-1][0]+points[at][0])/2,(points[at-1][1]+points[at][1])/2,0]);rows();}));rows();
   const presets=node('div',undefined,'curve-presets');root.append(presets);
   const choose=shape=>{points.splice(0,points.length,...structuredClone(shape));rows();};
-  for(const preset of catalog?.curvePresets||[]){const b=button(preset.name,()=>choose(preset.points));b.prepend(previewCurve(preset.points));presets.append(b);}
-  for(let slot=0;slot<4;slot++){
+  for(const preset of (catalog?.curvePresets||[]).filter(p=>!options.linearOnly||p.points.every(p=>!p[2]))){const b=button(preset.name,()=>choose(preset.points));b.prepend(previewCurve(preset.points));presets.append(b);}
+  for(let slot=0;!options.linearOnly&&slot<4;slot++){
     const shape=controllerConfiguration().presets[slot];const load=button(`CUSTOM ${slot+1}`,()=>choose(controllerConfiguration().presets[slot]));load.disabled=!shape?.length;presets.append(load);
     presets.append(button(`STORE CUSTOM ${slot+1}`,async()=>{if(await command({action:'curve_preset_store',slot,points:structuredClone(points)})){load.disabled=false;}}));
   }
@@ -454,13 +455,14 @@ function curveEditor(points){
     let closest=0;for(let i=1;i<points.length;i++)if(Math.hypot((points[i][0]-x)*r.width,(points[i][1]-y)*r.height)<Math.hypot((points[closest][0]-x)*r.width,(points[closest][1]-y)*r.height))closest=i;
     const distance=Math.hypot((points[closest][0]-x)*r.width,(points[closest][1]-y)*r.height);
     if(e.button===2){e.preventDefault();if(distance<14&&closest>0&&closest<points.length-1){points.splice(closest,1);rows();}return;}
-    if(e.altKey||e.shiftKey){segment=Math.max(0,points.findIndex(p=>p[0]>x)-1);origin={y:e.clientY,bend:points[segment][2],a:points[segment][1],b:points[segment+1][1],shift:e.shiftKey};dragged=-1;}
-    else{segment=-1;if(distance>14&&points.length<16&&x>.001&&x<.999){closest=points.findIndex(p=>p[0]>x);points.splice(closest,0,[x,Math.max(0,Math.min(1,y)),0]);}dragged=closest;}
+    if((e.altKey||e.shiftKey)&&!options.linearOnly){segment=Math.max(0,points.findIndex(p=>p[0]>x)-1);origin={y:e.clientY,bend:points[segment][2],a:points[segment][1],b:points[segment+1][1],shift:e.shiftKey};dragged=-1;}
+    else{segment=-1;if(distance>14&&points.length<maximum&&x>.001&&x<.999){closest=points.findIndex(p=>p[0]>x);points.splice(closest,0,[x,Math.max(0,Math.min(1,y)),0]);}dragged=closest;}
     canvas.setPointerCapture(e.pointerId);rows();
   };
   canvas.onpointermove=e=>{const r=canvas.getBoundingClientRect();if(segment>=0&&origin){const delta=(origin.y-e.clientY)/r.height;if(origin.shift){const offset=Math.max(-Math.min(origin.a,origin.b),Math.min(1-Math.max(origin.a,origin.b),delta));points[segment][1]=origin.a+offset;points[segment+1][1]=origin.b+offset;}else points[segment][2]=Math.max(-.98,Math.min(.98,origin.bend+delta*1.96));rows();}else if(dragged>=0){const p=points[dragged];p[1]=Math.max(0,Math.min(1,1-(e.clientY-r.top)/r.height));if(dragged>0&&dragged<points.length-1)p[0]=Math.max(points[dragged-1][0]+.001,Math.min(points[dragged+1][0]-.001,(e.clientX-r.left)/r.width));rows();}};
   canvas.onpointerup=canvas.onpointercancel=()=>{dragged=-1;segment=-1;origin=null;};
-  root.append(contextualHelp('Click to add · drag points · right-click a point to remove · ALT drag bends a segment · SHIFT drag moves a segment. Numeric point controls support keyboard editing.'));
+  root.refreshCurve=draw;
+  if(!options.linearOnly)root.append(contextualHelp('Click to add · drag points · right-click a point to remove · ALT drag bends a segment · SHIFT drag moves a segment. Numeric point controls support keyboard editing.'));
 
   return root;
 }

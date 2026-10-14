@@ -9,6 +9,7 @@ import math
 import uuid
 
 VERSION = 1
+DOCUMENT_VERSION = 2
 # Existing control channel byte ceiling, not a musical STEPS/LAYERS limit (Q3).
 MAX_BYTES = 16000000
 OPTIONS = {
@@ -65,8 +66,10 @@ def destination(value):
 
 
 def validate(data):
-    fields(data, ('version', 'sources', 'switches'))
-    if type(data['version']) is not int or data['version'] != VERSION:
+    if not isinstance(data, dict):
+        raise ValueError('CONDUCTOR document required')
+    fields(data, ('version', 'sources', 'switches', 'movements', 'ccRate') if data.get('version') == DOCUMENT_VERSION else ('version', 'sources', 'switches'))
+    if type(data['version']) is not int or data['version'] not in (VERSION, DOCUMENT_VERSION):
         raise ValueError('CONDUCTOR unsupported version')
     used = set()
     def unique(value):
@@ -89,6 +92,37 @@ def validate(data):
         if source['slot'] in slots:
             raise ValueError('CONDUCTOR aliased PHRASE slot')
         slots.add(source['slot']); sources[source['id']] = source
+    if data['version'] == DOCUMENT_VERSION:
+        if type(data['ccRate']) is not int or data['ccRate'] not in (10, 25, 50, 100):
+            raise ValueError('MOVEMENT invalid global CC rate')
+        if not isinstance(data['movements'], list):
+            raise ValueError('MOVEMENT library required')
+        for movement in data['movements']:
+            fields(movement, ('id', 'name', 'target', 'points', 'duration', 'interpolation', 'retrigger', 'glideSeconds'))
+            unique(movement['id'])
+            name = movement['name']
+            if not isinstance(name, str) or not name or any(not 32 <= ord(c) <= 126 or c in '\\"' for c in name):
+                raise ValueError('MOVEMENT printable unescaped ASCII name required')
+            destination(movement['target'])
+            for key in ('duration', 'glideSeconds'):
+                v = movement[key]
+                if type(v) not in (int, float) or not math.isfinite(v) or v <= 0:
+                    raise ValueError('MOVEMENT positive finite duration required')
+            if movement['glideSeconds'] > 60:
+                raise ValueError('MOVEMENT GLIDE exceeds Controller Engine range')
+            if movement['interpolation'] not in ('LINEAR', 'HOLD') or movement['retrigger'] not in OPTIONS['retrigger']:
+                raise ValueError('MOVEMENT unsupported interpolation/retrigger')
+            points = movement['points']
+            if not isinstance(points, list) or len(points) < 2:
+                raise ValueError('MOVEMENT at least two curve points required')
+            previous = -1
+            for point in points:
+                if not isinstance(point, list) or len(point) != 2 or any(type(v) not in (int, float) or not math.isfinite(v) or not 0 <= v <= 1 for v in point) or point[0] <= previous:
+                    raise ValueError('MOVEMENT ordered normalized curve points required')
+                previous = point[0]
+            if points[0][0] != 0 or points[-1][0] != 1:
+                raise ValueError('MOVEMENT endpoints must be 0 and 1')
+            sources[movement['id']] = dict(type='MOVEMENT')
     switches = set()
     for switch in data['switches']:
         fields(switch, ('switchId', 'traversal', 'transition', 'gesture', 'steps'))
@@ -196,6 +230,7 @@ def migrate(patch):
 def resolve(data, existing_switches=None):
     validate(data)
     sources = {s['id']: s for s in data['sources']}
+    sources.update({s['id']: s for s in data.get('movements', [])})
     missing = []
     for switch in data['switches']:
         if existing_switches is not None and switch['switchId'] not in existing_switches:
@@ -205,6 +240,6 @@ def resolve(data, existing_switches=None):
                 block = layer['block']
                 if block and block['type'] == 'ACTION' and block['target'].get('type') == 'PHRASE' and block['target']['sourceId'] not in sources:
                     missing.append(dict(blockId=block['id'], sourceId=block['target']['sourceId'], reason='missing_source'))
-                if block and block['type'] != 'ACTION' and (block['sourceId'] not in sources or block['type'] == 'MOVEMENT'):
+                if block and block['type'] != 'ACTION' and block['sourceId'] not in sources:
                     missing.append(dict(blockId=block['id'], sourceId=block['sourceId'], reason='missing_source'))
     return missing

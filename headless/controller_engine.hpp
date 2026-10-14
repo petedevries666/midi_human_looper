@@ -12,6 +12,12 @@ enum class Takeover { Direct, Pickup, Glide, Slew };
 enum class Return { Off, Idle, Release, Command };
 enum class Ease { Linear, Smooth };
 enum class Switch { Continuous, Start, Midpoint, End };
+// Shared GLIDE response; adapters may stream a time-varying demand without
+// duplicating its normalization/easing policy.
+inline double glide(double start,double demand,double elapsed,double seconds,Ease ease=Ease::Linear){
+  double x=clamp(elapsed/seconds);if(ease==Ease::Smooth)x=x*x*(3-2*x);
+  return clamp(start+(demand-start)*x);
+}
 struct Point {
   double x, y, bend;
   Point(double px = 0, double py = 0, double pb = 0) : x(px), y(py), bend(pb) {}
@@ -141,10 +147,7 @@ private:
       if (at - m.startAt >= m.config.returnSeconds)
         release(t);
     } else if (m.config.takeover == Takeover::Glide) {
-      double x = clamp((at - m.startAt) / m.config.glideSeconds);
-      if (m.config.ease == Ease::Smooth)
-        x = x * x * (3 - 2 * x);
-      t.effective = clamp(m.start + (m.demand - m.start) * x);
+      t.effective = glide(m.start,m.demand,at-m.startAt,m.config.glideSeconds,m.config.ease);
     } else if (m.config.takeover == Takeover::Slew) {
       double d = m.config.slewPerSecond * std::max(0., at - time);
       t.effective = clamp(t.effective +

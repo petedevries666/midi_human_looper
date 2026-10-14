@@ -78,11 +78,27 @@ inline void destination(const Value &v){
 inline bool validDocument(const std::vector<unsigned> &bytes){
   try {
     std::string s; s.reserve(bytes.size());for(auto c:bytes)s+=char(c);
-    Parser p(s);auto root=p.value();require(p.pos==s.size());fields(root,{"version","sources","switches"});require(integer(root.at("version"),1,1));
-    std::set<std::string> ids,sources;std::set<unsigned> slots,switchIds;
+    Parser p(s);auto root=p.value();require(p.pos==s.size());require(integer(root.at("version"),1,2));
+    bool movementVersion=root.at("version").number==2;
+    if(movementVersion)fields(root,{"version","sources","switches","movements","ccRate"});
+    else fields(root,{"version","sources","switches"});
+    std::set<std::string> ids,sources,movements;std::set<unsigned> slots,switchIds;
     auto unique=[&](const Value &v){require(ids.insert(uuid(v)).second);};
     const auto &src=root.at("sources");require(src.type=='a');
     for(const auto &v:src.array){fields(v,{"id","type","slot"});unique(v.at("id"));require(choice(v.at("type"),{"PHRASE"})&&integer(v.at("slot"),1,16)&&slots.insert(unsigned(v.at("slot").number)).second);sources.insert(uuid(v.at("id")));}
+    if(movementVersion){
+      const auto &rate=root.at("ccRate");require(integer(rate,10,100)&&(rate.number==10||rate.number==25||rate.number==50||rate.number==100));
+      const auto &library=root.at("movements");require(library.type=='a');
+      for(const auto &m:library.array){
+        fields(m,{"id","name","target","points","duration","interpolation","retrigger","glideSeconds"});unique(m.at("id"));movements.insert(uuid(m.at("id")));
+        require(m.at("name").type=='s'&&!m.at("name").text.empty());destination(m.at("target"));
+        require(m.at("duration").type=='n'&&m.at("duration").number>0&&m.at("glideSeconds").type=='n'&&m.at("glideSeconds").number>0&&m.at("glideSeconds").number<=60);
+        require(choice(m.at("interpolation"),{"LINEAR","HOLD"})&&choice(m.at("retrigger"),{"SOFT_RESTART","DIRECT"}));
+        const auto &points=m.at("points");require(points.type=='a'&&points.array.size()>=2);double previous=-1;
+        for(const auto &point:points.array){require(point.type=='a'&&point.array.size()==2);const auto &x=point.array[0],&y=point.array[1];require(x.type=='n'&&y.type=='n'&&x.number>previous&&x.number>=0&&x.number<=1&&y.number>=0&&y.number<=1);previous=x.number;}
+        require(points.array.front().array[0].number==0&&points.array.back().array[0].number==1);
+      }
+    }
     const auto &switches=root.at("switches");require(switches.type=='a');
     for(const auto &sw:switches.array){
       fields(sw,{"switchId","traversal","transition","gesture","steps"});require(integer(sw.at("switchId"),1,16777215)&&switchIds.insert(unsigned(sw.at("switchId").number)).second);
@@ -105,7 +121,7 @@ inline bool validDocument(const std::vector<unsigned> &bytes){
             continue;
           }
           fields(b,{"id","type","sourceId","overrides"});unique(b.at("id"));auto source=uuid(b.at("sourceId"));
-          bool phrase=choice(b.at("type"),{"PHRASE"});require((phrase||choice(b.at("type"),{"MOVEMENT"}))&&(i>0||phrase)&&(!sources.count(source)||phrase));
+          bool phrase=choice(b.at("type"),{"PHRASE"});require((phrase||choice(b.at("type"),{"MOVEMENT"}))&&(i>0||phrase)&&(!sources.count(source)||phrase)&&(!movements.count(source)||!phrase));
           const auto &overrides=b.at("overrides");require(overrides.type=='o');
           for(const auto &entry:overrides.object){
             const auto &key=entry.first;const auto &local=entry.second;

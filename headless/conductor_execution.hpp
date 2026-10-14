@@ -24,7 +24,8 @@ inline bool supportedBlock(const Value& b) {
   return true;
 }
 inline std::vector<double> compile(const std::vector<unsigned>& bytes,double base,
-                                  const std::array<unsigned,16>& owners) {
+                                  const std::array<unsigned,16>& owners,
+                                  const std::map<std::string,unsigned>& movements = {}) {
   std::vector<double> out(16*8,0);
   if(bytes.empty())return out;
   auto root=document(bytes);std::map<std::string,unsigned> slots;
@@ -34,12 +35,21 @@ inline std::vector<double> compile(const std::vector<unsigned>& bytes,double bas
     if(si==16)continue;unsigned h=si*8;
     out[h]=owners[si];out[h+1]=sw.at("steps").array.size();out[h+2]=base+out.size();out[h+3]=-1;
     out[h+7]=choice(sw.at("traversal"),{"SEQUENTIAL"})&&choice(sw.at("transition"),{"IMMEDIATE"})&&choice(sw.at("gesture"),{"INSTANT"});
+    unsigned stepStart=out.size();out.resize(out.size()+sw.at("steps").array.size()*68,0);unsigned stepIndex=0;
     for(const auto& step:sw.at("steps").array) {
-      std::array<double,64> record{};
+      std::array<double,68> record{};std::vector<double> admissions;
       record[0]=choice(step.at("transition"),{"INHERIT","IMMEDIATE"});
       unsigned n=0;
       for(const auto& layer:step.at("layers").array) {
         const auto& b=layer.at("block");if(b.type=='z')continue;
+        if(choice(b.at("type"),{"MOVEMENT"})){
+          auto it=movements.find(b.at("id").text);
+          if(it==movements.end()){
+            bool exists=false;if(root.object.count("movements"))for(const auto &m:root.at("movements").array)exists|=m.at("id").text==b.at("sourceId").text;
+            if(exists)record[0]=0;else ++record[1];
+          }else admissions.push_back(it->second);
+          continue;
+        }
         if(!supportedBlock(b)){record[0]=0;continue;}
         auto it=slots.find(b.at("sourceId").text);
         if(it==slots.end()){++record[1];continue;}
@@ -50,7 +60,8 @@ inline std::vector<double> compile(const std::vector<unsigned>& bytes,double bas
           record[row+1]=choice(mode->second.at("value"),{"LOOP"})?0:choice(mode->second.at("value"),{"ONCE"})?1:2;
         record[row+2]=localNumber(b,"phrase_base_velocity");record[row+3]=localNumber(b,"phrase_velocity_decay");record[row+4]=localNumber(b,"phrase_time_decay");++n;
       }
-      record[2]=n;out.insert(out.end(),record.begin(),record.end());
+      record[2]=n;record[64]=admissions.size();record[65]=base+out.size();
+      std::copy(record.begin(),record.end(),out.begin()+stepStart+stepIndex++*68);out.insert(out.end(),admissions.begin(),admissions.end());
     }
   }
   return out;

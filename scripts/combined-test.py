@@ -27,6 +27,7 @@ def run(command,extra=None):
         raise
 try:
     run(['scripts/headless-test.sh'],{'RUN_JACK_TESTS':'1' if a.jack else '0','RUN_NATIVE_TESTS':'0','TEST_PYTHON':sys.executable,'RUN_CHAIN_BROWSER':'1' if a.browser=='chromium' else '0'})
+    if a.jack:run(['scripts/movement-jack-test.sh'],{'MOVEMENT_BROWSER_AUTHOR':'1' if a.browser=='chromium' else '0'})
     run([sys.executable,'tests/test_zynthian_update.py'])
     run([sys.executable,'tests/test_native_free_capture.py'])
     run([sys.executable,'tests/test_observation.py'])
@@ -39,6 +40,9 @@ try:
     run([sys.executable,'tests/test_portable_project.py'])
     run([sys.executable,'tests/test_conductor_legacy_contract.py'])
     run([sys.executable,'tests/test_conductor_persistence.py'])
+    run([sys.executable,'tests/test_movement_persistence.py'])
+    run(['scripts/movement-test.sh'])
+    run(['scripts/movement-test.sh'],{'SANITIZE':'1'})
     run([sys.executable,'tests/test_conductor_execution_native.py'])
     run([sys.executable,'tests/test_portable_engine.py'])
     run([sys.executable,'tests/test_project_sync.py'])
@@ -64,6 +68,7 @@ try:
             run([sys.executable,'tests/test_headless_editor.py'])
             run([sys.executable,'tests/test_conductor_execution_browser.py'])
             run([sys.executable,'tests/test_conductor_editor_browser.py'])
+            run([sys.executable,'tests/test_movement_browser.py'])
             run([sys.executable,'tests/conductor_diagnostics/pending_edit.py'],{'COMPARE_ROOT':os.getcwd()})
             run([sys.executable,'tests/conductor_diagnostics/editor_click.py'],{'COMPARE_ROOT':os.getcwd()})
             run([sys.executable,'tests/test_controller_browser.py'])

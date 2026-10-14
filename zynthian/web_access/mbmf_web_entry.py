@@ -120,15 +120,17 @@ class Entry(tornado.websocket.WebSocketHandler):
             self.set_header('Content-Type','text/html; charset=utf-8')
             self.finish('<!doctype html><meta name=viewport content="width=device-width"><title>MBMF</title><style>html{background:#000;color:#bbb;font:13px monospace}h1{color:#fff;font-size:18px}a{color:#ffe900;padding:6px;border:1px solid #555;display:inline-block}</style><h1>MBMF</h1>'+('Add a MIDI Bad Mother Fucker chain in Zynthian.' if not entries else ''.join('<p><a href="%s/__mbmf/select/%s">Processor %s</a></p>'%(self.prefix,e['processor'],e['processor']) for e in entries)))
             return
+        if self.mode=='none' and path=='api/v1/auth/pair':
+            self.set_status(403);self.finish(dict(error='Use token mode to create a persistent browser pairing'));return
         if len(self.request.body)>16000000:self.set_status(413);self.finish('Upload too large');return
-        if self.mode=='token' and (path.startswith('api/') or self.request.method=='POST') and not matches_token(self.request.headers.get('X-Engine-Token',''),self.expected_token):
+        if self.mode=='token' and not target['token'] and (path.startswith('api/') or self.request.method=='POST') and not matches_token(self.request.headers.get('X-Engine-Token',''),self.expected_token):
             self.set_status(401);self.finish(dict(error='Editor token required'));return
         if ticks(target['pid'])!=target['ticks']:
             self.resolver.cached_at=0;self.set_status(503);self.finish('Editor restarting; retry shortly.');return
         headers={k:v for k,v in self.request.headers.items() if k.lower() not in ('host','origin','connection','transfer-encoding','content-length','x-forwarded-for','x-real-ip')}
         host='127.0.0.1:%s'%target['port']
         headers['Host']=host
-        headers['X-Engine-Token']=target['token']
+        if self.mode=='none' or not target['token']:headers['X-Engine-Token']=target['token']
         if self.request.headers.get('Origin'):headers['Origin']='http://'+host
         uri='http://'+host+'/'+path+('?' + self.request.query if self.request.query else '')
         try:
@@ -141,11 +143,13 @@ class Entry(tornado.websocket.WebSocketHandler):
         for cookie in response.headers.get_list('Set-Cookie'):self.add_header('Set-Cookie',cookie)
         body=response.body
         mime=response.headers.get('Content-Type','')
+        if self.mode=='none' and path=='api/v1/auth/status' and response.code==200:
+            status=json.loads(body);status['pairingEnabled']=False;body=json.dumps(status).encode()
         if self.mode=='none':
             if mime.startswith('text/html'):
                 body=body.replace(b'<label>LAN token ',b'<label hidden>LAN token ')
                 body=body.replace(b'<button id="connect"',b'<button hidden id="connect"')
-            elif mime.startswith('text/css'):body+=b'\n.connection [hidden]{display:none!important}\n'
+            elif mime.startswith('text/css'):body+=b'\n.connection [hidden],.connection #token-label,.connection #connect,.connection #pair-browser,.connection #pairing-status,.connection #revoke-pairing{display:none!important}\n'
         if self.mode=='token' and path=='app.js':
             body+=b"\ndocument.getElementById('connect')?.addEventListener('click',async()=>{await refresh();if(document.getElementById('connection').textContent.includes('CONNECTED'))document.getElementById('error').textContent='';});\n"
         if self.prefix:
@@ -159,6 +163,7 @@ class Entry(tornado.websocket.WebSocketHandler):
         if ticks(self.target['pid'])!=self.target['ticks']:self.close(1013,'Editor restarting');return
         host='127.0.0.1:%s'%self.target['port']
         headers={'Origin':'http://'+host}
+        if self.mode=='token' and self.request.headers.get('Cookie'):headers['Cookie']=self.request.headers['Cookie']
         try:
             self.upstream=await tornado.websocket.websocket_connect(tornado.httpclient.HTTPRequest('ws://'+host+'/'+path,headers=headers,connect_timeout=5))
             self.reader=asyncio.create_task(self.pump())
@@ -166,11 +171,14 @@ class Entry(tornado.websocket.WebSocketHandler):
     async def on_message(self,message):
         # open() completes before Tornado dispatches client frames.
         if self.first_frame:
-            if self.mode=='token':
+            if self.mode=='none':message=json.dumps(dict(token=self.target['token']))
+            elif not self.target['token']:
                 try:valid=matches_token(json.loads(message).get('token',''),self.expected_token)
                 except (ValueError,TypeError,AttributeError):valid=False
                 if not valid:self.close(1008,'Editor token required');return
-            message=json.dumps(dict(token=self.target['token']))
+                message=json.dumps(dict(token=''))
+            # Authenticated backends validate token or paired-cookie/CSRF frames
+            # themselves. No competing pairing/session policy is introduced.
         self.first_frame=False
         if self.upstream:await self.upstream.write_message(message,binary=isinstance(message,bytes))
     async def pump(self):

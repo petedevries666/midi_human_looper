@@ -12,6 +12,7 @@ import tempfile
 import types
 import unittest
 ROOT=Path(__file__).resolve().parents[1]
+BACKEND=Path(os.environ.get('MBMF_BACKEND_REPOSITORY',ROOT))
 sys.path.insert(0,str(ROOT/'zynthian/web_access'))
 import mbmf_web_entry as entry
 import tornado.httpclient
@@ -25,7 +26,7 @@ class Access(unittest.IsolatedAsyncioTestCase):
         self.temp=tempfile.TemporaryDirectory();self.directory=Path(self.temp.name)
         self.children=[];self.workers=[];self.servers=[]
         (self.directory/'editor.token').write_text('gateway-fixture-secret')
-        (self.directory/'install.json').write_text(json.dumps(dict(repository=str(ROOT),token_file=str(self.directory/'editor.token'))))
+        (self.directory/'install.json').write_text(json.dumps(dict(repository=str(BACKEND),token_file=str(self.directory/'editor.token'))))
         self.configure('none')
         await self.worker(1)
         app=tornado.web.Application([(r'/.*',ExistingWebconf)])
@@ -45,7 +46,7 @@ class Access(unittest.IsolatedAsyncioTestCase):
             if Path(sock).exists():break
             await asyncio.sleep(.03)
         with socket.socket() as probe:probe.bind(('127.0.0.1',0));port=probe.getsockname()[1]
-        web=subprocess.Popen([sys.executable,str(ROOT/'headless/server.py'),'--socket',sock,'--port',str(port),
+        web=subprocess.Popen([sys.executable,str(BACKEND/'headless/server.py'),'--socket',sock,'--port',str(port),
                               '--patch-dir',str(directory),'--token-file',str(self.directory/'editor.token')],stdout=log,stderr=log)
         self.children.append(web);self.workers.append((engine,web,port));log.close()
         for _ in range(100):
@@ -80,6 +81,8 @@ class Access(unittest.IsolatedAsyncioTestCase):
         page=await self.request();self.assertEqual(page.code,200)
         self.assertIn(b'<label hidden>LAN token',page.body)
         self.assertNotIn(b'gateway-fixture-secret',page.body)
+        paired=await self.request('/api/v1/auth/pair',method='POST',body='{}',headers={'Content-Type':'application/json'})
+        self.assertEqual(paired.code,403)
         state=json.loads((await self.request('/api/v1/state')).body)
         command=dict(protocolVersion=1,expectedRevision=state['revision'],expectedEngineSessionId=state['engineSessionId'],action='panic')
         response=await self.request('/api/v1/command',method='POST',body=json.dumps(command),headers={'Content-Type':'application/json','Origin':'http://mbmf.local'})
@@ -126,6 +129,18 @@ class Access(unittest.IsolatedAsyncioTestCase):
         second=json.loads((await self.request('/api/v1/state')).body)
         self.assertNotEqual(first['engineSessionId'],second['engineSessionId'])
         self.assertEqual(self.resolver.entries()[0]['processor'],2)
+    async def test_readonly_browser_auth_bootstrap(self):
+        from playwright.async_api import async_playwright
+        async with async_playwright() as playwright:
+            browser=await playwright.chromium.launch(executable_path=os.environ.get('CHROMIUM_PATH','/usr/bin/chromium'),args=['--no-sandbox','--disable-gpu'])
+            try:
+                page=await browser.new_page()
+                await page.goto('http://127.0.0.1:%s/mbmf/'%self.port)
+                await page.wait_for_function("() => document.querySelector('#connection').textContent.includes('CONNECTED')")
+                self.assertFalse(await page.locator('#token').is_visible())
+                self.assertFalse(await page.locator('#connect').is_visible())
+            finally:await browser.close()
+
     async def test_real_chromium_trusted_alias_and_fallback(self):
         from playwright.async_api import async_playwright
         screenshots=ROOT/'docs/screenshots/web-access';screenshots.mkdir(parents=True,exist_ok=True)

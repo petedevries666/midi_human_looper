@@ -144,7 +144,7 @@ checks must remain required. Review issue #54's future login/pairing UI together
 with this entry-point policy before integration; it is not silently merged here.
 
 Delivered Cloud results: final focused gate **exit 0**, 7 provisioning/policy/D-Bus
-fixture tests and 8 production API/WS/Chromium tests; existing HTTP worker gate
+fixture tests and 9 production API/WS/Chromium tests; existing HTTP worker gate
 15 tests **exit 0**. Selected combined command
 `$TEST_PYTHON scripts/combined-test.py --web-access --timeout 240` returned **0**
 (including Controller/MOVEMENT sanitizer gates and persistence/bridge tests).
@@ -157,3 +157,12 @@ Actual PNGs and dimensions/hashes are in `docs/screenshots/web-access/manifest.j
 PNGs include full-page vertical content; horizontal overflow checks passed. None
 mode shows no login controls; token mode preserves its visible login controls.
 Public-peer boundary checks are unit fixtures, not public-network packet tests.
+
+Coordination with draft #65: authenticated backends retain their own token /
+paired-cookie / CSRF checks in token mode; this gateway does not copy or replace
+issue #54 sessions. None mode hides both legacy and newer pairing/login controls
+and refuses persistent pairing creation through its delegated credential. A
+read-only auth/bootstrap smoke test passed against the preserved issue-54 working
+files; source hashes and limited scope are recorded. Those files differ from the
+published #65 snapshot, so this is **not** whole-PR #65 qualification. No WIP file
+was modified or copied into this branch.

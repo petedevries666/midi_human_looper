@@ -149,3 +149,33 @@ weaker stream assertions. The exact equality assertion remains intact.
 Cloud JACK runs cannot qualify Pi latency, XRUNs, Surge's receiver filtering,
 Helix, actual Oram snapshot restoration or physical disconnect recovery. #63
 still documents unqualified live timing and a failed combined Chromium run.
+
+## Delivered software gates
+
+Combined command (native/JACK/Chromium, 240 s per child):
+
+```sh
+. /tmp/mbmf-b-env.sh  # Cloud cache paths only; not a Zynthian setup command
+"$TEST_PYTHON" scripts/combined-test.py --native --jack --browser chromium --timeout 240
+```
+
+`docs/evidence/oram-native-routing/combined.exit`: **0**. This includes
+18,508 actual EEL checks, Controller/MOVEMENT normal and sanitizer gates,
+real JACK ordering/overflow/ownership, browser authoring and both historical
+UI race fixtures. No assertion or XFAIL was weakened. The suite began on the
+initial routing commit; the subsequent identity, snapshot-authority and backup
+guards were also tested with the final targeted fixtures.
+
+Final targeted code checkpoint: `1d43565`. Adapter **7**, pinned resolver **5**,
+installer **13** tests passed. The final native build and strengthened real
+JACK test also returned **0**. All three receivers captured identical 439-event
+streams in the final run; each received CH1/2/3 CC42=87 once. With explicit
+internal channel matching, sounding notes on CH1/CH2/CH3 were respectively
+60/61/62 only. Callback code and JSFX are byte-identical to #62; revision
+metadata is reported separately from musical source identity.
+
+Logs, raw MIDI and failure evidence remain committed. The initial setup failure
+is retained, not relabeled PASS. Issue #54's 25 protected files are unchanged.
+No PR was merged and no physical system was accessed or deployed. This is a
+**GO for scoped review / controlled routing testing after SHA review**, not
+qualification for concert latency or a claim that FECK/JOIN/REVEAL are done.

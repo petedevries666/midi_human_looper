@@ -36,9 +36,10 @@ performed in this resumption. Earlier #44-only status is historical.
 Dependency path: #44 → #47 → #48 → #49 → #50 → #56 → #57 → #58 → #60 → #61
 → #62. #63 is independent realtime qualification on #62. Native-destination
 routing fixes are also based on #62, without #63 instrumentation. Neither branch
-is a hardware-qualified release. The last final combined diagnostic run failed a
-Chromium EDIT timeout; live timing remains unqualified. See
-[movement qualification](movement-realtime-qualification.md) on #63.
+is a hardware-qualified release. The #63 final combined diagnostic run failed a
+Chromium EDIT timeout; the native-routing branch subsequently passed the full
+combined suite. This does not resolve intermittent live timing or qualify hardware. See
+[movement qualification](https://github.com/petedevries666/midi_human_looper/blob/d6169f9/docs/movement-realtime-qualification.md) on #63.
 
 ## Implemented execution
 

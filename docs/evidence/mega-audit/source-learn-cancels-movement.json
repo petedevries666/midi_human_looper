@@ -1,0 +1,19 @@
+{
+  "scope": "Actual private native HTTP/control ownership, not captured JACK CC output",
+  "beforeMovements": 1,
+  "afterMovements": 0,
+  "cancelledDelta": 1,
+  "learnedSource": [
+    101,
+    2,
+    1,
+    21
+  ],
+  "movementTarget": {
+    "type": "CC",
+    "channel": 1,
+    "number": 11
+  },
+  "learningChannel": 2,
+  "learningCC": 21
+}

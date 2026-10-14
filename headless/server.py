@@ -208,7 +208,7 @@ class Handler(BaseHTTPRequestHandler):
                 if patch.get('format')!='MIDI_HUMAN_LOOPER_PATCH':
                     self.respond(409,patch);return
                 model=decode_conductor(patch['conductor']) if 'conductor' in patch else None
-                self.respond(200,{'executionSupported':True,'supportedExecution':['SEQUENTIAL','IMMEDIATE','PRESS_INSTANT','PHRASE_POLY'],'runtime':{str(v['id']):v.get('conductor',{}) for v in state['switches']},'model':model,'missingReferences':resolve(model,{v['id'] for v in state['switches']}) if model else []})
+                self.respond(200,{'engineSessionId':state['engineSessionId'],'revision':state['revision'],'executionSupported':True,'supportedExecution':['SEQUENTIAL','IMMEDIATE','PRESS_INSTANT','PHRASE_POLY'],'runtime':{str(v['id']):v.get('conductor',{}) for v in state['switches']},'model':model,'missingReferences':resolve(model,{v['id'] for v in state['switches']}) if model else []})
             except (ValueError,OSError):self.respond(503,{'error':'CONDUCTOR unavailable'})
             return
         if path == '/api/v1/descriptors':
@@ -232,6 +232,7 @@ class Handler(BaseHTTPRequestHandler):
             return
         files = {'/': ('index.html', 'text/html; charset=utf-8'),
                  '/app.js': ('app.js', 'text/javascript; charset=utf-8'),
+                 '/conductor.js': ('conductor.js', 'text/javascript; charset=utf-8'),
                  '/style.css': ('style.css', 'text/css; charset=utf-8'),
                  '/fonts/mbmf-block.woff2': ('fonts/mbmf-block.woff2', 'font/woff2')}
         if path not in files:

@@ -63,6 +63,9 @@ try:
         if a.browser=='chromium':
             run([sys.executable,'tests/test_headless_editor.py'])
             run([sys.executable,'tests/test_conductor_execution_browser.py'])
+            run([sys.executable,'tests/test_conductor_editor_browser.py'])
+            run([sys.executable,'tests/conductor_diagnostics/pending_edit.py'],{'COMPARE_ROOT':os.getcwd()})
+            run([sys.executable,'tests/conductor_diagnostics/editor_click.py'],{'COMPARE_ROOT':os.getcwd()})
             run([sys.executable,'tests/test_controller_browser.py'])
             run([sys.executable,'tests/test_snapshot_browser.py'])
             run([sys.executable,'tests/test_product_browser.py'])

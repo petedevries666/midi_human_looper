@@ -207,6 +207,14 @@ class Installation(unittest.TestCase):
             with self.assertRaises(OSError):installer.main([*self.args,'--upgrade-adapter'])
         self.assertEqual(self.snapshot_files(),before)
 
+    def test_adapter_backup_symlink_rejected_by_check_and_upgrade(self):
+        self.legacy();self.run_install()
+        (self.data/'adapter-upgrades').symlink_to(self.path/'external',target_is_directory=True)
+        before=self.snapshot_files()
+        self.run_install('--check','--upgrade-adapter',success=False)
+        self.run_install('--upgrade-adapter',success=False)
+        self.assertEqual(self.snapshot_files(),before)
+
     def test_modified_adapter_backup_rejects_rollback_without_mutation(self):
         self.legacy();self.run_install('--upgrade-adapter')
         previous=json.loads(self.manifest.read_text())['adapter_previous']

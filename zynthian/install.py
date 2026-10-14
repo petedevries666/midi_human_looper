@@ -245,6 +245,14 @@ def main(argv=None):
            # A catalog-only upgrade must not change the existing adapter's runtime ABI.
            'adapter':before['adapter'] if metadata and not args.upgrade_adapter else read(root/'zynthian/zynthian_engine_mbh.py')}
     for source in after.values():ast.parse(source)
+    adapter_backup_change=None
+    previous=metadata.get('adapter_previous') if metadata else None
+    if metadata and args.upgrade_adapter and after['adapter']!=before['adapter']:
+        sha=digest(before['adapter'].encode());backup_dir=directory/'adapter-upgrades';backup=backup_dir/(sha+'.py')
+        if backup_dir.is_symlink() or backup.is_symlink() or (backup.exists() and read(backup)!=before['adapter']):
+            raise ValueError('adapter backup conflict; refusing update')
+        previous=dict(sha256=sha,mode=paths['adapter'].stat().st_mode & 0o777)
+        adapter_backup_change=(backup,before['adapter'],0o600)
     if args.check:
         print(json.dumps(dict(registrationCompatible=True,catalogCompatible=True,category='Other',
             binary=str(binary),managedUpgrade=bool(metadata and metadata['version']==1),
@@ -285,13 +293,7 @@ def main(argv=None):
             changes.append((token,secrets.token_urlsafe(32)+'\n',0o600))
         changes.append((config,json.dumps(dict(version=1,chain_timing_version=2,repository=str(root),binary=str(binary),
             web_port_base=8765,web_bind='0.0.0.0' if args.lan else '127.0.0.1',token_file=str(token) if args.lan else ''),indent=2),0o600))
-    previous=metadata.get('adapter_previous') if metadata else None
-    if metadata and args.upgrade_adapter and after['adapter']!=before['adapter']:
-        sha=digest(before['adapter'].encode());backup_dir=directory/'adapter-upgrades';backup=backup_dir/(sha+'.py')
-        if backup_dir.is_symlink() or backup.is_symlink() or (backup.exists() and read(backup)!=before['adapter']):
-            raise ValueError('adapter backup conflict; refusing update')
-        previous=dict(sha256=sha,mode=paths['adapter'].stat().st_mode & 0o777)
-        changes.append((backup,before['adapter'],0o600))
+    if adapter_backup_change:changes.append(adapter_backup_change)
     # Dependencies first; source activation last. No running services are restarted.
     for name in ('helper','adapter','manager','catalog'):
         path=paths[name];mode=path.stat().st_mode & 0o777 if path.exists() else 0o644

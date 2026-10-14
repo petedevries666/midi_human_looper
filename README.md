@@ -1,5 +1,11 @@
 # MIDI BAD MOTHER FUCKER
 
+**Active development: native Zynthian + Web.** REAPER JSFX is frozen legacy;
+existing projects, patches and relevant interchange tests remain supported.
+See the [development freeze](docs/reaper-legacy-freeze.md),
+[current capability matrix](docs/capabilities.md) and
+[engineering audit](docs/engineering-audit-2026-10.md).
+
 MIDI phrase looper and modular processor for REAPER JSFX and native Zynthian/JACK.
 The native prototype supports independent synchronized instrument chains; see the
 [integration status and explicit module limitations](docs/product-integration-status.md).

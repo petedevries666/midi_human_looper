@@ -32,7 +32,7 @@ def validate_patch_extensions(patch):
         from conductor import decode as decode_conductor
         decode_conductor(patch['conductor'])
     for name,versions in (('controllerEngine',(1,2)),('globalSnapshots',(1,2,3,4))):
-        if name in patch and (not isinstance(patch[name],dict) or type(patch[name].get('version')) is not int or patch[name]['version'] not in versions):
+        if name in patch and (not isinstance(patch[name],dict) or set(patch[name])!={'version','configuration'} or type(patch[name].get('version')) is not int or patch[name]['version'] not in versions):
             raise ValueError('Unsupported patch extension preserved; refusing to discard configuration.')
 
 class Control:

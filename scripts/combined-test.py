@@ -30,6 +30,10 @@ try:
     run(['scripts/headless-test.sh'],{'RUN_JACK_TESTS':'1' if a.jack else '0','RUN_NATIVE_TESTS':'0','TEST_PYTHON':sys.executable,'RUN_CHAIN_BROWSER':'1' if a.browser=='chromium' else '0'})
     if a.jack:run(['scripts/movement-jack-test.sh'],{'MOVEMENT_BROWSER_AUTHOR':'1' if a.browser=='chromium' else '0'})
     run([sys.executable,'tests/test_zynthian_update.py'])
+    run([sys.executable,'tests/test_update_controls.py'])
+    run([sys.executable,'tests/test_update_native.py'])
+    run([sys.executable,'tests/test_zynthian_channel_source.py'])
+    run([sys.executable,'tests/test_patch_extension_preservation.py'])
     run([sys.executable,'tests/test_native_free_capture.py'])
     run([sys.executable,'tests/test_observation.py'])
     run([sys.executable,'tests/test_reliability_report.py'])
@@ -66,6 +70,13 @@ try:
         run([sys.executable,'tests/test_headless_browser.py'],{'MIDI_BROWSER':a.browser})
         # The generic editor currently uses Chromium's explicit executable route.
         if a.browser=='chromium':
+            run([sys.executable,'tests/test_update_controls_browser.py'])
+            if a.jack:
+                # #68 verifies actual channel-voice JACK output as well as UI;
+                # never make a --browser none run silently require Chromium.
+                run(['scripts/phrase-output-test.sh'],{'TEST_PYTHON':sys.executable})
+            else:
+                run([sys.executable,'tests/test_phrase_output_browser.py'])
             run([sys.executable,'tests/test_headless_editor.py'])
             run([sys.executable,'tests/test_conductor_execution_browser.py'])
             run([sys.executable,'tests/test_conductor_editor_browser.py'])

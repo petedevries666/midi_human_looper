@@ -222,3 +222,31 @@ de diagnostic contrôlé V4 après revue du SHA ; NO-GO pour qualification conce
 pour affirmer la stabilité live et pour démarrer G.** Restent bloquants : pics CPU
 non attribués à la fonction, XRUN sans édition et erreurs d'ordre intermittentes
 observées sous STRESS. Les tests fonctionnels verts ne ferment pas ces sujets.
+
+## Qualification checkpoint (2026-10-14) and timing erratum
+
+The retained final combined run (`combined.log`, exit **1**) passed the native,
+EEL, ASAN and JACK gates and both historical deterministic UI race tests, then
+failed the hardware-feedback Chromium EDIT/VELOCITY wait (30 s timeout). The
+same focused fixture passed separately on original #62 and instrumented code;
+this does not turn the failed combined run into a pass. The remaining issue-53
+fixture passed separately. No final all-green combined result is claimed.
+
+The v3 live corpus is preserved under `live-unbracketed-v3/`. Its CPU endpoint
+was sampled after the wall endpoint: one callback reports 9.43 ms CPU versus
+0.22 ms wall. Those readings cannot support precise CPU attribution. Earlier
+profiles and function-envelope conclusions are provisional, including the
+26.85 ms input/recovery peak. Baseline #62 also produced XRUNs without tracing,
+but that does not establish the source of any particular peak.
+
+Trace v4 brackets CPU/resource clock queries inside the wall interval and
+reports their wall cost separately. The real trace unit ran successfully:
+10,000 records, no callback allocation, conservation and CPU/wall invariants,
+3,240 ns mean scope cost in this run. Build exit 0. The production MOVEMENT
+JACK fixture passed after this correction (all four rates, initial/final
+values, replacement, physical takeover and PHRASE coexistence; exit 0).
+The live load matrix has **not** been recalibrated with v4; neither live
+stability nor hardware qualification is established.
+
+No musical execution, timestamps, UI, installation or protected issue-54 files
+changed in this checkpoint. #62 remains draft; no deployment or merge.

@@ -1,0 +1,12 @@
+Cannot lock down 107341340 byte memory area (Cannot allocate memory)
+512 LIVE_LIGHT errors []
+Cannot lock down 107341340 byte memory area (Cannot allocate memory)
+512 LIVE_NORMAL errors []
+Cannot lock down 107341340 byte memory area (Cannot allocate memory)
+512 STRESS errors ['probe ']
+Cannot lock down 107341340 byte memory area (Cannot allocate memory)
+256 LIVE_LIGHT errors []
+Cannot lock down 107341340 byte memory area (Cannot allocate memory)
+256 LIVE_NORMAL errors []
+Cannot lock down 107341340 byte memory area (Cannot allocate memory)
+256 STRESS errors []

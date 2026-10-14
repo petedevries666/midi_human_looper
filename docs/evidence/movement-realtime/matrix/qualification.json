@@ -1,0 +1,491 @@
+{
+  "physicalHardware": false,
+  "qualified": false,
+  "buffers": [
+    {
+      "frames": 8192,
+      "deadlineUs": 170666.66666666666,
+      "wall": {
+        "count": 280,
+        "p95Us": 1010.642,
+        "p99Us": 6156.002,
+        "maxUs": 9128.568
+      },
+      "cpu": {
+        "count": 280,
+        "p95Us": 963.653,
+        "p99Us": 6097.859,
+        "maxUs": 9127.519
+      },
+      "offCpu": {
+        "count": 280,
+        "p95Us": 3.053,
+        "p99Us": 57.09,
+        "maxUs": 1464.607
+      },
+      "entryGap": {
+        "count": 280,
+        "p95Us": 171596.495,
+        "p99Us": 175557.994,
+        "maxUs": 261210.315
+      },
+      "wallOverruns": 0,
+      "cpuOverruns": 0,
+      "xruns": 0,
+      "rejected": 0,
+      "overflow": 0,
+      "dropped": 0,
+      "stages": {
+        "input_recovery_cpu_ns": {
+          "count": 280,
+          "p95Us": 38.495,
+          "p99Us": 195.859,
+          "maxUs": 534.128
+        },
+        "commands_cpu_ns": {
+          "count": 280,
+          "p95Us": 270.332,
+          "p99Us": 4359.356,
+          "maxUs": 7277.576
+        },
+        "controller_transport_cpu_ns": {
+          "count": 280,
+          "p95Us": 28.3,
+          "p99Us": 122.567,
+          "maxUs": 1719.968
+        },
+        "movement_parameters_cpu_ns": {
+          "count": 280,
+          "p95Us": 22.581,
+          "p99Us": 195.738,
+          "maxUs": 375.079
+        },
+        "performance_cpu_ns": {
+          "count": 280,
+          "p95Us": 17.279,
+          "p99Us": 1626.542,
+          "maxUs": 2174.413
+        },
+        "eel_phrase_transformers_cpu_ns": {
+          "count": 280,
+          "p95Us": 242.085,
+          "p99Us": 859.85,
+          "maxUs": 3105.012
+        },
+        "movement_cc_actions_cpu_ns": {
+          "count": 280,
+          "p95Us": 7.471,
+          "p99Us": 73.6,
+          "maxUs": 154.758
+        },
+        "midi_collect_cpu_ns": {
+          "count": 280,
+          "p95Us": 1.786,
+          "p99Us": 2.984,
+          "maxUs": 59.807
+        },
+        "sort_cpu_ns": {
+          "count": 280,
+          "p95Us": 0.999,
+          "p99Us": 1.391,
+          "maxUs": 15.314
+        },
+        "emit_observe_reply_cpu_ns": {
+          "count": 280,
+          "p95Us": 197.538,
+          "p99Us": 446.314,
+          "maxUs": 553.278
+        }
+      },
+      "qualified": true
+    },
+    {
+      "frames": 1024,
+      "deadlineUs": 21333.333333333332,
+      "wall": {
+        "count": 1763,
+        "p95Us": 165.982,
+        "p99Us": 836.293,
+        "maxUs": 5840.461
+      },
+      "cpu": {
+        "count": 1763,
+        "p95Us": 160.463,
+        "p99Us": 833.444,
+        "maxUs": 5839.85
+      },
+      "offCpu": {
+        "count": 1763,
+        "p95Us": 1.32,
+        "p99Us": 13.547,
+        "maxUs": 3155.696
+      },
+      "entryGap": {
+        "count": 1763,
+        "p95Us": 21769.68,
+        "p99Us": 24433.229,
+        "maxUs": 85732.78
+      },
+      "wallOverruns": 0,
+      "cpuOverruns": 0,
+      "xruns": 22,
+      "rejected": 0,
+      "overflow": 0,
+      "dropped": 0,
+      "stages": {
+        "input_recovery_cpu_ns": {
+          "count": 1763,
+          "p95Us": 3.349,
+          "p99Us": 26.468,
+          "maxUs": 211.583
+        },
+        "commands_cpu_ns": {
+          "count": 1763,
+          "p95Us": 28.137,
+          "p99Us": 60.756,
+          "maxUs": 4565.076
+        },
+        "controller_transport_cpu_ns": {
+          "count": 1763,
+          "p95Us": 4.591,
+          "p99Us": 37.26,
+          "maxUs": 718.937
+        },
+        "movement_parameters_cpu_ns": {
+          "count": 1763,
+          "p95Us": 2.121,
+          "p99Us": 13.648,
+          "maxUs": 712.255
+        },
+        "performance_cpu_ns": {
+          "count": 1763,
+          "p95Us": 1.334,
+          "p99Us": 16.05,
+          "maxUs": 2558.815
+        },
+        "eel_phrase_transformers_cpu_ns": {
+          "count": 1763,
+          "p95Us": 55.751,
+          "p99Us": 225.981,
+          "maxUs": 2337.886
+        },
+        "movement_cc_actions_cpu_ns": {
+          "count": 1763,
+          "p95Us": 1.899,
+          "p99Us": 8.174,
+          "maxUs": 167.854
+        },
+        "midi_collect_cpu_ns": {
+          "count": 1763,
+          "p95Us": 0.521,
+          "p99Us": 1.136,
+          "maxUs": 60.335
+        },
+        "sort_cpu_ns": {
+          "count": 1763,
+          "p95Us": 0.494,
+          "p99Us": 0.789,
+          "maxUs": 16.684
+        },
+        "emit_observe_reply_cpu_ns": {
+          "count": 1763,
+          "p95Us": 29.988,
+          "p99Us": 117.505,
+          "maxUs": 875.524
+        }
+      },
+      "qualified": false
+    },
+    {
+      "frames": 512,
+      "deadlineUs": 10666.666666666666,
+      "wall": {
+        "count": 3434,
+        "p95Us": 154.687,
+        "p99Us": 1431.802,
+        "maxUs": 26849.435
+      },
+      "cpu": {
+        "count": 3434,
+        "p95Us": 148.272,
+        "p99Us": 1326.444,
+        "maxUs": 18192.485
+      },
+      "offCpu": {
+        "count": 3434,
+        "p95Us": 1.325,
+        "p99Us": 10.289,
+        "maxUs": 24412.036
+      },
+      "entryGap": {
+        "count": 3434,
+        "p95Us": 11558.412,
+        "p99Us": 15076.848,
+        "maxUs": 140718.517
+      },
+      "wallOverruns": 4,
+      "cpuOverruns": 3,
+      "xruns": 47,
+      "rejected": 0,
+      "overflow": 0,
+      "dropped": 0,
+      "stages": {
+        "input_recovery_cpu_ns": {
+          "count": 3434,
+          "p95Us": 3.457,
+          "p99Us": 47.693,
+          "maxUs": 1710.491
+        },
+        "commands_cpu_ns": {
+          "count": 3434,
+          "p95Us": 14.166,
+          "p99Us": 41.744,
+          "maxUs": 11729.568
+        },
+        "controller_transport_cpu_ns": {
+          "count": 3434,
+          "p95Us": 4.752,
+          "p99Us": 71.556,
+          "maxUs": 5788.013
+        },
+        "movement_parameters_cpu_ns": {
+          "count": 3434,
+          "p95Us": 2.173,
+          "p99Us": 24.15,
+          "maxUs": 1791.574
+        },
+        "performance_cpu_ns": {
+          "count": 3434,
+          "p95Us": 1.344,
+          "p99Us": 17.9,
+          "maxUs": 11327.617
+        },
+        "eel_phrase_transformers_cpu_ns": {
+          "count": 3434,
+          "p95Us": 53.342,
+          "p99Us": 364.909,
+          "maxUs": 10141.883
+        },
+        "movement_cc_actions_cpu_ns": {
+          "count": 3434,
+          "p95Us": 1.907,
+          "p99Us": 8.745,
+          "maxUs": 651.158
+        },
+        "midi_collect_cpu_ns": {
+          "count": 3434,
+          "p95Us": 0.458,
+          "p99Us": 1.148,
+          "maxUs": 76.921
+        },
+        "sort_cpu_ns": {
+          "count": 3434,
+          "p95Us": 0.279,
+          "p99Us": 0.65,
+          "maxUs": 2.367
+        },
+        "emit_observe_reply_cpu_ns": {
+          "count": 3434,
+          "p95Us": 4.141,
+          "p99Us": 72.518,
+          "maxUs": 4987.365
+        }
+      },
+      "qualified": false
+    },
+    {
+      "frames": 256,
+      "deadlineUs": 5333.333333333333,
+      "wall": {
+        "count": 6861,
+        "p95Us": 90.074,
+        "p99Us": 354.033,
+        "maxUs": 55445.621
+      },
+      "cpu": {
+        "count": 6861,
+        "p95Us": 85.327,
+        "p99Us": 338.936,
+        "maxUs": 7135.088
+      },
+      "offCpu": {
+        "count": 6861,
+        "p95Us": 1.064,
+        "p99Us": 12.172,
+        "maxUs": 55335.476
+      },
+      "entryGap": {
+        "count": 6861,
+        "p95Us": 5568.455,
+        "p99Us": 7202.202,
+        "maxUs": 114742.305
+      },
+      "wallOverruns": 3,
+      "cpuOverruns": 2,
+      "xruns": 48,
+      "rejected": 0,
+      "overflow": 0,
+      "dropped": 0,
+      "stages": {
+        "input_recovery_cpu_ns": {
+          "count": 6861,
+          "p95Us": 2.586,
+          "p99Us": 14.613,
+          "maxUs": 1943.013
+        },
+        "commands_cpu_ns": {
+          "count": 6861,
+          "p95Us": 0.976,
+          "p99Us": 29.419,
+          "maxUs": 4375.433
+        },
+        "controller_transport_cpu_ns": {
+          "count": 6861,
+          "p95Us": 3.753,
+          "p99Us": 17.536,
+          "maxUs": 1612.264
+        },
+        "movement_parameters_cpu_ns": {
+          "count": 6861,
+          "p95Us": 1.778,
+          "p99Us": 3.444,
+          "maxUs": 903.869
+        },
+        "performance_cpu_ns": {
+          "count": 6861,
+          "p95Us": 1.145,
+          "p99Us": 1.424,
+          "maxUs": 1918.407
+        },
+        "eel_phrase_transformers_cpu_ns": {
+          "count": 6861,
+          "p95Us": 36.804,
+          "p99Us": 177.99,
+          "maxUs": 3487.682
+        },
+        "movement_cc_actions_cpu_ns": {
+          "count": 6861,
+          "p95Us": 1.553,
+          "p99Us": 2.878,
+          "maxUs": 414.656
+        },
+        "midi_collect_cpu_ns": {
+          "count": 6861,
+          "p95Us": 0.368,
+          "p99Us": 0.678,
+          "maxUs": 72.698
+        },
+        "sort_cpu_ns": {
+          "count": 6861,
+          "p95Us": 0.222,
+          "p99Us": 0.514,
+          "maxUs": 69.773
+        },
+        "emit_observe_reply_cpu_ns": {
+          "count": 6861,
+          "p95Us": 0.94,
+          "p99Us": 61.565,
+          "maxUs": 1224.702
+        }
+      },
+      "qualified": false
+    },
+    {
+      "frames": 128,
+      "deadlineUs": 2666.6666666666665,
+      "wall": {
+        "count": 13558,
+        "p95Us": 103.987,
+        "p99Us": 455.122,
+        "maxUs": 80707.64
+      },
+      "cpu": {
+        "count": 13558,
+        "p95Us": 97.619,
+        "p99Us": 417.451,
+        "maxUs": 80669.553
+      },
+      "offCpu": {
+        "count": 13558,
+        "p95Us": 1.252,
+        "p99Us": 12.759,
+        "maxUs": 15266.022
+      },
+      "entryGap": {
+        "count": 13558,
+        "p95Us": 3149.884,
+        "p99Us": 4629.176,
+        "maxUs": 247145.98
+      },
+      "wallOverruns": 17,
+      "cpuOverruns": 15,
+      "xruns": 228,
+      "rejected": 0,
+      "overflow": 0,
+      "dropped": 0,
+      "stages": {
+        "input_recovery_cpu_ns": {
+          "count": 13558,
+          "p95Us": 2.81,
+          "p99Us": 16.093,
+          "maxUs": 1467.472
+        },
+        "commands_cpu_ns": {
+          "count": 13558,
+          "p95Us": 1.033,
+          "p99Us": 26.517,
+          "maxUs": 14967.135
+        },
+        "controller_transport_cpu_ns": {
+          "count": 13558,
+          "p95Us": 4.074,
+          "p99Us": 30.758,
+          "maxUs": 2503.81
+        },
+        "movement_parameters_cpu_ns": {
+          "count": 13558,
+          "p95Us": 1.793,
+          "p99Us": 9.385,
+          "maxUs": 908.663
+        },
+        "performance_cpu_ns": {
+          "count": 13558,
+          "p95Us": 1.169,
+          "p99Us": 1.501,
+          "maxUs": 2216.522
+        },
+        "eel_phrase_transformers_cpu_ns": {
+          "count": 13558,
+          "p95Us": 46.666,
+          "p99Us": 244.747,
+          "maxUs": 79125.926
+        },
+        "movement_cc_actions_cpu_ns": {
+          "count": 13558,
+          "p95Us": 1.433,
+          "p99Us": 2.702,
+          "maxUs": 556.748
+        },
+        "midi_collect_cpu_ns": {
+          "count": 13558,
+          "p95Us": 0.378,
+          "p99Us": 0.508,
+          "maxUs": 78.671
+        },
+        "sort_cpu_ns": {
+          "count": 13558,
+          "p95Us": 0.227,
+          "p99Us": 0.367,
+          "maxUs": 174.914
+        },
+        "emit_observe_reply_cpu_ns": {
+          "count": 13558,
+          "p95Us": 0.833,
+          "p99Us": 26.28,
+          "maxUs": 1012.868
+        }
+      },
+      "qualified": false
+    }
+  ]
+}

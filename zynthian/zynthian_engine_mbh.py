@@ -57,7 +57,9 @@ class zynthian_engine_mbh(zynthian_engine):
         entry = dict(engine=engine,web=None,log=log,control=self.Control(socket_path),phrase=0,data=data)
         self.instances[pid] = entry
         self._live_entries[pid] = entry
-        self.jackname = '^'+name+':'
+        # Oram treats this as both a regex source and an escaped literal destination.
+        # A caret works for source discovery but breaks routes into this processor.
+        self.jackname = name+':'
         try:
             deadline=time.monotonic()+30
             while time.monotonic()<deadline:
@@ -95,7 +97,77 @@ class zynthian_engine_mbh(zynthian_engine):
         processor.jackname=None
     def stop(self):
         for processor in list(self.processors):self.remove_processor(processor)
+    def _routing_context(self, processor):
+        manager = getattr(self.state_manager, 'chain_manager', None)
+        if manager is None:
+            return None, None
+        return manager, manager.get_chain(processor.chain_id)
+
+    def get_controllers_dict(self, processor):
+        """Native chain destinations, not a second JACK connection manager.
+
+        Oram owns routes and stores them in its snapshot. Portable MBMF projects
+        contain MIDI channels, never these host-local chain IDs.
+        """
+        manager, source = self._routing_context(processor)
+        self._ctrls = list(type(self)._ctrls)
+        self._ctrl_screens = [[name, list(symbols)] for name, symbols in type(self)._ctrl_screens]
+        routes = []
+        if source is not None and not source.synth_slots:
+            for chain_id, destination in sorted(manager.chains.items()):
+                # Only instrument chains. Never route back to MBMF, main or self.
+                if chain_id == source.chain_id or not destination.synth_slots:
+                    continue
+                if manager.will_midi_howl(source.chain_id, chain_id):
+                    continue
+                symbol = 'destination_%s' % chain_id
+                title = destination.get_title()
+                channel = destination.midi_chan
+                label = '%s CH%s' % (title, channel+1 if isinstance(channel, int) and 0 <= channel < 16 else 'ALL')
+                self._ctrls.append([symbol, dict(name=label, value=int(chain_id in source.midi_out),
+                    value_min=0, value_max=1, is_toggle=True, midi_autolearn=False,
+                    graph_path=('midi_destination', chain_id, id(destination)))])
+                routes.append(symbol)
+            for start in range(0, len(routes), 4):
+                self._ctrl_screens.append(['MIDI OUT %s' % (start//4+1), routes[start:start+4]])
+        return super().get_controllers_dict(processor)
+
+    def _set_destination(self, zctrl):
+        manager, source = self._routing_context(zctrl.processor)
+        _, chain_id, generation = zctrl.graph_path
+        destination = manager.get_chain(chain_id) if manager else None
+        if (source is None or source.synth_slots or destination is None or
+            id(destination) != generation or not destination.synth_slots or
+            source.chain_id == chain_id):
+            raise ValueError('MIDI destination unavailable; reopen MBMF controls')
+        enabled = bool(zctrl.value)
+        if enabled and manager.will_midi_howl(source.chain_id, chain_id):
+            raise ValueError('MIDI destination would create a feedback loop')
+        if enabled == (chain_id in source.midi_out):
+            return
+        # Configure routes only at rest. Native PANIC also emits channel-mode
+        # messages: invoking it implicitly could silence unrelated synth notes.
+        # Refuse rather than disconnect sounding voices or silently stop music.
+        control = self.instances[int(zctrl.processor.id)]['control']
+        now = control.request()
+        if now.get('status') != 'ok':
+            raise RuntimeError('MBMF state unavailable; MIDI route retained')
+        if (now.get('activeNotes', 0) or now.get('instances') or
+            now.get('movements', {}).get('active', 0) or now.get('chainRunning') or
+            now.get('chainRecording')):
+            raise RuntimeError('Stop MBMF and release held notes before changing MIDI routes')
+        source.toggle_midi_out(chain_id)
+
     def send_controller_value(self, zctrl):
+        if isinstance(zctrl.graph_path, tuple) and zctrl.graph_path[0] == 'midi_destination':
+            try:
+                self._set_destination(zctrl)
+            except BaseException:
+                # Rejected knob changes must not pretend the route was committed.
+                _, source = self._routing_context(zctrl.processor)
+                zctrl.value = int(source is not None and zctrl.graph_path[1] in source.midi_out)
+                raise
+            return
         entry=self.instances[int(zctrl.processor.id)]
         action=zctrl.graph_path
         if action=='phrase':entry['phrase']=int(zctrl.value)-1;return

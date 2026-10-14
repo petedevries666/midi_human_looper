@@ -10,7 +10,9 @@ atomic slot persistence. It does not merge drafts or claim full Controller/Snaps
 studio/live execution parity. Existing musical engine, source MIDI, IDs, legacy
 patch readers, bridge, note ownership and compact UI are preserved.
 
-Current integration candidate is PR #44, `integration/studio-live-rc`.
+Current unmerged recovery candidate is the dependency stack through PR #62,
+`feat/movement-engine`, with #63 qualification and a separate native-routing fix.
+PR #44 is the earlier studio/live base, not the current recovery HEAD.
 For the requested Pitch Bias feature, the next coding step is the versioned raw
 and portable migration described in [its checkpoint](velocity-decay-pitch-bias-checkpoint.md).
 The response helper is tested but inactive; no Pivot/Bias controls are delivered.

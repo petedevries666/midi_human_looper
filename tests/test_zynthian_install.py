@@ -180,6 +180,41 @@ class Installation(unittest.TestCase):
         self.assertEqual(self.catalog.read_text(),self.catalog_original)
         self.assertTrue((self.data/'processor-1/patch1.json').exists())
 
+    def test_explicit_adapter_upgrade_and_adapter_only_rollback_preserve_runtime_and_routes(self):
+        self.legacy(); self.run_install()
+        before=self.snapshot_files(); old=self.adapter.read_bytes()
+        check=self.run_install('--check','--upgrade-adapter')
+        self.assertFalse(json.loads(check.stdout)['adapterPreserved'])
+        self.assertEqual(self.snapshot_files(),before)
+        self.run_install('--upgrade-adapter')
+        self.assertEqual(self.adapter.read_bytes(),(ROOT/'zynthian/zynthian_engine_mbh.py').read_bytes())
+        for name in ('editor.token','install.json','processor-1/patch1.json'):
+            self.assertEqual((self.data/name).read_bytes(),before['data/midi-human-looper/'+name][0])
+        upgraded=self.snapshot_files();self.run_install('--upgrade-adapter')
+        self.assertEqual(self.snapshot_files(),upgraded)
+        self.run_install('--rollback-adapter')
+        self.assertEqual(self.adapter.read_bytes(),old)
+        self.assertTrue(self.helper.exists());self.exercise_selector()
+        self.assertFalse('adapter_previous' in json.loads(self.manifest.read_text()))
+        self.run_install('--rollback-adapter',success=False)
+
+    def test_adapter_update_failure_restores_old_bytes_and_manifest(self):
+        self.legacy(); self.run_install(); before=self.snapshot_files(); real=installer.atomic
+        def fail_once(path,data):
+            if path==self.manifest:raise OSError('injected adapter manifest failure')
+            return real(path,data)
+        with patch.object(installer,'atomic',side_effect=fail_once):
+            with self.assertRaises(OSError):installer.main([*self.args,'--upgrade-adapter'])
+        self.assertEqual(self.snapshot_files(),before)
+
+    def test_modified_adapter_backup_rejects_rollback_without_mutation(self):
+        self.legacy();self.run_install('--upgrade-adapter')
+        previous=json.loads(self.manifest.read_text())['adapter_previous']
+        backup=self.data/'adapter-upgrades'/(previous['sha256']+'.py')
+        backup.write_text('# unexpected modification\n');before=self.snapshot_files()
+        self.run_install('--rollback-adapter',success=False)
+        self.assertEqual(self.snapshot_files(),before)
+
     def test_repeated_install_is_byte_and_mode_idempotent(self):
         self.run_install('--lan');before=self.snapshot_files()
         self.run_install('--lan');self.assertEqual(self.snapshot_files(),before)

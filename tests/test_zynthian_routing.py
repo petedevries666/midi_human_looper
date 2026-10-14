@@ -47,6 +47,15 @@ class Routing(unittest.TestCase):
         # Synth input also has a router path: disable hardware input on destination
         # chains through their UI to prevent double keyboard delivery.
 
+    def test_literal_client_prefix_resolves_routed_input_without_caret_regression(self):
+        # Oram escapes destination names, while source names are regexes. Both
+        # must work; '^mbh_1:' silently fails the escaped destination lookup.
+        self.mb.midi_routes={'mbh_1:':['ZynMidiRouter:ch1_out']}
+        routes=oram.resolve_routes(self.manager,self.jack)
+        self.assertIn('ZynMidiRouter:ch1_out',routes['mbh_1:midi_in'])
+        self.assertTrue(self.jack.get_ports(re.escape('mbh_1:'),is_input=True))
+        self.assertFalse(self.jack.get_ports(re.escape('^mbh_1:'),is_input=True))
+
     def test_channel_selection_does_not_filter_or_remap_direct_fanout(self):
         self.mb.toggle_midi_out(2)
         before=oram.resolve_routes(self.manager,self.jack)

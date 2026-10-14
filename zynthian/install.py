@@ -180,10 +180,13 @@ def main(argv=None):
     parser.add_argument('--data-dir',type=Path,default=Path('/zynthian/zynthian-my-data'))
     parser.add_argument('--binary',type=Path)
     parser.add_argument('--lan',action='store_true')
-    parser.add_argument('--rollback',action='store_true')
+    actions=parser.add_mutually_exclusive_group()
+    actions.add_argument('--rollback',action='store_true')
+    actions.add_argument('--upgrade-adapter',action='store_true',help='explicitly update the owned Python adapter, retaining its previous bytes')
+    actions.add_argument('--rollback-adapter',action='store_true',help='restore the previous owned adapter only; retain registration/runtime/config')
     parser.add_argument('--check',action='store_true',help='validate ownership, binary and Oram anchors without writes')
     args=parser.parse_args(argv);root=Path(__file__).resolve().parents[1]
-    if args.check and args.rollback:parser.error('--check and --rollback are mutually exclusive')
+    if args.check and (args.rollback or args.rollback_adapter):parser.error('--check and rollback are mutually exclusive')
     paths = {
         'manager': args.ui_dir/'zyngine/zynthian_chain_manager.py',
         'catalog': args.ui_dir/'zyngine/zynthian_lv2.py',
@@ -201,6 +204,22 @@ def main(argv=None):
         raise ValueError('Zynthian Oram manager/catalog sources are missing')
     if metadata:
         checked_owned_files(metadata,paths,directory)
+    if args.rollback_adapter:
+        if not metadata or metadata['version'] != 2 or not metadata.get('adapter_previous'):
+            raise ValueError('no owned adapter update to roll back')
+        previous=metadata['adapter_previous'];sha=previous.get('sha256', '')
+        if not isinstance(sha,str) or len(sha)!=64 or any(c not in '0123456789abcdef' for c in sha):
+            raise ValueError('invalid adapter backup identity')
+        backup_dir=directory/'adapter-upgrades';backup=backup_dir/(sha+'.py')
+        if backup_dir.is_symlink() or backup.is_symlink() or not backup.is_file() or digest(backup.read_bytes())!=sha:
+            raise ValueError('adapter backup missing or changed; refusing rollback')
+        original=read(backup);ast.parse(original)
+        mode=previous.get('mode')
+        if type(mode) is not int or not 0 <= mode <= 0o777:raise ValueError('invalid adapter backup mode')
+        metadata['files']['adapter']['installed_sha256']=sha
+        del metadata['adapter_previous']
+        transaction([(paths['adapter'],original,mode),(manifest,json.dumps(metadata,indent=2),0o600)])
+        print('Previous owned adapter restored. Runtime, registration, configuration and projects retained. Restart UI when ready.');return
     if args.rollback:
         if not metadata:raise ValueError('no installation manifest; nothing owned to remove')
         if metadata['version']==1:
@@ -224,12 +243,12 @@ def main(argv=None):
     after={'manager':registration(before['manager']), 'catalog':catalog_registration(before['catalog']),
            'helper':read(root/'zynthian/zynthian_engine_mbh_catalog.py'),
            # A catalog-only upgrade must not change the existing adapter's runtime ABI.
-           'adapter':before['adapter'] if metadata else read(root/'zynthian/zynthian_engine_mbh.py')}
+           'adapter':before['adapter'] if metadata and not args.upgrade_adapter else read(root/'zynthian/zynthian_engine_mbh.py')}
     for source in after.values():ast.parse(source)
     if args.check:
         print(json.dumps(dict(registrationCompatible=True,catalogCompatible=True,category='Other',
             binary=str(binary),managedUpgrade=bool(metadata and metadata['version']==1),
-            adapterPreserved=bool(metadata),upgradeRequiresRollback=False,
+            adapterPreserved=bool(metadata and not args.upgrade_adapter),upgradeRequiresRollback=False,
             existingConfigurationPreserved=config.exists(),writesPerformed=False),indent=2));return
     changes=[];records={}
     for name,path in paths.items():
@@ -266,11 +285,20 @@ def main(argv=None):
             changes.append((token,secrets.token_urlsafe(32)+'\n',0o600))
         changes.append((config,json.dumps(dict(version=1,chain_timing_version=2,repository=str(root),binary=str(binary),
             web_port_base=8765,web_bind='0.0.0.0' if args.lan else '127.0.0.1',token_file=str(token) if args.lan else ''),indent=2),0o600))
+    previous=metadata.get('adapter_previous') if metadata else None
+    if metadata and args.upgrade_adapter and after['adapter']!=before['adapter']:
+        sha=digest(before['adapter'].encode());backup_dir=directory/'adapter-upgrades';backup=backup_dir/(sha+'.py')
+        if backup_dir.is_symlink() or backup.is_symlink() or (backup.exists() and read(backup)!=before['adapter']):
+            raise ValueError('adapter backup conflict; refusing update')
+        previous=dict(sha256=sha,mode=paths['adapter'].stat().st_mode & 0o777)
+        changes.append((backup,before['adapter'],0o600))
     # Dependencies first; source activation last. No running services are restarted.
     for name in ('helper','adapter','manager','catalog'):
         path=paths[name];mode=path.stat().st_mode & 0o777 if path.exists() else 0o644
         changes.append((path,after[name],mode))
-    changes.append((manifest,json.dumps(dict(version=2,files=records),indent=2),0o600))
+    updated=dict(version=2,files=records)
+    if previous:updated['adapter_previous']=previous
+    changes.append((manifest,json.dumps(updated,indent=2),0o600))
     transaction(changes)
-    print('Installed Oram MIDI Tool / Other discovery. Existing adapter/configuration preserved on upgrade. No JACK connections/services changed. Restart only Zynthian UI when ready.')
+    print('Installed Oram MIDI Tool / Other discovery. Configuration preserved; adapter '+('updated explicitly with backup' if args.upgrade_adapter else 'preserved on upgrade')+'. No JACK connections/services changed. Restart only Zynthian UI when ready.')
 if __name__=='__main__':main()

@@ -188,3 +188,9 @@ dialog[data-contextual][open]{position:relative;inset:auto;width:100%;max-width:
 @media(min-width:1000px){#switches .switch>button[aria-label=CONDUCTOR]{grid-row:3}#switches .switch>.switch-test[open]{grid-row:4}#switches .switch>.switch-test-feedback{grid-row:5}}
 .conductor-option input[type=range]{accent-color:#fff020}
 .conductor-add-menu{position:absolute;left:0;top:45px;width:100%;box-sizing:border-box}
+/* MOVEMENT reuses the existing compact curve/editor language. */
+.movement-row{display:flex;align-items:center;gap:5px;flex-wrap:wrap;border:1px solid #555;padding:4px;margin:4px 0}.movement-row .curve-mini{max-width:100px}.movement-editor{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px}.movement-editor>h2,.movement-editor>.movement-curve,.movement-editor>.curve-presets,.movement-editor>[role=alert]{grid-column:1/-1}.movement-editor label{display:flex;align-items:center;gap:5px;min-width:0}.movement-editor input,.movement-editor select{max-width:100%;min-width:0;width:100%}.movement-target{display:flex;flex-wrap:wrap;gap:5px;min-width:0}.movement-editor canvas{width:100%;height:auto}.movement-editor .curve-point{flex-wrap:wrap}@media(max-width:480px){.movement-editor{grid-template-columns:minmax(0,1fr)}.movement-row>strong{width:100%}}
+
+.movement-row>.rail-curve{position:static;width:100px;height:20px;flex:none}.conductor-properties>.rail-curve{position:static;width:100%;height:45px}
+
+.movement-active{border-color:#ffe34d}.movement-active>.movement-state{color:#ffe34d}

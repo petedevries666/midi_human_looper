@@ -1,0 +1,14 @@
+................................E...............
+======================================================================
+ERROR: test_movement_roundtrip_and_atomic_validation (__main__.MovementPersistence.test_movement_roundtrip_and_atomic_validation)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/mbmf-conductor-a/tests/test_movement_persistence.py", line 14, in test_movement_roundtrip_and_atomic_validation
+    before=self.save();self.load(before);self.assertEqual(self.save(),before);self.assertFalse(self.call()['instances']);self.assertEqual(self.call()['snapshots']['movements']['active'],0)
+                                                                                                                                          ~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+TypeError: list indices must be integers or slices, not str
+
+----------------------------------------------------------------------
+Ran 48 tests in 26.188s
+
+FAILED (errors=1)

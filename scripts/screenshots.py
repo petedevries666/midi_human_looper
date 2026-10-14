@@ -148,6 +148,28 @@ def run(output, performance=False):
                 page.get_by_label('VEL override',exact=True).fill('0.5')
                 capture('conductor-override-editor')
                 page.get_by_role('button',name='CANCEL',exact=True).click()
+                # Actual source authoring and native config, not a mock curve.
+                page.locator('#movement-section').evaluate('e=>e.open=true')
+                page.get_by_role('button',name='+ MOVEMENT',exact=True).click()
+                page.locator('.movement-editor').wait_for()
+                page.get_by_label('NAME',exact=True).fill('FILTER RISE')
+                page.get_by_label('CC',exact=True).fill('74')
+                page.get_by_role('button',name='ADD POINT',exact=True).click()
+                page.get_by_text('POINTS / PRECISION',exact=True).click()
+                page.get_by_label('Y point 2',exact=True).fill('0.2')
+                capture('movement-curve-editor')
+                page.get_by_role('button',name='DONE',exact=True).click()
+                page.locator('#editor').wait_for(state='hidden')
+                capture('movement-library','#movement-section')
+                page.locator('[data-switch-id="1"]').get_by_role('button',name='CONDUCTOR',exact=True).click()
+                page.locator('.conductor-editor').wait_for()
+                page.get_by_role('button',name='Add PHRASE STEP 1 LAYER 2',exact=True).click()
+                page.locator('.conductor-add-menu').get_by_text('MOVEMENTS',exact=True).click()
+                page.get_by_role('button',name='MOVEMENT · FILTER RISE',exact=True).click()
+                capture('movement-layer-editor')
+                page.get_by_role('button',name='CANCEL',exact=True).click()
+                movement_model=page.evaluate("fetch('/api/v1/conductor').then(r=>r.json())")['model']
+                api.command('conductor_commit',conductor=dict(version=1,sources=movement_model['sources'],switches=[]))
                 capture('phrases','#phrase-pagination')
                 page.get_by_role('button',name='Edit Phrase 1 name',exact=True).click()
                 capture('phrase-name-editor');page.keyboard.press('Escape')
@@ -210,7 +232,7 @@ def run(output, performance=False):
             artifacts.extend(recovery['artifacts'])
             for artifact in recovery['artifacts']:artifact['runtimeBuildRevision']=recovery['runtimeBuildRevision'];artifact['data']=recovery['data']
         manifest=dict(browser=browser.version,sourceRevision=subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip(),sourceDirty=bool(subprocess.check_output(['git','status','--porcelain','--untracked-files=no'],cwd=ROOT,text=True).strip()),runtimeBuildRevision=api.call()['buildRevision'],application='MIDI BAD MOTHERFUCKER',data='Native --demo views plus actual native --chain recovery: named CC source, real ARP MIDI, observed recording states and explicitly configured reference chains',artifacts=artifacts,
-                      unsupported={'CONDUCTOR':'No implemented CONDUCTOR editor on the integration candidate; no mock screenshot supplied.'})
+                      unsupported={'MOVEMENT advanced execution':'GATED/HOLD admissions, JOIN/REVEAL/FECK and musical durations are not enabled; screenshots cover implemented source and layer editing.'})
         (output/'manifest.json').write_text(json.dumps(manifest,indent=2)+'\n')
         failures=[a for a in artifacts if a['checks']]
         if failures:

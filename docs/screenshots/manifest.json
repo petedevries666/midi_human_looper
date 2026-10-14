@@ -1,8 +1,8 @@
 {
   "browser": "151.0.7922.173",
-  "sourceRevision": "c9b38e1b03568e013134ac77fad31975fabf563e",
-  "sourceDirty": true,
-  "runtimeBuildRevision": "c9b38e1b03568e013134ac77fad31975fabf563e.dirty",
+  "sourceRevision": "a4cb1b8d8fd91bc8c5ec5f9ae944d7e9077c583c",
+  "sourceDirty": false,
+  "runtimeBuildRevision": "d550d7a0c3033ec089af86eba7c6a30ae4438000",
   "application": "MIDI BAD MOTHERFUCKER",
   "data": "Native --demo views plus actual native --chain recovery: named CC source, real ARP MIDI, observed recording states and explicitly configured reference chains",
   "artifacts": [
@@ -130,6 +130,42 @@
         240
       ],
       "file": "conductor-override-editor-bottom-320x240.png",
+      "checks": []
+    },
+    {
+      "view": "movement-curve-editor",
+      "viewport": [
+        320,
+        240
+      ],
+      "file": "movement-curve-editor-320x240.png",
+      "checks": []
+    },
+    {
+      "view": "movement-library",
+      "viewport": [
+        320,
+        240
+      ],
+      "file": "movement-library-320x240.png",
+      "checks": []
+    },
+    {
+      "view": "movement-layer-editor",
+      "viewport": [
+        320,
+        240
+      ],
+      "file": "movement-layer-editor-320x240.png",
+      "checks": []
+    },
+    {
+      "view": "movement-layer-editor-bottom",
+      "viewport": [
+        320,
+        240
+      ],
+      "file": "movement-layer-editor-bottom-320x240.png",
       "checks": []
     },
     {
@@ -448,6 +484,33 @@
       "checks": []
     },
     {
+      "view": "movement-curve-editor",
+      "viewport": [
+        800,
+        480
+      ],
+      "file": "movement-curve-editor-800x480.png",
+      "checks": []
+    },
+    {
+      "view": "movement-library",
+      "viewport": [
+        800,
+        480
+      ],
+      "file": "movement-library-800x480.png",
+      "checks": []
+    },
+    {
+      "view": "movement-layer-editor",
+      "viewport": [
+        800,
+        480
+      ],
+      "file": "movement-layer-editor-800x480.png",
+      "checks": []
+    },
+    {
       "view": "phrases",
       "viewport": [
         800,
@@ -706,6 +769,33 @@
         768
       ],
       "file": "conductor-override-editor-1366x768.png",
+      "checks": []
+    },
+    {
+      "view": "movement-curve-editor",
+      "viewport": [
+        1366,
+        768
+      ],
+      "file": "movement-curve-editor-1366x768.png",
+      "checks": []
+    },
+    {
+      "view": "movement-library",
+      "viewport": [
+        1366,
+        768
+      ],
+      "file": "movement-library-1366x768.png",
+      "checks": []
+    },
+    {
+      "view": "movement-layer-editor",
+      "viewport": [
+        1366,
+        768
+      ],
+      "file": "movement-layer-editor-1366x768.png",
       "checks": []
     },
     {
@@ -970,6 +1060,33 @@
       "checks": []
     },
     {
+      "view": "movement-curve-editor",
+      "viewport": [
+        1440,
+        900
+      ],
+      "file": "movement-curve-editor-1440x900.png",
+      "checks": []
+    },
+    {
+      "view": "movement-library",
+      "viewport": [
+        1440,
+        900
+      ],
+      "file": "movement-library-1440x900.png",
+      "checks": []
+    },
+    {
+      "view": "movement-layer-editor",
+      "viewport": [
+        1440,
+        900
+      ],
+      "file": "movement-layer-editor-1440x900.png",
+      "checks": []
+    },
+    {
       "view": "phrases",
       "viewport": [
         1440,
@@ -1231,6 +1348,33 @@
       "checks": []
     },
     {
+      "view": "movement-curve-editor",
+      "viewport": [
+        1904,
+        1032
+      ],
+      "file": "movement-curve-editor-1904x1032.png",
+      "checks": []
+    },
+    {
+      "view": "movement-library",
+      "viewport": [
+        1904,
+        1032
+      ],
+      "file": "movement-library-1904x1032.png",
+      "checks": []
+    },
+    {
+      "view": "movement-layer-editor",
+      "viewport": [
+        1904,
+        1032
+      ],
+      "file": "movement-layer-editor-1904x1032.png",
+      "checks": []
+    },
+    {
       "view": "phrases",
       "viewport": [
         1904,
@@ -1409,7 +1553,7 @@
       ],
       "file": "recovery-arp-editor-1904x1032.png",
       "checks": [],
-      "runtimeBuildRevision": "c9b38e1b03568e013134ac77fad31975fabf563e.dirty",
+      "runtimeBuildRevision": "a4cb1b8d8fd91bc8c5ec5f9ae944d7e9077c583c",
       "data": "Actual native --chain; real CC mapping and recording actions"
     },
     {
@@ -1420,7 +1564,7 @@
       ],
       "file": "recovery-modulator-menu-1904x1032.png",
       "checks": [],
-      "runtimeBuildRevision": "c9b38e1b03568e013134ac77fad31975fabf563e.dirty",
+      "runtimeBuildRevision": "a4cb1b8d8fd91bc8c5ec5f9ae944d7e9077c583c",
       "data": "Actual native --chain; real CC mapping and recording actions"
     },
     {
@@ -1431,7 +1575,7 @@
       ],
       "file": "recovery-curve-editor-1904x1032.png",
       "checks": [],
-      "runtimeBuildRevision": "c9b38e1b03568e013134ac77fad31975fabf563e.dirty",
+      "runtimeBuildRevision": "a4cb1b8d8fd91bc8c5ec5f9ae944d7e9077c583c",
       "data": "Actual native --chain; real CC mapping and recording actions"
     },
     {
@@ -1442,7 +1586,7 @@
       ],
       "file": "recovery-record-armed-1904x1032.png",
       "checks": [],
-      "runtimeBuildRevision": "c9b38e1b03568e013134ac77fad31975fabf563e.dirty",
+      "runtimeBuildRevision": "a4cb1b8d8fd91bc8c5ec5f9ae944d7e9077c583c",
       "data": "Actual native --chain; real CC mapping and recording actions"
     },
     {
@@ -1453,7 +1597,7 @@
       ],
       "file": "recovery-recording-1904x1032.png",
       "checks": [],
-      "runtimeBuildRevision": "c9b38e1b03568e013134ac77fad31975fabf563e.dirty",
+      "runtimeBuildRevision": "a4cb1b8d8fd91bc8c5ec5f9ae944d7e9077c583c",
       "data": "Actual native --chain; real CC mapping and recording actions"
     },
     {
@@ -1464,7 +1608,7 @@
       ],
       "file": "recovery-performance-1904x1032.png",
       "checks": [],
-      "runtimeBuildRevision": "c9b38e1b03568e013134ac77fad31975fabf563e.dirty",
+      "runtimeBuildRevision": "a4cb1b8d8fd91bc8c5ec5f9ae944d7e9077c583c",
       "data": "Actual native --chain; real CC mapping and recording actions"
     },
     {
@@ -1475,7 +1619,7 @@
       ],
       "file": "recovery-instrument-chains-1904x1032.png",
       "checks": [],
-      "runtimeBuildRevision": "c9b38e1b03568e013134ac77fad31975fabf563e.dirty",
+      "runtimeBuildRevision": "a4cb1b8d8fd91bc8c5ec5f9ae944d7e9077c583c",
       "data": "Actual native --chain; real CC mapping and recording actions"
     },
     {
@@ -1486,11 +1630,11 @@
       ],
       "file": "recovery-transformer-editor-1904x1032.png",
       "checks": [],
-      "runtimeBuildRevision": "c9b38e1b03568e013134ac77fad31975fabf563e.dirty",
+      "runtimeBuildRevision": "a4cb1b8d8fd91bc8c5ec5f9ae944d7e9077c583c",
       "data": "Actual native --chain; real CC mapping and recording actions"
     }
   ],
   "unsupported": {
-    "CONDUCTOR": "No implemented CONDUCTOR editor on the integration candidate; no mock screenshot supplied."
+    "MOVEMENT advanced execution": "GATED/HOLD admissions, JOIN/REVEAL/FECK and musical durations are not enabled; screenshots cover implemented source and layer editing."
   }
 }

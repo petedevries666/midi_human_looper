@@ -1,0 +1,18 @@
+..F.
+======================================================================
+FAIL: test_parameter_controller_takeover_and_legacy_refusal (__main__.MovementPersistence.test_parameter_controller_takeover_and_legacy_refusal)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/mbmf-conductor-a/tests/test_movement_persistence.py", line 35, in test_parameter_controller_takeover_and_legacy_refusal
+    self.command('legacy_curve',instrumentId=1,moduleId=0,kind=1,source=1)
+  File "/workspace/mbmf-conductor-a/tests/test_headless_mvp.py", line 72, in command
+    return self.call(dict(protocolVersion=1,expectedRevision=self.call()['revision'],action=action,**args), expected=expected)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/mbmf-conductor-a/tests/test_headless_mvp.py", line 68, in call
+    self.assertEqual(response.status,expected)
+AssertionError: 400 != 200
+
+----------------------------------------------------------------------
+Ran 4 tests in 2.593s
+
+FAILED (failures=1)

@@ -204,11 +204,9 @@ class Handler(BaseHTTPRequestHandler):
                 from conductor import decode as decode_conductor, resolve
                 with self.server.control.lock:
                     state=self.server.control.request()
-                    patch=self.server.control.request(op=4,revision=state['revision'],session=state['engineSessionId'])
-                if patch.get('format')!='MIDI_HUMAN_LOOPER_PATCH':
-                    self.respond(409,patch);return
-                model=decode_conductor(patch['conductor']) if 'conductor' in patch else None
-                self.respond(200,{'engineSessionId':state['engineSessionId'],'revision':state['revision'],'executionSupported':True,'supportedExecution':['SEQUENTIAL','IMMEDIATE','PRESS_INSTANT','PHRASE_POLY'],'runtime':{str(v['id']):v.get('conductor',{}) for v in state['switches']},'model':model,'missingReferences':resolve(model,{v['id'] for v in state['switches']}) if model else []})
+                    patch=self.server.control.request(op=48)
+                model=decode_conductor(patch['conductor']) if patch.get('conductor') else None
+                self.respond(200,{'engineSessionId':state['engineSessionId'],'revision':state['revision'],'executionSupported':True,'supportedExecution':['SEQUENTIAL','IMMEDIATE','PRESS_INSTANT','PHRASE_POLY','MOVEMENT_CC','MOVEMENT_PARAMETER','LINEAR','HOLD_CURVE','ONE_SHOT'],'runtime':{str(v['id']):v.get('conductor',{}) for v in state['switches']},'model':model,'missingReferences':resolve(model,{v['id'] for v in state['switches']}) if model else []})
             except (ValueError,OSError):self.respond(503,{'error':'CONDUCTOR unavailable'})
             return
         if path == '/api/v1/descriptors':
@@ -233,6 +231,7 @@ class Handler(BaseHTTPRequestHandler):
         files = {'/': ('index.html', 'text/html; charset=utf-8'),
                  '/app.js': ('app.js', 'text/javascript; charset=utf-8'),
                  '/conductor.js': ('conductor.js', 'text/javascript; charset=utf-8'),
+                 '/movement.js': ('movement.js', 'text/javascript; charset=utf-8'),
                  '/style.css': ('style.css', 'text/css; charset=utf-8'),
                  '/fonts/mbmf-block.woff2': ('fonts/mbmf-block.woff2', 'font/woff2')}
         if path not in files:
@@ -358,6 +357,17 @@ class Handler(BaseHTTPRequestHandler):
                         for a in masks:
                             if not isinstance(a,dict) or any(type(a.get(k)) is not int for k in ('instrumentId','moduleId','kind')) or not 1<=a['instrumentId']<=16777215 or not 0<=a['moduleId']<=16777215 or (not 0<=a['kind']<=24 or a['kind']==16) or type(a.get('included')) is not bool:raise ValueError()
                         args['inclusions']=masks
+            elif action in ('movement_preview','movement_stop'):
+                from conductor import identity, decode as decode_conductor
+                ident=identity(data.get('movementId'))
+                with self.server.control.lock:
+                    patch=self.server.control.request(op=48)
+                    model=decode_conductor(patch['conductor']) if patch.get('conductor') else {}
+                    items=model.get('movements',[])
+                    index=next((i for i,m in enumerate(items) if m['id']==ident),None)
+                    if index is None:raise ValueError('Missing MOVEMENT source')
+                    result=self.server.control.request(op=46 if action=='movement_preview' else 47,target=index,revision=revision,session=session)
+                self.respond(200 if result.get('status')=='ok' else 409,result);return
             elif action=='conductor_release':
                 target=data.get('switchId')
                 if type(target) is not int or not 1<=target<=16777215:raise ValueError()

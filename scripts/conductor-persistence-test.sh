@@ -17,6 +17,9 @@ functional_status=$?
 "$TEST_PYTHON" tests/test_conductor_execution_native.py
 execution_status=$?
 if [[ $execution_status != 0 ]];then functional_status=$execution_status;fi
+"$TEST_PYTHON" tests/test_movement_persistence.py
+movement_status=$?
+if [[ $movement_status != 0 ]];then functional_status=$movement_status;fi
 set -e
 "$TEST_PYTHON" - "$sanitizer_dir" "$functional_status" <<'PY'
 from pathlib import Path

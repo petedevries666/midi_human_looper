@@ -1,0 +1,6 @@
+Cannot lock down 107341340 byte memory area (Cannot allocate memory)
+Traceback (most recent call last):
+  File "/workspace/mbmf-conductor-a/tests/test_movement_jack.py", line 80, in <module>
+    assert [e[4] for e in trace if e[2]==176 and e[3]==15]==[25,102]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError

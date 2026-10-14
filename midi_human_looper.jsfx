@@ -2427,11 +2427,11 @@ local(v,h,id)
 function conductor_reject_gesture(si) local(h)
 (h=conductor_header(si);mem[h+4]=4;mem[h+5]=0;mem[h+6]=0;mem[sw_rt(si)+17]=4;);
 function conductor_press(si,offs)
-local(h,step,b,n,j,v,free,valid,p,mode,ratio,repeats,last,t,oldmode,oldhold,olddecay,oldtime,id,owner)
+local(h,step,b,n,j,v,free,valid,p,mode,ratio,repeats,last,t,oldmode,oldhold,olddecay,oldtime,id,owner,k)
 (
  h=conductor_header(si);mem[h+4]=0;mem[h+5]=0;mem[h+6]=0;mem[sw_rt(si)+11]=SW_NEXT;mem[sw_rt(si)+12]+=1;
  !mem[h+7] || mem[h+1]<=0 ? mem[h+4]=4 : (
-  step=(mem[h+3]+1)%mem[h+1];b=mem[h+2]+step*64;
+  step=(mem[h+3]+1)%mem[h+1];b=mem[h+2]+step*68;
   !mem[b] ? mem[h+4]=mem[b+3]>0?mem[b+3]:4 : (
    n=0;j=0;valid=instance_poly_routes();repeats=instance_repeat;last=instance_last_source;
    loop(min(MAX_ONCE_VOICES,mem[b+2]),p=mem[b+4+j*5];
@@ -2444,7 +2444,8 @@ local(h,step,b,n,j,v,free,valid,p,mode,ratio,repeats,last,t,oldmode,oldhold,oldd
     );j+=1;
    );
    free=0;v=0;loop(MAX_ONCE_VOICES,mem[VOICE_ACTIVE_BASE+v]<.5 && mem[instance_header(v)+5]==0 && mem[instance_header(v)+9]==0?free+=1;v+=1;);
-   n>0 && instance_serial+n>9007199254740990 ? (mem[h+4]=5;instance_error=5;instance_rejected+=1;) : n>free ? (mem[h+4]=2;instance_error=2;instance_rejected+=1;) : !valid && n>0 ? (mem[h+4]=3;instance_error=3;instance_rejected+=1;) : (
+   mem[b+64]>64-(snap_host_write-snap_host_read) ? (mem[h+4]=6;) : n>0 && instance_serial+n>9007199254740990 ? (mem[h+4]=5;instance_error=5;instance_rejected+=1;) : n>free ? (mem[h+4]=2;instance_error=2;instance_rejected+=1;) : !valid && n>0 ? (mem[h+4]=3;instance_error=3;instance_rejected+=1;) : (
+    j=0;loop(mem[b+64],k=I_RUNTIME_END+96+(snap_host_write%64)*3;mem[k]=9;mem[k+1]=mem[mem[b+65]+j];mem[k+2]=offs;snap_host_write+=1;j+=1;);
     mem[h+3]=step;mem[sw_rt(si)+7]=step;mem[h+5]=mem[b+1];mem[h+4]=mem[b+1]>0?1:0;
     j=0;loop(min(MAX_ONCE_VOICES,mem[b+2]),p=mem[b+4+j*5];
      layer_audible(p)?(
@@ -2584,7 +2585,7 @@ local(b,r,step,phrase,gi,kind,k,c,found)
     native_stop_pending=1;native_stop_capture_pos=max(0,record_sample_pos+offs);
     free_record_active=0;free_record_ready=0;overdub_active=0;overdub_armed=0;state=STATE_STOPPED;
   );
-  snap_host_enabled && (action==SW_STOP || action==SW_STOP_RESET || action==SW_PANIC) ? (snap_host_cancel=1;snap_parameter_cancel(););
+  snap_host_enabled && (action==SW_STOP || action==SW_STOP_RESET || action==SW_PANIC) ? (snap_host_cancel=action==SW_PANIC?2:1;snap_parameter_cancel(););
   b=sw_cfg(si);r=sw_rt(si);mem[r+11]=action;mem[r+12]+=1;mem[r+17]=0;
   action>=101 && action<=107 ? (
     snap_host_enabled && snap_host_write-snap_host_read<64 ? (

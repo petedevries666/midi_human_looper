@@ -24,6 +24,10 @@ CONDUCTOR is not implemented on this base and has no fabricated screenshot.
 | instrument-editor-bottom | [PNG](instrument-editor-bottom-320x240.png) | — | — | — | — |
 | instrument-name-editor | [PNG](instrument-name-editor-320x240.png) | [PNG](instrument-name-editor-800x480.png) | [PNG](instrument-name-editor-1366x768.png) | [PNG](instrument-name-editor-1440x900.png) | [PNG](instrument-name-editor-1904x1032.png) |
 | instruments | [PNG](instruments-320x240.png) | [PNG](instruments-800x480.png) | [PNG](instruments-1366x768.png) | [PNG](instruments-1440x900.png) | [PNG](instruments-1904x1032.png) |
+| movement-curve-editor | [PNG](movement-curve-editor-320x240.png) | [PNG](movement-curve-editor-800x480.png) | [PNG](movement-curve-editor-1366x768.png) | [PNG](movement-curve-editor-1440x900.png) | [PNG](movement-curve-editor-1904x1032.png) |
+| movement-layer-editor | [PNG](movement-layer-editor-320x240.png) | [PNG](movement-layer-editor-800x480.png) | [PNG](movement-layer-editor-1366x768.png) | [PNG](movement-layer-editor-1440x900.png) | [PNG](movement-layer-editor-1904x1032.png) |
+| movement-layer-editor-bottom | [PNG](movement-layer-editor-bottom-320x240.png) | — | — | — | — |
+| movement-library | [PNG](movement-library-320x240.png) | [PNG](movement-library-800x480.png) | [PNG](movement-library-1366x768.png) | [PNG](movement-library-1440x900.png) | [PNG](movement-library-1904x1032.png) |
 | patch | [PNG](patch-320x240.png) | [PNG](patch-800x480.png) | [PNG](patch-1366x768.png) | [PNG](patch-1440x900.png) | [PNG](patch-1904x1032.png) |
 | phrase-editor | [PNG](phrase-editor-320x240.png) | [PNG](phrase-editor-800x480.png) | [PNG](phrase-editor-1366x768.png) | [PNG](phrase-editor-1440x900.png) | [PNG](phrase-editor-1904x1032.png) |
 | phrase-name-editor | [PNG](phrase-name-editor-320x240.png) | [PNG](phrase-name-editor-800x480.png) | [PNG](phrase-name-editor-1366x768.png) | [PNG](phrase-name-editor-1440x900.png) | [PNG](phrase-name-editor-1904x1032.png) |

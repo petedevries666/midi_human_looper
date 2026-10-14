@@ -4,6 +4,7 @@
 #include "controller_wire.hpp"
 #include "conductor_wire.hpp"
 #include "conductor_execution.hpp"
+#include "movement_engine.hpp"
 #include "parameter_registry.hpp"
 #include "snapshot_wire.hpp"
 #include "ysfx.hpp"
@@ -131,6 +132,9 @@ struct Snapshot {
   std::array<uint32_t, 32> owners{};
   std::array<bool, 32> returning{}, pickup{};
   unsigned performanceCount = 0, performanceSkipped = 0;
+  unsigned movementActive=0,movementRejected=0,movementEmitted=0,movementCancelled=0,movementRunningCount=0;
+  std::array<std::array<char,37>,512> movementIds{};
+  std::array<double,512> movementProgress{};
   uint32_t performanceSelected = 0, performanceTarget = 0;
   double performanceProgress = 1;
   std::array<uint32_t, 16> performanceIds{}, performanceSizes{};
@@ -706,6 +710,9 @@ static std::string json(const Reply &r) {
   }
   o << "],\"selectedSnapshotId\":" << s.performanceSelected
     << ",\"snapshotSkippedTargets\":" << s.performanceSkipped
+    << ",\"movements\":{\"active\":"<<s.movementActive<<",\"rejected\":"<<s.movementRejected<<",\"emitted\":"<<s.movementEmitted<<",\"cancelled\":"<<s.movementCancelled<<",\"running\":[";
+  for(unsigned j=0;j<s.movementRunningCount;++j){if(j)o<<',';o<<"{\"id\":"<<quote(s.movementIds[j].data())<<",\"progress\":"<<s.movementProgress[j]<<'}';}
+  o<<"]}"
     << ",\"targetSnapshotId\":" << s.performanceTarget
     << ",\"morphProgress\":" << s.performanceProgress << ",\"snapshots\":[";
   for (unsigned j = 0; j < s.performanceCount; ++j) {
@@ -913,13 +920,15 @@ static void control(int listener, Queue<Request, 64> &commands,
                     PatchModel &patch, Model &model,
                     controller::Host &controllers,
                     performance::Snapshots &performanceSnapshots,
-                    const std::function<bool(int, int, int)> &conflicts) {
+                    const std::function<bool(int, int, int)> &conflicts, movement::Runtime &movements) {
   std::vector<unsigned> conductorConfiguration; // worker-owned, never live MIDI state
   auto installConductor=[&](const std::vector<unsigned>& bytes){
     std::array<unsigned,16> owners{};
     for(unsigned i=0;i<16;++i)owners[i]=*model.sw[i][0]?unsigned(*model.sw[i][1]):0;
     unsigned base=unsigned(variable(patch.fx,"CONDUCTOR_BASE"));
-    auto cells=conductor::compile(bytes,base,owners);
+    auto prepared=movement::prepare(bytes);
+    auto cells=conductor::compile(bytes,base,owners,prepared.blocks);
+    movements.install(std::move(prepared));
     // Touch/resolve every cell on the worker while processing is paused.
     for(unsigned i=0;i<cells.size();++i)*cell(patch.fx,base+i)=cells[i];
     *NSEEL_VM_regvar(patch.fx->vm.get(),"conductor_host_enabled")=1;
@@ -960,7 +969,7 @@ static void control(int listener, Queue<Request, 64> &commands,
                       request.arg >> request.revision >> request.ch >>
                       request.note >> request.value) &&
                  request.id > 0 && request.id <= 9007199254740991ULL &&
-                 request.op >= 0 && (request.op <= 45) && request.arg >= 0 &&
+                 request.op >= 0 && (request.op <= 48) && request.arg >= 0 &&
                  request.arg <= (request.op == 13   ? 5
                                  : request.op == 40 ? 7
                                  : request.op == 15 || request.op == 34 ? 3
@@ -1147,6 +1156,9 @@ static void control(int listener, Queue<Request, 64> &commands,
       valid = request.target >= 0 && request.target < 16;
     if (!valid)
       send_line(fd, "{\"status\":\"invalid\"}\n", shutdown);
+    else if(request.op==48){
+      send_line(fd,"{\"conductor\":"+(conductorConfiguration.empty()?std::string("null"):conductor::json(conductorConfiguration))+"}\n",shutdown);
+    }
     else if (!commands.push(request))
       send_line(fd, "{\"status\":\"queue_full\"}\n", shutdown);
     else {
@@ -1530,6 +1542,8 @@ int main(int argc, char **argv) {
     const double importRecording=variable(fx,"STATE_RECORDING"), importPlaying=variable(fx,"STATE_PLAYING"), importReady=variable(fx,"STATE_READY");
     auto importArmed=ysfx_find_var(fx,"overdub_armed");
     controller::Host controllers;
+    std::unique_ptr<movement::Runtime> movementStorage(new movement::Runtime(controllers,sampleRate));
+    auto &movements=*movementStorage;
     const double phraseLearnBase = variable(fx, "SW_COUNT") + variable(fx, "CONTROLLERS");
     auto matchesLegacy = [&](int kind, int ch, int num, double skip) {
       *learnSkip = skip;
@@ -1767,6 +1781,17 @@ int main(int argc, char **argv) {
       lastRecallStatus = valid ? 0 : status ? status : 3;
       return lastRecallStatus;
     };
+    auto resolveMovement=[&](const controller::Binding &binding,uint32_t &id,double &effective){
+      auto address=model.bindingValue(binding);if(!address||binding.kind==16)return false;
+      performance::Key key;key.instrument=binding.instrument;key.module=binding.module;key.kind=binding.kind;
+      unsigned slot=0;while(slot<performanceTargetCount&&!((*performanceTargets)[slot].key==key))++slot;
+      if(slot==performanceTargetCount){if(slot==512)return false;auto &p=(*performanceTargets)[slot];p.key=key;p.binding=binding;++performanceTargetCount;}
+      auto &p=(*performanceTargets)[slot];
+      for(const auto &b:controllers.configuration().bindings)if(b.policy.id&&b.instrument==binding.instrument&&b.module==binding.module&&b.kind==binding.kind)p.id=b.policy.target;
+      if(!p.id){while(controllers.target(performanceNextTarget))++performanceNextTarget;p.id=performanceNextTarget++;}
+      id=p.id;effective=normalizedBase(binding.kind,*address);
+      return controllers.target(id)||controllers.stagePerformanceTarget(id,effective);
+    };
     auto snapHostEnabled = NSEEL_VM_regvar(fx->vm.get(), "snap_host_enabled");
     auto snapHostCancel = NSEEL_VM_regvar(fx->vm.get(), "snap_host_cancel");
     auto snapHostRead = NSEEL_VM_regvar(fx->vm.get(), "snap_host_read");
@@ -1955,7 +1980,10 @@ int main(int argc, char **argv) {
     std::unique_ptr<std::array<Reply, 8>> pendingStorage(
         new std::array<Reply, 8>());
     std::unique_ptr<Request> processingRequest(new Request());
+    struct MovementPhysical {unsigned offset=0,ch=0,cc=0,value=0;};
+    std::array<MovementPhysical,128> movementPhysical{};
     std::function<int(jack_nframes_t)> process = [&](jack_nframes_t frames) {
+      movements.block(frames);
       void *outBuffer =
           useJack ? jack_port_get_buffer(midiOut, frames) : nullptr;
       auto cleanupChain = [&]() {
@@ -1985,6 +2013,7 @@ int main(int argc, char **argv) {
       if (outBuffer) {
         jack_midi_clear_buffer(outBuffer);
         if (recovering) {
+          movements.panic();
           controllers.panic();
           outputRead = outputWrite;
           inputRead = inputWrite;
@@ -2023,6 +2052,12 @@ int main(int argc, char **argv) {
           (*inputQueue)[q % 8192].offset = 0;
         return 0;
       }
+      unsigned movementOutputCount=0,movementPhysicalCount=0;
+      auto emitMovement=[&](uint64_t sample,unsigned ch,unsigned cc,unsigned value){
+        if(movementOutputCount>=8192)return false;
+        auto &m=(*outputBatch)[movementOutputCount++];m.size=3;m.offset=unsigned(sample>state.samples?sample-state.samples:0);m.data[0]=176|ch;m.data[1]=cc;m.data[2]=value;return true;
+      };
+      auto applyMovement=[&](const controller::Binding &b,double value){if(!model.bindingValue(b))return false;applyBinding(b,value);return true;};
       unsigned inputBudget = 128;
       while (inputRead != inputWrite && inputBudget--) {
         auto &m = (*inputQueue)[inputRead++ % 8192];
@@ -2040,6 +2075,7 @@ int main(int argc, char **argv) {
           }
           continue;
         }
+        if(e.size==3&&(e.data[0]&240)==176){auto &p=movementPhysical[movementPhysicalCount++];p.offset=e.offset;p.ch=e.data[0]&15;p.cc=e.data[1];p.value=e.data[2];}
         if (!ysfx_send_midi(fx, &e)) {
           ++state.outputOverflow;
           overflowRecovery = true;
@@ -2087,7 +2123,7 @@ int main(int argc, char **argv) {
         else if (request.op == 4 || request.op == 5) {
           // Portable activation/capture must never stop a running performance.
           // The test and maintenance handoff occur in this same callback.
-          if (request.arg == 1 && (state.active > 0 || chain.run || chain.recording || chain.armed ||
+          if (request.arg == 1 && (movements.active > 0 || state.active > 0 || chain.run || chain.recording || chain.armed ||
               *importOverdub > .5 || *importState == importRecording ||
               *importState == importPlaying || performanceMorphSeconds > 0 ||
               std::any_of(importSustain.begin(),importSustain.end(),[](double* p){return *p>.5;}) ||
@@ -2111,12 +2147,17 @@ int main(int argc, char **argv) {
             performanceSkipped = 0;
             performanceMorphSeconds = 0;
             performanceTargetSnapshot = 0;
-            controllers.panic();
+            movementOutputCount=0;movements.panic();
+          controllers.panic();
             ++state.revision;
             loading.store(true, std::memory_order_release);
           }
           maintenance = true;
           }
+        } else if (request.op == 46 || request.op == 47) {
+          if(request.target<0 || unsigned(request.target)>=movements.plan.definitions.size())reply.status=3;
+          else if(request.op==46){if(!movements.start(unsigned(request.target),state.samples,resolveMovement))reply.status=3;}
+          else movements.stop(unsigned(request.target));
         } else if (request.op == 44) {
           if(!chain.stopInstance(request.instanceId,request.instanceGeneration))reply.status=3;
         } else if (request.op == 40) {
@@ -2129,7 +2170,8 @@ int main(int argc, char **argv) {
               *snapHostRead = *snapHostWrite;
               performanceMorphSeconds = 0;
               cancelAB();
-              controllers.panic();
+              movementOutputCount=0;movements.panic();
+          controllers.panic();
               NSEEL_code_execute(panic_bridge);
             }
             if (!chain.command(request.arg, request.target)) reply.status = 3;
@@ -2139,6 +2181,7 @@ int main(int argc, char **argv) {
         } else if(request.op==42){
           chain.cancel();chain.error=false;chain.errorPhrase=-1;
           cancelAB();performanceTargetCount=0;performanceSkipped=0;performanceMorphSeconds=0;performanceTargetSnapshot=0;
+          movements.panic();
           *snapHostRead=*snapHostWrite;controllers.replace(request.controllerConfig,resolveBinding);
           performanceSnapshots->restore(request.snapshotConfig);
           NSEEL_code_execute(panic_bridge);++state.revision;
@@ -2622,6 +2665,7 @@ int main(int argc, char **argv) {
           *snapHostRead = *snapHostWrite;
           performanceMorphSeconds = 0;
           cancelAB();
+          movementOutputCount=0;movements.panic();
           controllers.panic();
           ysfx_midi_clear(fx->midi.in.get());
           inputRead = inputWrite;
@@ -2683,6 +2727,7 @@ int main(int argc, char **argv) {
           bpm = 120.;
         if (chain.tick(frame, frames, sampleRate, rolling, bpm,
                        jack ? uint64_t(jack_last_frame_time(jack)) : 0)) {
+          movementOutputCount=0;movements.panic();
           controllers.panic();
           if (chain.run && outBuffer) {
             cleanupChain();
@@ -2709,6 +2754,7 @@ int main(int argc, char **argv) {
         time.time_signature[1] = 4;
         ysfx_set_time_info(fx, &time);
       }
+      movements.render(state.samples+frames,emitMovement,applyMovement,false,true);
       for (unsigned j = 0; j < performanceTargetCount; ++j) {
         auto &p = (*performanceTargets)[j];
         if (!p.active)
@@ -2767,18 +2813,26 @@ int main(int argc, char **argv) {
       }
       if (*snapHostCancel) {
         cancelAB();
-        controllers.panic();
+        if(*snapHostCancel==2){movementOutputCount=0;movements.panic();controllers.panic();}
+        else for(unsigned j=0;j<performanceTargetCount;++j){auto &p=(*performanceTargets)[j];if(p.active)cancelPerformance(p,p.token);}
         for (unsigned j = 0; j < performanceTargetCount; ++j)
           (*performanceTargets)[j].active = false;
         performanceMorphSeconds = 0;
         *snapHostRead = *snapHostWrite;
         *snapHostCancel = 0;
       }
+      unsigned movementPhysicalRead=0;
       while (*snapHostRead < *snapHostWrite) {
         unsigned at = 96 + (unsigned(*snapHostRead) % 64) * 3;
         unsigned action = unsigned(*snapHostCells[at]);
         uint32_t id = uint32_t(*snapHostCells[at + 1]);
         ++*snapHostRead;
+        if(action==9){
+          unsigned offset=std::min(unsigned(*snapHostCells[at+2]),unsigned(frames-1));
+          while(movementPhysicalRead<movementPhysicalCount && movementPhysical[movementPhysicalRead].offset<offset){auto &p=movementPhysical[movementPhysicalRead++];movements.render(state.samples+p.offset,emitMovement,applyMovement,true);movements.physical(p.ch,p.cc,p.value,state.samples+p.offset);}
+          movements.render(state.samples+offset,emitMovement,applyMovement,true);
+          movements.start(id,state.samples+offset,resolveMovement);continue;
+        }
         if (action != 3 && action != 4)
           id = performanceSnapshots->navigate(action);
         if (id && recallSnapshot(id, action == 4 || action == 6 || action == 7,
@@ -2786,9 +2840,12 @@ int main(int argc, char **argv) {
           ++state.revision;
       }
       *snapHostRead = *snapHostWrite = 0;
+      while(movementPhysicalRead<movementPhysicalCount){auto &p=movementPhysical[movementPhysicalRead++];movements.render(state.samples+p.offset,emitMovement,applyMovement,true);movements.physical(p.ch,p.cc,p.value,state.samples+p.offset);}
       ysfx_midi_event_t event{};
-      unsigned outputCount = 0;
-      bool outputSorted = true;
+      movements.render(state.samples+frames,emitMovement,applyMovement);
+      unsigned outputCount = movementOutputCount;
+      for(unsigned j=0;j<outputCount;++j)(*outputOrder)[j]=j;
+      bool outputSorted = movementOutputCount==0;
       while (ysfx_receive_midi(fx, &event)) {
         ++state.midi;
         if (outBuffer) {
@@ -2857,6 +2914,8 @@ int main(int argc, char **argv) {
       outputPending.store(state.pendingOutput, std::memory_order_release);
       if (muted)
         finalAcknowledged.store(true, std::memory_order_release);
+      state.movementRunningCount=0;movements.observe(state.samples+frames,[&](const char *id,double progress){unsigned j=state.movementRunningCount++;std::memcpy(state.movementIds[j].data(),id,36);state.movementIds[j][36]=0;state.movementProgress[j]=progress;});
+      state.movementActive=movements.active;state.movementRejected=movements.rejected;state.movementEmitted=movements.emitted;state.movementCancelled=movements.cancelled;
       state.samples += frames;
       ++state.blocks;
       if (count) {
@@ -2915,7 +2974,7 @@ int main(int argc, char **argv) {
     io = std::thread(control, listener, std::ref(commands), std::ref(replies),
                      std::ref(shutdown), std::ref(paused), std::ref(loading),
                      std::ref(patch), std::ref(model), std::ref(controllers),
-                     std::ref(*performanceSnapshots), std::cref(conflicts));
+                     std::ref(*performanceSnapshots), std::cref(conflicts), std::ref(movements));
     while (running) {
       if (!useJack)
         process(blockSize);

@@ -1,0 +1,4 @@
+  File "/workspace/mbmf-conductor-a/scripts/screenshots.py", line 111
+    page.locator('#movement-section').evaluate('e=>e.open=true')
+    ^^^^
+IndentationError: expected an indented block after 'if' statement on line 109

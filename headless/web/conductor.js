@@ -27,20 +27,23 @@ async function editConductor(sw){
  let empty=step();
  const checkpoint=()=>{history.push(structuredClone(sequence.steps));editing=null;error.textContent='';};
  const change=fn=>{checkpoint();fn();paint();};
- const source=b=>model.sources.find(s=>s.id===b?.sourceId&&s.type===b?.type);
+ const source=b=>b?.type==='MOVEMENT'?model.movements?.find(s=>s.id===b.sourceId):model.sources.find(s=>s.id===b?.sourceId&&s.type===b?.type);
  const phrase=b=>latest.phrases.find(p=>p.id===source(b)?.slot);
- const label=b=>{if(b.type!=='PHRASE')return `${b.type} · UNAVAILABLE · ${b.sourceId||''}`;const p=phrase(b);return p?`${String(p.id).padStart(2,'0')} · ${p.name||'PHRASE '+p.id}${p.events?'':' · EMPTY'}`:`MISSING · ${b.sourceId||b.type}`;};
+ const label=b=>{if(b.type==='MOVEMENT'){const m=source(b);return m?`MOVEMENT · ${m.name}`:`MISSING · ${b.sourceId}`;}if(b.type!=='PHRASE')return `${b.type} · UNAVAILABLE · ${b.sourceId||''}`;const p=phrase(b);return p?`${String(p.id).padStart(2,'0')} · ${p.name||'PHRASE '+p.id}${p.events?'':' · EMPTY'}`:`MISSING · ${b.sourceId||b.type}`;};
  const mode=b=>b.overrides?.playMode?.mode==='OVERRIDE'?b.overrides.playMode.value:['LOOP','ONCE','HOLD'][phrase(b)?.mode]||'—';
  const ensure=s=>{if(!sequence.steps.includes(s))sequence.steps.push(s);};
  const action=(name,fn)=>{const control=button({'EDIT BLOCK':'EDIT','REMOVE BLOCK':'DELETE'}[name]||name,()=>{if(!committing)fn();});control.setAttribute('aria-label',name);control.title=name;return control;};
  const removeMenu=()=>root.querySelector('.conductor-add-menu')?.remove();
  function choose(s,l,anchor){
   removeMenu();const menu=node('div',undefined,'conductor-add-menu');menu.setAttribute('role','menu');menu.setAttribute('aria-label','Add source');
-  const category=node('details');category.open=true;category.append(node('summary','PHRASES'));category.onpointerenter=()=>category.open=true;
+  const category=node('details');category.open=true;category.append(node('summary','PHRASES'));category.onpointerenter=()=>category.open=true;category.querySelector('summary').onclick=e=>{e.preventDefault();category.open=true;};
   for(const p of latest.phrases){const src=model.sources.find(v=>v.type==='PHRASE'&&v.slot===p.id);if(!src)continue;
    category.append(action(`PHRASE ${String(p.id).padStart(2,'0')} · ${p.name||'PHRASE '+p.id}${p.events?'':' · EMPTY'}`,()=>change(()=>{ensure(s);l.block={id:uuid(),type:'PHRASE',sourceId:src.id,overrides:{}};selected=s.id;})));
   }
-  menu.append(category,node('small','MOVEMENTS · UNAVAILABLE'),action('CLOSE',removeMenu));anchor.parentElement.append(menu);
+  menu.append(category);
+  const movements=node('details');movements.append(node('summary','MOVEMENTS'));movements.onpointerenter=()=>movements.open=true;movements.querySelector('summary').onclick=e=>{e.preventDefault();movements.open=true;};
+  if(s.layers[0]!==l){for(const m of model.movements||[])movements.append(action(`MOVEMENT · ${m.name}`,()=>change(()=>{ensure(s);l.block={id:uuid(),type:'MOVEMENT',sourceId:m.id,overrides:{}};selected=s.id;})));if(!model.movements?.length)movements.append(node('small','Create a source in MOVEMENTS'));}else movements.append(node('small','LAYER 01 is PHRASE MASTER'));
+  menu.append(movements,action('CLOSE',removeMenu));anchor.parentElement.append(menu);
   menu.onkeydown=e=>{if(e.key==='Escape'){e.preventDefault();e.stopPropagation();removeMenu();anchor.focus();}};
   menu.querySelector('button')?.focus();
  }
@@ -61,6 +64,13 @@ async function editConductor(sw){
  function properties(s,l){
   editing=l.id;side.replaceChildren();const b=l.block;
   side.append(node('h3',label(b)),node('small','LOCAL · source unchanged'));
+  if(b.type==='MOVEMENT'){
+   const m=source(b);if(!m){side.append(node('p','MISSING SOURCE · preserved'));return;}
+   side.append(previewCurve(m.points.map(p=>[...p,0]),m.interpolation==='HOLD'),node('output',`${m.duration}s · ${m.target.type==='CC'?`CH${m.target.channel} CC${m.target.number}`:'PARAMETER'}`));
+   const row=node('label','RETRIGGER'),policy=node('select'),value=node('select');policy.setAttribute('aria-label','RETRIGGER inheritance');value.setAttribute('aria-label','RETRIGGER override');
+   for(const v of ['INHERIT','OVERRIDE']){const o=node('option',v);o.value=v;policy.append(o);}for(const v of ['SOFT_RESTART','DIRECT']){const o=node('option',v);o.value=v;value.append(o);}policy.value=b.overrides.retrigger?.mode||'INHERIT';value.value=b.overrides.retrigger?.value||m.retrigger;value.disabled=policy.value!=='OVERRIDE';
+   const update=()=>{checkpoint();b.overrides.retrigger=policy.value==='INHERIT'?{mode:'INHERIT'}:{mode:'OVERRIDE',value:value.value};paint();properties(s,l);};policy.onchange=value.onchange=update;row.append(policy,value);side.append(row,node('small','ONE_SHOT · PRESS · source curve edited in MOVEMENTS'));return;
+  }
   if(b.type!=='PHRASE'){side.append(node('p','UNSUPPORTED · preserved'));return;}
   for(const [key,title,kind] of [['playMode','MODE',20],['phrase_base_velocity','VEL',17],['phrase_velocity_decay','V.DEC',15],['phrase_time_decay','T.DEC',14]]){
    const row=node('label',title,'conductor-option'),policy=node('select');policy.setAttribute('aria-label',`${title} inheritance`);
@@ -96,7 +106,7 @@ async function editConductor(sw){
    column.append(header);
    s.layers.forEach((l,li)=>{
     const cell=node('div',undefined,'conductor-layer');cell.dataset.layerId=l.id;cell.append(node('small',li===0?'01 MASTER':String(li+1).padStart(2,'0')));
-    if(l.block){const b=l.block;cell.dataset.blockId=b.id;cell.classList.toggle('missing-source',!source(b));cell.append(node('strong',label(b)),node('output',b.type==='PHRASE'?`${mode(b)} · ${b.overrides?.trigger?.value||'PRESS'}`:'UNSUPPORTED · preserved'));
+    if(l.block){const b=l.block;cell.dataset.blockId=b.id;cell.classList.toggle('missing-source',!source(b));cell.append(node('strong',label(b)),node('output',b.type==='PHRASE'?`${mode(b)} · ${b.overrides?.trigger?.value||'PRESS'}`:b.type==='MOVEMENT'?`${source(b)?.duration??'—'}s · ${b.overrides?.trigger?.value||'PRESS'}`:'UNSUPPORTED · preserved'));
      cell.append(action('EDIT BLOCK',()=>properties(s,l)),action('REMOVE BLOCK',()=>change(()=>l.block=null)),action('REPLACE BLOCK',()=>choose(s,l,cell.lastElementChild)));
     }else{const add=action(`Add PHRASE STEP ${index+1} LAYER ${li+1}`,()=>choose(s,l,add));add.textContent='+';add.className='conductor-add';cell.append(add,node('small','EMPTY'));}
     if(sequence.steps.includes(s)){

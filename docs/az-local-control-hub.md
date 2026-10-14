@@ -29,10 +29,11 @@ These are product requirements. Inspect LUMAZ's real current routes/APIs before 
 
 ### ZYNTHIAN
 
+- **VNC ENGINES**: add a prominent, dedicated homepage link to **`http://zynthian.local:6081/vnc.html`**. This URL was opened in a browser on the user's Zynthian and displayed the full **Surge XT** graphical editor through the VNC environment (with Patchage and VNC config tabs). Preserve the exact port **6081** and path **`/vnc.html`**; do **not** substitute port 6080 or merge it with the separate remote-screen entry. Open the editor in a new tab/window where supported so AZ remains available. Label this entry **VNC ENGINES** (not just Remote Screen). This is a confirmed browser-visible route for the user's current setup, not a promise that the service is enabled or reachable on every network or after restart. Verify availability on the target V4 and show a graceful unavailable state when absent; keep a local-IP fallback `http://ZYNTHIAN_IP:6081/vnc.html` for mDNS failure. Do not restart or reconfigure VNC merely to add the link.
 - **REMOTE SCREEN**: intended target currently `http://zynthian.local:6080/vnc.html`, **reported not working today**. Diagnose whether a remote desktop/VNC server, websockify/noVNC, correct display, and route actually exist before wiring a working link. Expose via the AZ homepage only once verified; otherwise show a clearly labeled unavailable/diagnostic state.
 - **CONFIG / WEBCONF**: intended target currently `http://zynthian.local/`, **reported intermittently unreachable**. Distinguish name resolution failures from service failures, port/proxy conflicts, and Wi-Fi/hotspot interface binding. Use a verified local endpoint and retain Zynthian's normal configuration service.
 
-The URLs above are **expected/desired** addresses, not verified working routes.
+The **VNC ENGINES `:6081/vnc.html`** URL was observed working in a user-provided browser screenshot displaying Surge XT. The separate **REMOTE SCREEN `:6080/vnc.html`** and **CONFIG / WEBCONF** URLs remain expected/problematic routes and are **not** thereby verified.
 
 ## Networking and architecture requirements
 
@@ -57,6 +58,7 @@ The URLs above are **expected/desired** addresses, not verified working routes.
 - [ ] LUMAZ Admin, Restart, HDMI Test, Video Settings, Audio Settings and MIDI Settings are accessible through verified routes/actions.
 - [ ] LUMAZ restart has confirmation and reports actual completion/failure, without rebooting Zynthian or JACK.
 - [ ] MBMF opens directly when its processor is loaded, despite instance/port changes, with an understandable unavailable state otherwise.
+- [ ] **VNC ENGINES** prominently links to `http://zynthian.local:6081/vnc.html`, opens the full synth GUI when the service is running, and documents IP-based fallback and unavailable behavior.
 - [ ] Zynthian Remote Screen is **actually functional**, not merely linked to the currently broken `:6080/vnc.html` URL.
 - [ ] Zynthian Config opens reliably, including after switching network modes; diagnose and fix intermittent reachability rather than masking it.
 - [ ] Existing Zynthian Webconf, LUMAZ video/audio/MIDI playback, and MBMF JACK routing are not regressed.
@@ -65,7 +67,7 @@ The URLs above are **expected/desired** addresses, not verified working routes.
 
 ## Delivery plan
 
-**Phase A: Audit and route matrix.** Confirm real services, current paths, port ownership, hostname and hotspot behavior, and why Zynthian's remote screen/Webconf currently fail.
+**Phase A: Audit and route matrix.** Confirm real services, current paths, port ownership, hostname and hotspot behavior; retain the newly discovered **working VNC ENGINES port 6081** separately from the previously failing remote-screen port 6080, and investigate why remote screen/Webconf were unreliable.
 
 **Phase B: Minimal AZ homepage and name resolution.** Deliver `az.local` with stable launcher links, honest service status, and MBMF dynamic routing.
 

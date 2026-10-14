@@ -34,3 +34,26 @@ menu and the new preservation tests. Chromium runs update/phrase-channel UI;
 Chromium+JACK runs #68's actual channel-voice/ownership/SMF suite. No existing test,
 assertion, sanitizer gate or XFAIL was removed. Full corrected-code results are
 recorded separately when executed; baseline success alone is not final validation.
+
+## Final executed gates
+
+Corrected #73 expanded combined command (same flags as baseline), exit 0:
+`final-combined.log` / `.exit`. Includes 18,508 EEL checks, 704 dedicated phrase
+output checks, real dummy-JACK captures, Controller ASAN gates, both UI race tests,
+Chromium and real HTTP/Webconf fixtures. Intentional overload-counter assertions
+and legacy ONCE XFAIL remain visible. No assertion was lowered.
+
+Final #74 isolated updater change: 15 updater tests, 8 backend tests and 4 native
+menu tests exit 0; full affected targeted suites in `update-cas/`. Also reran
+20 preservation tests and 4 observer tests, exit 0. No unnecessary repeat of the
+full JACK/browser suite after the updater-only guard. `update-cas/after.json`
+shows correct settings refusal and the still-open unrelated Learn cancellation.
+
+Matched warm-cache worker measurement: `worker-performance.json`, nine × 256
+reads, median 144.648→0.360 µs CPU, traced transient allocation 23,542→256 bytes,
+11,714 encoded bytes retained. Untraced CPU timing is not the earlier traced
+`before.json` baseline and not a callback measurement. First encoding unchanged.
+
+All baseline/final Webconf PNGs were visually inspected. The 25 protected issue
+#54 files, JSFX SHA256, native engine, `headless/web/` sources and Oram router
+were verified unchanged against #71. No OS, JACK, LUMAZ or hardware modifications.

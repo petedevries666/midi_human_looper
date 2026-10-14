@@ -26,6 +26,29 @@ class Updates(unittest.TestCase):
         self.assertEqual(service.calls,['stop','start','new'])
         history=json.loads((self.directory/'runtime-update.json').read_text())
         self.assertEqual(history['previous'],self.old);self.assertEqual(history['phase'],'active')
+    def test_preflight_journal_refuses_concurrent_config_edit_before_any_mutation(self):
+        history=self.directory/'runtime-update.json';history.write_text(json.dumps(dict(version=1,phase='active',previous=self.old,candidate=self.new,expected={})))
+        prior=history.read_bytes();changed={**self.old,'web_port_base':9000,'unknown':{'keep':'concurrent'}}
+        u.atomic(self.config,changed);config_bytes=self.config.read_bytes()
+        journal=dict(version=1,phase='pending',previous=self.old,candidate=self.new,expected={})
+        service=Service()
+        with self.assertRaisesRegex(ValueError,'changed after preflight'):
+            u.activate(self.config,self.new,service,{},journal)
+        self.assertEqual(service.calls,[])
+        self.assertEqual(self.config.read_bytes(),config_bytes)
+        self.assertEqual(history.read_bytes(),prior)
+    def test_legacy_cli_expected_configuration_uses_same_refusal(self):
+        changed={**self.old,'web_port_base':9000};u.atomic(self.config,changed);service=Service()
+        with self.assertRaisesRegex(ValueError,'changed after preflight'):
+            u.activate(self.config,self.new,service,{},expected_config=self.old)
+        self.assertEqual(service.calls,[])
+        self.assertEqual(json.loads(self.config.read_text()),changed)
+        self.assertFalse((self.directory/'runtime-update.json').exists())
+    def test_matching_preflight_journal_still_activates(self):
+        journal=dict(version=1,phase='pending',previous=self.old,candidate=self.new,expected={})
+        service=Service();u.activate(self.config,self.new,service,{},journal)
+        self.assertEqual(service.calls,['stop','start','new'])
+        self.assertEqual(json.loads(self.config.read_text()),self.new)
     def test_failed_activation_restores_old_configuration(self):
         service=Service(True)
         with self.assertRaisesRegex(ValueError,'candidate failed'):u.activate(self.config,self.new,service,{})

@@ -30,6 +30,11 @@ class NativeUpdate(unittest.TestCase):
         self.engine.update_control('rollback');self.assertEqual(self.calls[-1][0],'status')
         self.confirmations[0][1]();self.assertEqual(self.calls[-1][0],'rollback')
         self.status['available']=None;self.engine.update_control('install');self.assertIn('CHECK UPDATE first',self.messages[-1])
+    def test_pending_activation_can_recover_without_available_release(self):
+        self.status.update(recoveryRequired=True,available=None,rollbackAvailable=False)
+        self.engine.update_control('rollback')
+        self.assertIn('RECOVER',self.confirmations[0][0])
+        self.confirmations[0][1]();self.assertEqual(self.calls[-1],('recover',dict(native=True,confirm=True,revision=None)))
     def test_trigger_reset_no_restore_side_effect_and_no_engine_command(self):
         control=types.SimpleNamespace(value=1,graph_path='update_status')
         self.engine.send_controller_value(control);self.assertEqual(control.value,0)

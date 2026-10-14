@@ -91,6 +91,25 @@ class UpdateControls(unittest.TestCase):
             build.assert_not_called()
             self.assertIn('STOP',self.backend.status()['progress']['message'])
         self.assertEqual(json.loads(self.config.read_text())['unknown'],{'keep':True})
+    def test_interrupted_component_activation_recovers_exact_previous_bytes(self):
+        old=json.loads(self.config.read_text())
+        adapter=self.directory/'adapter.py';adapter.write_bytes(b'new adapter')
+        journal=dict(version=1,phase='pending',previous=old,candidate={**old,'runtime_revision':SHA},expected={'processor-1':'source fingerprint'},components=[dict(path=str(adapter),before=base64.b64encode(b'old adapter').decode(),after=base64.b64encode(b'new adapter').decode(),mode=0o640)])
+        self.backend.u.atomic(self.directory/'runtime-update.json',journal)
+        self.backend.u.atomic(self.config,journal['candidate'])
+        calls=[]
+        test=self
+        class Runtime:
+            def service(self,action):calls.append(action)
+            def healthy(self,config,expected):
+                test.assertEqual(adapter.read_bytes(),b'old adapter')
+                test.assertEqual(expected,journal['expected'])
+        with patch.object(self.backend.u,'Runtime',return_value=Runtime()):
+            self.backend.request(dict(action='recover',password=PASSWORD,confirm=True));self.wait()
+        self.assertEqual(self.backend.status()['progress']['phase'],'complete')
+        self.assertEqual(json.loads(self.config.read_text()),old)
+        self.assertEqual(json.loads((self.directory/'runtime-update.json').read_text())['phase'],'rolled-back')
+        self.assertEqual(calls,['stop','start'])
     def test_components_and_config_restore_after_health_failure(self):
         adapter=self.directory/'adapter.py';adapter.write_bytes(b'old adapter')
         journal=dict(version=1,phase='pending',previous=json.loads(self.config.read_text()),candidate={},expected={},components=[dict(path=str(adapter),before=base64.b64encode(b'old adapter').decode(),after=base64.b64encode(b'new adapter').decode(),mode=0o640)])

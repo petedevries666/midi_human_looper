@@ -113,7 +113,12 @@ class zynthian_engine_mbh(zynthian_engine):
         self._ctrls = list(type(self)._ctrls)
         self._ctrl_screens = [[name, list(symbols)] for name, symbols in type(self)._ctrl_screens]
         routes = []
-        if source is not None and not source.synth_slots:
+        try:
+            from zyngine import zynthian_engine_mbh_router
+            filtered_source=True
+        except ImportError:
+            filtered_source=False
+        if source is not None and not source.synth_slots and not filtered_source:
             for chain_id, destination in sorted(manager.chains.items()):
                 # Only instrument chains. Never route back to MBMF, main or self.
                 if chain_id == source.chain_id or not destination.synth_slots:

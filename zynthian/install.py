@@ -102,6 +102,29 @@ def catalog_registration(text, remove=False):
     return proposed
 
 
+ROUTER_DISCOVER = "    # BEGIN MBH channel source discover\n    from zyngine.zynthian_engine_mbh_router import discover\n    import sys\n    discover(sys.modules[__name__])\n    # END MBH channel source discover\n"
+ROUTER_CONFIGURE = "    # BEGIN MBH channel source configure\n    from zyngine.zynthian_engine_mbh_router import configure\n    import sys\n    configure(sys.modules[__name__], required_routes)\n    # END MBH channel source configure\n"
+
+def router_registration(text, remove=False):
+    if 'MBH channel source' in text:
+        if text.count(ROUTER_DISCOVER)!=1 or text.count(ROUTER_CONFIGURE)!=1:
+            raise ValueError('MB router hooks changed; refusing overwrite')
+        text=text.replace(ROUTER_DISCOVER,'').replace(ROUTER_CONFIGURE,'')
+    if not remove:
+        anchors=('    update = False\n    host_usb_connected = is_host_usb_connected()\n',
+                 '    # Connect and disconnect routes\n    for dst, sources in required_routes.items():\n')
+        functions=[n for n in ast.parse(text).body if isinstance(n,ast.FunctionDef) and n.name=='midi_autoconnect']
+        if len(functions)!=1 or text.count(anchors[0])!=1:raise ValueError('unsupported Oram autoconnect anchors')
+        function=functions[0];lines=text.splitlines(keepends=True)
+        segment=''.join(lines[function.lineno-1:function.end_lineno])
+        if segment.count(anchors[1])!=1:raise ValueError('unsupported Oram MIDI connection anchor')
+        segment=segment.replace(anchors[1],ROUTER_CONFIGURE+anchors[1])
+        text=''.join(lines[:function.lineno-1])+segment+''.join(lines[function.end_lineno:])
+        text=text.replace(anchors[0],ROUTER_DISCOVER+anchors[0])
+    ast.parse(text)
+    return text
+
+
 def atomic(path, data):
     path.parent.mkdir(parents=True,exist_ok=True)
     mode=path.stat().st_mode & 0o777 if path.exists() else 0o600
@@ -180,13 +203,15 @@ def main(argv=None):
     parser.add_argument('--data-dir',type=Path,default=Path('/zynthian/zynthian-my-data'))
     parser.add_argument('--binary',type=Path)
     parser.add_argument('--lan',action='store_true')
+    parser.add_argument('--native-channel-routing',action='store_true',help='register dedicated MB output as a filtered ZynMidiRouter input')
     actions=parser.add_mutually_exclusive_group()
     actions.add_argument('--rollback',action='store_true')
+    actions.add_argument('--rollback-channel-routing',action='store_true',help='remove only the owned native input hooks; retain MB registration/runtime/config')
     actions.add_argument('--upgrade-adapter',action='store_true',help='explicitly update the owned Python adapter, retaining its previous bytes')
     actions.add_argument('--rollback-adapter',action='store_true',help='restore the previous owned adapter only; retain registration/runtime/config')
     parser.add_argument('--check',action='store_true',help='validate ownership, binary and Oram anchors without writes')
     args=parser.parse_args(argv);root=Path(__file__).resolve().parents[1]
-    if args.check and (args.rollback or args.rollback_adapter):parser.error('--check and rollback are mutually exclusive')
+    if args.check and (args.rollback or args.rollback_adapter or args.rollback_channel_routing):parser.error('--check and rollback are mutually exclusive')
     paths = {
         'manager': args.ui_dir/'zyngine/zynthian_chain_manager.py',
         'catalog': args.ui_dir/'zyngine/zynthian_lv2.py',
@@ -202,8 +227,30 @@ def main(argv=None):
     before={name:read(path) if path.exists() else None for name,path in paths.items()}
     if before['manager'] is None or before['catalog'] is None:
         raise ValueError('Zynthian Oram manager/catalog sources are missing')
+    extra_paths={'router':args.ui_dir/'zyngine/zynthian_engine_mbh_router.py',
+                 'autoconnect':args.ui_dir/'zynautoconnect/zynthian_autoconnect.py'}
+    # Oram commonly ships zynautoconnect as a package __init__.py.
+    if not extra_paths['autoconnect'].exists():extra_paths['autoconnect']=args.ui_dir/'zynautoconnect/__init__.py'
     if metadata:
-        checked_owned_files(metadata,paths,directory)
+        owned={**paths,**{k:v for k,v in extra_paths.items() if k in metadata.get('files',{})}}
+        checked_owned_files(metadata,owned,directory)
+    if args.native_channel_routing or (metadata and 'router' in metadata.get('files',{})):
+        paths.update(extra_paths)
+        for name,path in extra_paths.items():
+            if path.is_symlink() or (directory/(path.name+'.original')).is_symlink():raise ValueError('refusing managed symlink: '+str(path))
+            before[name]=read(path) if path.exists() else None
+        if before['autoconnect'] is None:raise ValueError('Oram autoconnect source missing')
+    if args.rollback_channel_routing:
+        if not metadata or 'router' not in metadata.get('files',{}):
+            raise ValueError('no owned native-channel installation to roll back')
+        changes=[]
+        for name in ('autoconnect','router'):
+            record=metadata['files'].pop(name);path=paths[name]
+            original=read(directory/(path.name+'.original')) if record['original_sha256'] is not None else None
+            changes.append((path,original,record['original_mode']))
+        changes.append((manifest,json.dumps(metadata,indent=2),0o600))
+        transaction(changes)
+        print('Native source hooks removed. MB registration, adapter, runtime, token and patches retained. Restart UI when ready.');return
     if args.rollback_adapter:
         if not metadata or metadata['version'] != 2 or not metadata.get('adapter_previous'):
             raise ValueError('no owned adapter update to roll back')
@@ -227,7 +274,7 @@ def main(argv=None):
                      (paths['adapter'],None,0)]
         else:
             changes=[]
-            for name in ('manager','catalog','adapter','helper'):
+            for name in paths:
                 record=metadata['files'][name];path=paths[name]
                 original=read(directory/(path.name+'.original')) if record['original_sha256'] is not None else None
                 changes.append((path,original,record['original_mode']))
@@ -244,6 +291,10 @@ def main(argv=None):
            'helper':read(root/'zynthian/zynthian_engine_mbh_catalog.py'),
            # A catalog-only upgrade must not change the existing adapter's runtime ABI.
            'adapter':before['adapter'] if metadata and not args.upgrade_adapter else read(root/'zynthian/zynthian_engine_mbh.py')}
+    if 'router' in paths:
+        if before['router'] is not None and not (metadata and 'router' in metadata.get('files',{})):raise ValueError('unmanaged MB router helper')
+        if 'MBH channel source' in before['autoconnect'] and not (metadata and 'autoconnect' in metadata.get('files',{})):raise ValueError('unmanaged MB router hooks')
+        after.update(router=read(root/'zynthian/zynthian_engine_mbh_router.py'),autoconnect=router_registration(before['autoconnect']))
     for source in after.values():ast.parse(source)
     adapter_backup_change=None
     previous=metadata.get('adapter_previous') if metadata else None
@@ -260,7 +311,7 @@ def main(argv=None):
             existingConfigurationPreserved=config.exists(),writesPerformed=False),indent=2));return
     changes=[];records={}
     for name,path in paths.items():
-        if metadata and metadata['version']==2:
+        if metadata and metadata['version']==2 and name in metadata['files']:
             record=dict(metadata['files'][name])
         else:
             if metadata and name=='manager':
@@ -295,7 +346,7 @@ def main(argv=None):
             web_port_base=8765,web_bind='0.0.0.0' if args.lan else '127.0.0.1',token_file=str(token) if args.lan else ''),indent=2),0o600))
     if adapter_backup_change:changes.append(adapter_backup_change)
     # Dependencies first; source activation last. No running services are restarted.
-    for name in ('helper','adapter','manager','catalog'):
+    for name in ('helper','adapter','manager','catalog',*(('router','autoconnect') if 'router' in paths else ())):
         path=paths[name];mode=path.stat().st_mode & 0o777 if path.exists() else 0o644
         changes.append((path,after[name],mode))
     updated=dict(version=2,files=records)

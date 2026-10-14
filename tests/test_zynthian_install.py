@@ -265,4 +265,62 @@ class Installation(unittest.TestCase):
         self.assertIn('Other',ast.literal_eval(next(n.value for n in ast.parse(self.catalog_original).body
             if isinstance(n,ast.Assign) and n.targets[0].id=='engine_categories'))['MIDI Tool'])
 
+class NativeChannelInstallation(Installation):
+    def setUp(self):
+        super().setUp()
+        self.autoconnect=self.ui/'zynautoconnect/__init__.py'
+        self.autoconnect.parent.mkdir()
+        self.autoconnect_original="""def enumerate_ports():
+    update = False
+    host_usb_connected = is_host_usb_connected()
+    return update
+
+def midi_autoconnect():
+    required_routes={}
+    # Connect and disconnect routes
+    for dst, sources in required_routes.items():
+        pass
+
+def audio_autoconnect():
+    required_routes={}
+    # Connect and disconnect routes
+    for dst, sources in required_routes.items():
+        pass
+"""
+        self.autoconnect.write_text(self.autoconnect_original)
+
+    def test_native_upgrade_repeat_and_rollback(self):
+        self.run_install() # Existing #47/#64 installation.
+        retained={p:p.read_bytes() for p in (self.data/'install.json',)}
+        self.run_install('--check','--native-channel-routing','--upgrade-adapter')
+        self.assertEqual(self.autoconnect.read_text(),self.autoconnect_original)
+        self.run_install('--native-channel-routing','--upgrade-adapter')
+        first=self.snapshot_files()
+        self.run_install('--native-channel-routing','--upgrade-adapter')
+        self.assertEqual(self.snapshot_files(),first)
+        for path,data in retained.items():self.assertEqual(path.read_bytes(),data)
+        self.assertIn(installer.ROUTER_CONFIGURE,self.autoconnect.read_text())
+        self.assertEqual(self.autoconnect.read_text().split('def audio_autoconnect():')[1],self.autoconnect_original.split('def audio_autoconnect():')[1])
+        self.run_install('--rollback')
+        self.assertEqual(self.autoconnect.read_text(),self.autoconnect_original)
+        self.assertFalse((self.package/'zynthian_engine_mbh_router.py').exists())
+
+    def test_channel_only_rollback_retains_registration_and_runtime(self):
+        self.run_install('--native-channel-routing','--upgrade-adapter')
+        retained={path:path.read_bytes() for path in (self.manager,self.catalog,self.adapter,self.data/'install.json')}
+        self.run_install('--rollback-channel-routing')
+        for path,data in retained.items():self.assertEqual(path.read_bytes(),data)
+        self.assertEqual(self.autoconnect.read_text(),self.autoconnect_original)
+        self.assertFalse((self.package/'zynthian_engine_mbh_router.py').exists())
+        self.run_install('--native-channel-routing')
+        self.run_install('--check')
+
+    def test_native_fresh_and_unsupported_source_no_partial_activation(self):
+        self.run_install('--native-channel-routing')
+        self.run_install('--rollback')
+        self.autoconnect.write_text('unsupported = True\n')
+        before=self.snapshot_files()
+        self.run_install('--native-channel-routing',success=False)
+        self.assertEqual(self.snapshot_files(),before)
+
 if __name__=='__main__':unittest.main()

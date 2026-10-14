@@ -166,6 +166,7 @@ class Backend:
                     self.report('building','Building reviewed archive using existing checkout; no second clone')
                     root,binary=self.u.build(self.directory,reviewed['revision'],self.checkout(old))
                     new={**old,'repository':str(root),'binary':str(binary),'runtime_revision':reviewed['revision'],'update_checkout':str(self.checkout(old))}
+                runtime.require_update_controls=action=='install'
                 self.report('preflight','Validating candidate engine, projects and adapter ownership')
                 revision=runtime.preflight(new,self.directory)
                 if revision!=new.get('runtime_revision'):raise ValueError('Candidate binary identity differs')
@@ -199,7 +200,10 @@ class Backend:
         candidate=Path(new['repository'])/'zynthian/zynthian_engine_mbh.py'
         content=candidate.read_bytes()
         import ast
-        ast.parse(content)
+        tree=ast.parse(content)
+        classes=[node for node in tree.body if isinstance(node,ast.ClassDef) and node.name=='zynthian_engine_mbh']
+        if not previous and (not classes or not any(isinstance(node,ast.FunctionDef) and node.name=='update_control' for node in classes[0].body)):
+            raise ValueError('Candidate adapter lacks UPDATE protocol-1 controls')
         # Helpers affecting #67 filtering must retain their precise installed
         # identity. A release requiring new native routing needs reviewed setup.
         for key,relative in [('helper','zynthian/zynthian_engine_mbh_catalog.py'),('router','zynthian/zynthian_engine_mbh_router.py')]:

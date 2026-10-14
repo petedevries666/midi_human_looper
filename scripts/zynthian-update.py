@@ -15,6 +15,7 @@ import tempfile
 import time
 import select
 import urllib.request
+import urllib.error
 
 PIN='8077347ccf4115567aed81400281dca57acbb0cc'
 REPOSITORY='https://github.com/petedevries666/midi_human_looper.git'
@@ -139,6 +140,17 @@ class Runtime:
                 if state.get('buildRevision')!=revision:raise ValueError('Candidate Web/engine revision mismatch')
                 with urllib.request.urlopen(url+'/api/v1/descriptors',timeout=5) as response:descriptors=json.load(response)
                 if not descriptors.get('parameters'):raise ValueError('Candidate editor descriptors unavailable')
+                if getattr(self,'require_update_controls',False):
+                    # Protocol-1 candidates must retain the administration interface
+                    # so a successful update cannot erase the rollback entry point.
+                    with urllib.request.urlopen(url+'/update.js',timeout=5) as response:
+                        if not response.read(131072):raise ValueError('Candidate UPDATE editor missing')
+                    try:
+                        with urllib.request.urlopen(url+'/api/v1/update',timeout=5) as response:update_state=json.load(response)
+                        if 'installed' not in update_state:raise ValueError('Candidate UPDATE API differs')
+                    except urllib.error.HTTPError as error:
+                        data=json.load(error)
+                        if error.code!=503 or data.get('error')!='UPDATE worker not installed; musical engine is unaffected':raise ValueError('Candidate UPDATE API unavailable') from error
             finally:
                 web.terminate()
                 try:web.wait(timeout=5)
@@ -216,6 +228,7 @@ class Runtime:
                     if state.get('buildRevision')!=config.get('runtime_revision',observation['buildRevision']) or capture['fingerprint']!=observation['fingerprint']:
                         raise ValueError('Restored processor revision or musical state differs')
                     import urllib.request
+import urllib.error
                     port=config.get('web_port_base',8765)+int(name.split('-')[1])
                     headers={}
                     if config.get('token_file'):headers['X-Engine-Token']=Path(config['token_file']).read_text().strip()

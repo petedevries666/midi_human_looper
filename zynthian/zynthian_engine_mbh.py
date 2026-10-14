@@ -20,8 +20,12 @@ class zynthian_engine_mbh(zynthian_engine):
         ['finish', {'value':0,'is_trigger':True,'value_min':0,'value_max':1,'graph_path':'finish'}],
         ['save', {'value':0,'is_trigger':True,'value_min':0,'value_max':1,'graph_path':'save'}],
         ['load', {'value':0,'is_trigger':True,'value_min':0,'value_max':1,'graph_path':'load'}],
+        ['update_check', {'name':'CHECK UPDATE','value':0,'is_trigger':True,'midi_autolearn':False,'value_min':0,'value_max':1,'graph_path':'update_check'}],
+        ['update_install', {'name':'INSTALL UPDATE','value':0,'is_trigger':True,'midi_autolearn':False,'value_min':0,'value_max':1,'graph_path':'update_install'}],
+        ['update_rollback', {'name':'ROLLBACK','value':0,'is_trigger':True,'midi_autolearn':False,'value_min':0,'value_max':1,'graph_path':'update_rollback'}],
+        ['update_status', {'name':'UPDATE STATUS','value':0,'is_trigger':True,'midi_autolearn':False,'value_min':0,'value_max':1,'graph_path':'update_status'}],
     ]
-    _ctrl_screens = [['Looper',['phrase','play','record','stop']],['Patch',['finish','save','load']]]
+    _ctrl_screens = [['Looper',['phrase','play','record','stop']],['Patch',['finish','save','load']],['Update',['update_check','update_install','update_rollback','update_status']]]
     def __init__(self, state_manager=None):
         super().__init__(state_manager)
         self.name = 'MIDI Bad Mother Fucker'
@@ -140,6 +144,8 @@ class zynthian_engine_mbh(zynthian_engine):
             # Oram ZS3 already saves chain.midi_out. Do not replay a second,
             # possibly stale knob value over restored authoritative routing.
             controllers[symbol].get_state = lambda full=True: {}
+        for symbol in ('update_check','update_install','update_rollback','update_status'):
+            controllers[symbol].get_state = lambda full=True: {}
         return controllers
 
     def _set_destination(self, zctrl):
@@ -169,6 +175,10 @@ class zynthian_engine_mbh(zynthian_engine):
         source.toggle_midi_out(chain_id)
 
     def send_controller_value(self, zctrl):
+        if isinstance(zctrl.graph_path,str) and zctrl.graph_path.startswith('update_'):
+            if zctrl.value:self.update_control(zctrl.graph_path[7:])
+            zctrl.value=0
+            return
         if isinstance(zctrl.graph_path, tuple) and zctrl.graph_path[0] == 'midi_destination':
             try:
                 self._set_destination(zctrl)
@@ -199,6 +209,35 @@ class zynthian_engine_mbh(zynthian_engine):
             patch=json.loads((entry['data']/'patch1.json').read_text());response=control.request(op=5,target=patch['schema'],patch=patch,**common)
         else:raise ValueError('unknown MBH action')
         if response.get('status')!='ok':raise RuntimeError('MBH rejected command: '+response.get('status','unknown'))
+
+    def update_control(self, action):
+        # Physical local confirmation is administrative authorization. This root
+        # Unix request is not exposed through the editor's HTTP envelope.
+        sys.path.insert(0,str(self.root/'zynthian/update'))
+        from backend import client
+        from zyngui import zynthian_gui_config
+        gui=zynthian_gui_config.zyngui
+        try:
+            status=client('status')
+            if action=='status':
+                candidate=status.get('available')
+                available=('\nAVAILABLE '+candidate['name']+' '+candidate['revision'][:12]+'\n'+candidate['changes'][:180]) if candidate else '\nNo reviewed update checked'
+                gui.show_info('INSTALLED '+status['installed'][:12]+available+'\n'+status['progress']['phase']+'\n'+status['progress']['message']);return
+            if action=='check':
+                client('check',native=True)
+                gui.show_info('Checking reviewed releases.\nUse UPDATE STATUS for result.');return
+            candidate=status.get('available')
+            if status.get('recoveryRequired'):action='recover'
+            if action=='install' and not candidate:raise ValueError('CHECK UPDATE first; no reviewed release available')
+            if action=='rollback' and not status['rollbackAvailable']:raise ValueError('No previous working version')
+            label=('INSTALL '+candidate['name']+'\n'+candidate['revision'][:12]+'\n'+candidate['changes'][:180]) if action=='install' else action.upper()
+            def confirmed():
+                try:
+                    client(action,native=True,confirm=True,revision=candidate['revision'] if candidate else None)
+                    gui.show_info('Update accepted.\nUse UPDATE STATUS.\nUI may restart; JACK unchanged.')
+                except (OSError,ValueError) as error:gui.show_info(str(error))
+            gui.show_confirm(label+'\nStop playback and save snapshot.\nUI/audio may be interrupted. Proceed?',confirmed)
+        except (OSError,ValueError) as error:gui.show_info('UPDATE unavailable\n'+str(error))
     def _restore(self, entry, state):
         if state.get('version')!=1:raise ValueError('unsupported MBH processor snapshot')
         entry['phrase']=state['phrase']

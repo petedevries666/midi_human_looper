@@ -194,3 +194,7 @@ dialog[data-contextual][open]{position:relative;inset:auto;width:100%;max-width:
 .movement-row>.rail-curve{position:static;width:100px;height:20px;flex:none}.conductor-properties>.rail-curve{position:static;width:100%;height:45px}
 
 .movement-active{border-color:#ffe34d}.movement-active>.movement-state{color:#ffe34d}
+
+/* Maintenance stays collapsed, with wrap-safe pinned revision/change text. */
+#runtime-update pre{white-space:pre-wrap;overflow-wrap:anywhere;font:inherit;color:#aaa}
+#update-version,#update-progress{overflow-wrap:anywhere;white-space:pre-line;font-size:11px}

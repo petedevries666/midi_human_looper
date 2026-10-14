@@ -3,6 +3,15 @@
 Use the existing checkout; do not create worktrees unless requested. Preserve MIDI
 note ownership, engine timing and existing project compatibility.
 
+## Product direction: frozen REAPER legacy
+
+New feature development targets the native Zynthian engine and Web editor only.
+Do not add REAPER-specific features, `@gfx` UI, CONDUCTOR/MOVEMENT capabilities,
+new modules or automatic parity ports. Preserve the JSFX, existing REAPER projects,
+saved patches and relevant shared-engine/interchange regression tests. Existing
+shared EEL code may be reused; REAPER execution/UI parity must not delay native
+development. See `docs/reaper-legacy-freeze.md`. This audit modifies no JSFX.
+
 ## Required web UI evidence
 
 Every PR changing `headless/web/` must run `scripts/screenshots.sh`, visually inspect

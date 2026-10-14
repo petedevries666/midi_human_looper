@@ -1,8 +1,15 @@
 # Current capability and qualification matrix
 
-Updated 14 October 2026. This is the current status authority; archived checkpoints
+Updated 14 October 2026; fresh audit includes #64–#71. This is the current status authority; archived checkpoints
 are history, not instructions to repeat completed work. **Draft implementation is
 not merged or hardware-qualified release functionality.**
+
+## Product direction
+
+REAPER-specific new features/UI/parity ports are frozen. Native Zynthian + Web
+are the active targets. Existing JSFX/projects/patches and source-MIDI interchange
+remain preserved. See [freeze decision](reaper-legacy-freeze.md) and the
+[fresh audit through #71](engineering-audit-2026-10.md).
 
 ## Dependency and review map
 
@@ -61,11 +68,15 @@ combined suite. This does not resolve intermittent live timing or qualify hardwa
 | Velocity Decay Pitch Bias | Response helper only, inactive | Same inactive EEL helper | Controls, playback integration, descriptors and migration remain [unimplemented](velocity-decay-pitch-bias-checkpoint.md) |
 | CONDUCTOR PHRASE | No equivalent execution yet | Stable STEP/LAYER references, browser authoring, sequential immediate PRESS, independent ONCE admission | #58/#60/#61 draft; missing references diagnosed; mono/ARP independent admission restricted |
 | MOVEMENT | No equivalent execution yet | Linear/stepped CC curves, 10/25/50/100 Hz, ownership/replacement, parallel soft GLIDE, native STEP integration | #62 draft; actual engine/JACK tests; performance/hardware qualification incomplete |
-| Native chain destinations | Host routing | Explicit native Oram chain selection, snapshot-owned routes, no synth-name hardcoding | Direct fanout bypasses router channel filtering; verified synth/filter required |
+| Native chain destinations | Frozen host routing | #67 dedicated MB source into ZynMidiRouter, filtering by receiving channel | #64 direct shortcuts suppressed; graph/chain/snapshot/feedback hardware qualification remains |
+| PHRASE output channel | Existing shared source retained | #68 ORIGINAL / ALL / CH1–16, playback-only policy, latched owned destinations | Instrument OUT ALL is not implemented; MOVEMENT explicit channel unchanged |
+| Local Web entry / AZ | Not applicable | #66 mbmf.local trusted/token gateway; #69 separate az.local portal draft | Dynamic active process/port identity; #69 is not yet on #71 ancestry |
+| Reviewed UPDATE | Not applicable | #71 native/Web controls, common separately authorized worker | No published eligible release; UI-wide restart; physical activation/rollback unqualified |
+| Live BYPASS / MIDI LOG | Legacy behavior preserved | #70 requirements only, not implemented in #71 | No transparent native BYPASS/log claim |
 | HUMANIZER/ECHOCITY | Not released | Not playable modules | #25 algorithms/#28 scheduler remain isolated |
 
 Compact phrase/instrument controls and six phrases/page exist. Controllers remain
-collapsed by default. Phrase labels are generated; phrase Transformer rows are
+collapsed by default. Phrase/instrument names are editable and persistent; phrase Transformer rows are
 not implemented. Native chain mode supports LOOP/ONCE/HOLD in the recovery stack; hardware qualification remains separate. Whole-project multi-JSFX
 studio pairing and full REAPER Controller/Snapshot parity remain incomplete.
 

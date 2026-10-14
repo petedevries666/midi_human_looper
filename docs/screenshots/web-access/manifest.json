@@ -1,0 +1,34 @@
+{
+  "source": "Actual native --demo + installed HTTP worker + Tornado entry; private Cloud fixture",
+  "mdns": "D-Bus fixture only, not hardware",
+  "artifacts": [
+    {
+      "file": "token-1440.png",
+      "width": 1440,
+      "height": 1199,
+      "sha256": "8ed7c9751311894cfa43c65bc617cf8a5a9f42408734973818c55faef80b8da1",
+      "visuallyReviewed": true
+    },
+    {
+      "file": "trusted-1440.png",
+      "width": 1440,
+      "height": 1194,
+      "sha256": "157cf8fffc3f9726874a8b255b61934888af81ee0c111c86f400a1bf741b8606",
+      "visuallyReviewed": true
+    },
+    {
+      "file": "trusted-320.png",
+      "width": 320,
+      "height": 2085,
+      "sha256": "eee2223e8865bdfa6cbaa10761f9e0aade36ae4ba0f8328953f8097d80d98806",
+      "visuallyReviewed": true
+    },
+    {
+      "file": "trusted-800.png",
+      "width": 800,
+      "height": 1268,
+      "sha256": "37328424c0d9bc101ea13b7affbeaaaf77a7465ee2b83fd86bc2488a61775b13",
+      "visuallyReviewed": true
+    }
+  ]
+}

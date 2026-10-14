@@ -1,0 +1,8 @@
+{
+  "scope": "Read-only auth bootstrap against preserved issue-54 WIP; not whole #65 qualification",
+  "files": {
+    "headless/server.py": "b1e2d9cd86d47204134624b9208d68ea46fede153c37f0aadf4f77f5ab4b06cf",
+    "headless/web/app.js": "bf35c8786c2ee0f097be42a3fc3de4d26bb6d3c4d521096cb134a0839f214c8c",
+    "headless/web/index.html": "bfddd532f0cc2f368d64189f543fb05c0a66bc9657932750a9a13e65582c5b76"
+  }
+}

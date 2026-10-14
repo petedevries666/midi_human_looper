@@ -5,6 +5,7 @@ from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
 p=argparse.ArgumentParser(description=__doc__)
 p.add_argument('--native',action='store_true')
+p.add_argument('--web-access',action='store_true',help='real Webconf gateway/Tornado/Chromium fixtures; requires tests/requirements-web-access.txt')
 p.add_argument('--jack',action='store_true',help='desktop dummy server only; never on a running Zynthian')
 p.add_argument('--browser',choices=('none','chromium','firefox','stock-firefox'),default='none')
 p.add_argument('--timeout',type=int,default=180)
@@ -82,6 +83,7 @@ try:
             run([sys.executable,'tests/test_recovery_browser.py'])
             run([sys.executable,'tests/test_hardware_feedback_browser.py'])
             run([sys.executable,'tests/test_issue53_browser.py'])
+    if a.web_access:run(['scripts/web-access-test.sh'],{'TEST_PYTHON':sys.executable})
     print('PASS selected combined regression suite',flush=True)
 except (RuntimeError,subprocess.TimeoutExpired,KeyboardInterrupt) as error:
     print(f'FAILED: {error}',file=sys.stderr);sys.exit(1)

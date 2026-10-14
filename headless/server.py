@@ -42,6 +42,7 @@ class Control:
         self.ids = itertools.count(1)
         self._observation=None
         self._observation_until=0.0
+        self._observation_json=None
 
     def observation(self):
         # Share one bounded-rate state copy across observers. The MIDI callback
@@ -50,13 +51,25 @@ class Control:
             if self._observation is None or time.monotonic()>=self._observation_until:
                 self._observation=self.request()
                 self._observation_until=time.monotonic()+.25
+                self._observation_json=None
             return self._observation
+
+    def observation_payload(self):
+        # Immutable bytes shared by WebSocket subscribers for the same observed
+        # state. This reduces worker serialization only, not MIDI callback work.
+        with self.lock:
+            state=self.observation()
+            if self._observation_json is None:
+                self._observation_json=json.dumps(state,separators=(',',':')).encode()
+            return self._observation_json
 
     def request(self, op=0, target=0, arg=0, revision=1, ch=0, note=0, value=0, session=0, patch=None, parameters=None, module=0, binding=None, name=None, settings=None, inclusions=None, macro=None,instance=None, phrase=None):
         # One worker producer owns the engine's command queue; HTTP threads never
         # inspect live engine state. A timeout does not cancel an already executed TEST.
         with self.lock:
-            if op!=0:self._observation=None
+            if op!=0:
+                self._observation=None
+                self._observation_json=None
             request_id = next(self.ids)
             line = f'{request_id} {op} {target} {arg} {revision} {ch} {note} {value}\n'
             if session:line=line.rstrip('\n')+f' session {session}\n'
@@ -132,8 +145,7 @@ class Handler(BaseHTTPRequestHandler):
             if not isinstance(message,dict) or not hmac.compare_digest(str(message.get('token','')),self.server.token):return
             self.connection.settimeout(2)
             while True:
-                state=self.server.control.observation()
-                payload=json.dumps(state,separators=(',',':')).encode()
+                payload=self.server.control.observation_payload()
                 prefix=bytes([0x81,len(payload)]) if len(payload)<126 else bytes([0x81,126])+struct.pack('!H',len(payload)) if len(payload)<=65535 else bytes([0x81,127])+struct.pack('!Q',len(payload))
                 self.wfile.write(prefix+payload);self.wfile.flush()
                 time.sleep(.25)

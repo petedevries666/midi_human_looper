@@ -1,6 +1,6 @@
 # Current capability and qualification matrix
 
-Updated 10 October 2026. This is the current status authority; archived checkpoints
+Updated 14 October 2026. This is the current status authority; archived checkpoints
 are history, not instructions to repeat completed work. **Draft implementation is
 not merged or hardware-qualified release functionality.**
 
@@ -25,11 +25,27 @@ physical routing, REAPER API execution or Pi latency qualified. Keep #25 and #28
 separate pending scheduler continuation and playable-module integration; #32 is
 still a Motion specification. #35/#36 are design antecedents, #39 is the audit.
 
+## Current unmerged recovery stack (14 October)
+
+Fresh GitHub audit: #47 and #48 are review-ready and mergeable into their bases;
+#50/#56/#57/#58/#60/#61/#62/#63 remain drafts. #49 remains draft. #27 and #29
+are merged into main. Main differs from the #62 ancestry only by those two merge
+commits; their implementation commits are already in the stack. No merge was
+performed in this resumption. Earlier #44-only status is historical.
+
+Dependency path: #44 → #47 → #48 → #49 → #50 → #56 → #57 → #58 → #60 → #61
+→ #62. #63 is independent realtime qualification on #62. Native-destination
+routing fixes are also based on #62, without #63 instrumentation. Neither branch
+is a hardware-qualified release. The #63 final combined diagnostic run failed a
+Chromium EDIT timeout; the native-routing branch subsequently passed the full
+combined suite. This does not resolve intermittent live timing or qualify hardware. See
+[movement qualification](https://github.com/petedevries666/midi_human_looper/blob/d6169f9/docs/movement-realtime-qualification.md) on #63.
+
 ## Implemented execution
 
 | Capability | REAPER | Native/JACK/Zynthian adapter | Interchange / limits |
 |---|---|---|---|
-| Phrase recording/play/overdub | Existing JSFX engine | Same EEL core; fixed synchronized two-bar native chain mode | Source data preserved; no transport chase or variable meters |
+| Phrase recording/play/overdub | Existing JSFX engine | Same EEL core; first-note-origin free-time recording by default, FINISH, overdub, LOOP/ONCE/HOLD | Source data preserved; optional legacy/grid capture remains versioned; no general transport chase |
 | Independent instruments | JSFX independent instance IDs | Independent instances and separate processors | Eight instrument slots/16 phrases per processor; no phrase-owned effect chain |
 | Existing Transformers | Shared EEL stages | Same EEL stages | Restricted ordering, stateful duplicates refused; no arbitrary pedal order |
 | Timing v2 | Free-time behavior unchanged | Opt-in exact sample-grid two-bar length, in-buffer record boundaries | New installs v2, old config/CLI v1; incompatible grids refused, no silent retime |
@@ -43,11 +59,14 @@ still a Motion specification. #35/#36 are design antecedents, #39 is the audit.
 | Restart authority | RPP saved by REAPER; bridge baseline is pairing metadata | Explicit committed portable project; explicit Zynthian snapshot overrides | Legacy slot SAVE is manual, not automatic restart authority |
 | Headless operation | Studio host required | Browser/worker/network can disconnect after committed transfer | Restore stopped, never autoplay |
 | Velocity Decay Pitch Bias | Response helper only, inactive | Same inactive EEL helper | Controls, playback integration, descriptors and migration remain [unimplemented](velocity-decay-pitch-bias-checkpoint.md) |
-| HUMANIZER/ECHOCITY/Motion | Not released | Not playable modules | #25 algorithms/#28 scheduler/#32 design remain isolated |
+| CONDUCTOR PHRASE | No equivalent execution yet | Stable STEP/LAYER references, browser authoring, sequential immediate PRESS, independent ONCE admission | #58/#60/#61 draft; missing references diagnosed; mono/ARP independent admission restricted |
+| MOVEMENT | No equivalent execution yet | Linear/stepped CC curves, 10/25/50/100 Hz, ownership/replacement, parallel soft GLIDE, native STEP integration | #62 draft; actual engine/JACK tests; performance/hardware qualification incomplete |
+| Native chain destinations | Host routing | Explicit native Oram chain selection, snapshot-owned routes, no synth-name hardcoding | Direct fanout bypasses router channel filtering; verified synth/filter required |
+| HUMANIZER/ECHOCITY | Not released | Not playable modules | #25 algorithms/#28 scheduler remain isolated |
 
 Compact phrase/instrument controls and six phrases/page exist. Controllers remain
 collapsed by default. Phrase labels are generated; phrase Transformer rows are
-not implemented. Native chain mode remains LOOP-only. Whole-project multi-JSFX
+not implemented. Native chain mode supports LOOP/ONCE/HOLD in the recovery stack; hardware qualification remains separate. Whole-project multi-JSFX
 studio pairing and full REAPER Controller/Snapshot parity remain incomplete.
 
 ## Proof and release gates

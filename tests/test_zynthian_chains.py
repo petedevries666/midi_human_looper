@@ -33,7 +33,7 @@ with tempfile.TemporaryDirectory(prefix='mbh-chains-') as temp:
         if server.poll() is not None:raise RuntimeError(server_log_path.read_text(errors='replace'))
         engines=[adapter.zynthian_engine_mbh(None) for _ in processors]
         for engine,p in zip(engines,processors):engine.add_processor(p)
-        assert [p.jackname for p in processors]==['^mbh_1:','^mbh_2:','^mbh_3:']
+        assert [p.jackname for p in processors]==['mbh_1:','mbh_2:','mbh_3:']
         import re
         assert re.search(engines[0].jackname,'mbh_1:midi_in') and not re.search(engines[0].jackname,'mbh_10:midi_in')
         from controller_config import binding_wire,decode

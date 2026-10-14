@@ -8,6 +8,7 @@ python3 tests/test_headless_mvp.py
 python3 tests/test_module_registry.py
 python3 tests/test_zynthian_install.py
 python3 tests/test_zynthian_routing.py
+python3 tests/test_zynthian_destinations.py
 if [[ "${RUN_NATIVE_TESTS:-0}" == 1 ]];then tests/run_host_tests.sh;fi
 if [[ "${RUN_JACK_TESTS:-0}" == 1 ]];then
   test_dir=$(mktemp -d);trap 'rm -rf "$test_dir"' EXIT
@@ -20,6 +21,6 @@ if [[ "${RUN_JACK_TESTS:-0}" == 1 ]];then
   CHAIN_JACK_PROBE="$test_dir/chain-probe" "${TEST_PYTHON:-python3}" tests/test_instance_ownership_jack.py
   CHAIN_JACK_PROBE="$test_dir/chain-probe" "${TEST_PYTHON:-python3}" tests/test_instance_output_overflow_jack.py
   CHAIN_JACK_PROBE="$test_dir/chain-probe" "${TEST_PYTHON:-python3}" tests/test_zynthian_chains.py
-  CHAIN_JACK_PROBE="$test_dir/chain-probe" "${TEST_PYTHON:-python3}" tests/test_zynthian_dedicated_chain.py
+  CHAIN_NATIVE_ROUTES=1 CHAIN_JACK_PROBE="$test_dir/chain-probe" "${TEST_PYTHON:-python3}" tests/test_zynthian_dedicated_chain.py
   JACK_TEST_BINARY="$test_dir/jack-smoke" python3 tests/test_jack_graph.py
 fi

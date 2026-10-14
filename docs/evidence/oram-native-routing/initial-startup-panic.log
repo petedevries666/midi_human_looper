@@ -1,0 +1,7 @@
+Cannot lock down 107341340 byte memory area (Cannot allocate memory)
+Cannot lock down 107341340 byte memory area (Cannot allocate memory)
+Traceback (most recent call last):
+  File "/workspace/mbmf-conductor-a/tests/test_zynthian_dedicated_chain.py", line 191, in <module>
+    assert streams[0]==streams[1]==streams[2],'native fanout duplicated/lost events on a destination'
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: native fanout duplicated/lost events on a destination

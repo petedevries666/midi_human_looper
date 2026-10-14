@@ -11,19 +11,25 @@ struct Event {
   unsigned chain, frame, offset, status, note, value;
 };
 std::array<Event, 16384> events{};
-std::atomic<unsigned> count{0}, mask{0};
+std::atomic<unsigned> count{0}, mask{0}, pendingCc{0};
 jack_client_t *client, *sourceClient;
 std::array<jack_port_t *, 3> inputs, outputs;
 std::array<bool, 3> held{};
 unsigned loopLength=192512;
 bool fanout = false;
+bool nativeRoutes = false;
 int sourceProcess(jack_nframes_t n, void *) {
   jack_position_t p{};
   auto transport = jack_transport_query(sourceClient, &p);
   unsigned phase = p.frame % loopLength;
+  const bool emitCc = pendingCc.exchange(0) != 0;
   for (unsigned i = 0; i < 3; ++i) {
     auto out = jack_port_get_buffer(outputs[i], n);
     jack_midi_clear_buffer(out);
+    if (emitCc) {
+      unsigned char cc[]={static_cast<unsigned char>(176|i),42,87};
+      if (jack_midi_event_write(out,0,cc,3)) return 5;
+    }
     bool attack = transport == JackTransportRolling &&
                   (mask.load() & (1u << i)) && (loopLength-phase)%loopLength<n;
     bool release = held[i] && ((24576+loopLength-phase)%loopLength<n || !(mask.load() & (1u << i)) ||
@@ -51,7 +57,7 @@ int process(jack_nframes_t n, void *) {
       jack_midi_event_get(&e, in, j);
       if (e.size == 3 && count < events.size() &&
           (((e.buffer[0] & 240) != 176 && e.buffer[1] >= 60 && e.buffer[1] <= 62) ||
-           ((e.buffer[0] & 240) == 176 && (e.buffer[1] == 64 || e.buffer[1] >= 120)))) {
+           ((e.buffer[0] & 240) == 176 && (nativeRoutes || e.buffer[1] == 64 || e.buffer[1] >= 120)))) {
         auto index = count.load();
         events[index] = {i,           fanout ? jack_last_frame_time(client) : p.frame,     e.time,
                          e.buffer[0], e.buffer[1], e.buffer[2]};
@@ -63,6 +69,7 @@ int process(jack_nframes_t n, void *) {
 }
 int main() {
   fanout = std::getenv("CHAIN_FANOUT") != nullptr;
+  nativeRoutes = std::getenv("CHAIN_NATIVE_ROUTES") != nullptr;
   jack_status_t s;
   client = jack_client_open("mbh_three_chain_probe", JackNoStartServer, &s);
   sourceClient = jack_client_open("mbh_three_chain_source", JackNoStartServer, &s);
@@ -85,8 +92,8 @@ int main() {
     auto name = "mbh_" + std::to_string(fanout ? 1 : i + 1);
     if (jack_connect(client, jack_port_name(outputs[i]),
                      (name + ":midi_in").c_str()) ||
-        jack_connect(client, (name + ":midi_out").c_str(),
-                     jack_port_name(inputs[i])))
+        (!std::getenv("CHAIN_NATIVE_ROUTES") && jack_connect(client, (name + ":midi_out").c_str(),
+                     jack_port_name(inputs[i]))))
       return 4;
   }
   std::cout << "READY\n" << std::flush;
@@ -94,6 +101,7 @@ int main() {
   while (std::cin >> value) {
     if (fanout && value == 8) jack_transport_stop(client);
     else if (fanout && value == 9) jack_transport_start(client);
+    else if (fanout && value == 10) pendingCc = 1;
     else mask = value;
   }
   jack_deactivate(sourceClient);

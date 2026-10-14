@@ -1,0 +1,116 @@
+jackdmp 1.9.22
+Copyright 2001-2005 Paul Davis and others.
+Copyright 2004-2016 Grame.
+Copyright 2016-2023 Filipe Coelho.
+jackdmp comes with ABSOLUTELY NO WARRANTY
+This is free software, and you are welcome to redistribute it
+under certain conditions; see the file COPYING for details
+JACK server starting in non-realtime mode
+self-connect-mode is "Don't restrict self connect requests"
+Cannot lock down 107341340 byte memory area (Cannot allocate memory)
+JackTimedDriver::Process XRun = 6 usec
+JackTimedDriver::Process XRun = 6 usec
+JackEngine::XRun: client = mbmf_d was not finished, state = Running
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackTimedDriver::Process XRun = 19 usec
+JackEngine::XRun: client = mbmf_d was not finished, state = Running
+JackEngine::XRun: client = conductor_probe was not finished, state = Triggered
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackEngine::XRun: client = mbmf_d was not finished, state = Triggered
+JackEngine::XRun: client = conductor_probe was not finished, state = Triggered
+JackEngine::XRun: client = conductor_send was not finished, state = Triggered
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackEngine::XRun: client = mbmf_d was not finished, state = Triggered
+JackEngine::XRun: client = conductor_probe was not finished, state = Triggered
+JackEngine::XRun: client = conductor_send was not finished, state = Triggered
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackEngine::XRun: client = mbmf_d was not finished, state = Triggered
+JackEngine::XRun: client = conductor_probe was not finished, state = Triggered
+JackEngine::XRun: client conductor_send finished after current callback
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackEngine::XRun: client = mbmf_d was not finished, state = Triggered
+JackEngine::XRun: client = conductor_probe was not finished, state = Triggered
+JackEngine::XRun: client = conductor_send was not finished, state = Triggered
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackEngine::XRun: client = mbmf_d was not finished, state = Triggered
+JackEngine::XRun: client = conductor_probe was not finished, state = Triggered
+JackEngine::XRun: client = conductor_send was not finished, state = Triggered
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackEngine::XRun: client = mbmf_d was not finished, state = Running
+JackEngine::XRun: client = conductor_probe was not finished, state = Triggered
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackEngine::XRun: client = mbmf_d was not finished, state = Running
+JackEngine::XRun: client = conductor_probe was not finished, state = Triggered
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackTimedDriver::Process XRun = 1339 usec
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackTimedDriver::Process XRun = 45 usec
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackEngine::XRun: client = mbmf_d was not finished, state = Triggered
+JackEngine::XRun: client = conductor_probe was not finished, state = Triggered
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackTimedDriver::Process XRun = 6475 usec
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackTimedDriver::Process XRun = 37 usec
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackTimedDriver::Process XRun = 10 usec
+JackEngine::XRun: client = mbmf_d was not finished, state = Running
+JackEngine::XRun: client = conductor_probe was not finished, state = Triggered
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackEngine::XRun: client = mbmf_d was not finished, state = Triggered
+JackEngine::XRun: client = conductor_probe was not finished, state = Triggered
+JackEngine::XRun: client = conductor_send was not finished, state = Triggered
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackTimedDriver::Process XRun = 19 usec
+JackEngine::XRun: client = mbmf_d was not finished, state = Running
+JackEngine::XRun: client = conductor_probe was not finished, state = Triggered
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackEngine::XRun: client = mbmf_d was not finished, state = Running
+JackEngine::XRun: client conductor_probe finished after current callback
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackEngine::XRun: client = mbmf_d was not finished, state = Running
+JackEngine::XRun: client = conductor_probe was not finished, state = Triggered
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackEngine::XRun: client = mbmf_d was not finished, state = Running
+JackEngine::XRun: client conductor_probe finished after current callback
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackTimedDriver::Process XRun = 16 usec
+JackEngine::XRun: client = mbmf_d was not finished, state = Running
+JackEngine::XRun: client = conductor_probe was not finished, state = Triggered
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackEngine::XRun: client = conductor_probe was not finished, state = Triggered
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackTimedDriver::Process XRun = 19 usec
+JackEngine::XRun: client = mbmf_d was not finished, state = Running
+JackEngine::XRun: client = conductor_probe was not finished, state = Triggered
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackTimedDriver::Process XRun = 17 usec
+JackEngine::XRun: client = mbmf_d was not finished, state = Running
+JackEngine::XRun: client = conductor_probe was not finished, state = Triggered
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackEngine::XRun: client = mbmf_d was not finished, state = Running
+JackEngine::XRun: client = conductor_probe was not finished, state = Triggered
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackEngine::XRun: client = conductor_probe was not finished, state = Triggered
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackTimedDriver::Process XRun = 421 usec
+Jack main caught signal 15

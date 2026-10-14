@@ -1,0 +1,12 @@
+/tmp/mbmf-pr62-engine.cpp:185:35: warning: ignoring attributes on template argument ‘EEL_F*’ {aka ‘double*’} [-Wignored-attributes]
+  185 |   std::array<std::array<EEL_F*,128>,16> switchFields;
+      |                                   ^
+/tmp/mbmf-pr62-engine.cpp:186:33: warning: ignoring attributes on template argument ‘EEL_F*’ {aka ‘double*’} [-Wignored-attributes]
+  186 |   std::array<std::array<EEL_F*,8>,16> conductorFields;
+      |                                 ^
+/tmp/mbmf-pr62-engine.cpp:188:23: warning: ignoring attributes on template argument ‘EEL_F*’ {aka ‘double*’} [-Wignored-attributes]
+  188 |   std::array<EEL_F*,12> voiceActive,voiceLayer;
+      |                       ^
+/tmp/mbmf-pr62-engine.cpp:189:23: warning: ignoring attributes on template argument ‘EEL_F*’ {aka ‘double*’} [-Wignored-attributes]
+  189 |   std::array<EEL_F*,16> phraseTriggers,phraseFinished;
+      |                       ^

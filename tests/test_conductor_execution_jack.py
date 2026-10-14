@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Private JACK source -> actual engine -> captured port MIDI, never an API echo."""
-import os,sys,json,time,tempfile,subprocess
+import os,sys,json,time,tempfile,subprocess,shutil
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1];sys.path[:0]=[str(ROOT/'headless'),str(ROOT/'tests')]
 from server import Control
@@ -8,12 +8,13 @@ import conductor
 from test_conductor_persistence import step,block,uid
 with tempfile.TemporaryDirectory(prefix='mbmf-conductor-jack-') as tmp:
  env=dict(os.environ,JACK_DEFAULT_SERVER='mbmf-conductor-d')
- server=subprocess.Popen([env['JACKD'],'--name',env['JACK_DEFAULT_SERVER'],'--no-realtime','-d','dummy','-r','48000','-p','8192'],env=env,stdout=subprocess.DEVNULL,stderr=subprocess.PIPE)
+ logs={name:open(Path(tmp)/(name+'.log'),'wb') for name in ('jack','engine','web')}
+ server=subprocess.Popen([env['JACKD'],'--name',env['JACK_DEFAULT_SERVER'],'--no-realtime','-d','dummy','-r','48000','-p','8192'],env=env,stdout=subprocess.DEVNULL,stderr=logs['jack'])
  engine=probe=web=browser=None
  try:
   time.sleep(1);assert server.poll() is None
   sock=str(Path(tmp)/'engine.sock')
-  engine=subprocess.Popen([env['HEADLESS_BINARY'],str(ROOT/'midi_human_looper.jsfx'),sock,'--chain','--jack','--client','mbmf_d'],env=env,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+  engine=subprocess.Popen([env['HEADLESS_BINARY'],str(ROOT/'midi_human_looper.jsfx'),sock,'--chain','--jack','--client','mbmf_d']+(['--rt-trace',env['CONDUCTOR_RT_TRACE']] if env.get('CONDUCTOR_RT_TRACE') else []),env=env,stdout=logs['engine'],stderr=subprocess.STDOUT)
   deadline=time.monotonic()+15
   while not Path(sock).exists() and time.monotonic()<deadline:
    assert engine.poll() is None;time.sleep(.05)
@@ -45,7 +46,7 @@ with tempfile.TemporaryDirectory(prefix='mbmf-conductor-jack-') as tmp:
    from test_conductor_editor_browser import author_four_steps,save_draft
    with socket.socket() as port_socket:port_socket.bind(('127.0.0.1',0));port=port_socket.getsockname()[1]
    url=f'http://127.0.0.1:{port}'
-   web=subprocess.Popen([sys.executable,str(ROOT/'headless/server.py'),'--socket',sock,'--port',str(port),'--patch-dir',str(Path(tmp)/'patches')],env=env,stdout=subprocess.DEVNULL,stderr=subprocess.PIPE)
+   web=subprocess.Popen([sys.executable,str(ROOT/'headless/server.py'),'--socket',sock,'--port',str(port),'--patch-dir',str(Path(tmp)/'patches')],env=env,stdout=subprocess.DEVNULL,stderr=logs['web'])
    def ready():
     try:return urllib.request.urlopen(url+'/api/v1/state',timeout=1).status==200
     except OSError:return False
@@ -121,3 +122,9 @@ with tempfile.TemporaryDirectory(prefix='mbmf-conductor-jack-') as tmp:
   if probe is not None:probe.terminate();probe.communicate(timeout=5)
   if engine is not None:engine.terminate();engine.communicate(timeout=10)
   server.terminate();server.communicate(timeout=5)
+
+  for log in logs.values():log.close()
+  if os.environ.get('CONDUCTOR_DIAGNOSTIC_DIR'):
+   evidence=Path(os.environ['CONDUCTOR_DIAGNOSTIC_DIR']);evidence.mkdir(parents=True,exist_ok=True)
+   for name in logs:shutil.copyfile(Path(tmp)/(name+'.log'),evidence/(name+'.log'))
+   (evidence/'process-exits.json').write_text(json.dumps(dict(engine=engine.returncode if engine else None,jack=server.returncode,web=web.returncode if web else None),indent=2)+'\n')

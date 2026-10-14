@@ -1,0 +1,12 @@
+Cannot lock down 107341340 byte memory area (Cannot allocate memory)
+512 LIVE_LIGHT errors []
+Cannot lock down 107341340 byte memory area (Cannot allocate memory)
+512 LIVE_NORMAL errors []
+Cannot lock down 107341340 byte memory area (Cannot allocate memory)
+512 STRESS errors ['probe MIDI timestamp regression [(1389, [188416, 32, 144, 61, 100], [188416, 0, 176, 20, 61]), (1413, [189952, 208, 176, 27, 51], [189952, 176, 176, 20, 46])]']
+Cannot lock down 107341340 byte memory area (Cannot allocate memory)
+256 LIVE_LIGHT errors []
+Cannot lock down 107341340 byte memory area (Cannot allocate memory)
+256 LIVE_NORMAL errors []
+Cannot lock down 107341340 byte memory area (Cannot allocate memory)
+256 STRESS errors []

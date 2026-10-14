@@ -54,3 +54,4 @@ CONDUCTOR is not implemented on this base and has no fabricated screenshot.
 | snapshots | [PNG](snapshots-320x240.png) | [PNG](snapshots-800x480.png) | [PNG](snapshots-1366x768.png) | [PNG](snapshots-1440x900.png) | [PNG](snapshots-1904x1032.png) |
 | transformer-chain | [PNG](transformer-chain-320x240.png) | [PNG](transformer-chain-800x480.png) | [PNG](transformer-chain-1366x768.png) | [PNG](transformer-chain-1440x900.png) | [PNG](transformer-chain-1904x1032.png) |
 | transformer-editor | [PNG](transformer-editor-320x240.png) | [PNG](transformer-editor-800x480.png) | [PNG](transformer-editor-1366x768.png) | [PNG](transformer-editor-1440x900.png) | [PNG](transformer-editor-1904x1032.png) |
+| update-unavailable | [PNG](update-unavailable-320x240.png) | [PNG](update-unavailable-800x480.png) | [PNG](update-unavailable-1366x768.png) | [PNG](update-unavailable-1440x900.png) | [PNG](update-unavailable-1904x1032.png) |

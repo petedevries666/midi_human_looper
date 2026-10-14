@@ -187,10 +187,40 @@ class Handler(BaseHTTPRequestHandler):
         except (OSError, ValueError) as error:
             self.respond(503, {'error': 'engine unavailable'})
 
+    def update_command(self, action=None):
+        # Neither the editor token nor LAN trust grants executable installation.
+        # Only this strict HTTP envelope reaches the separate root worker; native
+        # authorization is deliberately not an accepted network field.
+        try:
+            import sys
+            sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'zynthian/update'))
+            from backend import client
+            fields={}
+            if action is None:
+                if self.headers.get('Origin')!='http://'+self.headers.get('Host',''):
+                    self.respond(403,{'error':'Explicit same-origin request required'});return
+                if self.headers.get('Content-Type','').split(';')[0]!='application/json':
+                    self.respond(415,{'error':'JSON required'});return
+                length=int(self.headers.get('Content-Length','0'))
+                if not 1<=length<=2048:raise ValueError('Update request size limit')
+                fields=json.loads(self.rfile.read(length))
+                if not isinstance(fields,dict) or set(fields)-{'action','password','confirm','revision'}:
+                    raise ValueError('Invalid update fields')
+                action=fields.pop('action',None)
+                if action not in ('check','install','rollback','recover'):raise ValueError('Invalid update action')
+            response=client(action,**fields)
+            self.respond(200,response)
+        except FileNotFoundError:
+            self.respond(503,{'error':'UPDATE worker not installed; musical engine is unaffected'})
+        except (OSError,ValueError,TypeError) as error:
+            self.respond(403,{'error':str(error)})
+
     def do_GET(self):
         path = urlsplit(self.path).path
         if not self.allowed(api=path.startswith('/api/') and path!='/api/v1/ws'):
             return
+        if path == '/api/v1/update':
+            self.update_command('status');return
         if path=='/api/v1/ws' and self.headers.get('Upgrade','').lower()=='websocket':
             self.websocket();return
         if path.startswith('/api/v1/phrase/') and path.endswith('/midi'):
@@ -232,6 +262,7 @@ class Handler(BaseHTTPRequestHandler):
                  '/app.js': ('app.js', 'text/javascript; charset=utf-8'),
                  '/conductor.js': ('conductor.js', 'text/javascript; charset=utf-8'),
                  '/movement.js': ('movement.js', 'text/javascript; charset=utf-8'),
+                 '/update.js': ('update.js', 'text/javascript; charset=utf-8'),
                  '/style.css': ('style.css', 'text/css; charset=utf-8'),
                  '/fonts/mbmf-block.woff2': ('fonts/mbmf-block.woff2', 'font/woff2')}
         if path not in files:
@@ -298,6 +329,8 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         if not self.allowed(api=True):
             return
+        if self.path == '/api/v1/update':
+            self.update_command();return
         if self.path in ('/api/v1/project/stage','/api/v1/project/activate','/api/v1/project/checkpoint'):
             self.project_command(self.path.rsplit('/',1)[-1]);return
         if self.path == '/api/v1/phrase/midi':

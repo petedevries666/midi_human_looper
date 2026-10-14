@@ -120,6 +120,10 @@ def run(output, performance=False):
                     if errors:raise AssertionError(errors)
                     context.close();continue
                 capture('patch', 'header')
+                page.locator('#runtime-update > summary').click()
+                page.get_by_text('UPDATE worker not installed; musical engine is unaffected',exact=True).wait_for()
+                capture('update-unavailable','#runtime-update')
+                page.locator('#runtime-update > summary').click()
                 capture('snapshots','#snapshots-section')
                 capture('smart-switches','#switches')
                 page.locator('[data-switch-id="1"] .switch-test').evaluate('e=>e.open=true')

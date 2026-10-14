@@ -4,6 +4,7 @@ import argparse
 import fcntl
 import importlib
 import json
+import hashlib
 import os
 from pathlib import Path
 import platform
@@ -12,6 +13,9 @@ import subprocess
 import sys
 import tempfile
 import time
+import select
+import urllib.request
+import urllib.error
 
 PIN='8077347ccf4115567aed81400281dca57acbb0cc'
 REPOSITORY='https://github.com/petedevries666/midi_human_looper.git'
@@ -34,7 +38,7 @@ def atomic(path, value):
     finally:
         if os.path.exists(name):os.unlink(name)
 
-def build(directory, revision):
+def build(directory, revision, checkout=None):
     if platform.machine() not in ('aarch64','armv7l','x86_64'):
         raise ValueError('Unsupported CPU; no installation changed')
     if len(revision)!=40 or any(c not in '0123456789abcdef' for c in revision):
@@ -42,16 +46,49 @@ def build(directory, revision):
     for tool in ('git','cmake','c++','pkg-config'):
         if not shutil.which(tool):raise ValueError('Missing '+tool+'; prepare build dependencies separately')
     root=directory/'releases'/revision
+    if root.exists() and (root/'.mbmf-release-revision').exists():
+        if (root/'.mbmf-release-revision').read_text().strip()!=revision:
+            raise ValueError('Existing archive identity differs')
+        integrity=root/'.mbmf-release-integrity.json'
+        if integrity.exists():
+            files=json.loads(integrity.read_text())
+            required={'.build/midi-headless-engine','midi_human_looper.jsfx','headless/server.py','zynthian/zynthian_engine_mbh.py'}
+            if not isinstance(files,dict) or not required.issubset(files):raise ValueError('Incomplete release integrity manifest')
+            if any(Path(name).is_absolute() or '..' in Path(name).parts for name in files):raise ValueError('Invalid release integrity path')
+            if any(not (root/name).is_file() or hashlib.sha256((root/name).read_bytes()).hexdigest()!=sha for name,sha in files.items()):
+                raise ValueError('Existing release was modified; refusing reuse')
+            return root,root/'.build/midi-headless-engine'
+        # Incomplete archive/build is never active: refuse deleting a currently
+        # selected tree or the previous working rollback tree.
+        config=json.loads((directory/'install.json').read_text())
+        history=directory/'runtime-update.json'
+        journal=json.loads(history.read_text()) if history.exists() else {}
+        referenced=[config.get('repository'),journal.get('previous',{}).get('repository')]
+        if str(root) in referenced:raise ValueError('Incomplete active release; recovery required')
+        shutil.rmtree(root)
     if root.exists():
         actual=subprocess.check_output(['git','-C',str(root),'rev-parse','HEAD'],text=True).strip()
         dirty=subprocess.check_output(['git','-C',str(root),'status','--porcelain','--untracked-files=no'],text=True)
         if actual!=revision or dirty:raise ValueError('Existing release was modified; refusing reuse')
     else:
         root.parent.mkdir(exist_ok=True)
-        run('git','clone','--no-checkout',REPOSITORY,str(root))
-        run('git','-C',str(root),'checkout','--detach',revision)
+        if checkout is None:
+            installed=json.loads((directory/'install.json').read_text())
+            checkout=Path(installed.get('update_checkout',installed['repository']))
+        checkout=Path(checkout)
+        run('git','-C',str(checkout),'fetch',REPOSITORY,revision)
+        root.mkdir()
+        # Git archive is staged runtime data for rollback, not a second clone.
+        archive=subprocess.Popen(['git','-C',str(checkout),'archive',revision],stdout=subprocess.PIPE)
+        try:
+            run('tar','-x','-C',str(root),stdin=archive.stdout)
+            archive.stdout.close()
+            if archive.wait():raise ValueError('Release archive failed')
+            (root/'.mbmf-release-revision').write_text(revision+'\n')
+        except BaseException:
+            archive.kill();archive.wait();shutil.rmtree(root);raise
     # Rebuild the entire pinned library with signed char, including WDL on ARM64.
-    ysfx=root/'.build/ysfx'
+    ysfx=directory/'build-cache/ysfx'
     ysfx.parent.mkdir(parents=True,exist_ok=True)
     if not ysfx.exists():run('git','clone','https://github.com/jpcima/ysfx.git',str(ysfx))
     if subprocess.check_output(['git','-C',str(ysfx),'status','--porcelain'],text=True).strip():
@@ -64,6 +101,9 @@ def build(directory, revision):
     binary=root/'.build/midi-headless-engine'
     run('bash',str(root/'scripts/headless-build.sh'),env={**os.environ,
         'YSFX_SOURCE':str(ysfx),'YSFX_BUILD':str(ysfx/'build'),'HEADLESS_BINARY':str(binary)})
+    files={str(path.relative_to(root)):hashlib.sha256(path.read_bytes()).hexdigest()
+           for path in root.rglob('*') if path.is_file() and not path.is_symlink()}
+    atomic(root/'.mbmf-release-integrity.json',files)
     return root,binary
 
 def validate_grid_restore(patch, state, timing_version):
@@ -85,11 +125,43 @@ class Runtime:
         sys.path.insert(0,str(Path(root)/'headless'))
         self.Control=importlib.import_module('server').Control
         self.ProjectStore=importlib.import_module('project_sync').ProjectStore
+    def web_preflight(self, config, socket_path, temporary, revision):
+        # Probe the candidate Python/API as well as the native binary, privately
+        # without JACK. No candidate activation or user project mutation here.
+        command=[sys.executable,str(Path(config['repository'])/'headless/server.py'),
+                 '--socket',socket_path,'--port','0','--patch-dir',str(Path(temporary)/'web-projects')]
+        with open(Path(temporary)/'web.log','w') as errors:
+            web=subprocess.Popen(command,stdout=subprocess.PIPE,stderr=errors)
+            try:
+                if not select.select([web.stdout],[],[],15)[0]:raise ValueError('Candidate Web startup timed out')
+                line=web.stdout.readline().decode().strip()
+                if not line.startswith('EDITOR http://127.0.0.1:'):raise ValueError('Candidate Web startup failed')
+                url=line.split(' ',1)[1]
+                with urllib.request.urlopen(url+'/api/v1/state',timeout=5) as response:state=json.load(response)
+                if state.get('buildRevision')!=revision:raise ValueError('Candidate Web/engine revision mismatch')
+                with urllib.request.urlopen(url+'/api/v1/descriptors',timeout=5) as response:descriptors=json.load(response)
+                if not descriptors.get('parameters'):raise ValueError('Candidate editor descriptors unavailable')
+                if getattr(self,'require_update_controls',False):
+                    # Protocol-1 candidates must retain the administration interface
+                    # so a successful update cannot erase the rollback entry point.
+                    with urllib.request.urlopen(url+'/update.js',timeout=5) as response:
+                        if not response.read(131072):raise ValueError('Candidate UPDATE editor missing')
+                    try:
+                        with urllib.request.urlopen(url+'/api/v1/update',timeout=5) as response:update_state=json.load(response)
+                        if 'installed' not in update_state:raise ValueError('Candidate UPDATE API differs')
+                    except urllib.error.HTTPError as error:
+                        data=json.load(error)
+                        if error.code!=503 or data.get('error')!='UPDATE worker not installed; musical engine is unaffected':raise ValueError('Candidate UPDATE API unavailable') from error
+            finally:
+                web.terminate()
+                try:web.wait(timeout=5)
+                except subprocess.TimeoutExpired:web.kill();web.wait()
+                web.stdout.close()
     def checkpoint(self, directory):
         result={}
         for socket in directory.glob('processor-*/control.sock'):
             state=self.Control(str(socket)).request()
-            if state.get('chainRunning') or state.get('chainRecording') or state.get('chainArmed') or state.get('recording') or state.get('activeNotes') or state.get('targetSnapshotId'):
+            if state.get('chainRunning') or state.get('chainRecording') or state.get('chainArmed') or state.get('recording') or state.get('activeNotes') or state.get('targetSnapshotId') or state.get('movements',{}).get('active') or state.get('instances'):
                 raise ValueError('STOP all MBMF processors, finish REC and morphs before updating')
             store=self.ProjectStore(socket.parent,self.Control(str(socket)))
             captured=store.capture()
@@ -121,6 +193,7 @@ class Runtime:
                         control=self.Control(socket);state=control.request()
                         if state.get('status')!='ok':raise ValueError('Preflight protocol failed')
                         verified=state['buildRevision']
+                        if chain:self.web_preflight(config,socket,temporary,verified)
                         if chain:
                             mode=state.get('chainCaptureMode','two-bar-grid')
                         else:
@@ -177,13 +250,16 @@ def activate(config_path, new, runtime, expected, journal=None):
     atomic(history,journal)
     try:
         runtime.service('stop')
+        if hasattr(runtime,'apply_components'):runtime.apply_components(journal)
         atomic(config_path,new)
         runtime.service('start')
         runtime.healthy({**new,'_directory':str(directory)},expected)
     except BaseException as activation_error:
         try:
             try:runtime.service('stop')
-            finally:atomic(config_path,old)
+            finally:
+                if hasattr(runtime,'restore_components'):runtime.restore_components(journal)
+                atomic(config_path,old)
             runtime.service('start')
             runtime.healthy({**old,'_directory':str(directory)},expected)
         except BaseException as rollback_error:
@@ -207,6 +283,8 @@ def main():
         if old.get('version')!=1:raise ValueError('Unsupported installation configuration')
         runtime=Runtime(old['repository'])
         history=directory/'runtime-update.json'
+        if history.exists() and json.loads(history.read_text()).get('components'):
+            raise ValueError('Component update journal requires the authorized UPDATE worker for rollback/recovery; legacy CLI will not partially restore it')
         if history.exists() and json.loads(history.read_text()).get('phase')=='pending':
             pending=json.loads(history.read_text())
             runtime.service('stop');atomic(args.config,pending['previous']);runtime.service('start')
@@ -220,7 +298,8 @@ def main():
             new=previous['previous']
         else:
             root,binary=build(directory,args.revision)
-            new={**old,'repository':str(root),'binary':str(binary),'runtime_revision':args.revision}
+            new={**old,'repository':str(root),'binary':str(binary),'runtime_revision':args.revision,
+                 'update_checkout':old.get('update_checkout',old['repository'])}
         # Checkpoint current stopped musical data before validating the candidate.
         expected=runtime.checkpoint(directory)
         verified_revision=runtime.preflight(new,directory)

@@ -16,8 +16,13 @@ if [[ -n "${JACK_INCLUDE:-}" ]]; then
 else
   read -r -a jack_flags <<< "$(pkg-config --cflags --libs jack)"
 fi
-build_revision=$(git rev-parse HEAD)
-if [[ -n "$(git status --porcelain --untracked-files=no)" ]]; then build_revision+=.dirty; fi
+if [[ -f .mbmf-release-revision ]]; then
+  build_revision=$(cat .mbmf-release-revision)
+  [[ "$build_revision" =~ ^[0-9a-f]{40}$ ]]
+else
+  build_revision=$(git rev-parse HEAD)
+  if [[ -n "$(git status --porcelain --untracked-files=no)" ]]; then build_revision+=.dirty; fi
+fi
 graphics_flags=()
 for dependency in fontconfig freetype2;do
   if pkg-config --exists "$dependency";then

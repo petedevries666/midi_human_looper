@@ -305,6 +305,20 @@ def audio_autoconnect():
         self.assertEqual(self.autoconnect.read_text(),self.autoconnect_original)
         self.assertFalse((self.package/'zynthian_engine_mbh_router.py').exists())
 
+    def test_native_activation_failure_rolls_back_every_owned_file(self):
+        self.run_install()
+        before=self.snapshot_files();atomic=installer.atomic;failed=False
+        def injected(path,data):
+            nonlocal failed
+            atomic(path,data)
+            if path==self.autoconnect and not failed:
+                failed=True
+                raise OSError('injected native source activation failure')
+        with patch.object(installer,'atomic',injected):
+            with self.assertRaises(OSError):installer.main([*self.args,'--native-channel-routing','--upgrade-adapter'])
+        self.assertTrue(failed)
+        self.assertEqual(self.snapshot_files(),before)
+
     def test_channel_only_rollback_retains_registration_and_runtime(self):
         self.run_install('--native-channel-routing','--upgrade-adapter')
         retained={path:path.read_bytes() for path in (self.manager,self.catalog,self.adapter,self.data/'install.json')}

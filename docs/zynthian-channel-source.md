@@ -89,6 +89,9 @@ Keep the staging directory until qualification/rollback completes.
    repeat. Test overlapping notes, sustain, STOP/PANIC and removal after releasing
    keys. Confirm no duplicate attacks/hanging notes or return path into MB.
 
+Existing global PANIC may emit safety channel-mode messages on all channels; this
+PR does not narrow its scope. It is not a guarantee of per-Instrument PANIC isolation.
+
 No physical V4/Oram-2601.1 qualification has been performed in Cloud.
 
 ## Executed checks
@@ -97,7 +100,7 @@ See `docs/evidence/oram-channel-source/` for logs. All commands exited 0:
 
 ```sh
 python3 tests/test_zynthian_channel_source.py # 4 native API-call/lifecycle tests
-python3 tests/test_zynthian_install.py        # 29 fresh/upgrade/repeat/rollback tests
+python3 tests/test_zynthian_install.py        # 30 fresh/upgrade/repeat/rollback tests
 python3 tests/test_zynthian_destinations.py   # 7 legacy adapter compatibility tests
 python3 tests/test_zynthian_routing.py        # 5 pinned legacy route tests
 source /tmp/mbmf-b-env.sh                     # Cloud-specific cached prerequisites

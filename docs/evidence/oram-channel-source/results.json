@@ -5,7 +5,7 @@
   "tests": {
     "install": {
       "exit": 0,
-      "tests": 29
+      "tests": 30
     },
     "source": {
       "exit": 0,

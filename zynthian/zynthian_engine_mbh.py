@@ -130,7 +130,12 @@ class zynthian_engine_mbh(zynthian_engine):
                 routes.append(symbol)
             for start in range(0, len(routes), 4):
                 self._ctrl_screens.append(['MIDI OUT %s' % (start//4+1), routes[start:start+4]])
-        return super().get_controllers_dict(processor)
+        controllers = super().get_controllers_dict(processor)
+        for symbol in routes:
+            # Oram ZS3 already saves chain.midi_out. Do not replay a second,
+            # possibly stale knob value over restored authoritative routing.
+            controllers[symbol].get_state = lambda full=True: {}
+        return controllers
 
     def _set_destination(self, zctrl):
         manager, source = self._routing_context(zctrl.processor)

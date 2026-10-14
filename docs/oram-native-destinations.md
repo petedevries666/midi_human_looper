@@ -21,7 +21,8 @@ works in both paths and still distinguishes processor 1 from processor 10.
 
 Destinations are explicitly selected, never all instruments connected by default.
 New chains appear when MBMF controls are refreshed/reopened. Existing routes
-remain native chain state; Oram snapshots restore them and native autoconnect
+remain native chain state (ZS3 `chain.midi_out`); route knobs serialize no
+value and cannot replay stale control values over it. Oram snapshots restore them and native autoconnect
 recreates them after port/chain refresh. Host chain IDs do not enter portable
 project files. Removal/recreation of a chain invalidates stale editor controls,
 including a reused chain ID. Feedback candidates are omitted and rechecked at

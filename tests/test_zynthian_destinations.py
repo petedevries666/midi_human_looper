@@ -49,6 +49,8 @@ class Destinations(unittest.TestCase):
         control.value=enabled; self.engine.send_controller_value(control)
     def test_explicit_three_destinations_idempotence_and_native_snapshot_state(self):
         self.assertEqual(self.source.midi_out, [])  # Reproduces absent auto connection.
+        stale=self.control(2)
+        self.assertEqual(stale.get_state(),{}) # No competing processor snapshot writer.
         for n in (2,3,4): self.set_route(self.control(n), True)
         self.assertEqual(self.source.midi_out,[2,3,4]); self.assertEqual(len(self.refreshes),3)
         self.assertFalse(any(x.get('op')==2 for x in self.commands))

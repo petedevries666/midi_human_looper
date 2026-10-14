@@ -6,6 +6,14 @@ CONDUCTOR is not implemented on this base and has no fabricated screenshot.
 
 | View | 320×240 | 800×480 | 1366×768 | 1440×900 | 1904×1032 |
 | --- | --- | --- | --- | --- | --- |
+| conductor-empty-editor | [PNG](conductor-empty-editor-320x240.png) | [PNG](conductor-empty-editor-800x480.png) | [PNG](conductor-empty-editor-1366x768.png) | [PNG](conductor-empty-editor-1440x900.png) | [PNG](conductor-empty-editor-1904x1032.png) |
+| conductor-empty-editor-bottom | [PNG](conductor-empty-editor-bottom-320x240.png) | — | — | — | — |
+| conductor-four-step-editor | [PNG](conductor-four-step-editor-320x240.png) | [PNG](conductor-four-step-editor-800x480.png) | [PNG](conductor-four-step-editor-1366x768.png) | [PNG](conductor-four-step-editor-1440x900.png) | [PNG](conductor-four-step-editor-1904x1032.png) |
+| conductor-four-step-editor-bottom | [PNG](conductor-four-step-editor-bottom-320x240.png) | [PNG](conductor-four-step-editor-bottom-800x480.png) | — | — | — |
+| conductor-override-editor | [PNG](conductor-override-editor-320x240.png) | [PNG](conductor-override-editor-800x480.png) | [PNG](conductor-override-editor-1366x768.png) | [PNG](conductor-override-editor-1440x900.png) | [PNG](conductor-override-editor-1904x1032.png) |
+| conductor-override-editor-bottom | [PNG](conductor-override-editor-bottom-320x240.png) | [PNG](conductor-override-editor-bottom-800x480.png) | — | — | — |
+| conductor-source-menu-editor | [PNG](conductor-source-menu-editor-320x240.png) | [PNG](conductor-source-menu-editor-800x480.png) | [PNG](conductor-source-menu-editor-1366x768.png) | [PNG](conductor-source-menu-editor-1440x900.png) | [PNG](conductor-source-menu-editor-1904x1032.png) |
+| conductor-source-menu-editor-bottom | [PNG](conductor-source-menu-editor-bottom-320x240.png) | [PNG](conductor-source-menu-editor-bottom-800x480.png) | [PNG](conductor-source-menu-editor-bottom-1366x768.png) | [PNG](conductor-source-menu-editor-bottom-1440x900.png) | [PNG](conductor-source-menu-editor-bottom-1904x1032.png) |
 | controller-advanced | [PNG](controller-advanced-320x240.png) | [PNG](controller-advanced-800x480.png) | [PNG](controller-advanced-1366x768.png) | [PNG](controller-advanced-1440x900.png) | [PNG](controller-advanced-1904x1032.png) |
 | controller-editor | [PNG](controller-editor-320x240.png) | [PNG](controller-editor-800x480.png) | [PNG](controller-editor-1366x768.png) | [PNG](controller-editor-1440x900.png) | [PNG](controller-editor-1904x1032.png) |
 | controller-live-test | [PNG](controller-live-test-320x240.png) | [PNG](controller-live-test-800x480.png) | [PNG](controller-live-test-1366x768.png) | [PNG](controller-live-test-1440x900.png) | [PNG](controller-live-test-1904x1032.png) |

@@ -126,7 +126,7 @@ class zynthian_engine_mbh(zynthian_engine):
                 label = '%s CH%s' % (title, channel+1 if isinstance(channel, int) and 0 <= channel < 16 else 'ALL')
                 self._ctrls.append([symbol, dict(name=label, value=int(chain_id in source.midi_out),
                     value_min=0, value_max=1, is_toggle=True, midi_autolearn=False,
-                    graph_path=('midi_destination', chain_id, id(destination)))])
+                    graph_path=('midi_destination', chain_id, destination))])
                 routes.append(symbol)
             for start in range(0, len(routes), 4):
                 self._ctrl_screens.append(['MIDI OUT %s' % (start//4+1), routes[start:start+4]])
@@ -137,7 +137,7 @@ class zynthian_engine_mbh(zynthian_engine):
         _, chain_id, generation = zctrl.graph_path
         destination = manager.get_chain(chain_id) if manager else None
         if (source is None or source.synth_slots or destination is None or
-            id(destination) != generation or not destination.synth_slots or
+            destination is not generation or not destination.synth_slots or
             source.chain_id == chain_id):
             raise ValueError('MIDI destination unavailable; reopen MBMF controls')
         enabled = bool(zctrl.value)

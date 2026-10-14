@@ -108,7 +108,7 @@ with tempfile.TemporaryDirectory(prefix='mbh-dedicated-') as temp:
             assert not connected # Reproduces the user's missing destinations.
             for destination in receivers:
                 engine.send_controller_value(types.SimpleNamespace(processor=processor,value=1,
-                    graph_path=('midi_destination',destination.chain_id,id(destination))))
+                    graph_path=('midi_destination',destination.chain_id,destination)))
             assert len(connected)==3
             # Native snapshot/rebuild and focus-independent reconnect.
             restored=list(source.midi_out);source.midi_out=restored;source.rebuild_midi_graph();refresh(True)

@@ -64,6 +64,7 @@ class Destinations(unittest.TestCase):
         with self.assertRaises(ValueError): self.set_route(stale,True)
         self.manager.chains[2]=oram.NativeChain(2,synth_slots=self.destinations[0].synth_slots)
         with self.assertRaises(ValueError): self.set_route(stale,True)
+        self.assertIs(stale.graph_path[2],self.destinations[0]) # strong reference prevents Python id reuse
         self.assertEqual(self.commands,[])
     def test_feedback_rejected_even_if_route_changed_after_editor_open(self):
         stale=self.control(2); self.destinations[0].midi_out=[1]

@@ -115,6 +115,15 @@ with tempfile.TemporaryDirectory(prefix='mbh-dedicated-') as temp:
             assert len(connected)==3
             library.jack_client_close(route_client)
         def send(value):probe.stdin.write(str(value)+'\n');probe.stdin.flush()
+        if os.environ.get('CHAIN_NATIVE_ROUTES'):
+            # Independent internal instruments match input/output channels.
+            # Default ALL-input fanout is a musical layer, not channel isolation.
+            for number,instrument in enumerate(control.request()['instruments'],1):
+                for kind in (22,23):
+                    state=control.request()
+                    result=control.request(op=32,target=instrument['id'],arg=kind,macro=[0,number],
+                        revision=state['revision'],session=state['engineSessionId'])
+                    assert result['status']=='ok',result
         assert control.request()['chainCaptureMode']=='free-time'
         mode(0);send(7);command(2)
         wait(lambda:control.request()['chainRecording']==1,'shared recording did not start')
@@ -207,6 +216,8 @@ with tempfile.TemporaryDirectory(prefix='mbh-dedicated-') as temp:
                 elif kind==176 and note in (120,123):active.clear()
             assert not active,(destination,active)
             assert accepted[destination]>=2,(destination,accepted)
+            if os.environ.get('CHAIN_NATIVE_ROUTES'):
+                assert {note for _,_,status,note,value in stream if status&240==144 and value and status&15==destination}=={60+destination},'unrelated instrument pitch leaked'
             # Each wire carries all channels: channel selection alone in Oram
             # does not protect an omni synth. This is an intentional guardrail.
             assert {status&15 for _,_,status,_,value in stream if status&240==144 and value}=={0,1,2}

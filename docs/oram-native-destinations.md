@@ -106,7 +106,9 @@ transaction; preserve backups and inspect metadata after an interrupted update.
 ## Physical acceptance on Oram-2601.1 / V4
 
 1. With playback stopped, create one MBMF MIDI Tool chain and three instrument
-   chains. Confirm receiving synth/filter channels 1, 2 and 3 individually.
+   chains. Set MBMF internal Instruments MIDI IN/OUT to matching CH1/CH2/CH3
+   for independent routing (ALL input intentionally layers every matching note).
+   Confirm receiving synth/filter channels 1, 2 and 3 individually.
 2. In MBMF controls, reopen/refresh and enable their MIDI OUT destinations.
    Alternatively use the existing native chain output selector. No terminal
    `jack_connect` should be required.

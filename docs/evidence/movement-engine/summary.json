@@ -60,5 +60,26 @@
     "headless/web/movement.js": "43ce463e5d39c480db8991dd1fa710c3184242577940f07ad3656e3276abf063",
     "headless/web/index.html": "8034cc1dc48cf1b4bc3b966ba5baa5cc805fa2eb8ee4b326805c95e8a6af4a39",
     "headless/web/style.css": "bd0a6c90593263bd9f17c7752a060706628b5c365f2cc7afd8da47da5bee7e1d"
+  },
+  "additionalDiagnostics": {
+    "initialNoBrowserExit": 1,
+    "initialNoBrowserFailure": "CC15 exact sequence; no pre-assert trace in original run; cause unconfirmed",
+    "capturedNoBrowserExit": 0,
+    "capturedNoBrowserMaxCallbackUs": 32148.5,
+    "acknowledgedNoBrowserExit": 0,
+    "acknowledgedNoBrowserMaxCallbackUs": 124126,
+    "stopCoexistenceRepeatExit": 1,
+    "stopRepeatMaxCallbackUs": 265959,
+    "stopRepeatXruns": 24,
+    "qualification": "NO-GO for small-buffer/hardware timing and unrestricted phase G"
+  },
+  "deliveredJackFixture": {
+    "exit": 0,
+    "events": 3372,
+    "maxCallbackUs": 30013,
+    "xruns": 0,
+    "overflow": 0,
+    "sameTimestampReplacement": "captured latest-owner CC102; sequential cases retain CC25 then CC102",
+    "lifecycle": "long sources remain active before explicit STOP; Movement continues until PANIC"
   }
 }

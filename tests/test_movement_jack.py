@@ -23,7 +23,21 @@ with tempfile.TemporaryDirectory(prefix='mbmf-movement-jack-') as tmp:
   for i in (2,3):command(op=32,target=i,arg=21,macro=[0,0])
   settings=c.request()['switches'][0]['settings'];settings[:4]=[1,1,0,110];settings[11]=0;command(op=41,target=1,settings=settings+[0]*64+[0]*16)
   probe=subprocess.Popen([env['MOVEMENT_JACK_PROBE']],env=env,stdin=subprocess.PIPE,stdout=subprocess.PIPE,text=True);assert probe.stdout.readline().strip()=='READY'
-  def event(st,n,v):probe.stdin.write(f'{st} {n} {v} 16\n');probe.stdin.flush();time.sleep(.2)
+  def wait(predicate,label):
+   deadline=time.monotonic()+8
+   while time.monotonic()<deadline:
+    state=c.request()
+    if predicate(state):return state
+    time.sleep(.02)
+   raise AssertionError(label+': '+json.dumps(c.request()))
+  def event(st,n,v):
+   before=c.request();probe.stdin.write(f'{st} {n} {v} 16\n');probe.stdin.flush()
+   if st==144 and n==110 and v:
+    wait(lambda s:s['switches'][0]['actionCount']>before['switches'][0]['actionCount'],'actual PRESS dispatch')
+   else:
+    # Probe -> host is a real JACK graph, not a wall-time sleep. Allow emitter,
+    # receiver and observation callbacks to complete before the next press.
+    wait(lambda s:s['sampleClock']>=before['sampleClock']+3*8192,'MIDI graph callback progression')
   def install(rate,items,steps=None):
    command(op=2);state=c.request();patch=c.request(op=4,arg=1,revision=state['revision'],session=state['engineSessionId']);model=conductor.migrate(patch);model.update(version=2,movements=items,ccRate=rate)
    model['switches']=[dict(switchId=1,traversal='SEQUENTIAL',transition='IMMEDIATE',gesture='INSTANT',steps=steps or [step([None,block(items[0]['id'],'MOVEMENT')])])]
@@ -39,18 +53,23 @@ with tempfile.TemporaryDirectory(prefix='mbmf-movement-jack-') as tmp:
   b=movement();b.update(duration=.5,retrigger='DIRECT',points=[[0,.8],[1,.8]]);b['target']['number']=15
   install(25,[a,b],[step([None,block(a['id'],'MOVEMENT')]),step([None,block(b['id'],'MOVEMENT')])]);event(144,110,127);event(128,110,0);event(144,110,127);event(128,110,0);time.sleep(.8);assert not c.request()['movements']['active']
   # PHRASE + MOVEMENT and STOP PHRASES leaves automation running.
-  command(op=35,target=0,arg=1,phrase=dict(lengthSeconds=2,events=[[0,144,60,100],[1.8,128,60,0]]))
-  m=movement();m.update(duration=4,retrigger='DIRECT');m['target']['number']=16
+  command(op=35,target=0,arg=1,phrase=dict(lengthSeconds=60,events=[[0,144,60,100],[59,128,60,0]]))
+  m=movement();m.update(duration=60,retrigger='DIRECT');m['target']['number']=16
   state=c.request();patch=c.request(op=4,revision=state['revision'],session=state['engineSessionId']);model=conductor.migrate(patch);src=model['sources'][0]['id']
   install(25,[m],[step([block(src),block(m['id'],'MOVEMENT')])]);event(144,110,127);event(128,110,0);assert c.request()['instances'] and c.request()['movements']['active']==1,c.request()
-  sw=c.request()['switches'][1]['settings'];sw[0]=1;sw[12]=2;command(op=41,target=2,settings=sw+[0]*64+[0]*16);command(op=1,target=2);time.sleep(.3);assert not c.request()['instances'];assert c.request()['movements']['active']==1,c.request()
+  sw=c.request()['switches'][1]['settings'];sw[0]=1;sw[12]=2;command(op=41,target=2,settings=sw+[0]*64+[0]*16);assert c.request()['instances'];command(op=1,target=2);time.sleep(.3);assert not c.request()['instances'];assert c.request()['movements']['active']==1,c.request()
   command(op=2);time.sleep(.3);assert c.request()['movements']['active']==0;assert c.request()['outputOverflow']==0
   # Two destinations continue independently across a STEP change; HOLD points
   # are sampled at cadence, not mistaken for prerecorded phrase CC events.
   a=movement();a.update(duration=3,retrigger='DIRECT',points=[[0,0],[1,1]]);a['target']['number']=21
   b=movement();b.update(duration=1,retrigger='DIRECT',interpolation='HOLD',points=[[0,0],[.25,.2],[.5,.9],[1,.1]]);b['target'].update(channel=2,number=22)
-  install(25,[a,b],[step([None,block(a['id'],'MOVEMENT')]),step([None,block(b['id'],'MOVEMENT')])]);event(144,110,127);event(128,110,0);event(144,110,127);event(128,110,0);time.sleep(1.2);assert c.request()['movements']['active']==1,c.request();time.sleep(1.4);assert not c.request()['movements']['active']
+  install(25,[a,b],[step([None,block(a['id'],'MOVEMENT')]),step([None,block(b['id'],'MOVEMENT')])]);event(144,110,127);event(128,110,0);event(144,110,127);assert c.request()['movements']['active']==2;event(128,110,0);state=wait(lambda s:s['movements']['active']==1,'second source completion');assert state['movements']['running'][0]['id']==a['id'];wait(lambda s:s['movements']['active']==0,'first source completion')
   short=movement();short.update(duration=.01,retrigger='DIRECT',points=[[0,0],[1,1]]);short['target']['number']=23;install(100,[short]);event(144,110,127);event(128,110,0);assert not c.request()['movements']['active']
+  # Deliberately coalesced gestures at one JACK timestamp: latest target owner
+  # wins before emission. This is distinct from the sequential-PRESS fixture.
+  ba=movement();ba.update(duration=5,retrigger='DIRECT',points=[[0,.2],[1,.2]]);ba['target']['number']=25
+  bb=movement();bb.update(duration=1,retrigger='DIRECT',points=[[0,.8],[1,.8]]);bb['target']['number']=25
+  install(25,[ba,bb],[step([None,block(ba['id'],'MOVEMENT')]),step([None,block(bb['id'],'MOVEMENT')])]);before=c.request()['switches'][0]['actionCount'];probe.stdin.write('144 110 127 16\n128 110 0 16\n144 110 127 16\n');probe.stdin.flush();wait(lambda s:s['switches'][0]['actionCount']==before+2,'two coalesced PRESS events');event(128,110,0);time.sleep(1.1);assert not c.request()['movements']['active']
   soft=movement();soft.update(duration=1,points=[[0,0],[1,1]]);soft['target']['number']=24;install(25,[soft]);event(176,24,100);event(144,110,127);event(128,110,0);time.sleep(1.1);assert not c.request()['movements']['active']
   install(25,[m],[step([block(src),block(m['id'],'MOVEMENT')])])
   if os.environ.get('MOVEMENT_BROWSER_AUTHOR')=='1':
@@ -70,15 +89,18 @@ with tempfile.TemporaryDirectory(prefix='mbmf-movement-jack-') as tmp:
    page.get_by_role('button',name='SAVE PATCH',exact=True).click();page.get_by_text('PATCH SAVED',exact=True).wait_for();page.get_by_role('button',name='LOAD PATCH',exact=True).click();page.wait_for_function('()=>!pending');page.reload();page.get_by_text('CONNECTED · Engine running',exact=True).wait_for();assert not c.request()['movements']['active']
    page.locator('[data-switch-id="1"] .switch-test').evaluate('e=>e.open=true');page.locator('[data-switch-id="1"]').get_by_role('button',name='TEST TAP',exact=True).click();page.wait_for_function('()=>latest.movements.active===1');time.sleep(1.3);assert not c.request()['movements']['active']
   probe.stdin.close();lines=probe.stdout.read().splitlines();assert probe.wait(timeout=5)==0;probe=None
-  trace=[list(map(int,line.split())) for line in lines];assert all(a[0]+a[1]<=b[0]+b[1] for a,b in zip(trace,trace[1:])),trace
+  trace=[list(map(int,line.split())) for line in lines]
+  if os.environ.get('MOVEMENT_TRACE'):Path(os.environ['MOVEMENT_TRACE']).write_text(json.dumps(dict(backend='actual private JACK',physicalHardware=False,sampleRate=48000,blockSize=8192,events=trace,state=c.request(),validation='captured before assertions'),indent=2)+'\n')
+  assert all(a[0]+a[1]<=b[0]+b[1] for a,b in zip(trace,trace[1:])),trace
   for rate,cc in [(10,10),(25,11),(50,12),(100,13)]:
    events=[e for e in trace if e[2]==176 and e[3]==cc];origin=events[0][0]+events[0][1]
    assert len(events)==rate+1,(rate,events)
    assert [e[0]+e[1]-origin for e in events]==[i*48000//rate for i in range(rate+1)],(rate,events)
    assert [e[4] for e in events]==[int(i*127/rate+.5) for i in range(rate+1)],(rate,events)
   events=[e for e in trace if e[2]==176 and e[3]==14];assert events[-1][4]==77 and sum(e[4]==77 for e in events)==1,events
-  assert [e[4] for e in trace if e[2]==176 and e[3]==15]==[25,102]
+  assert [e[4] for e in trace if e[2]==176 and e[3]==15]==[25,102],[e for e in trace if e[2]==176 and e[3]==15]
   same=[e for e in trace if e[2]==176 and e[3]==18];assert len(same)==2 and same[0][0]==same[1][0] and [e[1] for e in same]==[16,220] and [e[4] for e in same]==[0,77],same
+  assert [e[4] for e in trace if e[2]==176 and e[3]==25]==[102], [e for e in trace if e[3]==25]
   soft_events=[e for e in trace if e[2]==176 and e[3]==24];assert soft_events[0][4]==100,soft_events
   expected=[int(((100/127)*(1-min(1,(i/25)/.2))+(i/25)*min(1,(i/25)/.2))*127+.5) for i in range(26)]
   assert [e[4] for e in soft_events[1:]]==expected,soft_events

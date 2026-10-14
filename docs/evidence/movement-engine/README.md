@@ -121,3 +121,29 @@ arbitration are explicitly closed, and real-time headroom is assessed for the
 intended buffers. GATED/HOLD/JOIN/REVEAL, beats/bars, live source editing and REAPER
 execution remain unsupported rather than approximated. This is not hardware
 release approval; no phase G was begun.
+
+### Additional repeat diagnostics (not concealed)
+
+The first no-browser comparison failed the exact CC15 sequence assertion (exit1).
+That run did not yet save MIDI before assertions, so its exact received sequence
+cannot be recovered and its cause remains unconfirmed. The next captured repeat
+passed with CC15 `[25,102]`, maximum callback32,148 µs and no XRUN/overflow.
+The fixture then replaced its fixed200 ms gesture sleep with actual native PRESS
+acknowledgment and observed callback progression. Exact MIDI/rate assertions remain.
+A separate coalesced, same-timestamp PRESS/RELEASE/PRESS case tests last-owner-wins;
+it is kept distinct from sequential gesture admissions.
+
+An acknowledged browser-path repeat failed the STOP coexistence assertion (exit1):
+Movement was already inactive; the observation also had24 XRUN notifications and
+265,959 µs maximum callback. Both short source lifetimes and missed callbacks could
+end that fixture before STOP; the captured state does not conclusively attribute
+which ended it. The fixture now deliberately uses long PHRASE/Movement lifetimes
+and confirms the PHRASE is still active immediately before STOP. Natural completion
+remains covered independently by ramp, stepped, short-duration and restart tests.
+No safety/overflow/deadline assertion or guard was weakened. The failing log remains.
+
+These repeats reinforce the **NO-GO for small-buffer/hardware latency qualification**.
+A passing large-buffer functional run is not proof that these callback outliers are
+safe on V4. Diagnosis of the full-host timing peaks is still required.
+
+Final strengthened fixture (`jack-qualified.log`): **exit0**, browser authoring/SAVE/LOAD/TEST, all expanded MIDI assertions, maximum callback 30,013 µs, XRUN notifications 0, overflow 0. The overall timing caveat above remains.

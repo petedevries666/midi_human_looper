@@ -1,0 +1,60 @@
+{
+  "codeCommit": "f1da8fd6195a34802022b763d190c7275728d7bb",
+  "basePR": 66,
+  "contractPR": 65,
+  "contractSHA": "da038bd68b2dc939be0b057fc32517846f59d8d5",
+  "command": "scripts/az-hub-test.sh",
+  "exitCode": 0,
+  "tests": {
+    "provision_and_alias": 9,
+    "native_gateway": 9,
+    "az_hub": 5
+  },
+  "platform": "x86_64",
+  "nativeCppSHA256": "5a3263f0a471a0bd7850e7c8b10f8206529d31b9c3a36a910670bab2b61efc38",
+  "jsfxSHA256": "e01487f54f7eba5792e1277c0fff4729873bd2d4518ac511922ff575b9d4aaa7",
+  "nativeBinarySHA256": "0ac060a037c416ca6a8485a5b741af8f111e1a9f9da422c76c1de09ca9f03660",
+  "nativeBuild": "rebuilt from matching unchanged engine.cpp/JSFX at base d2f43f8, dirty suffix for gateway edits",
+  "hardwareValidated": false,
+  "jackActivated": false,
+  "peripherals": "LUMAZ production settings helpers; MPV IPC, systemd, physical port enumeration, Oram login and RFB are fixtures",
+  "visualInspection": "All 7 hub PNGs and 4 regenerated web-access PNGs inspected; vertical scrolling allowed, no horizontal overflow",
+  "protectedIssue54FilesUnchanged": 25,
+  "screenshots": {
+    "midi-390.png": {
+      "width": 390,
+      "height": 1538,
+      "sha256": "82644f16d02cda81f1b9e1972f9662e005769bc409dccbe85a2a40920ba0d79b"
+    },
+    "portal-320.png": {
+      "width": 320,
+      "height": 1020,
+      "sha256": "9e621a058274aac40e3663081df5500585be4ecd5ed9aeaa9b86335ade4159b7"
+    },
+    "portal-1440.png": {
+      "width": 1440,
+      "height": 900,
+      "sha256": "d1d00d78712312415c6a2affd3eb96b79af68dd522becb4efb575be69bbcc981"
+    },
+    "video-390.png": {
+      "width": 390,
+      "height": 1418,
+      "sha256": "c9e156404b26a13f5030fbcd7c196674667a0daa1ca8c58bb4dc17f3913e4175"
+    },
+    "audio-390.png": {
+      "width": 390,
+      "height": 1639,
+      "sha256": "8aacd8a08f6c0131bfc8616a441de66b3faf941f08809b85c2ab0124df40f261"
+    },
+    "portal-390.png": {
+      "width": 390,
+      "height": 1012,
+      "sha256": "557aa0ade53fd4603b884f7379bdff6e5bfb2de010ea52da17b7be814b73c8d0"
+    },
+    "options-390.png": {
+      "width": 390,
+      "height": 1265,
+      "sha256": "f03a884288e57ed85eb4107a9a39d39d9f5fda272d1f6be494b354bcb36c7800"
+    }
+  }
+}

@@ -83,3 +83,14 @@ and writes real PNGs under `docs/screenshots/web-access/`. Inspect those PNGs.
 Avahi D-Bus and service installation are fixture tests; never operate Cloud or
 physical host networking/services as part of these tests. Existing issue-54 WIP
 must remain untouched. No native engine build is required for this HTTP-only work.
+
+## AZ local hub
+
+For the separate `az.local` launcher and LUMAZ menu, run `scripts/az-hub-test.sh`
+with the same prepared native/Chromium environment. It includes the existing
+Webconf gateway suite, real native MBMF API/WS navigation, settings/helper and
+rollback tests, and actual desktop/mobile PNGs in `docs/screenshots/az-hub/`.
+Inspect all new PNGs. LUMAZ/Oram peripheral fixtures are explicitly marked; never
+claim physical qualification or run hardware installation/services during tests.
+The portal installer is opt-in and does not restart services or switch the live
+musical checkout. `mbmf.local` stays exclusive to MBMF.

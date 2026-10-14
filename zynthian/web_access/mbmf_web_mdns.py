@@ -1,4 +1,4 @@
-"""Publish only MBMF's alias through the existing Avahi daemon; no OS hostname edit."""
+"""Publish the requested local Webconf alias through the existing Avahi daemon; no OS hostname edit."""
 import json
 import logging
 import subprocess
@@ -10,7 +10,7 @@ def addresses(data):
     return sorted({(item['ifindex'],a['local']) for item in data if item.get('ifname')!='lo' and (not item.get('flags') or 'MULTICAST' in item['flags'])
                    for a in item.get('addr_info',[]) if a.get('family')=='inet' and local_address(a.get('local',''))})
 
-def run(stop=None,bus_factory=None,read_addresses=None,interval=5):
+def run(stop=None,bus_factory=None,read_addresses=None,interval=5,hostname="mbmf.local"):
     if bus_factory is None:
         import dbus
         bus_factory=dbus.SystemBus
@@ -26,13 +26,13 @@ def run(stop=None,bus_factory=None,read_addresses=None,interval=5):
                 group=bus.get_object('org.freedesktop.Avahi',path)
             current=read_addresses()
             state=int(group.GetState(dbus_interface='org.freedesktop.Avahi.EntryGroup'))
-            if state in (3,4):raise RuntimeError('mbmf.local alias collision/failure; use /mbmf/ fallback')
+            if state in (3,4):raise RuntimeError(hostname+' alias collision/failure; use IP fallback')
             if current!=previous:
                 group.Reset(dbus_interface='org.freedesktop.Avahi.EntryGroup')
                 added=False
                 for interface,address in current:
                     try:
-                        group.AddAddress(interface,0,0,'mbmf.local',address,dbus_interface='org.freedesktop.Avahi.EntryGroup');added=True
+                        group.AddAddress(interface,0,0,hostname,address,dbus_interface='org.freedesktop.Avahi.EntryGroup');added=True
                     except Exception:
                         logging.warning('MBMF mDNS interface %s unavailable; other interfaces retained',interface)
                 if added:group.Commit(dbus_interface='org.freedesktop.Avahi.EntryGroup')
@@ -49,5 +49,5 @@ def run(stop=None,bus_factory=None,read_addresses=None,interval=5):
         try:group.Free(dbus_interface='org.freedesktop.Avahi.EntryGroup')
         except Exception:pass
 
-def start():
-    thread=threading.Thread(target=run,name='mbmf-mdns',daemon=True);thread.start();return thread
+def start(hostname="mbmf.local"):
+    thread=threading.Thread(target=run,kwargs=dict(hostname=hostname),name=hostname.split('.')[0]+'-mdns',daemon=True);thread.start();return thread

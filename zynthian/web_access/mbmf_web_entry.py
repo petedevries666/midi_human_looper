@@ -34,6 +34,7 @@ class Resolver:
         if path.is_symlink() or path.stat().st_size>4096:raise ValueError('invalid Web access config')
         config=json.loads(path.read_text())
         if config.get('version')!=1 or config.get('auth') not in ('none','token'):raise ValueError('invalid Web access auth mode')
+        if 'hub' in config and type(config['hub']) is not bool:raise ValueError('invalid AZ hub option')
         return config
     def entries(self):
         # Existing workers identify their exact socket, port, and token file in
@@ -200,6 +201,9 @@ def register(app,directory=DATA,mdns=True):
     # Specific host rules precede Tornado's original wildcard routes.
     app.add_handlers(r'mbmf\.local(?::[0-9]+)?$',[(r'/(.*)',Entry,dict(resolver=resolver))])
     app.add_handlers(r'.*$',[(r'/mbmf(?:/(.*))?',Entry,dict(resolver=resolver,prefix='/mbmf'))])
+    if resolver.config().get("hub",False):
+        from az_hub import register as register_hub
+        register_hub(app,resolver,mdns)
     if mdns:
         from mbmf_web_mdns import start
         start()

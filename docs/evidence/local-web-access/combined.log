@@ -1,0 +1,187 @@
++ scripts/headless-test.sh
+PASS bounded FIFO
+...............
+----------------------------------------------------------------------
+Ran 15 tests in 5.723s
+
+OK
+.......
+----------------------------------------------------------------------
+Ran 7 tests in 0.466s
+
+OK
+.............
+----------------------------------------------------------------------
+Ran 13 tests in 2.237s
+
+OK
+.....
+----------------------------------------------------------------------
+Ran 5 tests in 0.001s
+
+OK
+.......
+----------------------------------------------------------------------
+Ran 7 tests in 0.001s
+
+OK
++ /workspace/setup-tools/venv/bin/python tests/test_zynthian_update.py
+.......PASS bounded FIFO
+....
+----------------------------------------------------------------------
+Ran 11 tests in 2.481s
+
+OK
++ /workspace/setup-tools/venv/bin/python tests/test_native_free_capture.py
+test_hardware_stop_state_and_record_finalization (__main__.FreeCapture.test_hardware_stop_state_and_record_finalization) ... ok
+test_free_capture (__main__.FreeCapture.test_free_capture) ... ok
+test_overdub_cancel_and_independent_loop (__main__.FreeCapture.test_overdub_cancel_and_independent_loop) ... ok
+test_inactive_clear_and_targeted_loop_stop (__main__.FreeCapture.test_inactive_clear_and_targeted_loop_stop) ... ok
+test_controller_removal_sequence_and_clear_patch (__main__.FreeCapture.test_controller_removal_sequence_and_clear_patch) ... ok
+test_switch_stop_capture_finalization (__main__.FreeCapture.test_switch_stop_capture_finalization) ... ok
+
+----------------------------------------------------------------------
+Ran 6 tests in 12.190s
+
+OK
++ /workspace/setup-tools/venv/bin/python tests/test_observation.py
+..
+----------------------------------------------------------------------
+Ran 2 tests in 0.019s
+
+OK
++ /workspace/setup-tools/venv/bin/python tests/test_reliability_report.py
+......
+----------------------------------------------------------------------
+Ran 6 tests in 0.000s
+
+OK
++ /workspace/setup-tools/venv/bin/python tests/test_controller_integration.py
+.........
+----------------------------------------------------------------------
+Ran 9 tests in 4.424s
+
+OK
++ /workspace/setup-tools/venv/bin/python tests/test_snapshots.py
+..............
+----------------------------------------------------------------------
+Ran 14 tests in 15.738s
+
+OK
++ /workspace/setup-tools/venv/bin/python tests/test_product_integration.py
+.
+----------------------------------------------------------------------
+Ran 1 test in 1.457s
+
+OK
++ /workspace/setup-tools/venv/bin/python tests/test_web_names.py
+...
+----------------------------------------------------------------------
+Ran 3 tests in 1.007s
+
+OK
++ /workspace/setup-tools/venv/bin/python tests/test_phrase_midi.py
+......
+----------------------------------------------------------------------
+Ran 6 tests in 0.033s
+
+OK
++ /workspace/setup-tools/venv/bin/python tests/test_portable_project.py
+......
+----------------------------------------------------------------------
+Ran 6 tests in 1.318s
+
+OK
++ /workspace/setup-tools/venv/bin/python tests/test_conductor_legacy_contract.py
+.....
+----------------------------------------------------------------------
+Ran 5 tests in 0.679s
+
+OK
++ /workspace/setup-tools/venv/bin/python tests/test_conductor_persistence.py
+.......................
+----------------------------------------------------------------------
+Ran 23 tests in 13.561s
+
+OK
++ /workspace/setup-tools/venv/bin/python tests/test_movement_persistence.py
+....
+----------------------------------------------------------------------
+Ran 4 tests in 3.983s
+
+OK
++ scripts/movement-test.sh
+MOVEMENT_CPU rate=10 block=8192 sr=48000 samples=8388608 callbacks=1024 mean_us=0.357383 max_us=1.009 emitted=223
+MOVEMENT_CPU rate=25 block=8192 sr=48000 samples=8388608 callbacks=1024 mean_us=0.295048 max_us=0.536 emitted=223
+MOVEMENT_CPU rate=50 block=8192 sr=48000 samples=8388608 callbacks=1024 mean_us=0.368718 max_us=20.157 emitted=223
+MOVEMENT_CPU rate=100 block=8192 sr=48000 samples=8388608 callbacks=1024 mean_us=0.498542 max_us=0.698 emitted=223
+PASS 1204 production MOVEMENT runtime/Controller checks
++ scripts/movement-test.sh
+MOVEMENT_CPU rate=10 block=8192 sr=48000 samples=8388608 callbacks=1024 mean_us=1.38882 max_us=63.769 emitted=223
+MOVEMENT_CPU rate=25 block=8192 sr=48000 samples=8388608 callbacks=1024 mean_us=1.64386 max_us=61.682 emitted=223
+MOVEMENT_CPU rate=50 block=8192 sr=48000 samples=8388608 callbacks=1024 mean_us=2.11029 max_us=49.71 emitted=223
+MOVEMENT_CPU rate=100 block=8192 sr=48000 samples=8388608 callbacks=1024 mean_us=3.42272 max_us=118.989 emitted=223
+PASS 1204 production MOVEMENT runtime/Controller checks
++ /workspace/setup-tools/venv/bin/python tests/test_conductor_execution_native.py
+test_steps_coexist_wrap_capacity_and_persistence (__main__.Execution.test_steps_coexist_wrap_capacity_and_persistence) ... ok
+test_layers_missing_and_unsupported_no_fallback (__main__.Execution.test_layers_missing_and_unsupported_no_fallback) ... ok
+test_local_hold_release_overrides_and_source_isolation (__main__.Execution.test_local_hold_release_overrides_and_source_isolation) ... ok
+
+----------------------------------------------------------------------
+Ran 3 tests in 3.751s
+
+OK
++ /workspace/setup-tools/venv/bin/python tests/test_portable_engine.py
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.716s
+
+OK
++ /workspace/setup-tools/venv/bin/python tests/test_project_sync.py
+.
+----------------------------------------------------------------------
+Ran 1 test in 5.675s
+
+OK
++ /workspace/setup-tools/venv/bin/python tests/test_project_authority.py
+.
+----------------------------------------------------------------------
+Ran 1 test in 2.375s
+
+OK
++ /workspace/setup-tools/venv/bin/python tests/test_reaper_bridge.py
+....
+----------------------------------------------------------------------
+Ran 4 tests in 0.005s
+
+OK
++ /workspace/setup-tools/venv/bin/python tests/test_phrase_midi_integration.py
+..
+----------------------------------------------------------------------
+Ran 2 tests in 2.420s
+
+OK
++ scripts/controller-test.sh
+PASS: 162709 synthetic-time Controller Engine checks
+PASS: 558 Controller host adapter checks
++ scripts/controller-test.sh
+PASS: 162709 synthetic-time Controller Engine checks
+PASS: 558 Controller host adapter checks
++ scripts/web-access-test.sh
+.....
+----------------------------------------------------------------------
+Ran 5 tests in 0.051s
+
+OK
+.503 GET / (127.0.0.1) 48.73ms
+..404 GET /favicon.ico (127.0.0.1) 15.71ms
+401 GET /mbmf/api/v1/descriptors (127.0.0.1) 3.01ms
+401 GET /mbmf/api/v1/state (127.0.0.1) 4.83ms
+..401 GET /api/v1/state (127.0.0.1) 43.94ms
+403 GET /api/v1/state (127.0.0.1) 0.62ms
+..
+----------------------------------------------------------------------
+Ran 7 tests in 9.675s
+
+OK
+PASS selected combined regression suite

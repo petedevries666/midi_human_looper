@@ -72,3 +72,14 @@ To validate the layout detector independently:
 
 Keep startup processes ephemeral: rerun the screenshot command in each task;
 publication of a cloud environment does not retain live processes.
+
+## MBMF local Webconf entry tests
+
+For changes under `zynthian/web_access/`, reuse the existing native binary and test
+venv; install `tests/requirements-web-access.txt` into that venv and run
+`scripts/web-access-test.sh`. It starts real native/editor workers and Tornado
+fixtures on private ephemeral ports, tests optional auth/API/WebSocket/fallback,
+and writes real PNGs under `docs/screenshots/web-access/`. Inspect those PNGs.
+Avahi D-Bus and service installation are fixture tests; never operate Cloud or
+physical host networking/services as part of these tests. Existing issue-54 WIP
+must remain untouched. No native engine build is required for this HTTP-only work.

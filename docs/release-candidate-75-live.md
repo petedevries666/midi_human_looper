@@ -1,6 +1,8 @@
 # Integrated candidate: prepared LIVE qualification
 
-Private dummy JACK at 48 kHz; 12 seconds per case; no browser/edit/SAVE/LOAD in measured windows. Build `fb81761719ff76a477cd8cf09ea0316fb126e3ff`. Native/Controller/JSFX sources are identical to the final candidate (later changes are tests/docs/evidence only). Thread CPU and wall time are separate. No physical hardware qualification. Three old standalone Cloud fixture processes were left untouched; see environment.json. No other test/build jobs overlapped these windows.
+**Latest measured rerun:** [final native-source 3acebd5 table and raw evidence](evidence/release-candidate-75/final-source-3acebd5/README.md). The earlier measurements below remain preserved, not overwritten. The new matrix also exits1: LIGHT/256 peaks228.221 ms CPU and STRESS/256 fails receiver chronology. NORMAL is clean in two short12-second windows; that does not erase the earlier failure.
+
+Private dummy JACK at 48 kHz; 12 seconds per case; no browser/edit/SAVE/LOAD in measured windows. Build `fb81761719ff76a477cd8cf09ea0316fb126e3ff`. Native/Controller/JSFX sources are identical to the final candidate (later changes are Web UI/tests/docs/evidence; native execution sources are unchanged). Thread CPU and wall time are separate. No physical hardware qualification. Three old standalone Cloud fixture processes were left untouched; see environment.json. No other test/build jobs overlapped these windows.
 
 **Exit 1. NOT a passing qualification.** The 256/NORMAL capture has a chronological regression. XRUNs occur in every profile. No assertions were relaxed.
 
@@ -13,7 +15,7 @@ Private dummy JACK at 48 kHz; 12 seconds per case; no browser/edit/SAVE/LOAD in 
 | 256 / 5.333 | LIVE_NORMAL | 3 / 1–2 | 12.00 / 44.74 | 0.122/0.749/5.149 | 0.145/0.920/51.210 | 0 / 1 | 65 | 0 / 0 |
 | 256 / 5.333 | STRESS | 12 / 7–8 | 711.58 / 730.49 | 0.586/1.181/6.052 | 0.593/1.189/6.286 | 1 / 1 | 6 | 0 / 0 |
 
-LIGHT: 1 PHRASE, 1 MOVEMENT at 25 Hz; NORMAL: 3 PHRASES, 2 MOVEMENTS at 25 Hz, STEP changes and unmapped expression CC takeover; STRESS: 8 PHRASES, 8 MOVEMENTS at 100 Hz plus note bursts. Actual active counts/rates, every action, timestamps, raw MIDI, callback CSV and stage summaries are committed per case. LOOP/ONCE duty and integer deduplication mean nominal source density is not emitted events/second. STOP/PANIC and cleanup assertions are retained.
+LIGHT: 1 PHRASE, 1 MOVEMENT at 25 Hz; NORMAL: 3 PHRASES, 2 MOVEMENTS at 25 Hz, STEP changes and unmapped expression CC takeover; STRESS: 12 PHRASE sources, 8 MOVEMENTS at 100 Hz plus note bursts. Actual active counts/rates, every action, timestamps, raw MIDI, callback CSV and stage summaries are committed per case. LOOP/ONCE duty and integer deduplication mean nominal source density is not emitted events/second. STOP/PANIC and cleanup assertions are retained.
 
 The 99.753 ms CPU / 99.788 ms wall LIGHT/256 callback is not attributable merely to off-CPU scheduling: user+system time agrees. It has zero input events, zero commands and zero pending output. 99.680 ms CPU is bracketed in `input_recovery`, while EEL takes 52.429 µs and MOVEMENT parameter work 4.189 µs. That bracket includes JACK buffer acquisition/input/recovery operations; individual library function attribution remains unknown. No reasoned engine algorithm change can be made from this bracket alone.
 

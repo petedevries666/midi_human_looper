@@ -18,7 +18,7 @@ par une réponse ADD en attente. Les choix restent indépendants par Instrument 
 n'ajoutent rien au schéma musical. Les tests de géométrie sont rendus atomiques sans assouplir
 leurs seuils ; les timeouts JACK continuent d'échouer en conservant les diagnostics.
 
-**Pas de merge automatique.** La qualification LIVE a effectivement échoué :
+**Pas de merge automatique.** La première qualification LIVE a effectivement échoué :
 XRUN dans les six profils, pic CPU réel de 99,75 ms en LIGHT/256 et capture MIDI
 non chronologique en NORMAL/256. Le compteur d'ordre natif à zéro ne suffit pas
 à innocenter cette capture. L'étape suivante précise est d'instrumenter le cycle
@@ -47,3 +47,13 @@ puis 256 si propre. Tester UPDATE/rollback séparément, à l'arrêt, jamais en 
 [Rapport et rollback](release-candidate-75.md) ·
 [Mesures LIVE et échec](release-candidate-75-live.md) ·
 [Inventaire des PRs](release-candidate-75-pr-inventory.md).
+
+Mise à jour mesurée : la suite combinée source3acebd5 termine à0, sanitizer sans
+diagnostic, les deux courses historiques et le nouveau sélecteur passent. Le
+second run LIVE termine encore à1 : NORMAL est propre à512/256 pendant12 secondes,
+mais LIGHT/256 atteint228,221 ms CPU /373,065 ms écoulées et STRESS/256 échoue sur
+l’ordre temporel capturé. Cette fois le grand pic est dans le bracket CC/actions
+MOVEMENT ; le plus grand pic STRESS est dans EEL. La fonction responsable n’est
+pas identifiée, aucune conclusion globale « c’est le Cloud » n’est justifiée.
+Les nouvelles traces restent avec les anciennes, sans sélection des seuls PASS.
+[Preuves et table actualisées](evidence/release-candidate-75/final-source-3acebd5/README.md).

@@ -150,6 +150,25 @@ case and complete hardware-feedback browser workflow pass targeted checks. No as
 screenshot workflow is required for this small Web fix; its manifest identifies
 actual capture revision. Frozen REAPER JSFX and #67 router stay unchanged.
 
+## Latest native-source qualification
+
+The clean source-3acebd5 **combined suite exits0**, including both historical UI races,
+the stronger release/click race, pending ADD picker,704 PHRASE channel checks,
+18508 EEL checks, native sanitizer diagnostics0 and all selected JACK/browser/
+update/Webconf/AZ gates. [Complete logs, MIDI, measured rerun and exact build hash](evidence/release-candidate-75/final-source-3acebd5/README.md)
+are versioned. A later evidence-only commit is rerun completely; its exact final
+HEAD/result is published on PR76, not inferred from these ancestor logs.
+
+The second LIVE matrix **exits1**. NORMAL has no XRUN/deadline/order failure in the
+512/256 twelve-second windows; LIGHT/256 nevertheless reaches228.221 ms CPU and
+373.065 ms wall, this time inside the MOVEMENT CC/actions bracket, with zero active
+PHRASE instances/input/commands at that callback. STRESS/256 has42.849 ms CPU
+inside EEL and another receiver chronological failure. Stage attribution varies;
+precise root cause is unresolved. Both failed matrices remain visible. STRESS is
+12 PHRASE sources, not8; the earlier prose has been corrected against actual code.
+No runtime algorithm has been changed to improve these benchmarks. Merge stays
+NO-GO; short successful NORMAL windows cannot qualify sustained live stability.
+
 ## Screenshot provenance and visual limitation
 
 The complete five-viewport workflow is run, with automated layout/PNG validation

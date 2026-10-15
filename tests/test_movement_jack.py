@@ -13,7 +13,7 @@ with tempfile.TemporaryDirectory(prefix='mbmf-movement-jack-') as tmp:
  engine=probe=web=browser=None
  try:
   time.sleep(1);assert server.poll() is None
-  sock=str(Path(tmp)/'engine.sock');engine=subprocess.Popen([env['HEADLESS_BINARY'],str(ROOT/'midi_human_looper.jsfx'),sock,'--chain','--jack','--client','mbmf_d'],env=env,stdout=subprocess.DEVNULL,stderr=subprocess.PIPE)
+  sock=str(Path(tmp)/'engine.sock');engine=subprocess.Popen([env['HEADLESS_BINARY'],str(ROOT/'midi_human_looper.jsfx'),sock,'--chain','--jack','--client','mbmf_d']+(['--rt-trace',env['MOVEMENT_RT_TRACE']] if env.get('MOVEMENT_RT_TRACE') else []),env=env,stdout=subprocess.DEVNULL,stderr=subprocess.PIPE)
   deadline=time.monotonic()+15
   while not Path(sock).exists() and time.monotonic()<deadline:assert engine.poll() is None;time.sleep(.05)
   c=Control(sock)

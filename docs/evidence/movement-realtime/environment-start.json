@@ -1,0 +1,20 @@
+{
+  "cpuCount": 5,
+  "affinity": [
+    0,
+    1,
+    2,
+    3,
+    4
+  ],
+  "kernel": [
+    "Linux",
+    "dc845ebed868",
+    "6.18.44",
+    "#1 SMP Sat Sep 26 20:02:31 UTC 2026",
+    "x86_64"
+  ],
+  "/sys/fs/cgroup/cpu.max": "400000 100000\n",
+  "/sys/fs/cgroup/cpu.stat": "usage_usec 24816186776\nuser_usec 19333992666\nsystem_usec 5482194109\nnice_usec 0\nnr_periods 1227820\nnr_throttled 1420\nthrottled_usec 111132432\nnr_bursts 0\nburst_usec 0\n",
+  "/proc/self/status": "Name:\tpython3\nUmask:\t0077\nState:\tR (running)\nTgid:\t667756\nNgid:\t0\nPid:\t667756\nPPid:\t667744\nTracerPid:\t0\nUid:\t1000\t1000\t1000\t1000\nGid:\t1000\t1000\t1000\t1000\nFDSize:\t64\nGroups:\t \nNStgid:\t667756\nNSpid:\t667756\nNSpgid:\t667743\nNSsid:\t667743\nKthread:\t0\nVmPeak:\t   35936 kB\nVmSize:\t   35844 kB\nVmLck:\t       0 kB\nVmPin:\t       0 kB\nVmHWM:\t    8604 kB\nVmRSS:\t    8604 kB\nRssAnon:\t    4880 kB\nRssFile:\t    3724 kB\nRssShmem:\t       0 kB\nVmData:\t    6520 kB\nVmStk:\t     132 kB\nVmExe:\t   21284 kB\nVmLib:\t       0 kB\nVmPTE:\t      92 kB\nVmSwap:\t       0 kB\nHugetlbPages:\t       0 kB\nCoreDumping:\t0\nTHP_enabled:\t1\nuntag_mask:\t0xffffffffffffffff\nThreads:\t1\nSigQ:\t0/136275\nSigPnd:\t0000000000000000\nShdPnd:\t0000000000000000\nSigBlk:\t0000000000000000\nSigIgn:\t0000000001001000\nSigCgt:\t0000000000000002\nCapInh:\t0000000000000000\nCapPrm:\t0000000000000000\nCapEff:\t0000000000000000\nCapBnd:\t0000000000000000\nCapAmb:\t0000000000000000\nNoNewPrivs:\t1\nSeccomp:\t2\nSeccomp_filters:\t1\nSpeculation_Store_Bypass:\tvulnerable\nSpeculationIndirectBranch:\talways enabled\nCpus_allowed:\t1f\nCpus_allowed_list:\t0-4\nMems_allowed:\t00000000,00000001\nMems_allowed_list:\t0\nvoluntary_ctxt_switches:\t0\nnonvoluntary_ctxt_switches:\t0\n"
+}

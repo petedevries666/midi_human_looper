@@ -5,6 +5,7 @@
 #include "conductor_wire.hpp"
 #include "conductor_execution.hpp"
 #include "movement_engine.hpp"
+#include "realtime_trace.hpp"
 #include "parameter_registry.hpp"
 #include "snapshot_wire.hpp"
 #include "ysfx.hpp"
@@ -1340,10 +1341,12 @@ int main(int argc, char **argv) {
   bool useJack = false, demo = false, chainMode = false, chainGridCapture = false;
   unsigned chainTimingVersion=1;
   std::string clientName = "midi_human_looper";
-  std::string inputPort, outputPort;
+  std::string inputPort, outputPort, tracePath;
   for (int i = 3; i < argc; ++i) {
     std::string a = argv[i];
-    if (a == "--jack")
+    if (a == "--rt-trace" && i+1<argc)
+      tracePath=argv[++i];
+    else if (a == "--jack")
       useJack = true;
     else if (a == "--chain-timing" && i+1<argc)
       chainTimingVersion=std::stoul(argv[++i]);
@@ -1374,7 +1377,9 @@ int main(int argc, char **argv) {
   ysfx_t *fx = nullptr;
   ysfx_config_t *config = nullptr;
   bool bound = false;
+  std::unique_ptr<realtime_trace::Trace> rtTrace;
   try {
+    if(!tracePath.empty()) rtTrace.reset(new realtime_trace::Trace(tracePath));
     if (getrandom(&engineSession, sizeof(engineSession), 0) !=
         static_cast<ssize_t>(sizeof(engineSession)))
       throw std::runtime_error("session identity entropy unavailable");
@@ -1969,6 +1974,9 @@ int main(int argc, char **argv) {
         new std::array<MidiPacket, 8192>());
     unsigned inputRead = 0, inputWrite = 0;
     std::atomic<uint64_t> xruns{0};
+    uint64_t tracedNotes=0,tracedNoteOns=0,tracedCCs=0,tracedOrderErrors=0;
+    unsigned tracedLastOffset=0;bool tracedHaveOutput=false;
+    auto traceWrite=[&](unsigned offset){if(!rtTrace)return;if(tracedHaveOutput&&offset<tracedLastOffset)++tracedOrderErrors;tracedLastOffset=offset;tracedHaveOutput=true;};
     auto flushOutput = [&](void *buffer, jack_nframes_t frames) {
       unsigned budget = 64;
       while (outputRead != outputWrite && budget--) {
@@ -1976,6 +1984,8 @@ int main(int argc, char **argv) {
         if (jack_midi_event_write(buffer, std::min(m.offset, frames - 1),
                                   m.data.data(), m.size))
           break;
+        traceWrite(std::min(m.offset,frames-1));
+        if(rtTrace && m.size>=3){unsigned type=m.data[0]&240;if(type==128||type==144){++tracedNotes;if(type==144&&m.data[2])++tracedNoteOns;}else if(type==176)++tracedCCs;}
         ++outputRead;
       }
     };
@@ -1992,6 +2002,10 @@ int main(int argc, char **argv) {
     struct MovementPhysical {unsigned offset=0,ch=0,cc=0,value=0;};
     std::array<MovementPhysical,128> movementPhysical{};
     std::function<int(jack_nframes_t)> process = [&](jack_nframes_t frames) {
+      realtime_trace::Trace::Scope trace(rtTrace.get(),state.samples,frames);
+      if(rtTrace)trace.value.jackFrame=useJack?jack_last_frame_time(jack):state.samples;
+      const uint64_t noteStart=tracedNotes,noteOnStart=tracedNoteOns,ccStart=tracedCCs,orderStart=tracedOrderErrors;
+      tracedHaveOutput=false;
       movements.block(frames);
       void *outBuffer =
           useJack ? jack_port_get_buffer(midiOut, frames) : nullptr;
@@ -2008,6 +2022,7 @@ int main(int argc, char **argv) {
               overflowRecovery = true;
               ++state.outputOverflow;
             } else {
+              traceWrite(0);if(rtTrace)++tracedCCs;
               ++state.midi;
               state.last_sample = state.samples;
               state.last_status = 176 | ch;
@@ -2033,6 +2048,7 @@ int main(int argc, char **argv) {
               uint8_t data[] = {uint8_t(176 | ch), uint8_t(cc), 0};
               if (jack_midi_event_write(outBuffer, 0, data, 3))
                 overflowRecovery = true;
+              else {traceWrite(0);if(rtTrace)++tracedCCs;}
             }
         } else
           flushOutput(outBuffer, frames);
@@ -2040,6 +2056,7 @@ int main(int argc, char **argv) {
       if (useJack && !muted && !recovering) {
         void *in = jack_port_get_buffer(midiIn, frames);
         unsigned n = jack_midi_get_event_count(in);
+        trace.value.inputEvents=n;
         for (unsigned i = 0; i < n; ++i) {
           jack_midi_event_t e;
           if (!jack_midi_event_get(&e, in, i) &&
@@ -2092,6 +2109,7 @@ int main(int argc, char **argv) {
       }
       for (unsigned q = inputRead; q != inputWrite; ++q)
         (*inputQueue)[q % 8192].offset = 0;
+      trace.mark(1);
       auto start = std::chrono::steady_clock::now();
       auto &pending = *pendingStorage;
       unsigned count = 0;
@@ -2708,6 +2726,8 @@ int main(int argc, char **argv) {
             reply.status = 3;
         }
       }
+      trace.value.commands=count;
+      trace.mark(2);
       for (unsigned j = 0; j < performanceTargetCount;) {
         auto &p = (*performanceTargets)[j];
         if (!model.bindingValue(p.binding, true)) {
@@ -2771,7 +2791,9 @@ int main(int argc, char **argv) {
         time.time_signature[1] = 4;
         ysfx_set_time_info(fx, &time);
       }
+      trace.mark(3);
       movements.render(state.samples+frames,emitMovement,applyMovement,false,true);
+      trace.mark(4);
       for (unsigned j = 0; j < performanceTargetCount; ++j) {
         auto &p = (*performanceTargets)[j];
         if (!p.active)
@@ -2809,7 +2831,9 @@ int main(int argc, char **argv) {
       if (chainMode && outBuffer && *panicPending > .5)
         cleanupChain();
       chain.finishSwitchStop();
+      trace.mark(5);
       ysfx_process_float(fx, nullptr, nullptr, 0, 0, frames);
+      trace.mark(6);
       // The shared output buffer rejected an owned event: cancel queued attacks
       // through the existing native emergency recovery on the next callback.
       if(*model.instanceFault>.5){++state.outputOverflow;overflowRecovery=true;}
@@ -2860,6 +2884,7 @@ int main(int argc, char **argv) {
       while(movementPhysicalRead<movementPhysicalCount){auto &p=movementPhysical[movementPhysicalRead++];movements.render(state.samples+p.offset,emitMovement,applyMovement,true);movements.physical(p.ch,p.cc,p.value,state.samples+p.offset);}
       ysfx_midi_event_t event{};
       movements.render(state.samples+frames,emitMovement,applyMovement);
+      trace.mark(7);
       unsigned outputCount = movementOutputCount;
       for(unsigned j=0;j<outputCount;++j)(*outputOrder)[j]=j;
       bool outputSorted = movementOutputCount==0;
@@ -2902,6 +2927,7 @@ int main(int argc, char **argv) {
         }
       }
       if (outBuffer) {
+        trace.mark(8);
         if (!outputSorted)
           std::sort(outputOrder->begin(), outputOrder->begin() + outputCount,
                     [&](unsigned a, unsigned b) {
@@ -2909,6 +2935,7 @@ int main(int argc, char **argv) {
                            second = (*outputBatch)[b].offset;
                       return first == second ? a < b : first < second;
                     });
+        trace.mark(9);
         for (unsigned j = 0; j < outputCount; ++j) {
           if (outputWrite - outputRead >= 8192) {
             ++state.outputOverflow;
@@ -2962,6 +2989,16 @@ int main(int argc, char **argv) {
                           std::chrono::steady_clock::now() - start)
                           .count();
       state.max_us = std::max(state.max_us, duration);
+      trace.value.xruns=xruns.load(std::memory_order_relaxed);
+      trace.value.pending=state.pendingOutput;trace.value.active=movements.active;
+      trace.value.rejected=movements.rejected;trace.value.overflow=state.outputOverflow;
+      if(rtTrace){
+        trace.value.noteEvents=tracedNotes-noteStart;trace.value.noteOns=tracedNoteOns-noteOnStart;trace.value.ccEvents=tracedCCs-ccStart;
+        trace.value.orderErrors=tracedOrderErrors-orderStart;
+        trace.value.instanceRejected=uint64_t(*model.instanceRejected);
+        for(unsigned j=0;j<12;++j)if(*model.voiceActive[j]>.5){++trace.value.phraseInstances;int layer=int(*model.voiceLayer[j]);if(layer>=0&&layer<16)trace.value.phraseSourcesMask|=1u<<layer;}
+        for(unsigned j=0;j<16;++j)if(*model.musicalState==3&&*model.phrase[j][0]>0&&*model.phrase[j][1]<.5&&*model.phraseTriggers[j]>.5){++trace.value.phraseInstances;trace.value.phraseSourcesMask|=1u<<j;}
+      }
       return 0;
     };
     if (useJack) {

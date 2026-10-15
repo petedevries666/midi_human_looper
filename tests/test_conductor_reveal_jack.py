@@ -109,6 +109,9 @@ with tempfile.TemporaryDirectory(prefix='mbmf-reveal-jack-') as tmp:
     if index==3:assert 0<baseline<127,'MOVEMENT effective value must replace default 127'
    elif index==4:
     for pitch in (48,72):assert any(e[2]&240==128 and e[3]==pitch and e[0]==on[0] and e[1]==64 for e in trace),('PANIC release must follow same-cycle attacks',on,trace)
+   else:
+    assert any(e[2:4]==[129,72] and e[0]==on[0] and e[1]==64 for e in trace),'short tap releases real hidden attack at RELEASE'
+    assert not any(e[2]&240==128 and e[3]==48 and e[0]==on[0] and e[1]==64 for e in trace),'short RELEASE must leave bass playing'
 
   # Gate second note remains at original 0.75 s after PRESS despite remasking.
   gate_pad=pads[2];gate_note=[e for e in notes if e[3]==76][1]

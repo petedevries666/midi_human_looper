@@ -62,3 +62,28 @@ small-buffer deadlines, ARM64, synth CC7 support or physical Zynthian safety.
 Next: finish focused tests, full combined regression, sanitizer gates, generate
 and inspect the required five-size browser PNG campaign, commit evidence and open
 M2b as a draft stacked on #81. No JOIN, FADE or hardware installation in this slice.
+
+## Physical acceptance (after explicit review/installation approval)
+
+1. Use a bass on CH1 and a CC7-capable pad on CH2. Keep other parts off CH2;
+   the warning deliberately permits sharing and does not promise audio isolation.
+2. Record/import a long bass PHRASE and a pad containing a sustained note at zero
+   plus another note later. Keep their source MIDI channels; assign both to STEP1.
+3. Bass: PRESS/TRIGGER. Pad: HOLD/REVEAL/LATCH. DONE, SAVE, reload stopped.
+4. Short press: bass starts immediately; pad receives hidden notes, then RELEASE
+   releases those notes. No HOLD reveal should occur later.
+5. Long press: bass starts immediately; pad starts silently, reveals at the
+   configured HOLD threshold without reattack; LATCH keeps playing after RELEASE.
+6. Change only pad REL to GATE. HOLD, RELEASE: pad remutes; the later source note
+   remains at its original time. No instance restart or bass stop.
+7. Send physical CH2 CC7: it must pass intact and replace the REVEAL lease. Later
+   RELEASE/STOP must not restore a stale value over this physical controller.
+8. Source STOP, natural completion and PANIC: no hanging notes or stale volume
+   automation. Repeat with overlapping gestures, sustain and the intended actual
+   receiving synth. Unknown CC7 restoration is intentionally 127, per user choice.
+9. Repeat SAVE/restart/LOAD and verify silence until the next trigger. Disconnect
+   the browser during playback. Capture ARM64 CPU/XRUN and small-buffer timing
+   separately; Cloud screenshots and 8192-frame dummy JACK do not establish these.
+
+FADE/JOIN remain outside this slice. A synth ignoring CC7 cannot support audible
+REVEAL through this MIDI mechanism. No installation commands are authorized here.

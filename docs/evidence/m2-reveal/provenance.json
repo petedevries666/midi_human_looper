@@ -1,0 +1,17 @@
+{
+  "codeCheckpoint": "1e6ed931dce4c1e5b42b4299de8c30fbb2515daf",
+  "sourceSha256": {
+    "headless/engine.cpp": "3e9f9f2f58202429339558bf3f854824536a83d2b969fd8915ba2f35509093dd",
+    "headless/conductor_execution.hpp": "4d2e4dba573032be6a109062a8d3aca7ccf19d9471564a2df7c7bea7c3f90854",
+    "headless/reveal_engine.hpp": "35678c0b73025be0d062e6997bf37fc42c8c8c176a1fb78e435ccb76fed48b4a",
+    "headless/movement_engine.hpp": "b136a0a22d4d3d2fb1c9872148c8d7f63f34b1430ee0a7ebd93e5a0794a0e581",
+    "headless/web/conductor.js": "3a48ddcd4f12100d09c9cf76df1c9f5a13a4562ad16061ccaab34fa5e3751be4",
+    "midi_human_looper.jsfx": "c73f870b4f1b984d6e2f8f609d307f130eefe8f0970b06f450ccbae6b065ff0f",
+    "tests/test_conductor_reveal_native.py": "a40a50a7a765866f817eb9e72be6f46bc59b02415d5ecc321235bef5c122b1eb",
+    "tests/test_conductor_reveal_jack.py": "6b3fd3f2dbd6ba1777e32942087c860102b395461c6573336ea999128a3d9e1f"
+  },
+  "nativeBinarySha256": "e81bc27bac3c88804bdc5633fa6284b26d84c6fab67f470883b1d2323cbe64eb",
+  "sanitizedBinarySha256": "64f8756702788ca60bbc1d37e142a280f73dc850487f455030d7235d52fa33b1",
+  "hardware": false,
+  "notes": "Build revision metadata predates documentation/evidence commits. Source hashes identify executable input; final tests/evidence have their own provenance."
+}

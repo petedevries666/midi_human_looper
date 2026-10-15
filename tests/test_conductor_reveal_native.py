@@ -39,6 +39,9 @@ class Reveal(Gestures):
         self.assertEqual([v['id'] for v in self.call()['instances']],owners,'GATE remasks; does not stop its instance')
         self.command('panic');self.patch('save');self.patch('load');time.sleep(.3)
         self.assertFalse(self.call()['instances'])
+        state=self.call()
+        loaded=self.c.request(op=4,revision=state['revision'],session=state['engineSessionId'])
+        self.assertEqual(loaded['conductor'],__import__('conductor').encode(self.model),'GATE/REVEAL overrides must survive actual SAVE/LOAD')
         self.assertEqual(self.call()['outputOverflow'],0)
 
     def test_natural_end_and_original_all_channel_ownership(self):

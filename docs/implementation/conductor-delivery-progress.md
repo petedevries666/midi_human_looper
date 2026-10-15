@@ -127,3 +127,20 @@ choices. No physical device touched. No M3 work started.
   with these MIDI-safety gates understood. No global audit restart required.
 - All 25 protected issue #54 files remain unchanged. No merge/deployment, no
   physical qualification, no new REAPER capability or schema migration.
+
+### M2 safety follow-up — active checkpoint
+
+Branch `fix/reveal-midi-safety`, based on #82 `78dcf8e`.
+Real JACK reproduced early CC7 restoration while an external pedal still held
+hidden notes. Fixed with bounded Controller-token-owned deferred restoration until
+actual emitted CC64-off; physical CC7 and new owners supersede it safely. Normal
+and source+external shared sustain, deferred physical takeover, and a full output
+burst now pass. Burst: 5121 requested attacks, 63 actual Note Ons, overflow=1,
+emergency cleanup, no stale attacks/notes/leases, source unchanged.
+Historical ONCE/HOLD expectations are retained under explicit `legacy1` DSP
+fixtures. Both the legacy nine-note JACK golden and native-contract-2 eight-note
+golden pass, as do native baseline and dedicated-chain HOLD paths in both versions.
+No production legacy mode or schema was introduced. No Web changes/screenshots.
+Next: finish proportional helper/native sanitizer and MOVEMENT checks, publish
+stacked safety draft, then start M3 on a separate stacked branch. Do not rerun the
+old #82 campaigns. Physical V4/low-buffer timing remains unqualified.

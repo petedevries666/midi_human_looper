@@ -1,0 +1,9 @@
+Cannot lock down 107341340 byte memory area (Cannot allocate memory)
+Traceback (most recent call last):
+  File "/workspace/mbmf-conductor-a/tests/test_reveal_safety_jack.py", line 79, in <module>
+    if __name__=='__main__':run('--burst' in sys.argv)
+                            ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/mbmf-conductor-a/tests/test_reveal_safety_jack.py", line 63, in run
+    assert mute<pedal<restore,'CC7 must remain hidden until external sustain is released'
+           ^^^^^^^^^^^^^^^^^^
+AssertionError: CC7 must remain hidden until external sustain is released

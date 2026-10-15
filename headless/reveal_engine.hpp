@@ -9,11 +9,11 @@ class Runtime {
   struct Voice {bool hidden=true;uint64_t id=0;std::array<uint64_t,16> tokens{};std::array<unsigned,16> volume{};};
   std::array<Voice,12> voices{}; // existing independent PHRASE admission budget
   std::array<int,16> observed{},pending{};
-  std::array<uint64_t,16> physicalAt{};
+  std::array<uint64_t,16> physicalAt{},deferredToken{};
+  std::array<unsigned,16> sustain{},deferredVolume{};
   controller::Host &host;
-  bool owns(const Voice &v,unsigned ch)const{
-    auto t=host.target(target(ch));return v.tokens[ch]&&t&&t->owner==UINT32_MAX&&t->token==v.tokens[ch];
-  }
+  bool ownsToken(uint64_t token,unsigned ch)const{auto t=host.target(target(ch));return token&&t&&t->owner==UINT32_MAX&&t->token==token;}
+  bool owns(const Voice &v,unsigned ch)const{return ownsToken(v.tokens[ch],ch);}
 public:
   unsigned rejected=0;
   explicit Runtime(controller::Host& h):host(h){observed.fill(-1);pending.fill(-1);physicalAt.fill(UINT64_MAX);}
@@ -31,13 +31,28 @@ public:
   void physical(unsigned ch,unsigned cc,unsigned value,uint64_t sample){
     if(ch>=16||cc!=7||value>127)return;
     observed[ch]=value;physicalAt[ch]=sample;pending[ch]=-1;
+    if(ownsToken(deferredToken[ch],ch)){host.cancelPerformanceTarget(target(ch),deferredToken[ch]);host.stagePerformanceTarget(target(ch),value/127.);}
+    deferredToken[ch]=0;
     for(auto &v:voices)if(owns(v,ch)){host.cancelPerformanceTarget(target(ch),v.tokens[ch]);host.stagePerformanceTarget(target(ch),value/127.);}
   }
   // Ordinary emitted CC7 (manual/Controller/PHRASE) updates the audible baseline
   // and takes precedence over an earlier hidden lease, without changing notes.
-  void observe(unsigned ch,unsigned cc,unsigned value){
-    if(ch>=16||cc!=7||value>127)return;
+  template<class Emit> void observe(unsigned ch,unsigned cc,unsigned value,uint64_t sample,Emit emit){
+    if(ch>=16||value>127)return;
+    if(cc==64){
+      sustain[ch]=value;
+      if(value<64 && ownsToken(deferredToken[ch],ch)){
+        unsigned volume=deferredVolume[ch];host.updatePerformanceTarget(target(ch),deferredToken[ch],volume/127.);
+        if(!emit(sample,ch,7,volume))++rejected;
+        observed[ch]=volume;host.cancelPerformanceTarget(target(ch),deferredToken[ch]);host.retirePerformanceTarget(target(ch));
+      }
+      if(value<64)deferredToken[ch]=0;
+      return;
+    }
+    if(cc!=7)return;
     observed[ch]=value;
+    if(ownsToken(deferredToken[ch],ch)){host.cancelPerformanceTarget(target(ch),deferredToken[ch]);host.stagePerformanceTarget(target(ch),value/127.);}
+    deferredToken[ch]=0;
     for(auto &v:voices)if(owns(v,ch)){host.cancelPerformanceTarget(target(ch),v.tokens[ch]);host.stagePerformanceTarget(target(ch),value/127.);}
   }
   template<class Emit> bool start(unsigned slot,uint64_t id,unsigned mask,uint64_t sample,Emit emit){
@@ -48,6 +63,7 @@ public:
       auto t=host.target(target(ch));unsigned volume=t?unsigned(std::floor(t->effective*127+.5)):(observed[ch]<0?127:unsigned(observed[ch]));
       // A replacement hidden owner retains the audible restore value, never 0.
       if(t)for(const auto &old:voices)if(old.id&&owns(old,ch))volume=old.volume[ch];
+      if(ownsToken(deferredToken[ch],ch))volume=deferredVolume[ch];
       v.volume[ch]=volume;
       if(physicalAt[ch]!=UINT64_MAX&&physicalAt[ch]>=sample)continue;
       v.tokens[ch]=host.acquirePerformanceTarget(target(ch),0);
@@ -66,6 +82,7 @@ public:
     if(slot>=voices.size()||voices[slot].id!=id)return;
     auto &v=voices[slot];
     for(unsigned ch=0;ch<16;++ch)if(owns(v,ch)){
+      if(v.hidden && sustain[ch]>=64){deferredToken[ch]=v.tokens[ch];deferredVolume[ch]=v.volume[ch];continue;}
       unsigned value=v.volume[ch];host.updatePerformanceTarget(target(ch),v.tokens[ch],value/127.);
       if(!emit(sample,ch,7,value))++rejected;
       observed[ch]=value;host.cancelPerformanceTarget(target(ch),v.tokens[ch]);
@@ -79,6 +96,7 @@ public:
   // admissions. An unowned raw CC7 target cannot resume a superseded instance.
   void collectIdle(){for(unsigned ch=0;ch<16;++ch){auto t=host.target(target(ch));if(t&&!t->owner&&!t->morphing)host.retirePerformanceTarget(target(ch));}}
   void panic(){
+    for(unsigned ch=0;ch<16;++ch){if(ownsToken(deferredToken[ch],ch)){pending[ch]=int(deferredVolume[ch]);host.cancelPerformanceTarget(target(ch),deferredToken[ch]);host.retirePerformanceTarget(target(ch));}deferredToken[ch]=0;sustain[ch]=0;}
     for(auto &v:voices){for(unsigned ch=0;ch<16;++ch)if(owns(v,ch)){
       pending[ch]=int(v.volume[ch]);host.cancelPerformanceTarget(target(ch),v.tokens[ch]);host.retirePerformanceTarget(target(ch));
     }v=Voice{};}

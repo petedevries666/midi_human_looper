@@ -4,6 +4,10 @@
 The EEL companion records raw MIDI. This adapter test verifies authoritative
 phrase states and saved source data. --strict fails on the unmet contract.
 """
+import os
+from pathlib import Path
+from phrase_contract_fixture import contract_source,legacy
+os.environ['MBMF_TEST_JSFX_SOURCE']=str(contract_source(Path(__file__).resolve().parents[1]))
 import base64
 import json
 import sys
@@ -32,8 +36,9 @@ try:
     api.command('phrase_play',phraseId=2)
     api.wait_for(lambda:api.call()['phrases'][1]['state']=='PLAYING','second ONCE native admission')
     state=api.call();playing=[p['id'] for p in state['phrases'] if p['state']=='PLAYING']
-    if playing!=[2]:raise RuntimeError(f'Baseline changed: expected exact choke symptom, got {playing}')
-    print('XFAIL NATIVE_ONCE_CROSS_SOURCE_CHOKE: authoritative PLAYING phrases =',playing)
+    expected=[2] if legacy else [1,2]
+    if playing!=expected:raise RuntimeError(f'Contract expectation {expected}, got {playing}')
+    print('PASS versioned ONCE contract', 'legacy1 choke' if legacy else '2 independent sources', playing)
     api.command('panic')
     if api.call()['activeNotes']!=0:raise RuntimeError('native PANIC did not clean up notes')
     api.patch('save');api.patch('load')
@@ -41,4 +46,4 @@ try:
     print('PASS native adapter fixture import, first/second admission, PANIC and source SAVE/LOAD')
 finally:
     api.tearDownClass()
-if '--strict' in sys.argv:sys.exit(1)
+if '--strict' in sys.argv and legacy:sys.exit(1) # Legacy intentionally lacks contract-2 overlap.

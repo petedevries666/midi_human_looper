@@ -1,0 +1,14 @@
+PASS versioned ONCE contract legacy1 choke [2]
+PASS native adapter fixture import, first/second admission, PANIC and source SAVE/LOAD
+Cannot lock down 107341340 byte memory area (Cannot allocate memory)
+PASS actual JACK ownership contract legacy1: live owner, versioned ONCE lifecycle, PANIC and chronology [[0, 524288, 0, 144, 60, 100], [0, 540672, 0, 144, 60, 91], [0, 573440, 0, 144, 62, 91], [0, 638976, 0, 128, 60, 0], [0, 663552, 0, 128, 62, 0], [0, 688128, 0, 144, 60, 91], [0, 712704, 0, 128, 60, 0], [0, 712704, 0, 144, 62, 91], [0, 745472, 0, 128, 62, 0]]
+Cannot lock down 107341340 byte memory area (Cannot allocate memory)
+Cannot lock down 107341340 byte memory area (Cannot allocate memory)
+PASS one actual MBMF instance: 3-channel source capture/playback, native-style fanout, identical ordered output streams, explicit receiver channel isolation, LOOP/ONCE/retrigger/HOLD/release/short-tap, actual ARP chord generation/disable, STOP/transport/restart/removal cleanup
+PASS versioned ONCE contract 2 independent sources [1, 2]
+PASS native adapter fixture import, first/second admission, PANIC and source SAVE/LOAD
+Cannot lock down 107341340 byte memory area (Cannot allocate memory)
+PASS actual JACK ownership contract 2: live owner, versioned ONCE lifecycle, PANIC and chronology [[0, 229376, 0, 144, 60, 100], [0, 245760, 0, 144, 60, 91], [0, 278528, 0, 144, 62, 91], [0, 344064, 0, 128, 60, 0], [0, 368640, 0, 128, 62, 0], [0, 393216, 0, 144, 60, 91], [0, 417792, 0, 144, 62, 91], [0, 458752, 0, 128, 62, 0]]
+Cannot lock down 107341340 byte memory area (Cannot allocate memory)
+Cannot lock down 107341340 byte memory area (Cannot allocate memory)
+PASS one actual MBMF instance: 3-channel source capture/playback, native-style fanout, identical ordered output streams, explicit receiver channel isolation, LOOP/ONCE/retrigger/HOLD/release/short-tap, actual ARP chord generation/disable, STOP/transport/restart/removal cleanup

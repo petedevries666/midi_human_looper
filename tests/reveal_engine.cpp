@@ -42,5 +42,16 @@ int main(){
   all.mask(0,9007199254740988ULL,true,1011,count);assert(events==32);
   all.close(0,9007199254740989ULL,1020,count);assert(events==48);all.collectIdle();assert(allHost.freeTargets()==controller::Engine::TargetCapacity);
  }
+ {
+  controller::Host h;reveal::Runtime deferred(h);std::vector<Event> e;
+  auto send=[&](uint64_t t,unsigned ch,unsigned cc,unsigned val){assert(cc==7);e.push_back({t,ch,val});return true;};
+  deferred.observe(1,64,127,0,send);assert(deferred.start(0,1,2,1,send));deferred.close(0,1,2,send);assert(e.size()==1);
+  deferred.observe(1,64,0,3,send);assert(e.size()==2&&e.back().value==127&&e.back().sample==3);assert(!h.target(reveal::target(1)));
+  deferred.observe(1,64,127,4,send);assert(deferred.start(0,2,2,5,send));deferred.close(0,2,6,send);
+  deferred.physical(1,7,85,7);auto n=e.size();deferred.observe(1,64,0,8,send);assert(e.size()==n);
+  deferred.observe(1,64,127,9,send);assert(deferred.start(0,3,2,10,send));deferred.close(0,3,11,send);
+  assert(deferred.start(1,4,2,12,send));deferred.mask(1,4,false,13,send);assert(e.back().value==85);
+  deferred.observe(1,64,0,14,send);deferred.panic();deferred.flush(15,send);assert(e.back().value==85);
+ }
  std::cout<<"PASS production REVEAL Controller-token ownership, default/observed volume, GATE, replacement, physical takeover and MOVEMENT stale-retirement regression\n";
 }

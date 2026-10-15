@@ -5,6 +5,7 @@ The probe models Oram's native fanout (not channel filtering). Receiver filterin
 explicit in the assertions. No physical synth or Oram routing daemon is simulated
 as validated hardware. The Oram resolver itself is covered by test_zynthian_routing.
 """
+from phrase_contract_fixture import contract_source,legacy
 import importlib.util
 import json
 import os
@@ -27,8 +28,13 @@ adapter=importlib.util.module_from_spec(spec);spec.loader.exec_module(adapter)
 server=engine=probe=None
 with tempfile.TemporaryDirectory(prefix='mbh-dedicated-') as temp:
     directory=Path(temp);Base.my_data_dir=temp
+    repository=ROOT
+    if legacy:
+        repository=directory/'legacy-dsp-fixture';repository.mkdir()
+        (repository/'headless').symlink_to(ROOT/'headless',target_is_directory=True)
+        (repository/'midi_human_looper.jsfx').symlink_to(contract_source(ROOT))
     config=directory/'install.json'
-    config.write_text(json.dumps(dict(version=1,chain_timing_version=2,repository=str(ROOT),
+    config.write_text(json.dumps(dict(version=1,chain_timing_version=2,repository=str(repository),
         binary=os.environ.get('HEADLESS_BINARY',str(ROOT/'.build/midi-headless-engine')),
         web_port_base=21000,web_bind='127.0.0.1')))
     os.environ['MBH_CONFIG']=str(config);os.environ['JACK_DEFAULT_SERVER']='mbh-dedicated-test'
@@ -158,13 +164,16 @@ with tempfile.TemporaryDirectory(prefix='mbh-dedicated-') as temp:
         before=state['midiCount'];command(1);time.sleep(4.4)
         held=control.request();assert held['midiCount']>before and held['chainRunning'],held
         command(4);time.sleep(.4)
-        released=control.request();assert released['activeNotes']==0,released
+        released=control.request()
+        assert released['activeNotes']==(0 if legacy else held['activeNotes']),released
+        if not legacy:assert [v['id'] for v in released['instances']]==[v['id'] for v in held['instances']], 'RELEASE must not replace latched HOLD'
         time.sleep(.4)
         assert control.request()['midiCount']==released['midiCount'],'HOLD emitted notes after release'
         # A very short tap queues both edges without losing the release.
         command(1);command(4);time.sleep(.4)
-        assert control.request()['activeNotes']==0
+        assert control.request()['activeNotes']==(0 if legacy else held['activeNotes'])
         command(0)
+        assert control.request()['activeNotes']==0,'explicit STOP must release HOLD in either contract'
         # Real JACK input -> shared ARP -> native sorted JACK output. There is
         # no injected engine-output shortcut: the probe supplies a held chord.
         state=control.request()

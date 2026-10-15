@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Actual native engine + HTTP + source SMF; no JACK or hardware simulation claim."""
-import base64, json, socket, subprocess, sys, tempfile, time, unittest, urllib.request
+import os, base64, json, socket, subprocess, sys, tempfile, time, unittest, urllib.request
 from pathlib import Path
 from test_snapshots import SnapshotTests
 from test_headless_mvp import BINARY, ROOT
@@ -12,7 +12,7 @@ class FreeCapture(SnapshotTests):
     def setUpClass(cls):
         cls.temp=tempfile.TemporaryDirectory(prefix='mbmf-free-')
         cls.sock=str(Path(cls.temp.name)/'engine.sock')
-        cls.engine=subprocess.Popen([BINARY,str(ROOT/'midi_human_looper.jsfx'),cls.sock,'--chain'],
+        cls.engine=subprocess.Popen([BINARY,os.environ.get('MBMF_TEST_JSFX_SOURCE',str(ROOT/'midi_human_looper.jsfx')),cls.sock,'--chain'],
                                     stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True)
         cls.wait_for(lambda:Path(cls.sock).exists(),'native engine')
         with socket.socket() as sock:

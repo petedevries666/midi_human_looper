@@ -2106,7 +2106,7 @@ int main(int argc, char **argv) {
         if(movementOutputCount>=8192)return false;
         auto &m=(*outputBatch)[movementOutputCount++];m.size=3;m.offset=unsigned(sample>state.samples?sample-state.samples:0);m.data[0]=176|ch;m.data[1]=cc;m.data[2]=value;m.order=sample==generatedAt?generatedOrder:0;m.bus=0;return true;
       };
-      auto emitMovement=[&](uint64_t sample,unsigned ch,unsigned cc,unsigned value){reveals.observe(ch,cc,value);return emitControlled(sample,ch,cc,value);};
+      auto emitMovement=[&](uint64_t sample,unsigned ch,unsigned cc,unsigned value){reveals.observe(ch,cc,value,sample,emitControlled);return emitControlled(sample,ch,cc,value);};
       auto applyMovement=[&](const controller::Binding &b,double value){if(!model.bindingValue(b))return false;applyBinding(b,value);return true;};
       unsigned inputBudget = 128;
       while (inputRead != inputWrite && inputBudget--) {
@@ -2919,7 +2919,7 @@ int main(int argc, char **argv) {
             uint64_t id=0;unsigned mask=0;for(int k=7;k>=0;--k)id=id*128+m.data[5+k];for(int k=2;k>=0;--k)mask=mask*128+m.data[13+k];
             addControl(m.offset,m.order,m.data[3],m.data[4],id,mask);m.size=0;
           }
-        }else if(m.size==3&&(m.data[0]&240)==176&&m.data[1]==7)addControl(m.offset,m.order,2,m.data[0]&15,m.data[2],7);
+        }else if(m.size==3&&(m.data[0]&240)==176&&(m.data[1]==7||m.data[1]==64))addControl(m.offset,m.order,2,m.data[0]&15,m.data[2],m.data[1]);
         ++outputCount;
       }
       // Raw EEL packets keep stable order; generated CCs append to the same
@@ -2939,7 +2939,7 @@ int main(int argc, char **argv) {
         bool coalescedStart=c.kind==9&&j>0&&(*nativeControls)[j-1].kind==9&&(*nativeControls)[j-1].offset==c.offset;
         if(!coalescedStart)movements.render(sample+1,emitMovement,applyMovement,true);
         generatedAt=sample;generatedOrder=c.order;
-        if(c.kind==2)reveals.observe(c.slot,c.mask,unsigned(c.id));
+        if(c.kind==2)reveals.observe(c.slot,c.mask,unsigned(c.id),sample,emitControlled);
         else if(c.kind==9){movements.start(unsigned(c.id),sample,resolveMovement);
           bool nextStart=j+1<controlCount&&(*nativeControls)[j+1].kind==9&&(*nativeControls)[j+1].offset==c.offset;
           if(!nextStart)movements.render(sample+1,emitMovement,applyMovement,true);}

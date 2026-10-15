@@ -1,4 +1,5 @@
-// PR A: execute the production EEL dispatcher and report unmet PR55 contracts.
+// PR A frozen legacy-native contract 1: EEL native_phrase_contract=0,
+// native_hold_enabled=1. Native contract-2 coverage is separate, never XFAIL.
 // No alternate renderer, scheduler, ownership implementation or engine edits.
 #include <algorithm>
 #include <chrono>
@@ -8,7 +9,7 @@
 
 static void conductor_fixture(Host &h) {
   h.run("ext_noinit=1;gmem[0]=0;panic_pending=0;slider9=1;"
-        "sw_defaults();sw_runtime_reset();native_hold_enabled=1;"
+        "sw_defaults();sw_runtime_reset();native_hold_enabled=1;native_phrase_contract=0;"
         "mem[INST_ENABLED_BASE]=1;mem[INST_ENABLED_BASE+1]=0;"
         "mem[INST_ENABLED_BASE+2]=0;mem[INST_OUT_BASE]=1;"
         "mem[INST_TRANSFORM_COUNT_BASE]=0;state=STATE_STOPPED;"

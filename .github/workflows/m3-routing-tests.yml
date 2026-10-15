@@ -8,6 +8,7 @@ on:
       - 'tests/test_zynthian_feedback_guard.py'
       - 'tests/test_zynthian_exclusive_input.py'
       - '.github/workflows/m3-routing-tests.yml'
+      - 'scripts/zynthian-m3-safe-smoke.py'
   workflow_dispatch:
 
 permissions:
@@ -24,7 +25,7 @@ jobs:
           python-version: '3.11'
       - name: Verify Python sources compile
         run: |
-          python -m py_compile zynthian/zynthian_engine_mbh_router.py
+          python -m py_compile zynthian/zynthian_engine_mbh_router.py scripts/zynthian-m3-safe-smoke.py
           python -m py_compile tests/test_zynthian_channel_source.py tests/test_zynthian_feedback_guard.py tests/test_zynthian_exclusive_input.py
       - name: Execute focused routing regression tests
         run: |

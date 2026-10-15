@@ -32,3 +32,8 @@ jobs:
           python tests/test_zynthian_channel_source.py -v
           python tests/test_zynthian_feedback_guard.py -v
           python tests/test_zynthian_exclusive_input.py -v
+      - name: Validate Oram managed installer and compatibility
+        run: |
+          python tests/test_zynthian_install.py -v
+          python tests/test_zynthian_destinations.py -v
+          python tests/test_zynthian_routing.py -v

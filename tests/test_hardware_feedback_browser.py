@@ -18,8 +18,14 @@ try:
   card.get_by_role('button',name='EDIT',exact=True).click();page.get_by_label('Controller name',exact=True).fill('PEDAL A');page.get_by_role('button',name='DONE',exact=True).click();page.locator('#editor').wait_for(state='hidden')
   assert decode(api.call()['controllerEngine'])['sources'][0]['name']=='PEDAL A'
   page.once('dialog',lambda d:d.accept());card.get_by_role('button',name='REMOVE',exact=True).click();api.wait_for(lambda:not decode(api.call()['controllerEngine'])['sources'],'targeted source removal')
-  # Three real rails aligned horizontally, with one-decimal velocity readout.
-  boxes=[page.get_by_role('slider',name=f'{label} Phrase 2',exact=True).bounding_box() for label in ('BASE VEL','VEL DECAY','TIME DECAY')]
+  # Native acknowledgement may precede telemetry removing the card. Scroll
+  # anchoring can move the viewport between three separate protocol reads;
+  # measure the actual rails together, in one browser task, not mixed frames.
+  page.wait_for_function('(id)=>!document.querySelector(`[data-source-id="${id}"]`)',arg=source)
+  rails=page.locator('[data-phrase-id="2"] input[type=range]')
+  boxes=rails.evaluate_all('(es)=>es.map(e=>({name:e.getAttribute("aria-label"),...e.getBoundingClientRect().toJSON()}))')
+  assert [b['name'] for b in boxes]==[f'{label} Phrase 2' for label in ('BASE VEL','VEL DECAY','TIME DECAY')],boxes
+  assert all(b['width']>0 and b['height']>0 for b in boxes),boxes
   assert max(b['y'] for b in boxes)-min(b['y'] for b in boxes)<2,boxes
   assert [b['x'] for b in boxes]==sorted(b['x'] for b in boxes)
   assert page.locator('[data-phrase-id="2"] .tactile-slider output').first.inner_text()=='×1.0'

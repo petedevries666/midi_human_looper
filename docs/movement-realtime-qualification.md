@@ -1,3 +1,6 @@
+> Historical #63 qualification. Current integrated measurements and release gates:
+> [issue #75 LIVE report](release-candidate-75-live.md). These old traces are retained, not final-HEAD proof.
+
 # Qualification temps réel MOVEMENT — PR #62
 
 Base exacte : `b4113da7ba8316be682ebb1959a7339ce971ca0c`. Branche de diagnostic

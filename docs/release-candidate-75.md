@@ -67,14 +67,22 @@ Learn/FORGET/source reassignment; real JACK-captured automation continuing throu
 physical Learn, with every expected integer value and exact 1,920-frame cadence
 at 25 Hz. Explicit PANIC must still invalidate all leases. Existing A/B-edit
 cancellation at the engine adapter is unchanged, not claimed solved.
-The 3-second first JACK fixture expired while several acknowledged commands
-completed at 8192 frames; it is retained as failed evidence. The final fixture
-uses an 8-second triangle with **201 exact values/timestamps**, not a weakened
-ownership/cadence assertion. No engine change was made to improve that fixture.
+The first 3-second JACK fixture failed its final active-state assertion without
+capturing that state. Its initial "too-short" evidence label is a fixture hypothesis,
+not a proven cause. The final fixture uses an 8-second triangle with **201 exact
+values/timestamps** and the same ownership/cadence assertions; it passes through
+all acknowledged source changes. No engine change was made to improve that fixture.
 The first full integrated run passed CONDUCTOR MIDI assertions, then failed the
 five-second private JACK shutdown guard. Its exit 1 and MIDI trace are retained.
 The fixture now reaps a stubborn child and saves logs **before re-raising the
 same timeout**. No deadline, MIDI assertion or timeout was relaxed.
+The second combined attempt passed native/ASAN/704 channel checks and stopped at
+non-atomic rail geometry sampling during scroll. Controlled native-browser
+reproduction shows three identical document Y positions (513) but viewport Y
+413/349/285 across separate reads. A single browser task sees all three at Y285.
+The fixture now waits for authoritative source removal and samples the named rails
+atomically; existing alignment thresholds stay, plus presence/size checks. No CSS
+or Web application code is changed. The corrected complete browser workflow passes.
 The inherited test typo `returnPolicy` is corrected to actual `returnMode`.
 
 ## Reproducible qualification
@@ -108,6 +116,20 @@ thread CPU vs wall p95/p99/max, XRUN and refusal/overflow counters. They are not
 certificate of concert stability. Optional `--rt-trace` writes via a separate
 worker; normal runtime enables no tracing. No browser/edits run in the measured
 live windows. Large-buffer functional tests are a different workload.
+
+## Qualification evidence and current verdict
+
+[Prepared LIVE measurements and failing trace](release-candidate-75-live.md) are
+committed, including actual CPU and wall time separately, six 512/256 profiles,
+all XRUNs and the 256/NORMAL timestamp failure. This is a **software release blocker**,
+not only missing hardware validation. Do not dismiss real CPU time as Cloud noise.
+The final integration PR publishes the full combined run on its exact final HEAD;
+intermediate failed runs are retained, not relabelled PASS.
+
+AZ/Webconf suite: 23 tests, exit 0. Twelve actual native/editor/portal PNGs were
+visually inspected (7 AZ, 4 gateway, 1 reviewed-release fixture). Systemd/MPV/RFB/
+release authority are explicitly fixtures, not observed physical service status.
+No `headless/web/` source change against #74; REAPER JSFX and #67 router unchanged.
 
 ## Blockers and boundaries
 

@@ -1,5 +1,9 @@
 # Engineering audit — MBMF, 14 October 2026
 
+Historical audit snapshot. For current integration, corrected A21 and new measured
+release blockers see [issue #75 candidate](release-candidate-75.md). This report
+does not claim that its old branch statuses or A21 status are still current.
+
 Read-only baseline: main `ab37a75`; active #71 `74c72d8db495f9c08a6e2c7ba4eed3aeaf7547a0`.
 All open/merged PR metadata through #71 fetched afresh; #69 head is now `a784aff`.
 No merge, rebasing, hardware access, OS/service changes or LUMAZ modifications.

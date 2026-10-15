@@ -1,0 +1,212 @@
+patch-320x240.png: PASS
+update-unavailable-320x240.png: PASS
+snapshots-320x240.png: PASS
+smart-switches-320x240.png: PASS
+smart-switch-test-320x240.png: PASS
+smart-switch-editor-320x240.png: PASS
+conductor-empty-editor-320x240.png: PASS
+conductor-source-menu-editor-320x240.png: PASS
+conductor-four-step-editor-320x240.png: PASS
+conductor-override-editor-320x240.png: PASS
+conductor-hold-trigger-editor-320x240.png: PASS
+movement-curve-editor-320x240.png: PASS
+movement-library-320x240.png: PASS
+movement-layer-editor-320x240.png: PASS
+phrases-320x240.png: PASS
+phrase-name-editor-320x240.png: PASS
+phrase-editor-320x240.png: PASS
+instruments-320x240.png: PASS
+empty-transformer-320x240.png: PASS
+instrument-name-editor-320x240.png: PASS
+instrument-editor-320x240.png: PASS
+controllers-320x240.png: PASS
+controller-live-test-320x240.png: PASS
+controller-editor-320x240.png: PASS
+controller-advanced-320x240.png: PASS
+snapshot-manager-320x240.png: PASS
+snapshot-menu-320x240.png: PASS
+snapshot-editor-320x240.png: PASS
+snapshot-ab-editor-320x240.png: PASS
+snapshot-ab-320x240.png: PASS
+transformer-chain-320x240.png: PASS
+transformer-editor-320x240.png: PASS
+diagnostics-320x240.png: PASS
+patch-800x480.png: PASS
+update-unavailable-800x480.png: PASS
+snapshots-800x480.png: PASS
+smart-switches-800x480.png: PASS
+smart-switch-test-800x480.png: PASS
+smart-switch-editor-800x480.png: PASS
+conductor-empty-editor-800x480.png: PASS
+conductor-source-menu-editor-800x480.png: PASS
+conductor-four-step-editor-800x480.png: PASS
+conductor-override-editor-800x480.png: PASS
+conductor-hold-trigger-editor-800x480.png: PASS
+movement-curve-editor-800x480.png: PASS
+movement-library-800x480.png: PASS
+movement-layer-editor-800x480.png: PASS
+phrases-800x480.png: PASS
+phrase-name-editor-800x480.png: PASS
+phrase-editor-800x480.png: PASS
+instruments-800x480.png: PASS
+empty-transformer-800x480.png: PASS
+instrument-name-editor-800x480.png: PASS
+instrument-editor-800x480.png: PASS
+controllers-800x480.png: PASS
+controller-live-test-800x480.png: PASS
+controller-editor-800x480.png: PASS
+controller-advanced-800x480.png: PASS
+snapshot-manager-800x480.png: PASS
+snapshot-menu-800x480.png: PASS
+snapshot-editor-800x480.png: PASS
+snapshot-ab-editor-800x480.png: PASS
+snapshot-ab-800x480.png: PASS
+transformer-chain-800x480.png: PASS
+transformer-editor-800x480.png: PASS
+diagnostics-800x480.png: PASS
+patch-1366x768.png: PASS
+update-unavailable-1366x768.png: PASS
+snapshots-1366x768.png: PASS
+smart-switches-1366x768.png: PASS
+smart-switch-test-1366x768.png: PASS
+smart-switch-editor-1366x768.png: PASS
+conductor-empty-editor-1366x768.png: PASS
+conductor-source-menu-editor-1366x768.png: PASS
+conductor-four-step-editor-1366x768.png: PASS
+conductor-override-editor-1366x768.png: PASS
+conductor-hold-trigger-editor-1366x768.png: PASS
+movement-curve-editor-1366x768.png: PASS
+movement-library-1366x768.png: PASS
+movement-layer-editor-1366x768.png: PASS
+phrases-1366x768.png: PASS
+phrase-name-editor-1366x768.png: PASS
+phrase-editor-1366x768.png: PASS
+instruments-1366x768.png: PASS
+empty-transformer-1366x768.png: PASS
+instrument-name-editor-1366x768.png: PASS
+instrument-editor-1366x768.png: PASS
+controllers-1366x768.png: PASS
+controller-live-test-1366x768.png: PASS
+controller-editor-1366x768.png: PASS
+controller-advanced-1366x768.png: PASS
+snapshot-manager-1366x768.png: PASS
+snapshot-menu-1366x768.png: PASS
+snapshot-editor-1366x768.png: PASS
+snapshot-ab-editor-1366x768.png: PASS
+snapshot-ab-1366x768.png: PASS
+transformer-chain-1366x768.png: PASS
+transformer-editor-1366x768.png: PASS
+diagnostics-1366x768.png: PASS
+patch-1440x900.png: PASS
+update-unavailable-1440x900.png: PASS
+snapshots-1440x900.png: PASS
+smart-switches-1440x900.png: PASS
+smart-switch-test-1440x900.png: PASS
+smart-switch-editor-1440x900.png: PASS
+conductor-empty-editor-1440x900.png: PASS
+conductor-source-menu-editor-1440x900.png: PASS
+conductor-four-step-editor-1440x900.png: PASS
+conductor-override-editor-1440x900.png: PASS
+conductor-hold-trigger-editor-1440x900.png: PASS
+movement-curve-editor-1440x900.png: PASS
+movement-library-1440x900.png: PASS
+movement-layer-editor-1440x900.png: PASS
+phrases-1440x900.png: PASS
+phrase-name-editor-1440x900.png: PASS
+phrase-editor-1440x900.png: PASS
+instruments-1440x900.png: PASS
+empty-transformer-1440x900.png: PASS
+instrument-name-editor-1440x900.png: PASS
+instrument-editor-1440x900.png: PASS
+controllers-1440x900.png: PASS
+controller-live-test-1440x900.png: PASS
+controller-editor-1440x900.png: PASS
+controller-advanced-1440x900.png: PASS
+snapshot-manager-1440x900.png: PASS
+snapshot-menu-1440x900.png: PASS
+snapshot-editor-1440x900.png: PASS
+snapshot-ab-editor-1440x900.png: PASS
+snapshot-ab-1440x900.png: PASS
+transformer-chain-1440x900.png: PASS
+transformer-editor-1440x900.png: PASS
+diagnostics-1440x900.png: PASS
+patch-1904x1032.png: PASS
+update-unavailable-1904x1032.png: PASS
+snapshots-1904x1032.png: PASS
+smart-switches-1904x1032.png: PASS
+smart-switch-test-1904x1032.png: PASS
+smart-switch-editor-1904x1032.png: PASS
+conductor-empty-editor-1904x1032.png: PASS
+conductor-source-menu-editor-1904x1032.png: PASS
+conductor-four-step-editor-1904x1032.png: PASS
+conductor-override-editor-1904x1032.png: PASS
+conductor-hold-trigger-editor-1904x1032.png: PASS
+movement-curve-editor-1904x1032.png: PASS
+movement-library-1904x1032.png: PASS
+movement-layer-editor-1904x1032.png: PASS
+phrases-1904x1032.png: PASS
+phrase-name-editor-1904x1032.png: PASS
+phrase-editor-1904x1032.png: PASS
+instruments-1904x1032.png: PASS
+empty-transformer-1904x1032.png: PASS
+instrument-name-editor-1904x1032.png: PASS
+instrument-editor-1904x1032.png: PASS
+controllers-1904x1032.png: PASS
+controller-live-test-1904x1032.png: PASS
+controller-editor-1904x1032.png: PASS
+controller-advanced-1904x1032.png: PASS
+snapshot-manager-1904x1032.png: PASS
+snapshot-menu-1904x1032.png: PASS
+snapshot-editor-1904x1032.png: PASS
+snapshot-ab-editor-1904x1032.png: PASS
+snapshot-ab-1904x1032.png: PASS
+transformer-chain-1904x1032.png: PASS
+transformer-editor-1904x1032.png: PASS
+diagnostics-1904x1032.png: PASS
+Traceback (most recent call last):
+  File "/workspace/mbmf-conductor-a/tests/test_recovery_browser.py", line 72, in <module>
+    page.get_by_role('button',name='ADD POINT',exact=True).click()
+  File "/workspace/setup-tools/venv/lib/python3.12/site-packages/playwright/sync_api/_generated.py", line 18032, in click
+    self._sync(
+  File "/workspace/setup-tools/venv/lib/python3.12/site-packages/playwright/_impl/_sync_base.py", line 115, in _sync
+    return task.result()
+           ^^^^^^^^^^^^^
+  File "/workspace/setup-tools/venv/lib/python3.12/site-packages/playwright/_impl/_locator.py", line 165, in click
+    return await self._frame._click(self._selector, strict=True, **params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/setup-tools/venv/lib/python3.12/site-packages/playwright/_impl/_frame.py", line 594, in _click
+    await self._channel.send("click", self._timeout, locals_to_params(locals()))
+  File "/workspace/setup-tools/venv/lib/python3.12/site-packages/playwright/_impl/_connection.py", line 76, in send
+    return await self._connection.wrap_api_call(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/setup-tools/venv/lib/python3.12/site-packages/playwright/_impl/_connection.py", line 632, in wrap_api_call
+    raise rewrite_error(error, f"{parsed_st['apiName']}: {error}") from None
+playwright._impl._errors.TimeoutError: Locator.click: Timeout 30000ms exceeded.
+Call log:
+  - waiting for get_by_role("button", name="ADD POINT", exact=True)
+
+Traceback (most recent call last):
+  File "/workspace/mbmf-conductor-a/scripts/screenshots.py", line 238, in run
+    subprocess.run([sys.executable,str(ROOT/'tests/test_recovery_browser.py')],cwd=ROOT,env={**os.environ,'SCREENSHOT_RECOVERY_DIR':str(output)},check=True)
+  File "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/subprocess.py", line 571, in run
+    raise CalledProcessError(retcode, process.args,
+subprocess.CalledProcessError: Command '['/workspace/setup-tools/venv/bin/python', '/workspace/mbmf-conductor-a/tests/test_recovery_browser.py']' returned non-zero exit status 1.
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/workspace/mbmf-conductor-a/scripts/screenshots.py", line 289, in <module>
+    args=parser.parse_args();run(args.output,args.performance)
+                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/mbmf-conductor-a/scripts/screenshots.py", line 271, in run
+    HeadlessTests.tearDownClass()
+  File "/workspace/mbmf-conductor-a/tests/test_headless_mvp.py", line 58, in tearDownClass
+    cls.engine.communicate(timeout=5)
+  File "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/subprocess.py", line 1209, in communicate
+    stdout, stderr = self._communicate(input, endtime, timeout)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/subprocess.py", line 2116, in _communicate
+    self._check_timeout(endtime, orig_timeout, stdout, stderr)
+  File "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/subprocess.py", line 1253, in _check_timeout
+    raise TimeoutExpired(
+subprocess.TimeoutExpired: Command '['/workspace/mbmf-conductor-a/.build/midi-headless-engine', '/workspace/mbmf-conductor-a/midi_human_looper.jsfx', '/tmp/midi-m0-x0lwhmga/engine.sock', '--demo']' timed out after 5 seconds

@@ -2,7 +2,7 @@
 
 > **Read this first on every new Codex session.** Update this file in the SAME branch/PR as implementation work, after each focused commit. Never reset a checkout or merge/deploy automatically. See [the delivery plan](conductor-musical-delivery-plan.md) and [the master spec](../movement-phrase-conductor-master-spec.md).
 
-## Current status — M1 source MUTE GROUP implemented
+## Current status — M2 implementation in progress
 
 - **Branch:** `fix/m0-phrase-playback-contract`, explicitly stacked on PR #78 HEAD `493b13bc259d4e8649a2a4750d1a61b6d90b37b3` / #76. #77 (`6ad38ec`) stays independently reviewable, not implicitly integrated or deployed.
 - **Implemented:** native contract 2: direct LOOP toggle shared by Web/MIDI Learn/legacy Smart Switch; cross-source ONCE overlap; HOLD source-once with retained notes, PRESS cut/restart, RELEASE ignored; explicit source STOP. Native mode edits no longer pre-arm LOOP. REAPER execution keeps contract zero, no `@gfx` changes or feature port.
@@ -26,13 +26,33 @@
 - **Details/evidence:** [M1 contract and musician recipe](m1-phrase-source-mute-groups.md), `docs/evidence/m1/` and source-hash manifest. Original issue-54 25 files unchanged.
 - **Next precise implementation:** M2 separate stacked branch: extend the existing Smart Switch PRESS/HOLD dispatcher and worker-compiled STEP records to admit PRESS layers immediately and HOLD layers at the configured existing threshold; test short taps/release-before-threshold before adding REVEAL/CC7 ownership. Do not create another scheduler; do not conflate latched PLAY MODE HOLD with a long-press gesture. M2–M7 remain unfinished.
 
+## M2 current implementation checkpoint
+
+- Branch `feat/conductor-press-hold`, stacked on #80 HEAD `c956496`.
+- PRESS/HOLD actual DSP: 451 checks pass, including 44.1/48/96 kHz, 128/256/512/8192 frames, early release and exact-threshold release, repeated attacks, STOP pending cancellation and TEST TAP/HOLD. Native/API three tests pass, including held ONE_SHOT MOVEMENT and silent LOAD.
+- Runtime STEP record retains its 68-cell bound at this increment: 12 PHRASE entries filtered by HOLD bitmask, PRESS and HOLD MOVEMENT lists prepared separately on worker. No JSON, dynamic allocation or unbounded stored-list scan in callback. HOLD uses existing Smart Switch sample clock and configurable threshold.
+- UI TRIGGER inheritance/override is implemented and production browser authoring → SAVE/LOAD/reconnect → actual JACK passed. REVEAL is not yet executable. Draft #81 is the M2a increment, not the completed M2 gate.
+- User resolved 15 October 2026: REVEAL unknown CC7 volume defaults to 127; REVEAL/GATE RELEASE remasks while retaining timeline, does not stop the instance. Record these decisions; do not ask again.
+- Next exact action: implement REVEAL note/timeline lifecycle and token-owned CC7 output via existing Controller Host. Preserve real event chronology: do not let post-DSP controller processing let future replacement/physical events cancel an earlier event incorrectly. Same-CC7 MOVEMENT overlap requires explicit safe restriction or chronological unification, not competing writers.
+
+### M2a qualification checkpoint — 15 October 2026
+
+- Draft **#81**, `feat/conductor-press-hold`, stacked on #80; core code `8a131d5`.
+- Final focused DSP **692 checks, exit 0**, extending the earlier 451 with velocity-zero release, configured DOUBLE-window PRESS isolation and HOLD saturation without victim destruction. Twelve-voice budget unchanged.
+- Real Chromium authoring → transactional commit → SAVE/LOAD → reconnect → acyclic JACK: attacks **48,48,72,48,72**; held pair exactly **12000 samples** apart at 48 kHz. Receiver chronology asserted directly, zero output overflow. Exit 0; Cloud dummy 8192, not physical or low-buffer qualification.
+- Native three tests and the same three on newly built **ASAN/UBSAN**, exit 0, no diagnostic files (ASAN leak detection disabled; pinned ysfx library is not sanitizer-built). Existing native Conductor three, persistence 23 + MOVEMENT five, Controller 162709 + host 579, ownership 6698 and M0/M1 targeted tests pass.
+- Full shared host **18508 checks**, actual capture/export **18 + 36 fixtures**, exit 0. Exact source/binary hashes and logs are under `docs/evidence/m2/`. No claim of a new complete combined/LIVE run.
+- Final `scripts/screenshots.sh` exit 0: **192 real PNGs**, all five viewports inspected, no detector findings. TRIGGER shortened to visible TRIG while full accessible labels remain; scrollable 320×240 properties and bottom controls inspected.
+- Failures retained, not erased: first campaign ADD POINT timeout plus fixture teardown timeout; second campaign native configuration HTTP timeout; third campaign immediate old-DOM DOWN assertion. Six orphaned private fixture engines from earlier failed tests were retired after recording their exact PID/parent/command. Native DOWN values were already correct; the recovery test now requires the actual asynchronously rendered DOWN text through the unchanged default Playwright timeout. Standalone recovery and two subsequent full screenshot campaigns passed. The earlier ADD POINT/config timeout origins are not established; no claim that all Cloud/browser intermittence is resolved. Initial sanitizer compilation was deliberately stopped while the environment stalled, then built and tested sequentially successfully. One manually mis-invoked full-host run supplied a nonexistent baseline path; corrected invocation with the repository's actual `fa200857` baseline passed.
+- **M2 remains incomplete**: no REVEAL, CC7 ownership, LATCH/GATE execution, or advanced GATED MOVEMENT is advertised. Next coding action remains chronological shared Controller CC7 ownership and per-instance hidden/revealed lifecycle as specified in `m2-press-hold.md`. No pending product question about GATE/default CC7; both are resolved. M3–M7 not started by this increment. No merge/deploy; protected original 25 files unchanged.
+
 ## Gate board (do not mark DONE without exact commit + MIDI proof)
 
 | Gate | Status | Implementation PR/HEAD | Real MIDI proof | User hardware |
 |---|---|---|---|---|
 | M0 Historical ONCE/LOOP/HOLD + PLAY/STOP | MIDI-TESTED: contract 2; grid/global qualification pending | this branch; commit history | 238 focused checks + actual JACK trace | NOT TESTED |
 | M1 SOURCE MUTE GROUP | MIDI-TESTED: source admission + warnings/persistence; later QUEUED/actions pending | separate stacked branch | 64 DSP checks + actual JACK | NOT TESTED |
-| M2 PRESS/HOLD + REVEAL | NOT STARTED | — | — | — |
+| M2 PRESS/HOLD + REVEAL | IN PROGRESS: PRESS/HOLD MIDI/browser tested; REVEAL pending | draft #81, feat/conductor-press-hold | 692 DSP checks, 3 native/ASAN tests, real Chromium→JACK | NOT TESTED |
 | M3 JOIN + instance policies | NOT STARTED | — | — | — |
 | M4 MOVEMENT completion (reuse Phase F) | PARTIAL PRE-EXISTING; NEEDS VERIFICATION | PR #62 and integration | prior branch evidence not yet reconciled | — |
 | M5 CONDUCTOR editor/traversal/transitions | PARTIAL PRE-EXISTING; NEEDS VERIFICATION | PR #76 integration | prior branch evidence not yet reconciled | — |
@@ -59,7 +79,8 @@ Populate the complete A01–L11 and R1–R7 matrix from the master spec incremen
 ## Current task / handoff
 
 - M0 code `49a14b9`, checkpoint `2037269`, draft #79 published.
-- M1 draft #80, branch `feat/phrase-source-mute-groups`, engine code `f743b9146c3820caba9e2da1716b0a9a106b5d0f`; final evidence/test-only checkpoint follows. Production engine/config/editor, MIDI/API/ASAN/browser tests and screenshots committed/published. No remaining uncommitted implementation at checkpoint.
+- M1 draft #80, branch `feat/phrase-source-mute-groups`, engine code `f743b9146c3820caba9e2da1716b0a9a106b5d0f`, final HEAD `c956496`; MIDI/API/ASAN/browser evidence committed/published.
+- M2a draft #81: `feat/conductor-press-hold`, first code `8a131d5`, qualification commit follows. Working native PHRASE/MOVEMENT PRESS/HOLD; real browser trigger override and JACK; no REVEAL execution yet. Continue directly with the CC7 ownership boundary in [M2 implementation contract](m2-press-hold.md), not another global audit. Both user decisions are recorded there. No additional product approval is pending for GATE or the default volume.
 - Next milestone M2 as above. M0 optional grid/global transport corner qualification and full combined/LIVE remain explicit release follow-ups, not declared complete. No hardware installation approved.
 
 ## First musician test sheet template (fill with real controls before offering an install)

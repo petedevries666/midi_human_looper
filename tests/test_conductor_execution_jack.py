@@ -121,10 +121,17 @@ with tempfile.TemporaryDirectory(prefix='mbmf-conductor-jack-') as tmp:
   if web is not None:web.terminate();web.communicate(timeout=5)
   if probe is not None:probe.terminate();probe.communicate(timeout=5)
   if engine is not None:engine.terminate();engine.communicate(timeout=10)
-  server.terminate();server.communicate(timeout=5)
-
+  server.terminate()
+  teardown_error=None
+  try:server.communicate(timeout=5)
+  except subprocess.TimeoutExpired as error:
+   # Preserve the five-second guard as a failure, but reap our private server
+   # and publish logs before raising it. Never leave a failed fixture's JACK.
+   server.kill();server.communicate(timeout=5);teardown_error=error
   for log in logs.values():log.close()
   if os.environ.get('CONDUCTOR_DIAGNOSTIC_DIR'):
    evidence=Path(os.environ['CONDUCTOR_DIAGNOSTIC_DIR']);evidence.mkdir(parents=True,exist_ok=True)
    for name in logs:shutil.copyfile(Path(tmp)/(name+'.log'),evidence/(name+'.log'))
    (evidence/'process-exits.json').write_text(json.dumps(dict(engine=engine.returncode if engine else None,jack=server.returncode,web=web.returncode if web else None),indent=2)+'\n')
+
+  if teardown_error is not None:raise teardown_error

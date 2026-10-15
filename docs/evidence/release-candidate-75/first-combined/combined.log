@@ -1,0 +1,45 @@
++ scripts/headless-test.sh
+PASS bounded FIFO
+...............
+----------------------------------------------------------------------
+Ran 15 tests in 6.017s
+
+OK
+.......
+----------------------------------------------------------------------
+Ran 7 tests in 0.396s
+
+OK
+..............................
+----------------------------------------------------------------------
+Ran 30 tests in 4.776s
+
+OK
+.....
+----------------------------------------------------------------------
+Ran 5 tests in 0.002s
+
+OK
+.......
+----------------------------------------------------------------------
+Ran 7 tests in 0.001s
+
+OK
+Cannot lock down 107341340 byte memory area (Cannot allocate memory)
+PASS actual JACK CONDUCTOR: hardware-like PRESS input, four STEPS/wrap, independent layers, missing reference silence, selective STOP, PANIC, silent LOAD and timestamp ordering {"notes": [[450560, 16, 144, 60, 100], [483328, 16, 144, 62, 100], [516096, 16, 144, 64, 100], [548864, 16, 144, 65, 100], [581632, 16, 144, 60, 100], [819200, 16, 144, 60, 100], [819200, 16, 144, 62, 100], [851968, 0, 128, 60, 0], [909312, 0, 128, 62, 0]], "cleanupMessages": 624, "attacks": [60, 62, 64, 65, 60, 60, 62]}
+Traceback (most recent call last):
+  File "/workspace/mbmf-conductor-a/tests/test_conductor_execution_jack.py", line 124, in <module>
+    server.terminate();server.communicate(timeout=5)
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/subprocess.py", line 1209, in communicate
+    stdout, stderr = self._communicate(input, endtime, timeout)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/subprocess.py", line 2141, in _communicate
+    self.wait(timeout=self._remaining_time(endtime))
+  File "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/subprocess.py", line 1264, in wait
+    return self._wait(timeout=timeout)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/subprocess.py", line 2045, in _wait
+    raise TimeoutExpired(self.args, timeout)
+subprocess.TimeoutExpired: Command '['/workspace/scratch/midi-deps/root/usr/bin/jackd', '--name', 'mbmf-conductor-d', '--no-realtime', '-d', 'dummy', '-r', '48000', '-p', '8192']' timed out after 4.999973459984176 seconds
+FAILED: exit 1: scripts/headless-test.sh

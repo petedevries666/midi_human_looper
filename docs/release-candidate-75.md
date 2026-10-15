@@ -71,6 +71,10 @@ The 3-second first JACK fixture expired while several acknowledged commands
 completed at 8192 frames; it is retained as failed evidence. The final fixture
 uses an 8-second triangle with **201 exact values/timestamps**, not a weakened
 ownership/cadence assertion. No engine change was made to improve that fixture.
+The first full integrated run passed CONDUCTOR MIDI assertions, then failed the
+five-second private JACK shutdown guard. Its exit 1 and MIDI trace are retained.
+The fixture now reaps a stubborn child and saves logs **before re-raising the
+same timeout**. No deadline, MIDI assertion or timeout was relaxed.
 The inherited test typo `returnPolicy` is corrected to actual `returnMode`.
 
 ## Reproducible qualification

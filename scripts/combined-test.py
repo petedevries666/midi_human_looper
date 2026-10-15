@@ -51,6 +51,7 @@ try:
     run(['scripts/realtime-trace-test.sh'])
     run([sys.executable,'tests/test_conductor_execution_native.py'])
     run([sys.executable,'tests/test_conductor_gestures_native.py'])
+    run(['scripts/reveal-test.sh'],{'RUN_JACK_TESTS':'1' if a.jack else '0','RUN_CHAIN_BROWSER':'1' if a.browser=='chromium' else '' ,'TEST_PYTHON':sys.executable})
     run([sys.executable,'tests/test_phrase_mute_groups.py'])
     run([sys.executable,'tests/test_portable_engine.py'])
     run([sys.executable,'tests/test_project_sync.py'])

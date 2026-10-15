@@ -95,3 +95,12 @@ Populate the complete A01–L11 and R1–R7 matrix from the master spec incremen
 8. SAVE, reload stopped, repeat key actions; capture version, MIDI evidence and observed limitations.
 
 **Do not give installation commands until a specific reviewed build and rollback path exist.**
+
+### M2b active checkpoint — REVEAL / GATE
+
+Branch `feat/conductor-reveal`, based on delivered #81 `e8785f3`.
+Implementation is present across native DSP, Controller-token CC7 ownership,
+chronological JACK output, and existing transactional editor. Final qualification
+is pending; see [M2b implementation and exact next actions](m2-reveal.md).
+Default volume 127 and GATE remask-with-continuing-timeline are the explicit user
+choices. No physical device touched. No M3 work started.

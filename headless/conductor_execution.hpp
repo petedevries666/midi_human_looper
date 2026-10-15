@@ -14,12 +14,22 @@ inline bool onHold(const Value& b) {
   auto it=b.at("overrides").object.find("trigger");
   return it!=b.at("overrides").object.end() && choice(it->second.at("mode"),{"OVERRIDE"}) && choice(it->second.at("value"),{"HOLD"});
 }
+inline bool revealBlock(const Value& b) {
+  auto it=b.at("overrides").object.find("entry");
+  return it!=b.at("overrides").object.end() && choice(it->second.at("mode"),{"OVERRIDE"}) && choice(it->second.at("value"),{"REVEAL"});
+}
+inline bool gatedBlock(const Value& b) {
+  auto it=b.at("overrides").object.find("release");
+  return it!=b.at("overrides").object.end() && choice(it->second.at("mode"),{"OVERRIDE"}) && choice(it->second.at("value"),{"GATE"});
+}
 inline bool supportedBlock(const Value& b) {
-  if(!choice(b.at("type"),{"PHRASE"}))return false;
+  if(!choice(b.at("type"),{"PHRASE"}) || (revealBlock(b)&&!onHold(b)) || (gatedBlock(b)&&!revealBlock(b)))return false;
   for(const auto& item:b.at("overrides").object) {
     if(choice(item.second.at("mode"),{"INHERIT"}))continue;
     const auto& k=item.first;const auto& v=item.second.at("value");
     if(k=="playMode" || k=="phrase_base_velocity" || k=="phrase_velocity_decay" || k=="phrase_time_decay")continue;
+    if(k=="entry" && choice(v,{"TRIGGER","REVEAL"}))continue;
+    if(k=="release" && choice(v,{"LATCH","GATE"}))continue;
     if(k=="trigger" && choice(v,{"PRESS","HOLD"}))continue;
     if(k=="instancePolicy" && choice(v,{"NEW_INSTANCE"}))continue;
     if(k=="join" && choice(v,{"TRIGGER"}))continue;
@@ -41,9 +51,9 @@ inline std::vector<double> compile(const std::vector<unsigned>& bytes,double bas
     if(si==16)continue;unsigned h=si*8;
     out[h]=owners[si];out[h+1]=sw.at("steps").array.size();out[h+2]=base+out.size();out[h+3]=-1;
     out[h+7]=choice(sw.at("traversal"),{"SEQUENTIAL"})&&choice(sw.at("transition"),{"IMMEDIATE"})&&choice(sw.at("gesture"),{"INSTANT"});
-    unsigned stepStart=out.size();out.resize(out.size()+sw.at("steps").array.size()*68,0);unsigned stepIndex=0;
+    unsigned stepStart=out.size();out.resize(out.size()+sw.at("steps").array.size()*72,0);unsigned stepIndex=0;
     for(const auto& step:sw.at("steps").array) {
-      std::array<double,68> record{};std::vector<double> admissions,heldAdmissions;
+      std::array<double,72> record{};std::vector<double> admissions,heldAdmissions;
       record[0]=choice(step.at("transition"),{"INHERIT","IMMEDIATE"});
       unsigned n=0;
       std::map<unsigned,unsigned> winners;
@@ -68,6 +78,8 @@ inline std::vector<double> compile(const std::vector<unsigned>& bytes,double bas
         if(groups[it->second] && winners[groups[it->second]]!=it->second)continue;
         if(n>=12){record[0]=0;record[3]=2;continue;}
         if(onHold(b))record[66]+=1u<<n;
+        if(revealBlock(b))record[68]+=1u<<n;
+        if(gatedBlock(b))record[69]+=1u<<n;
         unsigned row=4+n*5;record[row]=it->second;record[row+1]=-1;
         auto mode=b.at("overrides").object.find("playMode");
         if(mode!=b.at("overrides").object.end() && choice(mode->second.at("mode"),{"OVERRIDE"}))
@@ -76,7 +88,7 @@ inline std::vector<double> compile(const std::vector<unsigned>& bytes,double bas
       }
       record[2]=n;record[64]=admissions.size();record[65]=base+out.size();record[67]=heldAdmissions.size();
       admissions.insert(admissions.end(),heldAdmissions.begin(),heldAdmissions.end());
-      std::copy(record.begin(),record.end(),out.begin()+stepStart+stepIndex++*68);out.insert(out.end(),admissions.begin(),admissions.end());
+      std::copy(record.begin(),record.end(),out.begin()+stepStart+stepIndex++*72);out.insert(out.end(),admissions.begin(),admissions.end());
     }
   }
   return out;

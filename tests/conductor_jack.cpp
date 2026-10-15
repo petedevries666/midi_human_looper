@@ -5,7 +5,7 @@
 #include <atomic>
 #include <iostream>
 struct Packet{unsigned st=0,note=0,value=0,offset=16;};
-struct Event{unsigned long long frame=0;unsigned offset=0,st=0,note=0,value=0;};
+struct Event{unsigned long long frame=0;unsigned offset=0,st=0,note=0,value=0;unsigned long long cycle=0,sample=0,xruns=0;};
 static std::array<Packet,256> queue;
 #ifndef MBMF_TEST_EVENT_CAPACITY
 #define MBMF_TEST_EVENT_CAPACITY 16384
@@ -13,6 +13,7 @@ static std::array<Packet,256> queue;
 static std::array<Event,MBMF_TEST_EVENT_CAPACITY> events;
 static std::atomic<unsigned> read{0},write{0};
 static unsigned count=0;static bool overflow=false;
+static unsigned long long receiveCycle=0,receiveSample=0;static std::atomic<unsigned long long> receiveXruns{0};
 static jack_client_t* client;static jack_port_t *input,*output;
 #ifdef MBMF_TEST_ACYCLIC
 static jack_client_t* sourceClient;
@@ -25,6 +26,7 @@ static int send(jack_nframes_t frames,void*){
   return 0;
 }
 static int process(jack_nframes_t frames,void*){
+  const auto cycle=++receiveCycle,sample=receiveSample;receiveSample+=frames;
 #ifndef MBMF_TEST_ACYCLIC
   if(send(frames,nullptr))return 1;
 #endif
@@ -47,6 +49,7 @@ static int process(jack_nframes_t frames,void*){
 #else
       v.frame=jack_last_frame_time(client);
 #endif
+      v.cycle=cycle;v.sample=sample;v.xruns=receiveXruns.load(std::memory_order_relaxed);
       v.offset=e.time;v.st=e.buffer[0];v.note=e.buffer[1];v.value=e.size==3?e.buffer[2]:0;}}
   return 0;
 }
@@ -64,6 +67,7 @@ int main(){
 #else
   output=jack_port_register(client,"footswitch",JACK_DEFAULT_MIDI_TYPE,JackPortIsOutput,0);
 #endif
+  jack_set_xrun_callback(client,[](void*){++receiveXruns;return 0;},nullptr);
   jack_set_process_callback(client,process,nullptr);if(jack_activate(client))return 3;
   if(jack_connect(client,"mbmf_d:midi_out",jack_port_name(input))||jack_connect(client,jack_port_name(output),"mbmf_d:midi_in"))return 4;
   std::cout<<"READY\n"<<std::flush;unsigned st,note,value;
@@ -76,6 +80,10 @@ int main(){
   jack_deactivate(sourceClient);jack_client_close(sourceClient);
 #endif
   jack_deactivate(client);jack_client_close(client);
-  for(unsigned j=0;j<count;++j){auto e=events[j];std::cout<<e.frame<<' '<<e.offset<<' '<<e.st<<' '<<e.note<<' '<<e.value<<'\n';}
+  for(unsigned j=0;j<count;++j){auto e=events[j];std::cout<<e.frame<<' '<<e.offset<<' '<<e.st<<' '<<e.note<<' '<<e.value
+#ifdef MBMF_TEST_CYCLE_DIAGNOSTICS
+    <<' '<<e.cycle<<' '<<e.sample<<' '<<e.xruns
+#endif
+    <<'\n';}
   return overflow?6:0;
 }

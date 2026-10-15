@@ -1338,13 +1338,14 @@ int main(int argc, char **argv) {
                  "[--demo] [--input JACK_PORT] [--output JACK_PORT]\n";
     return 2;
   }
-  bool useJack = false, demo = false, chainMode = false, chainGridCapture = false;
+  bool useJack = false, demo = false, chainMode = false, chainGridCapture = false, traceCPU=false;
   unsigned chainTimingVersion=1;
   std::string clientName = "midi_human_looper";
   std::string inputPort, outputPort, tracePath;
   for (int i = 3; i < argc; ++i) {
     std::string a = argv[i];
-    if (a == "--rt-trace" && i+1<argc)
+    if(a=="--rt-trace-cpu")traceCPU=true;
+    else if (a == "--rt-trace" && i+1<argc)
       tracePath=argv[++i];
     else if (a == "--jack")
       useJack = true;
@@ -1379,7 +1380,7 @@ int main(int argc, char **argv) {
   bool bound = false;
   std::unique_ptr<realtime_trace::Trace> rtTrace;
   try {
-    if(!tracePath.empty()) rtTrace.reset(new realtime_trace::Trace(tracePath));
+    if(!tracePath.empty()) rtTrace.reset(new realtime_trace::Trace(tracePath,traceCPU));
     if (getrandom(&engineSession, sizeof(engineSession), 0) !=
         static_cast<ssize_t>(sizeof(engineSession)))
       throw std::runtime_error("session identity entropy unavailable");
@@ -2003,12 +2004,12 @@ int main(int argc, char **argv) {
     std::array<MovementPhysical,128> movementPhysical{};
     std::function<int(jack_nframes_t)> process = [&](jack_nframes_t frames) {
       realtime_trace::Trace::Scope trace(rtTrace.get(),state.samples,frames);
-      if(rtTrace)trace.value.jackFrame=useJack?jack_last_frame_time(jack):state.samples;
+      {realtime_trace::Trace::Scope::Probe measure(trace,10);if(rtTrace)trace.value.jackFrame=useJack?jack_last_frame_time(jack):state.samples;}
       const uint64_t noteStart=tracedNotes,noteOnStart=tracedNoteOns,ccStart=tracedCCs,orderStart=tracedOrderErrors;
       tracedHaveOutput=false;
       movements.block(frames);
-      void *outBuffer =
-          useJack ? jack_port_get_buffer(midiOut, frames) : nullptr;
+      void *outBuffer=nullptr;
+      {realtime_trace::Trace::Scope::Probe measure(trace,11);if(useJack)outBuffer=jack_port_get_buffer(midiOut,frames);}
       auto cleanupChain = [&]() {
         outputRead = outputWrite;
         NSEEL_code_execute(chainRecovery);
@@ -2035,8 +2036,9 @@ int main(int argc, char **argv) {
       bool recovering = overflowRecovery;
       overflowRecovery = false;
       if (outBuffer) {
-        jack_midi_clear_buffer(outBuffer);
+        {realtime_trace::Trace::Scope::Probe measure(trace,12);jack_midi_clear_buffer(outBuffer);}
         if (recovering) {
+          realtime_trace::Trace::Scope::Probe measure(trace,13);
           movements.panic();
           controllers.panic();
           outputRead = outputWrite;
@@ -2050,17 +2052,19 @@ int main(int argc, char **argv) {
                 overflowRecovery = true;
               else {traceWrite(0);if(rtTrace)++tracedCCs;}
             }
-        } else
-          flushOutput(outBuffer, frames);
+        } else {realtime_trace::Trace::Scope::Probe measure(trace,14);flushOutput(outBuffer, frames);}
       }
       if (useJack && !muted && !recovering) {
-        void *in = jack_port_get_buffer(midiIn, frames);
-        unsigned n = jack_midi_get_event_count(in);
+        void *in=nullptr;unsigned n=0;
+        {realtime_trace::Trace::Scope::Probe measure(trace,15);in=jack_port_get_buffer(midiIn,frames);}
+        {realtime_trace::Trace::Scope::Probe measure(trace,16);n=jack_midi_get_event_count(in);}
         trace.value.inputEvents=n;
         for (unsigned i = 0; i < n; ++i) {
           jack_midi_event_t e;
-          if (!jack_midi_event_get(&e, in, i) &&
-              !loading.load(std::memory_order_acquire)) {
+          int inputStatus;
+          {realtime_trace::Trace::Scope::Probe measure(trace,17);inputStatus=jack_midi_event_get(&e,in,i);}
+          if (!inputStatus && !loading.load(std::memory_order_acquire)) {
+            realtime_trace::Trace::Scope::Probe measure(trace,18);
             if (inputWrite - inputRead >= 8192 || e.size > 256) {
               ++state.outputOverflow;
               overflowRecovery = true;
@@ -2084,6 +2088,7 @@ int main(int argc, char **argv) {
         auto &m=(*outputBatch)[movementOutputCount++];m.size=3;m.offset=unsigned(sample>state.samples?sample-state.samples:0);m.data[0]=176|ch;m.data[1]=cc;m.data[2]=value;return true;
       };
       auto applyMovement=[&](const controller::Binding &b,double value){if(!model.bindingValue(b))return false;applyBinding(b,value);return true;};
+      {realtime_trace::Trace::Scope::Probe measure(trace,19);
       unsigned inputBudget = 128;
       while (inputRead != inputWrite && inputBudget--) {
         auto &m = (*inputQueue)[inputRead++ % 8192];
@@ -2109,6 +2114,7 @@ int main(int argc, char **argv) {
       }
       for (unsigned q = inputRead; q != inputWrite; ++q)
         (*inputQueue)[q % 8192].offset = 0;
+      }
       trace.mark(1);
       auto start = std::chrono::steady_clock::now();
       auto &pending = *pendingStorage;
@@ -2883,7 +2889,7 @@ int main(int argc, char **argv) {
       *snapHostRead = *snapHostWrite = 0;
       while(movementPhysicalRead<movementPhysicalCount){auto &p=movementPhysical[movementPhysicalRead++];movements.render(state.samples+p.offset,emitMovement,applyMovement,true);movements.physical(p.ch,p.cc,p.value,state.samples+p.offset);}
       ysfx_midi_event_t event{};
-      movements.render(state.samples+frames,emitMovement,applyMovement);
+      {realtime_trace::Trace::Scope::Probe measure(trace,20);movements.render(state.samples+frames,emitMovement,applyMovement);}
       trace.mark(7);
       unsigned outputCount = movementOutputCount;
       for(unsigned j=0;j<outputCount;++j)(*outputOrder)[j]=j;

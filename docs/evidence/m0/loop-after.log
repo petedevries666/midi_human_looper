@@ -1,0 +1,7 @@
+M0 LOOP block=128 first=[[144,60,100]]
+M0 LOOP block=128 second=[[128,60,0]]
+M0 LOOP block=512 first=[[144,60,100]]
+M0 LOOP block=512 second=[[128,60,0]]
+M0 LOOP block=8192 first=[[144,60,100]]
+M0 LOOP block=8192 second=[[128,60,0]]
+PASS: 114 actual native M0 playback checks

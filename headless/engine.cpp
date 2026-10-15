@@ -71,6 +71,7 @@ struct Request {
   uint64_t id = 0, session = 0, instanceId=0, instanceGeneration=0;
   int op = 0, target = 0, arg = 0, revision = 1, ch = 0, note = 0, value = 0;
   int module = 0, count = 0;
+  unsigned admissionOwner=0;
   char snapshotName[49]{};
   double macroPosition = 0;
   double snapshotSeconds = 2;
@@ -107,7 +108,8 @@ struct Phrase {
 struct Snapshot {
   uint64_t samples = 0, blocks = 0, midi = 0, late = 0, last_sample = 0;
   int revision = 1;
-  unsigned pendingOutput = 0;
+  unsigned pendingOutput = 0, admissionOwner=0;
+  bool admissionManaged=false;
   int chainPhrase=0,chainErrorPhrase=-1;
   unsigned chainTimingVersion=1;
   bool chain = false, chainGridCapture = false, chainRun = false, chainArmed = false, chainRecord = false,
@@ -185,6 +187,7 @@ static void execute(ysfx_t *fx, const char *text) {
 struct Model {
   std::array<std::array<EEL_F*,128>,16> switchFields;
   std::array<std::array<EEL_F*,8>,16> conductorFields;
+  std::array<std::array<EEL_F*,2>,16> switchAdmission;
   EEL_F *musicalState,*recordLayer,*odLayer,*odActive,*odArmed,*freeActive,*freeReady,*freeError;
   std::array<EEL_F*,12> voiceActive,voiceLayer;
   std::array<EEL_F*,16> phraseTriggers,phraseFinished;
@@ -328,6 +331,7 @@ struct Model {
                           : unsigned(variable(fx, "DS_RT_BASE")) + (i - 4) * 32;
       for(unsigned j=0;j<128;++j)switchFields[i][j]=cell(fx,b+j);
       for(unsigned k=0;k<8;++k)conductorFields[i][k]=cell(fx,unsigned(variable(fx,"CONDUCTOR_BASE"))+i*8+k);
+      switchAdmission[i][0]=cell(fx,rt);switchAdmission[i][1]=cell(fx,rt+3);
       sw[i][24] = cell(fx, rt + 7);
       sw[i][25] = cell(fx, rt + 12);
       sw[i][26] = cell(fx, rt + 11);sw[i][27] = cell(fx, rt + 17);
@@ -608,6 +612,7 @@ static std::string json(const Reply &r) {
     << ",\"status\":" << quote(status[r.status])
     << ",\"backend\":" << quote(s.backend ? "jack" : "mock")
     << ",\"buildRevision\":" << quote(MBMF_BUILD_REVISION)
+    << ",\"updateAdmissionVersion\":1,\"admissionManaged\":" << (s.admissionManaged?"true":"false") << ",\"admissionClosed\":" << (s.admissionOwner?"true":"false")
     << ",\"chainFrameGap\":" << s.chainFrameGap << ",\"chainClockGap\":" << s.chainClockGap
     << ",\"chainTimingVersion\":" << s.chainTimingVersion
     << ",\"chainCaptureMode\":" << quote(s.chainGridCapture?"two-bar-grid":"free-time")
@@ -977,7 +982,7 @@ static void control(int listener, Queue<Request, 64> &commands,
                       request.arg >> request.revision >> request.ch >>
                       request.note >> request.value) &&
                  request.id > 0 && request.id <= 9007199254740991ULL &&
-                 request.op >= 0 && (request.op <= 49) && request.arg >= 0 &&
+                 request.op >= 0 && (request.op <= 50) && request.arg >= 0 &&
                  request.arg <= (request.op == 13   ? 5
                                  : request.op == 40 ? 7
                                  : request.op == 15 || request.op == 34 ? 3
@@ -993,6 +998,11 @@ static void control(int listener, Queue<Request, 64> &commands,
       valid = bool(input >> marker >> request.session) && marker == "session" &&
               request.session > 0 && request.session <= 9007199254740991ULL;
     }
+    input >> std::ws;
+    if(valid && input.peek()=='a'){
+      std::string marker;valid=bool(input>>marker>>request.admissionOwner)&&marker=="admission"&&request.admissionOwner>0&&request.admissionOwner<=16777215;
+    }
+    if(valid&&request.op==50)valid=request.session>0&&request.target>0&&request.target<=16777215&&request.arg<=1;
     if (valid && (request.op == 36 || request.op == 37)) {
       std::string hex;
       valid=bool(input>>hex) && request.arg<=(request.op==37?2:1) && request.target>0 &&
@@ -1338,13 +1348,15 @@ int main(int argc, char **argv) {
                  "[--demo] [--input JACK_PORT] [--output JACK_PORT]\n";
     return 2;
   }
-  bool useJack = false, demo = false, chainMode = false, chainGridCapture = false, traceCPU=false;
-  unsigned chainTimingVersion=1;
+  bool useJack = false, demo = false, chainMode = false, chainGridCapture = false, traceCPU=false, managedAdmission=false;
+  unsigned chainTimingVersion=1, startupAdmission=0;
   std::string clientName = "midi_human_looper";
   std::string inputPort, outputPort, tracePath;
   for (int i = 3; i < argc; ++i) {
     std::string a = argv[i];
-    if(a=="--rt-trace-cpu")traceCPU=true;
+    if(a=="--managed-admission")managedAdmission=true;
+    else if(a=="--update-admission"&&i+1<argc){startupAdmission=std::stoul(argv[++i]);if(!startupAdmission||startupAdmission>16777215)return 2;}
+    else if(a=="--rt-trace-cpu")traceCPU=true;
     else if (a == "--rt-trace" && i+1<argc)
       tracePath=argv[++i];
     else if (a == "--jack")
@@ -1661,6 +1673,7 @@ int main(int argc, char **argv) {
     double performanceMorphAt = 0, performanceMorphSeconds = 0;
     unsigned performanceSkipped = 0;
     Snapshot state;
+    state.admissionOwner=startupAdmission;state.admissionManaged=managedAdmission;
     state.backend = useJack;
     state.sampleRate = sampleRate;
     state.blockSize = blockSize;
@@ -2054,7 +2067,7 @@ int main(int argc, char **argv) {
             }
         } else {realtime_trace::Trace::Scope::Probe measure(trace,14);flushOutput(outBuffer, frames);}
       }
-      if (useJack && !muted && !recovering) {
+      if (useJack && !muted && !recovering && !state.admissionOwner) {
         void *in=nullptr;unsigned n=0;
         {realtime_trace::Trace::Scope::Probe measure(trace,15);in=jack_port_get_buffer(midiIn,frames);}
         {realtime_trace::Trace::Scope::Probe measure(trace,16);n=jack_midi_get_event_count(in);}
@@ -2082,6 +2095,7 @@ int main(int argc, char **argv) {
           (*inputQueue)[q % 8192].offset = 0;
         return 0;
       }
+      bool admittedInput=trace.value.inputEvents!=0;
       unsigned movementOutputCount=0,movementPhysicalCount=0;
       auto emitMovement=[&](uint64_t sample,unsigned ch,unsigned cc,unsigned value){
         if(movementOutputCount>=8192)return false;
@@ -2091,6 +2105,7 @@ int main(int argc, char **argv) {
       {realtime_trace::Trace::Scope::Probe measure(trace,19);
       unsigned inputBudget = 128;
       while (inputRead != inputWrite && inputBudget--) {
+        admittedInput=true;
         auto &m = (*inputQueue)[inputRead++ % 8192];
         ysfx_midi_event_t e{};
         e.offset = std::min(m.offset, frames - 1);
@@ -2126,10 +2141,27 @@ int main(int argc, char **argv) {
         reply.status = 0;
         reply.detailRevision = 0;
         reply.id = request.id;
+        // Do not acquire behind a musical/configuration command admitted in this
+        // same cycle, before its deferred EEL effects have been observed.
+        if(request.op!=0&&request.op!=2&&request.op!=4&&request.op!=50)admittedInput=true;
         if (request.op != 0 &&
             ((request.session && request.session != engineSession) ||
              (request.revision != state.revision && request.revision != -1)))
           reply.status = 1;
+        else if(state.admissionOwner && request.op!=0 && request.op!=2 && request.op!=4 && request.op!=50 && !(request.op==5 && request.admissionOwner==state.admissionOwner))reply.status=3;
+        else if(request.op==50){
+          if(request.arg==1){
+            if(state.admissionOwner!=unsigned(request.target))reply.status=3;
+            else {state.admissionOwner=0;chain.previous=chain.previousClock=0;}
+          } else if(state.admissionOwner){if(state.admissionOwner!=unsigned(request.target))reply.status=3;}
+          else if(admittedInput||inputRead!=inputWrite||outputRead!=outputWrite||state.active||movements.active||chain.run||chain.recording||chain.armed||*importOverdub>.5||*importArmed>.5||*importState==importRecording||*importState==importPlaying||performanceMorphSeconds>0||
+              std::any_of(importSustain.begin(),importSustain.end(),[](double* p){return *p>.5;})||
+              std::any_of(importLiveSustain.begin(),importLiveSustain.end(),[](double* p){return *p>=64;})||
+              std::any_of(importVoices.begin(),importVoices.end(),[](double* p){return *p>.5;})||
+              std::any_of(model.voiceActive.begin(),model.voiceActive.end(),[](double* p){return *p>.5;})||
+              std::any_of(model.switchAdmission.begin(),model.switchAdmission.end(),[](const std::array<EEL_F*,2>& p){return *p[0]>.5||*p[1]>.5;}))reply.status=3;
+          else {state.admissionOwner=unsigned(request.target);chain.previous=chain.previousClock=0;}
+        }
         else if (request.op == 35) {
           // Transactional interchange: stopped processor only. No parsing, copying
           // event vectors or filesystem work occurs in the real-time callback.
@@ -2728,12 +2760,15 @@ int main(int argc, char **argv) {
               cancelAB();
               ++state.revision;
             }
-          } else if (!ysfx_send_midi(fx, &event))
-            reply.status = 3;
+          } else {admittedInput=true;if(!ysfx_send_midi(fx,&event))reply.status=3;}
         }
       }
       trace.value.commands=count;
       trace.mark(2);
+      ysfx_midi_event_t event{};
+      // The UPDATE owner freezes all musical writers as well as admission.
+      // Only already-generated safety output and read/restore transactions run.
+      if(!state.admissionOwner){
       for (unsigned j = 0; j < performanceTargetCount;) {
         auto &p = (*performanceTargets)[j];
         if (!model.bindingValue(p.binding, true)) {
@@ -2755,21 +2790,22 @@ int main(int argc, char **argv) {
         NSEEL_code_execute(phraseAssign);
         ++state.revision;
       }
-      if (controllers.tick((state.samples + frames) / double(sampleRate),
-                           resolveBinding, applyBinding))
-        ++state.revision;
+      {realtime_trace::Trace::Scope::Probe measure(trace,21);
+      if (controllers.tick((state.samples + frames) / double(sampleRate),resolveBinding,applyBinding))++state.revision;}
       if (chainMode) {
         jack_position_t position{};
-        bool rolling =
-            jack ? jack_transport_query(jack, &position) == JackTransportRolling
-                 : true;
+        bool rolling=true;
+        {realtime_trace::Trace::Scope::Probe measure(trace,22);if(jack)rolling=jack_transport_query(jack,&position)==JackTransportRolling;}
         auto frame = jack ? uint64_t(position.frame) : state.samples;
         double bpm =
             position.valid & JackPositionBBT ? position.beats_per_minute : 120.;
         if (!std::isfinite(bpm) || bpm < 30 || bpm > 240)
           bpm = 120.;
-        if (chain.tick(frame, frames, sampleRate, rolling, bpm,
-                       jack ? uint64_t(jack_last_frame_time(jack)) : 0)) {
+        uint64_t frameClock=0;
+        {realtime_trace::Trace::Scope::Probe measure(trace,10);if(jack)frameClock=jack_last_frame_time(jack);}
+        bool resetChain;
+        {realtime_trace::Trace::Scope::Probe measure(trace,23);resetChain=chain.tick(frame,frames,sampleRate,rolling,bpm,frameClock);}
+        if (resetChain) {
           movementOutputCount=0;movements.panic();
           controllers.panic();
           if (chain.run && outBuffer) {
@@ -2888,8 +2924,8 @@ int main(int argc, char **argv) {
       }
       *snapHostRead = *snapHostWrite = 0;
       while(movementPhysicalRead<movementPhysicalCount){auto &p=movementPhysical[movementPhysicalRead++];movements.render(state.samples+p.offset,emitMovement,applyMovement,true);movements.physical(p.ch,p.cc,p.value,state.samples+p.offset);}
-      ysfx_midi_event_t event{};
       {realtime_trace::Trace::Scope::Probe measure(trace,20);movements.render(state.samples+frames,emitMovement,applyMovement);}
+      }
       trace.mark(7);
       unsigned outputCount = movementOutputCount;
       for(unsigned j=0;j<outputCount;++j)(*outputOrder)[j]=j;

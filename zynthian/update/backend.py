@@ -144,11 +144,17 @@ class Backend:
                 history=self.directory/'runtime-update.json'
                 previous=json.loads(history.read_text()) if history.exists() else {}
                 if action=='recover':
+                    if previous.get('phase') in ('active','rolled-back') and (self.directory/'update-admission.json').exists():
+                        runtime.resume_admission(self.directory)
+                        self.report('complete','Verified runtime retained; interrupted admission fence released');return
                     if previous.get('phase')!='pending':raise ValueError('No interrupted activation')
-                    runtime.service('stop');self.restore_components(previous)
-                    self.u.atomic(self.config,previous['previous']);runtime.service('start')
-                    runtime.healthy({**previous['previous'],'_directory':str(self.directory)},previous['expected'])
-                    self.u.atomic(history,{**previous,'phase':'rolled-back'})
+                    with runtime.quiesce(self.directory,recover=True) as gate:
+                        gate.retain=True
+                        runtime.service('stop');self.restore_components(previous)
+                        self.u.atomic(self.config,previous['previous']);runtime.service('start')
+                        runtime.healthy({**previous['previous'],'_directory':str(self.directory)},previous['expected'])
+                        self.u.atomic(history,{**previous,'phase':'rolled-back'})
+                        gate.retain=False
                     self.report('complete','Interrupted activation recovered');return
                 if previous.get('phase')=='pending':raise ValueError('Recover interrupted activation before retrying')
                 # Refuse playback before network, build or checkpoint work.

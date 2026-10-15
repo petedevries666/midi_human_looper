@@ -6,7 +6,9 @@ from unittest.mock import patch
 ROOT=Path(__file__).resolve().parents[1]
 spec=importlib.util.spec_from_file_location('update',ROOT/'scripts/zynthian-update.py')
 u=importlib.util.module_from_spec(spec);spec.loader.exec_module(u)
+from update_fixture import FixtureAdmission
 class Service:
+    def quiesce(self,*args,**kw):return FixtureAdmission()
     def __init__(self,fail=False):self.calls=[];self.fail=fail
     def service(self,action):self.calls.append(action)
     def healthy(self,config,expected):

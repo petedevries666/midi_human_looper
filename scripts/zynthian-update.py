@@ -157,6 +157,14 @@ class Runtime:
                 try:web.wait(timeout=5)
                 except subprocess.TimeoutExpired:web.kill();web.wait()
                 web.stdout.close()
+    def quiesce(self,directory,recover=False):
+        from update_admission import Admission
+        return Admission(directory,self.Control,atomic,None if recover else self.checkpoint,recover)
+    def resume_admission(self,directory):
+        from update_admission import Admission, startup_owner
+        gate=Admission(directory,self.Control,atomic);gate.owner=startup_owner(directory)
+        if not gate.owner:raise ValueError('No interrupted admission fence')
+        gate.__exit__(None,None,None)
     def checkpoint(self, directory):
         result={}
         for socket in directory.glob('processor-*/control.sock'):
@@ -178,7 +186,7 @@ class Runtime:
         for chain in (True,False):
             with tempfile.TemporaryDirectory(prefix='mbmf-preflight-') as temporary:
                 socket=str(Path(temporary)/'control.sock')
-                args=[config['binary'],str(Path(config['repository'])/'midi_human_looper.jsfx'),socket]
+                args=[config['binary'],str(Path(config['repository'])/'midi_human_looper.jsfx'),socket,'--managed-admission','--update-admission','1']
                 if chain:
                     args+=['--chain','--chain-timing',str(config.get('chain_timing_version',1))]
                     if config.get('chain_grid_capture',False):args+=['--chain-grid-capture']
@@ -190,7 +198,8 @@ class Runtime:
                             if process.poll() is not None:raise ValueError('Preflight engine failed')
                             if time.monotonic()>deadline:raise ValueError('Preflight startup timed out')
                             time.sleep(.1)
-                        control=self.Control(socket);state=control.request()
+                        control=self.Control(socket);control.admission_owner=1;state=control.request()
+                        if state.get('updateAdmissionVersion')!=1 or not state.get('admissionClosed'):raise ValueError('Candidate lacks safe UPDATE admission')
                         if state.get('status')!='ok':raise ValueError('Preflight protocol failed')
                         verified=state['buildRevision']
                         if chain:self.web_preflight(config,socket,temporary,verified)
@@ -250,26 +259,30 @@ def activate(config_path, new, runtime, expected, journal=None, expected_config=
     if old!=baseline:
         raise ValueError('Installation configuration changed after preflight; no activation performed. Check and confirm again.')
     if journal is None:journal={'version':1,'phase':'pending','previous':old,'candidate':new,'expected':expected}
-    atomic(history,journal)
-    try:
-        runtime.service('stop')
-        if hasattr(runtime,'apply_components'):runtime.apply_components(journal)
-        atomic(config_path,new)
-        runtime.service('start')
-        runtime.healthy({**new,'_directory':str(directory)},expected)
-    except BaseException as activation_error:
+    with runtime.quiesce(directory) as gate:
+        if json.loads(config_path.read_text())!=baseline:raise ValueError('Installation configuration changed after preflight; no activation performed')
+        if gate.expected is not None:expected=gate.expected;journal['expected']=expected
+        atomic(history,journal)
         try:
-            try:runtime.service('stop')
-            finally:
-                if hasattr(runtime,'restore_components'):runtime.restore_components(journal)
-                atomic(config_path,old)
+            runtime.service('stop')
+            if hasattr(runtime,'apply_components'):runtime.apply_components(journal)
+            atomic(config_path,new)
             runtime.service('start')
-            runtime.healthy({**old,'_directory':str(directory)},expected)
-        except BaseException as rollback_error:
-            raise RuntimeError('Activation failed ('+str(activation_error)+'); rollback needs recovery ('+str(rollback_error)+')') from rollback_error
-        atomic(history,{**journal,'phase':'rolled-back'})
-        raise
-    atomic(history,{**journal,'phase':'active'})
+            runtime.healthy({**new,'_directory':str(directory)},expected)
+        except BaseException as activation_error:
+            try:
+                try:runtime.service('stop')
+                finally:
+                    if hasattr(runtime,'restore_components'):runtime.restore_components(journal)
+                    atomic(config_path,old)
+                runtime.service('start')
+                runtime.healthy({**old,'_directory':str(directory)},expected)
+            except BaseException as rollback_error:
+                gate.retain=True
+                raise RuntimeError('Activation failed ('+str(activation_error)+'); rollback needs recovery ('+str(rollback_error)+')') from rollback_error
+            atomic(history,{**journal,'phase':'rolled-back'})
+            raise
+        atomic(history,{**journal,'phase':'active'})
 
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
@@ -290,9 +303,12 @@ def main():
             raise ValueError('Component update journal requires the authorized UPDATE worker for rollback/recovery; legacy CLI will not partially restore it')
         if history.exists() and json.loads(history.read_text()).get('phase')=='pending':
             pending=json.loads(history.read_text())
-            runtime.service('stop');atomic(args.config,pending['previous']);runtime.service('start')
-            runtime.healthy({**pending['previous'],'_directory':str(directory)},pending['expected'])
-            atomic(history,{**pending,'phase':'rolled-back'})
+            with runtime.quiesce(directory,recover=True) as gate:
+                gate.retain=True
+                runtime.service('stop');atomic(args.config,pending['previous']);runtime.service('start')
+                runtime.healthy({**pending['previous'],'_directory':str(directory)},pending['expected'])
+                atomic(history,{**pending,'phase':'rolled-back'})
+                gate.retain=False
             raise ValueError('Recovered interrupted activation; inspect state before retrying')
         run('systemctl','is-active','--quiet','zynthian')
         if args.rollback:

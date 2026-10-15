@@ -13,13 +13,19 @@ class NativeSource(unittest.TestCase):
         proc=lambda code:types.SimpleNamespace(eng_code=code,engine=types.SimpleNamespace(get_jackname=lambda:'mbh_1:'))
         chain=lambda ident,slots,synth=False:types.SimpleNamespace(chain_id=ident,zmop_index=ident,midi_slots=slots,synth_slots=[[proc('SYN')]] if synth else [],midi_out=[])
         self.chains={1:chain(1,[[proc('MB')]]),**{i:chain(i,[],True) for i in (2,3,4)}}
-        self.calls=[];self.port=types.SimpleNamespace(name='mbh_1:midi_out')
+        self.calls=[];self.routes={};self.port=types.SimpleNamespace(name='mbh_1:midi_out')
+        def get_route(zmop,index):
+            return self.routes.get((zmop,index),1)
+        def set_route(zmop,index,enabled):
+            self.routes[(zmop,index)]=enabled
+            self.calls.append(('route',zmop,index,enabled))
+            return 1
         self.ctx=types.SimpleNamespace(chain_manager=types.SimpleNamespace(chains=self.chains),
             jclient=types.SimpleNamespace(get_ports=lambda *a,**kw:[self.port]),hw_midi_src_ports=[],
             devices_in=[None,self.port],devices_in_mode=[1,1],lib_zyncore=types.SimpleNamespace(
-                zmip_get_flag_active_chain=lambda index:1,zmop_get_route_from=lambda *a:1,
+                zmip_get_flag_active_chain=lambda index:1,zmop_get_route_from=get_route,
                 zmip_set_flag_active_chain=lambda *a:self.calls.append(('mode',*a)),
-                zmop_set_route_from=lambda *a:self.calls.append(('route',*a))))
+                zmop_set_route_from=set_route))
     def test_three_filtered_receivers_no_direct_shortcuts_or_focus_dependency(self):
         router.discover(self.ctx);router.discover(self.ctx)
         self.assertEqual(self.ctx.hw_midi_src_ports,[self.port])

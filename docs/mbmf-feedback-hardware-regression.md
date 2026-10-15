@@ -31,7 +31,7 @@ Do not reconnect the old native source on this snapshot until qualified.
   Reject JACK graph paths from an allowed chain's `chN_out` back to
   the source's `mbh_N:midi_in`.
 - Disable all excluded native routes **before** enabling synth receivers.
-  Verify each native `zmop_set_route_from` with `zmop_get_route_from`.
+  Verify the native MULTI input mode and each `zmop_set_route_from` with matching getters.
   On any mismatch/exception, close all routes from that source and omit
   the `mbh_N:midi_out -> devN_in` JACK connection from Oram's desired
   graph. Log the refusal.
@@ -45,9 +45,9 @@ unbounded MIDI feedback storm.
 
 ## Validation status
 
-Six new unit tests passed in a local Python 3 runtime, covering
+Seven new unit tests passed in a local Python 3 runtime, covering
 independent synth channels, exclusion of MIDI-only chains, indirect
-chain returns, JACK graph returns, failed native readback, source
+chain returns, JACK graph returns, failed native route/mode readback, source
 removal and unrelated JACK routes. The pre-existing PR #67 source
 tests were updated to use a stateful zyncore API mock.
 

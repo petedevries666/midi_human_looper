@@ -33,7 +33,7 @@ class Trace {
   while(!done.load(std::memory_order_acquire)||read.load()!=write.load()) {
    const auto now=clock(CLOCK_MONOTONIC);
    if(!haveClock&&producer.load(std::memory_order_acquire))haveClock=pthread_getcpuclockid(producer.load(),&producerClock)==0;
-   if(haveClock&&now>=nextCPU){cpuFile<<now<<','<<clock(producerClock)<<'\n';nextCPU=now+10000000;}
+   if(haveClock&&now>=nextCPU){auto before=clock(CLOCK_MONOTONIC),cpu=clock(producerClock),after=clock(CLOCK_MONOTONIC);cpuFile<<before<<','<<cpu<<','<<after<<'\n';nextCPU=after+10000000;}
    auto r=read.load(std::memory_order_relaxed),w=write.load(std::memory_order_acquire);
    if(r==w){std::this_thread::sleep_for(std::chrono::milliseconds(2));continue;}
    const auto v=records[r%Capacity];read.store(r+1,std::memory_order_release);
@@ -45,7 +45,7 @@ class Trace {
  }
 public:
  explicit Trace(const std::string& path,bool detailedCPU=false):cpuDetail(detailedCPU),cpuFile(path+".cpu.csv"),file(path) {
-  cpuFile<<"wall_ns,thread_cpu_ns\n";
+  cpuFile<<"wall_ns,thread_cpu_ns,wall_after_ns\n";
   if(!file||!cpuFile)throw std::runtime_error("cannot open RT trace");
   file<<"sample,frames,entry_ns,entry_gap_ns,wall_ns,cpu_ns,xruns,commands,pending,active,rejected,overflow,jack_frame,note_events,note_ons,cc_events,phrase_instances,phrase_sources_mask,instance_rejected,input_events,order_errors,user_us,system_us,minor_faults,major_faults,voluntary_switches,involuntary_switches,clock_read_wall_ns,resource_read_wall_ns";
   for(const char* name:{"input_recovery","commands","controller_transport","movement_parameters","performance","eel_phrase_transformers","movement_cc_actions","midi_collect","sort","emit_observe_reply","jack_cycle_clock","jack_output_buffer","jack_output_clear","recovery","queued_output","jack_input_buffer","jack_input_count","jack_input_get","input_copy","input_dispatch","movement_render","controller_tick","jack_transport_query","chain_tick"})file<<','<<name<<"_wall_ns,"<<name<<"_cpu_ns";

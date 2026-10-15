@@ -57,8 +57,12 @@ no new MIDI event ordering, scheduling or musical parameter policies.
 | After, wall STRESS/512 | .665 / 1.297 / 4.244 | unavailable | 1 | 0 |
 
 The after LIGHT/512 14.469 ms callback is enclosed by a worker interval using
-**at most .865 ms CPU**, so at least 13.604 ms was off CPU. This is measured
-scheduling delay, not a guess based on the host being Cloud. Conversely, the
+**at most 6.854 ms CPU**, so at least 7.615 ms was off CPU. This is measured
+scheduling delay, not a guess based on the host being Cloud. The historical
+worker timestamps precede CPU reads: this bound deliberately uses an earlier
+sample proven complete before callback entry, rather than assuming instantaneous
+sampling (which would incorrectly claim .865 ms). New worker CSVs bracket every
+CPU read with before/after wall times. Conversely, the
 STRESS/256 8.097 ms peak has an enclosing CPU interval of about 8.96 ms: it cannot
 be dismissed as scheduling delay. Its EEL bracket remains a stress timing risk.
 These short windows do not prove a universal performance speedup.

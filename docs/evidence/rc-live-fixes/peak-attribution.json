@@ -148,13 +148,15 @@
   },
   "enclosingCPUSamples": [
     {
-      "wall_ns": 419126352426110,
-      "thread_cpu_ns": 104272222
+      "wall_ns": 419126144705703,
+      "thread_cpu_ns": 98283444
     },
     {
       "wall_ns": 419126564468179,
       "thread_cpu_ns": 105137120
     }
   ],
-  "callbackCPUUpperBoundNs": 864898
+  "callbackCPUUpperBoundNs": 6853676,
+  "firstSampleCompletedBefore": 419126352426110,
+  "boundExplanation": "Historical worker timestamp precedes CPU read. Use the earlier sample whose completion necessarily precedes the following sample timestamp, itself before callback entry; do not assume zero sampling latency. New traces bracket each CPU read."
 }

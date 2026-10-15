@@ -98,8 +98,8 @@ for frames in map(int,a.buffers.split(',')):
      report['measured']['detailedCpu']=a.detailed_cpu
      cpuPath=d/'callback.csv.cpu.csv'
      if cpuPath.exists():
-      samples=[{k:int(v) for k,v in r.items()} for r in csv.DictReader(cpuPath.open())];inside=[r for r in samples if report['startNs']<=r['wall_ns']<=report['endNs']]
-      if len(inside)>1:report['measured']['externalCpu']=dict(seconds=(inside[-1]['thread_cpu_ns']-inside[0]['thread_cpu_ns'])/1e9,wallSeconds=(inside[-1]['wall_ns']-inside[0]['wall_ns'])/1e9,sampling='10ms worker-side JACK thread clock; no per-callback CPU attribution')
+      samples=[{k:int(v) for k,v in r.items()} for r in csv.DictReader(cpuPath.open())];inside=[r for r in samples if report['startNs']<=r['wall_ns'] and r.get('wall_after_ns',r['wall_ns'])<=report['endNs']]
+      if len(inside)>1:report['measured']['externalCpu']=dict(seconds=(inside[-1]['thread_cpu_ns']-inside[0]['thread_cpu_ns'])/1e9,wallSeconds=(inside[-1]['wall_ns']-inside[0]['wall_ns'])/1e9,sampling='10ms worker-side JACK thread clock; each read has before/after bounds, no per-callback CPU attribution',wallSecondsMin=(inside[-1]['wall_ns']-inside[0].get('wall_after_ns',inside[0]['wall_ns']))/1e9,wallSecondsMax=(inside[-1].get('wall_after_ns',inside[-1]['wall_ns'])-inside[0]['wall_ns'])/1e9)
      if not a.detailed_cpu:
       for key in ('cpu','offCpu','cpuOverruns','userUs','systemUs','cpuAboveWall'):report['measured'][key]=None
       report['measured']['stages']={k:stats([r[k] for r in rr]) for k in rr[0] if k.endswith('_wall_ns')}

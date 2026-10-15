@@ -291,6 +291,9 @@ def configure(context, required_routes):
     if owned is None:
         context._mbmf_source_inputs = owned = {}
     chains = context.chain_manager.chains
+    # A malformed config must not leave 'requested' undefined in the
+    # mandatory fail-closed virtual-source admission check below.
+    requested = []
     try:
         requested = _read_exclusive_ports()
         exclusive_safe = _apply_exclusive(context, requested, names)

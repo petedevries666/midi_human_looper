@@ -185,5 +185,47 @@ class ExclusiveInput(unittest.TestCase):
 
 
 
+    def test_native_matrix_note_and_transport_paths_do_not_double_or_loop(self):
+        """Model the topology ZynMidiRouter applies, not audio/DSP timing.
+
+        dev0 -> MB ch0 -> dev2 -> synth ch1. A synth-side SMF tap may
+        re-enter through internal seq input, which must not reach MB.
+        """
+        self.configure()
+        def destinations(device, channel):
+            # Channel filter is native; only synth ch1 accepts channel 2
+            return [chain for chain in (self.mb, self.synth, self.other)
+                    if self.route(chain.zmop_index, device)
+                    and (chain is self.mb or
+                         (chain is self.synth and channel == 2))]
+        # Keyboard feeds MB only, even when the played note is on ch2.
+        self.assertEqual(destinations(0, 2), [self.mb])
+        # A forwarded MB event can reach the requested synth, not MB.
+        self.assertEqual(destinations(2, 2), [self.synth])
+        self.assertEqual(destinations(2, 3), [])
+        # Even an SMF side-tap of synth output can't reach MB again.
+        self.assertNotIn(self.mb, destinations(24, 2))
+        # Two note events (on/off) remain two events at each stage.
+        notes = [('on', 41, 100), ('off', 41, 0)]
+        observed = [(state, key, velocity, target.chain_id)
+                    for state, key, velocity in notes
+                    for target in destinations(2, 2)]
+        self.assertEqual(observed, [
+            ('on', 41, 100, 2), ('off', 41, 0, 2)
+        ])
+
+    def test_keyboard_selection_change_is_rejected_without_new_permission(self):
+        self.configure()
+        self.set_ports(['ttymidi:MIDI_in'])
+        graph = self.configure()
+        # Missing or changed input selection may not silently admit
+        # existing virtual MB output in an unreviewed hardware graph.
+        self.assertEqual(graph['ZynMidiRouter:dev2_in'],
+                         {'mbh_1:midi_out'})
+        self.assertEqual(self.route(1, 1), 0)
+        self.assertEqual(self.route(1, 0), 1)
+
+
+
 if __name__ == '__main__':
     unittest.main()

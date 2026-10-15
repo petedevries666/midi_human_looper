@@ -131,8 +131,11 @@ def configure(context, required_routes):
         # A failed readback leaves the source disconnected (no feedback storm).
         safe = mb_chain_count > 0
         try:
-            context.lib_zyncore.zmip_set_flag_active_chain(index, 0)
+            if context.lib_zyncore.zmip_set_flag_active_chain(index, 0) != 1:
+                safe = False
             context.devices_in_mode[index] = 0
+            if context.lib_zyncore.zmip_get_flag_active_chain(index) != 0:
+                safe = False
             for zmop, enabled in sorted(routes, key=lambda pair: pair[1]):
                 if context.lib_zyncore.zmop_set_route_from(zmop, index, enabled) != 1:
                     safe = False

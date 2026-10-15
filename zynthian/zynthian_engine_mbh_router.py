@@ -143,14 +143,22 @@ def _apply_exclusive(context, requested, virtual_names):
     # old ownership and capture a fresh baseline for the new graph.
     old = getattr(context, '_mbmf_exclusive', None)
     if old:
+        # A changed opt-in keyboard list must release every previously
+        # owned input first; otherwise the old keyboard stays silently
+        # excluded from synths and the new one is isolated as well.
+        retargeted = set(old['modes']) != set(indexes.values())
+        if retargeted and not _restore_exclusive(context):
+            return False
+        old = getattr(context, '_mbmf_exclusive', None)
+    if old:
         stale = any((i >= len(context.devices_in) or
                      context.devices_in[i] is None or
                      context.devices_in[i].name != name)
                     for i, (name, _) in old['modes'].items())
         stale |= any(chains.get(chain.chain_id) is not chain or chain.zmop_index != zmop
                      for (zmop, _), (chain, _, _) in old['routes'].items())
-        if stale:
-            _restore_exclusive(context)
+        if stale and not _restore_exclusive(context):
+            return False
     saved = getattr(context, '_mbmf_exclusive', None)
     if not saved:
         context._mbmf_exclusive = saved = {'routes': {}, 'modes': {}}

@@ -1,0 +1,61 @@
++ 00-test_instance_ownership_native /workspace/setup-tools/venv/bin/python tests/test_instance_ownership_native.py
+EXIT 0
++ 01-m0-playback-test scripts/m0-playback-test.sh
+EXIT 0
++ 02-m0-playback-test scripts/m0-playback-test.sh --m1-groups
+EXIT 0
++ 03-m0-playback-test scripts/m0-playback-test.sh --m2-gestures
+EXIT 0
++ 04-run_host_tests tests/run_host_tests.sh
+EXIT 0
++ 05-portable-test scripts/portable-test.sh
+EXIT 0
++ 06-conductor-persistence-test scripts/conductor-persistence-test.sh
+EXIT 0
++ 07-test_patch_io /workspace/setup-tools/venv/bin/python tests/test_patch_io.py
+EXIT 0
++ 08-test_headless_browser /workspace/setup-tools/venv/bin/python tests/test_headless_browser.py
+EXIT 1
++ 09-test_update_controls_browser /workspace/setup-tools/venv/bin/python tests/test_update_controls_browser.py
+EXIT 0
++ 10-test_phrase_output_browser /workspace/setup-tools/venv/bin/python tests/test_phrase_output_browser.py
+EXIT 0
++ 11-test_headless_editor /workspace/setup-tools/venv/bin/python tests/test_headless_editor.py
+EXIT 0
++ 12-test_conductor_execution_browser /workspace/setup-tools/venv/bin/python tests/test_conductor_execution_browser.py
+EXIT 0
++ 13-test_conductor_editor_browser /workspace/setup-tools/venv/bin/python tests/test_conductor_editor_browser.py
+EXIT 0
++ 14-test_movement_browser /workspace/setup-tools/venv/bin/python tests/test_movement_browser.py
+EXIT 0
++ 15-pending_edit /workspace/setup-tools/venv/bin/python tests/conductor_diagnostics/pending_edit.py
+EXIT 0
++ 16-editor_click /workspace/setup-tools/venv/bin/python tests/conductor_diagnostics/editor_click.py
+EXIT 0
++ 17-test_controller_browser /workspace/setup-tools/venv/bin/python tests/test_controller_browser.py
+EXIT 0
++ 18-test_snapshot_browser /workspace/setup-tools/venv/bin/python tests/test_snapshot_browser.py
+EXIT 0
++ 19-test_product_browser /workspace/setup-tools/venv/bin/python tests/test_product_browser.py
+EXIT 0
++ 20-test_web_parity_browser /workspace/setup-tools/venv/bin/python tests/test_web_parity_browser.py
+EXIT 0
++ 21-test_tactile_browser /workspace/setup-tools/venv/bin/python tests/test_tactile_browser.py
+EXIT 0
++ 22-test_performance_density /workspace/setup-tools/venv/bin/python tests/test_performance_density.py
+EXIT 0
++ 23-test_phrase_midi_browser /workspace/setup-tools/venv/bin/python tests/test_phrase_midi_browser.py
+EXIT 0
++ 24-test_native_hold_browser /workspace/setup-tools/venv/bin/python tests/test_native_hold_browser.py
+EXIT 0
++ 25-test_phrase_mute_groups_browser /workspace/setup-tools/venv/bin/python tests/test_phrase_mute_groups_browser.py
+EXIT 0
++ 26-test_recovery_browser /workspace/setup-tools/venv/bin/python tests/test_recovery_browser.py
+EXIT 0
++ 27-test_hardware_feedback_browser /workspace/setup-tools/venv/bin/python tests/test_hardware_feedback_browser.py
+EXIT 0
++ 28-test_module_picker_browser /workspace/setup-tools/venv/bin/python tests/test_module_picker_browser.py
+EXIT 0
++ 29-test_issue53_browser /workspace/setup-tools/venv/bin/python tests/test_issue53_browser.py
+EXIT 0
+RESULT 30 commands; 1 failures

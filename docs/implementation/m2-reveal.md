@@ -1,4 +1,4 @@
-# M2b — native REVEAL / GATE implementation checkpoint
+# M2b — native REVEAL / GATE implementation
 
 Base: draft #81 (`e8785f3`). Branch `feat/conductor-reveal`, stacked on
 `feat/conductor-press-hold`. No deployment or merge. REAPER remains frozen.
@@ -46,12 +46,10 @@ worker-side.
 
 ## Validation status
 
-Checkpoint only: final regression and screenshot qualification are in progress.
+Final qualification is recorded in [the evidence report](../evidence/m2-reveal/README.md). The strict combined gates remain red; this is a draft for code review, not a qualified release.
 Earlier actual JACK/browser run demonstrated mute-before-On, exact 12000-sample
 HOLD at 48 kHz, GATE timeline continuity, source STOP, physical takeover, replacement
-of a real CC7 MOVEMENT, and same-block PANIC. The strengthened short-tap test and
-four native tests must pass on final code before delivery. Do not treat existing
-trace files or this checkpoint as final qualification.
+of a real CC7 MOVEMENT, and same-block PANIC. The strengthened short-tap test and five native tests now pass on the delivered implementation. See the evidence report for actual raw results and retained failures.
 
 One new fixture initially attempted to import CC7 using the notes-only SMF path;
 that request was rejected and its status was not checked. The corrected fixture
@@ -59,9 +57,7 @@ uses the production legacy patch loader and explicitly checks success. No import
 validation was relaxed. Functional Cloud dummy JACK at 8192 frames does not qualify
 small-buffer deadlines, ARM64, synth CC7 support or physical Zynthian safety.
 
-Next: finish focused tests, full combined regression, sanitizer gates, generate
-and inspect the required five-size browser PNG campaign, commit evidence and open
-M2b as a draft stacked on #81. No JOIN, FADE or hardware installation in this slice.
+Draft #82 is stacked on #81. Focused native/JACK, sanitizers and five-size visual evidence are committed. Next: qualify external/shared-channel sustain and full MIDI-buffer burst cleanup, then reconcile the old-contract test gates before advancing M3. No JOIN, FADE or hardware installation in this slice.
 
 ## Physical acceptance (after explicit review/installation approval)
 
@@ -104,3 +100,21 @@ snapshot per receiver callback and pre-faulted observation pages. No recorded
 output is sorted, filtered or retimed. Original chronology and exact cadence
 assertions remain unchanged. This fixes diagnostic attribution; it is not proof
 that general Cloud scheduling/XRUN risks have disappeared.
+
+## Admission work bounds and timing qualification
+
+At admission, CC7 preflight and mask capture each scan at most 2048 stored events
+per PHRASE, across the existing maximum 12 voices: at most 49152 event records for
+these two new scans in a full STEP. This is a structural bound, not a measured CPU
+budget or permission to raise capacities. Runtime storage is fixed/preallocated.
+
+An earlier functional Cloud run recorded REVEAL max callback wall time 48.7241 ms
+with 4 XRUN notifications; the expanded sustain/browser run recorded 12.2213 ms
+with 3 notifications, and MOVEMENT 40.8713 ms with 2 notifications. Both used
+48 kHz/8192 frames, non-real-time private dummy JACK. Earlier runs overlapped
+browser regression campaigns and native sanitizer compilation; expanded fixtures
+include setup/configuration, actual browser editing and subsequent MIDI testing. Exact MIDI cadence assertions passed; output
+queue overflow was zero. CPU time was not separately sampled in these fixtures.
+These measurements **do not** establish isolated engine cost, a cause for the
+XRUNs, safe 256/512-frame performance, or Raspberry Pi qualification. Do not call
+this live-qualified or reuse these maxima as an admission policy.

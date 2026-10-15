@@ -52,7 +52,7 @@
 |---|---|---|---|---|
 | M0 Historical ONCE/LOOP/HOLD + PLAY/STOP | MIDI-TESTED: contract 2; grid/global qualification pending | this branch; commit history | 238 focused checks + actual JACK trace | NOT TESTED |
 | M1 SOURCE MUTE GROUP | MIDI-TESTED: source admission + warnings/persistence; later QUEUED/actions pending | separate stacked branch | 64 DSP checks + actual JACK | NOT TESTED |
-| M2 PRESS/HOLD + REVEAL | IN PROGRESS: PRESS/HOLD MIDI/browser tested; REVEAL pending | draft #81, feat/conductor-press-hold | 692 DSP checks, 3 native/ASAN tests, real Chromium→JACK | NOT TESTED |
+| M2 PRESS/HOLD + REVEAL | MIDI-TESTED: PRESS/HOLD + REVEAL LATCH/GATE; global qualification blocked | draft #81 → #82, feat/conductor-reveal | 692 DSP checks, 5 REVEAL native/ASAN tests, real Chromium→JACK | NOT TESTED |
 | M3 JOIN + instance policies | NOT STARTED | — | — | — |
 | M4 MOVEMENT completion (reuse Phase F) | PARTIAL PRE-EXISTING; NEEDS VERIFICATION | PR #62 and integration | prior branch evidence not yet reconciled | — |
 | M5 CONDUCTOR editor/traversal/transitions | PARTIAL PRE-EXISTING; NEEDS VERIFICATION | PR #76 integration | prior branch evidence not yet reconciled | — |
@@ -104,3 +104,26 @@ chronological JACK output, and existing transactional editor. Final qualificatio
 is pending; see [M2b implementation and exact next actions](m2-reveal.md).
 Default volume 127 and GATE remask-with-continuing-timeline are the explicit user
 choices. No physical device touched. No M3 work started.
+
+### M2b delivery checkpoint — draft #82
+
+- Code: `74a8f3d457fb6509dec7e26e218e923034375bdb`, branch `feat/conductor-reveal`,
+  stacked on #81. Evidence/documentation commits follow without musical changes.
+- Implemented: timestamped native CC7 leases, silent REVEAL PRESS, exact HOLD,
+  early-release cleanup (including source-owned sustain), LATCH, GATE remask without timeline restart, transactional
+  editor/persistence, physical takeover and stale MOVEMENT cancellation protection.
+- Actual JACK/browser and 5 native/ASAN tests passed; all four MOVEMENT CC rates
+  and same-timestamp replacement passed after the diagnosed coalescing fix.
+- 200 actual PNGs generated; every generated view inspected across five sizes.
+- Strict combined suite **exit 1**. Old ONCE choke assertion is incompatible with
+  contract 2; exact parent #81 comparison has identical emitted notes. Native
+  baseline and dedicated-chain HOLD assertion similarly fail on exact parent.
+  No assertions were removed or weakened. Cloud XRUN qualification remains open.
+- Full results, command exits and raw traces: `docs/evidence/m2-reveal/README.md`.
+- Exact next coding step: add real-port REVEAL external/shared sustain
+  and full MIDI-buffer burst tests, fix any demonstrated lifecycle defect; then give the
+  three legacy-vs-contract-2 fixtures explicit versioned coverage. Keep the old
+  expectations as legacy tests rather than silently deleting them. Resume M3 only
+  with these MIDI-safety gates understood. No global audit restart required.
+- All 25 protected issue #54 files remain unchanged. No merge/deployment, no
+  physical qualification, no new REAPER capability or schema migration.

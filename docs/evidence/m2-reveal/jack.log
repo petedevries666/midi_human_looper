@@ -8,6 +8,8 @@ under certain conditions; see the file COPYING for details
 JACK server starting in non-realtime mode
 self-connect-mode is "Don't restrict self connect requests"
 Cannot lock down 107341340 byte memory area (Cannot allocate memory)
-JackEngine::XRun: client = mbmf_d was not finished, state = Running
+JackTimedDriver::Process XRun = 28 usec
+JackEngine::XRun: client = mbmf_d was not finished, state = Triggered
+JackEngine::XRun: client = conductor_probe was not finished, state = Triggered
 JackAudioDriver::ProcessGraphAsyncMaster: Process error
 Jack main caught signal 15

@@ -1,17 +1,23 @@
 {
   "codeCheckpoint": "1e6ed931dce4c1e5b42b4299de8c30fbb2515daf",
   "sourceSha256": {
-    "headless/engine.cpp": "3e9f9f2f58202429339558bf3f854824536a83d2b969fd8915ba2f35509093dd",
+    "headless/engine.cpp": "cace2a4e1f3312bad3af6eb253844531f79d09d71e49a6c6a157f04de04496c2",
     "headless/conductor_execution.hpp": "4d2e4dba573032be6a109062a8d3aca7ccf19d9471564a2df7c7bea7c3f90854",
     "headless/reveal_engine.hpp": "35678c0b73025be0d062e6997bf37fc42c8c8c176a1fb78e435ccb76fed48b4a",
     "headless/movement_engine.hpp": "b136a0a22d4d3d2fb1c9872148c8d7f63f34b1430ee0a7ebd93e5a0794a0e581",
     "headless/web/conductor.js": "3a48ddcd4f12100d09c9cf76df1c9f5a13a4562ad16061ccaab34fa5e3751be4",
     "midi_human_looper.jsfx": "c73f870b4f1b984d6e2f8f609d307f130eefe8f0970b06f450ccbae6b065ff0f",
-    "tests/test_conductor_reveal_native.py": "a40a50a7a765866f817eb9e72be6f46bc59b02415d5ecc321235bef5c122b1eb",
-    "tests/test_conductor_reveal_jack.py": "6b3fd3f2dbd6ba1777e32942087c860102b395461c6573336ea999128a3d9e1f"
+    "tests/test_conductor_reveal_native.py": "282e01a6fd5e34013205422a983f1e8d7024cade219ba1cbbc70a3eb7dd14879",
+    "tests/test_conductor_reveal_jack.py": "15230fb4b3759fa91b46c2bc9ada203f068af3a97391897f72acdb4afd133033",
+    "scripts/movement-jack-test.sh": "8e936af4ec3be7cd139d8cd4baed47f1e3b2ac29f7ce89354a4384fc0dc8864c"
   },
-  "nativeBinarySha256": "e81bc27bac3c88804bdc5633fa6284b26d84c6fab67f470883b1d2323cbe64eb",
-  "sanitizedBinarySha256": "64f8756702788ca60bbc1d37e142a280f73dc850487f455030d7235d52fa33b1",
+  "nativeBinarySha256": "11437cb4b1ded0acfb305a3e31e0805636b0c333a09fd196674ec470ddffec17",
+  "sanitizedBinarySha256": "4de9620ba6f23fe15da47fe4a3bee497edf49cfa592638e4ef4e22a0f4f04d92",
   "hardware": false,
-  "notes": "Build revision metadata predates documentation/evidence commits. Source hashes identify executable input; final tests/evidence have their own provenance."
+  "notes": "Build revision metadata predates documentation/evidence commits. Source hashes identify executable input; final tests/evidence have their own provenance.",
+  "finalCodeCommit": "74a8f3d457fb6509dec7e26e218e923034375bdb",
+  "parentBinarySha256": "6912bf98dace543586e1de78e75edd287f2cb3b6b6c18dcf8cdd252c458606e7",
+  "parentCommit": "e8785f3cb3ede32445bdf08c9715334c3abc047f",
+  "screenshots": "Generated before final C++ coalescing correction; Web UI source is identical. Actual generator provenance retained in docs/screenshots/manifest.json.",
+  "finalTestCommit": "f5017f0ac7ede501f580d59241074102f7de9c14"
 }

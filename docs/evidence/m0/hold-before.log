@@ -1,0 +1,2 @@
+M0 HOLD after source end: on=6 off=6 active=1
+FAIL: M0 HOLD plays source once and retains notes, without looping or recorded Off

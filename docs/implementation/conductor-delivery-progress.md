@@ -2,22 +2,24 @@
 
 > **Read this first on every new Codex session.** Update this file in the SAME branch/PR as implementation work, after each focused commit. Never reset a checkout or merge/deploy automatically. See [the delivery plan](conductor-musical-delivery-plan.md) and [the master spec](../movement-phrase-conductor-master-spec.md).
 
-## Current status (initial checkpoint; no implementation performed by this planning PR)
+## Current status — M0 implementation, increment 2
 
-- **Current gate:** M0, original PLAY MODE / PLAY-STOP regression recovery.
-- **Next exact action:** inspect historical `midi_human_looper.jsfx` behavior and native paths for direct PHRASE, learned MIDI, Web PLAY/STOP, legacy switch and CONDUCTOR. Write a short explicit expected/observed behavior matrix, then implement the first failing behavior and real MIDI regression fixture. **Do not start a new project-wide audit.**
-- **Plan base:** `integration/zynthian-release-candidate`, PR #76 (base observed `58ce482b1810bc93ae564c8dc736396067f4ba91`).
-- **Parallel corrective PR:** #77, `fix/rc-live-runtime-gates`, observed `6ad38ece5e9becbb810ef41b973666687f31c1cd`, **not merged**; integrate only by reviewed dependency decision.
-- **User's installed Zynthian reported HEAD:** `b4113da`, from Phase F / PR #62. The current local physical deployment is NOT assumed to match this planning branch.
-- **MUTE GROUP check on installed `b4113da`:** user ran grep; only `headless/conductor_document.hpp` and `headless/conductor.py` matched. This suggests recognition of an action target, **not proof of musical exclusion implementation**. Do not claim the runtime supports it until verified.
-- **Routing observed on hardware:** temporary `jack_connect mbh_1:midi_out sfizz-01:input`; it bypasses the intended ZynMidiRouter chain filter and is not a production routing fix.
-- **No V4 build installed or validated by this PR. No code changed. No tests run by this PR.**
+- **Branch:** `fix/m0-phrase-playback-contract`, explicitly stacked on PR #78 HEAD `493b13bc259d4e8649a2a4750d1a61b6d90b37b3` / #76. #77 (`6ad38ec`) stays independently reviewable, not implicitly integrated or deployed.
+- **Implemented:** native contract 2: direct LOOP toggle shared by Web/MIDI Learn/legacy Smart Switch; cross-source ONCE overlap; HOLD source-once with retained notes, PRESS cut/restart, RELEASE ignored; explicit source STOP. Native mode edits no longer pre-arm LOOP. REAPER execution keeps contract zero, no `@gfx` changes or feature port.
+- **Actual MIDI:** focused default `scripts/m0-playback-test.sh` exit 0: 114 LOOP + 17 ONCE + 51 HOLD + 56 shared-entry checks. Native constructor used. Conductor NEW INSTANCE remains independent; twelve-slot saturation remains a clean refusal. Raw before/after logs in `docs/evidence/m0/`.
+- **Native/JACK:** rebuilt production binary; `tests/test_m0_playback_jack.py` exit 0 at 48k/8192, actual attack pitches 60,62,64,64,65, HOLD Off-before-On, LOOP STOPPED/PLAYING/STOPPED, PANIC cleanup, no overflow, observed chronological ordering. No sorting/model/API MIDI echo.
+- **Regression:** 18,508 full shared EEL checks exit 0; ownership 6698, old contract-zero HOLD 864, CONDUCTOR 125, native CONDUCTOR 3 tests and free capture/overdub 6 tests pass. Actual source SMF fixtures: 18 capture + 36 free captures pass. Browser pointer/keyboard/learned MIDI and source STOP/PANIC pass. No complete combined/LIVE rerun in this musical increment; prior #76/#77 Cloud risks remain open.
+- **Visual:** screenshot workflow exit 0; all 184 manifest images across five sizes inspected in contact sheets. Actual existing compact layout retained. Manifest records the honest dirty revision; capture preceded the final native-only mode-arming fix. This is not final-SHA/hardware visual qualification.
+- **HOLD approved 15 October 2026:** maintain phrase notes; next PRESS cuts and restarts, RELEASE ignored. Direct replacement preserves independent Conductor occurrences. Explicit source STOP stops all its occurrences. Unsafe mono/ARP restrictions remain.
+- **Historical reference:** v1.23.0, `72b92db091d5aef05d37b45057b62ffca390c867`. It chokes cross-source ONCE and latches HOLD; graphical second click stops only. Native corrections intentionally follow user approval, not a false claim of historical equivalence.
+- **Details and five-minute musician test:** [M0 native contract](m0-native-playback-contract.md). No build deployment without explicit review; no V4 qualification. Protected issue-54 originals: 25/25 SHA256 unchanged.
+- **Next executable action:** after committing this exact code/evidence, start a separate stacked M1 source-only MUTE GROUP PR: versioned source metadata, bounded preparation into existing runtime, targeted release after successful admission; deterministic smallest-source-ID arbitration and recomputed warnings in CONDUCTOR, compact phrase options, save/load and actual MIDI tests. Do not implement JOIN/REVEAL or arbitrary capacities.
 
 ## Gate board (do not mark DONE without exact commit + MIDI proof)
 
 | Gate | Status | Implementation PR/HEAD | Real MIDI proof | User hardware |
 |---|---|---|---|---|
-| M0 Historical ONCE/LOOP/HOLD + PLAY/STOP | NOT STARTED | — | — | — |
+| M0 Historical ONCE/LOOP/HOLD + PLAY/STOP | MIDI-TESTED: contract 2; grid/global qualification pending | this branch; commit history | 238 focused checks + actual JACK trace | NOT TESTED |
 | M1 SOURCE MUTE GROUP | NOT STARTED | — | — | — |
 | M2 PRESS/HOLD + REVEAL | NOT STARTED | — | — | — |
 | M3 JOIN + instance policies | NOT STARTED | — | — | — |
@@ -42,16 +44,12 @@
 
 Populate the complete A01–L11 and R1–R7 matrix from the master spec incrementally as each feature is touched, with exact code location, test name, SHA and environment. Never mark a row DONE without actual native MIDI/parameter evidence. Do not fabricate a full matrix of green rows from existing PR prose.
 
-## Current task / handoff fields (overwrite at each checkpoint)
+## Current task / handoff
 
-- **Active implementation branch:** none yet (this is a planning PR).
-- **HEAD:** to be filled by executing Codex session after checking out its branch.
-- **Working tree changes:** none made by this planning PR beyond these two documentation files.
-- **Latest committed functional change:** none.
-- **Tests executed in this implementation task:** none.
-- **Current blocker:** none for investigating and implementing M0.
-- **Next executable action:** create a focused implementation branch/PR with explicit reviewed base, reproduce ONCE overlap and LOOP toggle on native engine, and add real emitted MIDI tests before modifying playback. Then implement/fix the first discrepancy.
-- **Stop/handoff:** record exact files changed, test commands and exit codes, uncommitted changes, next test to run, branch and SHA.
+- **Latest verified code commit:** `49a14b9f99d83b23fa299966b1862aadddae61fa` (checkpoint-only update follows; production code/tests already committed).
+- **Implementation PR:** [#79](https://github.com/petedevries666/midi_human_looper/pull/79), draft, branch `fix/m0-phrase-playback-contract`, base #78.
+- **Code:** new native runtime contract (no schema change), shared EEL default preserves REAPER, truthful API capability and HOLD browser interaction, integrated focused regression runners and actual JACK test.
+- **Next:** commit checkpoint with resulting code SHA, publish to #79, then start source MUTE GROUP on a separate stacked branch. M0 grid capture/global transport corner cases and broad Cloud timing release gate remain explicit follow-ups; do not mislabel full master-spec completion.
 
 ## First musician test sheet template (fill with real controls before offering an install)
 

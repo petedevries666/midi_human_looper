@@ -14,38 +14,40 @@ class Held(HeadlessTests):
         cls.base='http://127.0.0.1:'+str(cls.port);cls.start_web()
 Held.setUpClass();api=Held('test_real_engine_and_fifo')
 try:
-    api.command('panic');assert api.call()['nativeHeldRelease']
+    api.command('panic');state=api.call()
+    assert state['nativePhraseContract']==2 and not state['nativeHeldRelease']
     api.command('parameter_set',targetId=1,kind=20,value=2)
     with sync_playwright() as playwright:
-        browser=playwright.chromium.launch(headless=True,executable_path=os.environ.get('CHROMIUM_PATH','/usr/bin/chromium'),args=['--no-sandbox'])
+        browser=playwright.chromium.launch(headless=True,executable_path=os.environ.get('CHROMIUM_PATH','/usr/bin/chromium'),args=['--no-sandbox','--disable-gpu'])
         page=browser.new_page(viewport={'width':1366,'height':768});page.goto(api.base)
         page.get_by_text('CONNECTED · Engine running',exact=True).wait_for()
         trigger=page.locator('[data-phrase-id="1"] [data-phrase-play]')
         trigger.wait_for();assert not trigger.is_disabled()
-        before=api.call()['midiCount'];box=trigger.bounding_box()
-        page.mouse.move(box['x']+box['width']/2,box['y']+box['height']/2);page.mouse.down()
-        api.wait_for(lambda:api.call()['midiCount']>before,'pointer PRESS emitted actual MIDI')
-        page.wait_for_timeout(300);assert trigger.get_attribute('data-live-release')=='held'
-        page.mouse.up();api.wait_for(lambda:api.call()['activeNotes']==0,'pointer RELEASE cleanup')
-        # Focus must survive telemetry; keyboard release has the same engine dispatcher.
-        trigger.focus();before=api.call()['midiCount'];page.keyboard.down('Space')
-        api.wait_for(lambda:api.call()['midiCount']>before,'keyboard PRESS')
-        page.keyboard.up('Space');api.wait_for(lambda:api.call()['activeNotes']==0,'keyboard RELEASE')
-        # Short taps and pointer cancellation cannot lose an in-flight release.
-        page.mouse.down();page.mouse.up();page.wait_for_timeout(400)
-        assert api.call()['activeNotes']==0
-        api.command('panic')
-        # Actual existing phrase Learn consumes capture; subsequent note pairs trigger HOLD.
+        before=api.call()['midiCount'];trigger.click()
+        api.wait_for(lambda:api.call()['activeNotes']>0,'pointer PRESS sustained actual notes')
+        assert api.call()['midiCount']>before
+        page.wait_for_timeout(300);assert api.call()['activeNotes']>0,'pointer RELEASE must not stop HOLD'
+        before=api.call()['midiCount'];trigger.click()
+        api.wait_for(lambda:api.call()['midiCount']>before,'second PRESS cuts and restarts')
+        assert len(api.call()['instances'])==1,'direct HOLD replaces its own occurrence'
+        trigger.focus();before=api.call()['midiCount'];page.keyboard.press('Space')
+        api.wait_for(lambda:api.call()['midiCount']>before,'keyboard PRESS retrigger')
+        assert api.call()['activeNotes']>0,'keyboard RELEASE ignored'
+        api.command('phrase_stop',phraseId=1)
+        api.wait_for(lambda:api.call()['activeNotes']==0,'explicit source STOP cleanup')
         api.command('phrase_learn',phraseId=1)
         api.command('midi',channel=4,note=99,value=100)
         api.wait_for(lambda:api.call()['controllerLearn']['target']==0,'phrase Learn completion')
         api.command('midi',channel=4,note=99,value=0)
         before=api.call()['midiCount'];api.command('midi',channel=4,note=99,value=100)
-        api.wait_for(lambda:api.call()['midiCount']>before,'learned MIDI PRESS')
+        api.wait_for(lambda:api.call()['activeNotes']>0,'learned MIDI PRESS')
+        assert api.call()['midiCount']>before
         api.command('midi',channel=4,note=99,value=0)
-        api.wait_for(lambda:api.call()['activeNotes']==0,'learned velocity-zero RELEASE')
-        api.command('midi',channel=4,note=99,value=100);api.command('panic')
-        assert api.call()['activeNotes']==0
+        assert api.call()['activeNotes']>0,'learned velocity-zero RELEASE ignored'
+        before=api.call()['midiCount'];api.command('midi',channel=4,note=99,value=100)
+        api.wait_for(lambda:api.call()['midiCount']>before,'learned MIDI retrigger')
+        assert len(api.call()['instances'])==1
+        api.command('panic');assert api.call()['activeNotes']==0
         browser.close()
-    print('PASS native HOLD actual MIDI output: pointer, keyboard, short tap, learned MIDI PRESS/zero RELEASE and PANIC')
+    print('PASS M0 latched HOLD: pointer/keyboard retrigger, ignored RELEASE, learned MIDI, source STOP and PANIC')
 finally:Held.tearDownClass()

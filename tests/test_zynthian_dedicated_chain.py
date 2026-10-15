@@ -154,7 +154,7 @@ with tempfile.TemporaryDirectory(prefix='mbh-dedicated-') as temp:
         command(0)
         mode(2)
         state=control.request()
-        assert state['nativeHeldRelease']
+        assert state['nativePhraseContract']==2 and not state['nativeHeldRelease']
         before=state['midiCount'];command(1);time.sleep(4.4)
         held=control.request();assert held['midiCount']>before and held['chainRunning'],held
         command(4);time.sleep(.4)

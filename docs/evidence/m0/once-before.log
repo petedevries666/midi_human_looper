@@ -1,0 +1,2 @@
+M0 ONCE overlap second=[[128,48,0],[144,72,83]] active=1
+FAIL: M0 ONCE distinct sources overlap

@@ -683,6 +683,7 @@ static void stress(Host &h, bool historical, bool cc_instances = false, bool dyn
 #include "instance_ownership_cases.hpp"
 #include "conductor_execution_cases.hpp"
 #include "phrase_output_cases.hpp"
+#include "m0_playback_cases.hpp"
 int main(int argc, char **argv) {
   if (argc < 2)
     return 2;
@@ -697,6 +698,10 @@ int main(int argc, char **argv) {
   if (argc>2 && std::string(argv[2])=="--instrument-voices") {Host instrument_voices(argv[1]);instrument_voice_tests(instrument_voices);printf("PASS: %d voice checks\n",checks);return 0;}
   if (argc>2 && std::string(argv[2])=="--project") {project_state_tests(argv[1]);printf("PASS: %d project checks\n",checks);return 0;}
   if(argc>2 && std::string(argv[2])=="--phrase-output"){phrase_output_tests(argv[1]);printf("PASS: %d phrase output checks\n",checks);return 0;}
+  if(argc>2 && std::string(argv[2])=="--m0-once"){m0_once_tests(argv[1]);printf("PASS: %d M0 ONCE MIDI checks\n",checks);return 0;}
+  if(argc>2 && std::string(argv[2])=="--m0-entries"){m0_entry_tests(argv[1]);printf("PASS: %d M0 entry MIDI checks\n",checks);return 0;}
+  if(argc>2 && std::string(argv[2])=="--m0-hold"){m0_latched_hold_tests(argv[1]);printf("PASS: %d M0 HOLD MIDI checks\n",checks);return 0;}
+  if(argc>2 && std::string(argv[2])=="--m0-playback"){m0_playback_tests(argv[1]);printf("PASS: %d actual native M0 playback checks\n",checks);return 0;}
   Host h(argv[1]);
   if (argc > 2 && (std::string(argv[2]) == "--historical" ||
                    std::string(argv[2]) == "--isolated")) {

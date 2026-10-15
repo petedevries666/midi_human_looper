@@ -2933,10 +2933,16 @@ int main(int argc, char **argv) {
         if(c.kind==1){movements.physical(c.slot,c.mask,unsigned(c.id),sample);reveals.physical(c.slot,c.mask,unsigned(c.id),sample);continue;}
         // Cadence due exactly here precedes this control; a newly started
         // MOVEMENT emits its initial CC immediately at its own marker order.
-        movements.render(sample+1,emitMovement,applyMovement,true);
+        // Adjacent PRESS starts at one timestamp retain the established
+        // latest-owner-before-first-emission rule. Do not flush a losing
+        // initial CC between those starts. Other controls remain barriers.
+        bool coalescedStart=c.kind==9&&j>0&&(*nativeControls)[j-1].kind==9&&(*nativeControls)[j-1].offset==c.offset;
+        if(!coalescedStart)movements.render(sample+1,emitMovement,applyMovement,true);
         generatedAt=sample;generatedOrder=c.order;
         if(c.kind==2)reveals.observe(c.slot,c.mask,unsigned(c.id));
-        else if(c.kind==9){movements.start(unsigned(c.id),sample,resolveMovement);movements.render(sample+1,emitMovement,applyMovement,true);}
+        else if(c.kind==9){movements.start(unsigned(c.id),sample,resolveMovement);
+          bool nextStart=j+1<controlCount&&(*nativeControls)[j+1].kind==9&&(*nativeControls)[j+1].offset==c.offset;
+          if(!nextStart)movements.render(sample+1,emitMovement,applyMovement,true);}
         else if(c.kind==10){if(!reveals.start(c.slot,c.id,c.mask,sample,emitControlled)){++state.outputOverflow;overflowRecovery=true;}}
         else if(c.kind==11||c.kind==12)reveals.mask(c.slot,c.id,c.kind==12,sample,emitControlled);
         else if(c.kind==13)reveals.close(c.slot,c.id,sample,emitControlled);

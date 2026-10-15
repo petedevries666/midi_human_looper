@@ -87,3 +87,20 @@ M2b as a draft stacked on #81. No JOIN, FADE or hardware installation in this sl
 
 FADE/JOIN remain outside this slice. A synth ignoring CC7 cannot support audible
 REVEAL through this MIDI mechanism. No installation commands are authorized here.
+
+## Regression discovered and corrected before delivery
+
+The broader MOVEMENT fixture exposed a real change in this branch: two adjacent
+PRESS starts for one target at the same sample emitted `[25,102]` rather than the
+established latest-owner-only `[102]`. Chronological native control processing
+now defers initial emission across adjacent same-timestamp MOVEMENT starts. Other
+controls remain barriers. The unchanged real JACK fixture now verifies `[102]`,
+all four exact CC cadences, physical takeover, soft restart and final values.
+
+Separately, one old cyclic probe run attributed CC26 offsets 6800 then 528 to the
+same receiver frame (a backwards delta of 6272 = 8192−1920). The MOVEMENT runner
+now reuses the existing acyclic source/sink probe, with one `jack_last_frame_time`
+snapshot per receiver callback and pre-faulted observation pages. No recorded
+output is sorted, filtered or retimed. Original chronology and exact cadence
+assertions remain unchanged. This fixes diagnostic attribution; it is not proof
+that general Cloud scheduling/XRUN risks have disappeared.

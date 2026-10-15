@@ -3,6 +3,7 @@ import importlib.util
 from pathlib import Path
 import types
 import unittest
+from unittest.mock import patch
 
 spec = importlib.util.spec_from_file_location('mb_router', Path(__file__).resolve().parents[1] / 'zynthian/zynthian_engine_mbh_router.py')
 router = importlib.util.module_from_spec(spec)
@@ -38,6 +39,15 @@ class NativeAPI:
 
 class FeedbackGuard(unittest.TestCase):
     def setUp(self):
+        # This suite isolates the native virtual-source firewall. Physical
+        # input isolation and the explicit opt-in gate are separately tested
+        # in test_zynthian_exclusive_input.py.
+        self._policy = patch.object(router, '_read_exclusive_ports', return_value=['keyboard:out'])
+        self._apply = patch.object(router, '_apply_exclusive', return_value=True)
+        self._policy.start()
+        self._apply.start()
+        self.addCleanup(self._apply.stop)
+        self.addCleanup(self._policy.stop)
         def proc(code):
             return types.SimpleNamespace(eng_code=code, engine=types.SimpleNamespace(get_jackname=lambda: 'mbh_1:'))
 

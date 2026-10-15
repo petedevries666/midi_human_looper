@@ -48,6 +48,7 @@ try:
     run([sys.executable,'tests/test_movement_persistence.py'])
     run(['scripts/movement-test.sh'])
     run(['scripts/movement-test.sh'],{'SANITIZE':'1'})
+    run(['scripts/realtime-trace-test.sh'])
     run([sys.executable,'tests/test_conductor_execution_native.py'])
     run([sys.executable,'tests/test_portable_engine.py'])
     run([sys.executable,'tests/test_project_sync.py'])
@@ -94,7 +95,7 @@ try:
             run([sys.executable,'tests/test_recovery_browser.py'])
             run([sys.executable,'tests/test_hardware_feedback_browser.py'])
             run([sys.executable,'tests/test_issue53_browser.py'])
-    if a.web_access:run(['scripts/web-access-test.sh'],{'TEST_PYTHON':sys.executable})
+    if a.web_access:run(['scripts/az-hub-test.sh'],{'TEST_PYTHON':sys.executable})
     print('PASS selected combined regression suite',flush=True)
 except (RuntimeError,subprocess.TimeoutExpired,KeyboardInterrupt) as error:
     print(f'FAILED: {error}',file=sys.stderr);sys.exit(1)

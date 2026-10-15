@@ -85,6 +85,15 @@ class Host {
   // Captured note release must never leak into performance routing.
   std::array<std::array<bool, 128>, 16> quarantine{};
 
+  // Re-learning/forgetting one input invalidates only its mapping runtimes.
+  // configure releases leases owned by that mapping, preserving effective
+  // values and external (Snapshot/MOVEMENT) or other-source ownership.
+  void resetSourceMappings(uint32_t id) {
+    for (const auto &b : config.bindings)
+      if (b.policy.id && b.policy.source == id)
+        core.configure(b.policy);
+  }
+
 public:
   double time = 0;
   const Configuration &configuration() const { return config; }
@@ -135,7 +144,8 @@ public:
       if (a.id == s.id) {
         auto next=s;if(!next.name[0])for(unsigned j=0;j<17;++j)next.name[j]=a.name[j];
         a = next;
-        panic();
+        resetSourceMappings(s.id);
+        cancel();
         return true;
       }
     for (auto &a : config.sources)
@@ -168,7 +178,7 @@ public:
       if (s.id == id) {
         s.kind = 0;
         cancel();
-        core.panic();
+        resetSourceMappings(id);
         return true;
       }
     return false;
@@ -196,12 +206,7 @@ public:
       if ((commandLearning || s.id != learning) && s.kind == candidate.kind &&
           s.channel == candidate.channel && s.number == candidate.number) {
         s.kind = 0;
-        if (commandLearning)
-          for (const auto &b : config.bindings)
-            if (b.policy.id && b.policy.source == s.id) {
-              core.removeMapping(b.policy.id);
-              core.configure(b.policy);
-            }
+        resetSourceMappings(s.id);
       }
     auto s = candidate;
     s.id = learning;

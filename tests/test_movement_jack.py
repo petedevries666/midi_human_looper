@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Actual production host + private JACK, source CCs are captured at the port."""
-import os,sys,json,time,tempfile,subprocess
+import os,sys,json,time,tempfile,subprocess,shutil
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1];sys.path[:0]=[str(ROOT/'headless'),str(ROOT/'tests')]
 from server import Control
@@ -9,11 +9,12 @@ from test_movement_persistence import movement
 import conductor
 with tempfile.TemporaryDirectory(prefix='mbmf-movement-jack-') as tmp:
  env=dict(os.environ,JACK_DEFAULT_SERVER='mbmf-movement-f')
- server=subprocess.Popen([env['JACKD'],'--name',env['JACK_DEFAULT_SERVER'],'--no-realtime','-d','dummy','-r','48000','-p','8192'],env=env,stdout=subprocess.DEVNULL,stderr=subprocess.PIPE)
+ logs={name:open(Path(tmp)/(name+'.log'),'wb') for name in ('jack','engine','web')}
+ server=subprocess.Popen([env['JACKD'],'--name',env['JACK_DEFAULT_SERVER'],'--no-realtime','-d','dummy','-r','48000','-p','8192'],env=env,stdout=subprocess.DEVNULL,stderr=logs['jack'])
  engine=probe=web=browser=None
  try:
   time.sleep(1);assert server.poll() is None
-  sock=str(Path(tmp)/'engine.sock');engine=subprocess.Popen([env['HEADLESS_BINARY'],str(ROOT/'midi_human_looper.jsfx'),sock,'--chain','--jack','--client','mbmf_d']+(['--rt-trace',env['MOVEMENT_RT_TRACE']] if env.get('MOVEMENT_RT_TRACE') else []),env=env,stdout=subprocess.DEVNULL,stderr=subprocess.PIPE)
+  sock=str(Path(tmp)/'engine.sock');engine=subprocess.Popen([env['HEADLESS_BINARY'],str(ROOT/'midi_human_looper.jsfx'),sock,'--chain','--jack','--client','mbmf_d']+(['--rt-trace',env['MOVEMENT_RT_TRACE']] if env.get('MOVEMENT_RT_TRACE') else []),env=env,stdout=logs['engine'],stderr=subprocess.STDOUT)
   deadline=time.monotonic()+15
   while not Path(sock).exists() and time.monotonic()<deadline:assert engine.poll() is None;time.sleep(.05)
   c=Control(sock)
@@ -71,12 +72,22 @@ with tempfile.TemporaryDirectory(prefix='mbmf-movement-jack-') as tmp:
   bb=movement();bb.update(duration=1,retrigger='DIRECT',points=[[0,.8],[1,.8]]);bb['target']['number']=25
   install(25,[ba,bb],[step([None,block(ba['id'],'MOVEMENT')]),step([None,block(bb['id'],'MOVEMENT')])]);before=c.request()['switches'][0]['actionCount'];probe.stdin.write('144 110 127 16\n128 110 0 16\n144 110 127 16\n');probe.stdin.flush();wait(lambda s:s['switches'][0]['actionCount']==before+2,'two coalesced PRESS events');event(128,110,0);time.sleep(1.1);assert not c.request()['movements']['active']
   soft=movement();soft.update(duration=1,points=[[0,0],[1,1]]);soft['target']['number']=24;install(25,[soft]);event(176,24,100);event(144,110,127);event(128,110,0);time.sleep(1.1);assert not c.request()['movements']['active']
+  # Learn uses actual JACK input, not an API-injected CC. Source changes must
+  # not revoke an unrelated MOVEMENT lease or interrupt its emitted cadence.
+  command(op=14,target=101,arg=0,ch=2,note=31)
+  isolated=movement();isolated.update(duration=8,retrigger='DIRECT',points=[[0,0],[.5,1],[1,0]]);isolated['target']['number']=26
+  install(25,[isolated]);event(144,110,127);event(128,110,0)
+  cancelled=c.request()['movements']['cancelled'];command(op=15,target=101,arg=0)
+  event(178,31,80);assert c.request()['movements']['active']==1,'unrelated source Learn cancelled MOVEMENT'
+  command(op=15,target=101,arg=3);command(op=14,target=101,arg=2,ch=2,note=32)
+  assert c.request()['movements']['active']==1 and c.request()['movements']['cancelled']==cancelled,c.request()['movements']
+  wait(lambda s:s['movements']['active']==0,'uninterrupted automation final value')
   install(25,[m],[step([block(src),block(m['id'],'MOVEMENT')])])
   if os.environ.get('MOVEMENT_BROWSER_AUTHOR')=='1':
    import socket,urllib.request
    from playwright.sync_api import sync_playwright
    with socket.socket() as ps:ps.bind(('127.0.0.1',0));port=ps.getsockname()[1]
-   url=f'http://127.0.0.1:{port}';web=subprocess.Popen([sys.executable,str(ROOT/'headless/server.py'),'--socket',sock,'--port',str(port),'--patch-dir',str(Path(tmp)/'patches')],env=env,stdout=subprocess.DEVNULL,stderr=subprocess.PIPE)
+   url=f'http://127.0.0.1:{port}';web=subprocess.Popen([sys.executable,str(ROOT/'headless/server.py'),'--socket',sock,'--port',str(port),'--patch-dir',str(Path(tmp)/'patches')],env=env,stdout=subprocess.DEVNULL,stderr=logs['web'])
    deadline=time.monotonic()+10
    while time.monotonic()<deadline:
     try:urllib.request.urlopen(url+'/api/v1/state').close();break
@@ -107,6 +118,10 @@ with tempfile.TemporaryDirectory(prefix='mbmf-movement-jack-') as tmp:
   independent=[e for e in trace if e[2]==176 and e[3]==21];assert len(independent)==76 and independent[0][4]==0 and independent[-1][4]==127,independent
   stepped=[e for e in trace if e[2]==177 and e[3]==22];origin=stepped[0][0]+stepped[0][1];assert [e[4] for e in stepped]==[0,25,114,13],stepped;assert [e[0]+e[1]-origin for e in stepped]==[0,13440,24960,48000],stepped
   short_events=[e for e in trace if e[2]==176 and e[3]==23];assert len(short_events)==2 and [e[4] for e in short_events]==[0,127] and short_events[1][0]+short_events[1][1]-short_events[0][0]-short_events[0][1]==480,short_events
+  isolated_events=[e for e in trace if e[2]==176 and e[3]==26];origin=isolated_events[0][0]+isolated_events[0][1]
+  assert len(isolated_events)==201 and [e[4] for e in isolated_events]==[int(min(i,200-i)*127/100+.5) for i in range(201)],isolated_events
+  assert [e[0]+e[1]-origin for e in isolated_events]==[i*1920 for i in range(201)],isolated_events
+  assert not any(e[2]==178 and e[3]==31 for e in trace),'Learn-captured physical CC leaked into performance'
   if os.environ.get('MOVEMENT_BROWSER_AUTHOR')=='1':
    web_events=[e for e in trace if e[2]==176 and e[3]==17];assert len(web_events)==26 and web_events[0][4]==0 and web_events[-1][4]==127,web_events
   assert any(e[2]==144 and e[3]==60 for e in trace),trace
@@ -119,3 +134,9 @@ with tempfile.TemporaryDirectory(prefix='mbmf-movement-jack-') as tmp:
   if probe is not None:probe.terminate();probe.communicate(timeout=5)
   if engine is not None:engine.terminate();engine.communicate(timeout=10)
   server.terminate();server.communicate(timeout=5)
+
+  for log in logs.values():log.close()
+  if os.environ.get('MOVEMENT_DIAGNOSTIC_DIR'):
+   evidence=Path(os.environ['MOVEMENT_DIAGNOSTIC_DIR']);evidence.mkdir(parents=True,exist_ok=True)
+   for name in logs:shutil.copyfile(Path(tmp)/(name+'.log'),evidence/(name+'.log'))
+   (evidence/'process-exits.json').write_text(json.dumps(dict(engine=engine.returncode if engine else None,jack=server.returncode,web=web.returncode if web else None),indent=2)+'\n')

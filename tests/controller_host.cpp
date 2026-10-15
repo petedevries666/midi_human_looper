@@ -11,6 +11,45 @@ static void check(bool ok, const char *s) {
 }
 int main() {
   {
+    controller::Host isolated;
+    controller::Source a, b;
+    a.id=101; a.kind=2; a.channel=1; a.number=21;
+    b.id=102; b.kind=2; b.channel=2; b.number=22;
+    check(isolated.source(a) && isolated.source(b), "isolation source setup");
+    controller::Binding mapping;
+    mapping.instrument=1; mapping.kind=1; mapping.base=.4;
+    mapping.policy.id=11; mapping.policy.source=101; mapping.policy.target=201;
+    check(isolated.bind(mapping), "source A mapping");
+    mapping.instrument=2; mapping.policy.id=12; mapping.policy.source=102; mapping.policy.target=202;
+    check(isolated.bind(mapping), "source B mapping");
+    check(isolated.testSource(101,100,0) && isolated.testSource(102,90,0), "both physical owners active");
+    check(isolated.stagePerformanceTarget(203,.2), "independent movement target");
+    const auto movement=isolated.acquirePerformanceTarget(203,.3);
+    check(movement && isolated.morph(204,.8,1)==0, "movement lease and missing morph refusal");
+    check(isolated.stagePerformanceTarget(204,.2) && isolated.morph(204,.8,1), "independent snapshot morph");
+    const auto otherToken=isolated.target(202)->token;
+    const auto morphToken=isolated.target(204)->token;
+    a.number=23;
+    check(isolated.source(a), "reassign one source");
+    check(!isolated.target(201)->owner && isolated.target(201)->effective==100/127., "only reassigned owner's lease ends without jumping value");
+    check(isolated.target(202)->owner==12 && isolated.target(202)->token==otherToken, "unrelated physical owner survives");
+    check(isolated.updatePerformanceTarget(203,movement,.5), "unrelated movement token survives reassignment");
+    check(isolated.target(204)->morphing && isolated.target(204)->token==morphToken, "snapshot morph survives reassignment");
+    // A mapping may share an external target; reset must not steal its lease.
+    const auto shared=isolated.acquirePerformanceTarget(201,.6);
+    check(shared && isolated.forget(101), "forget source with externally owned target");
+    check(isolated.updatePerformanceTarget(201,shared,.7) && isolated.updatePerformanceTarget(203,movement,.6), "FORGET preserves external owners even on same target");
+    check(isolated.learn(101), "arm source A learn");
+    uint8_t cc[]={178,22,80};
+    check(isolated.midi(cc,3,.1,[](int,int,int){return false;}) && isolated.learnConflict()==102, "conflict requires deliberate confirmation");
+    check(isolated.confirm() && !isolated.target(202)->owner, "deliberate reassignment releases displaced source only");
+    check(isolated.updatePerformanceTarget(201,shared,.8) && isolated.updatePerformanceTarget(203,movement,.7), "conflict confirmation preserves both external owners");
+    check(isolated.target(204)->morphing && isolated.target(204)->token==morphToken, "conflict confirmation preserves snapshot morph");
+    check(isolated.configuration().valid(), "source isolation retains valid persistent mappings");
+    isolated.panic();
+    check(!isolated.updatePerformanceTarget(203,movement,.9) && !isolated.target(204)->morphing, "explicit PANIC still invalidates all automation");
+  }
+  {
     controller::Host manual;controller::Source source;source.id=900;
     check(manual.source(source),"unassigned named source can be auditioned");
     controller::Binding binding;binding.policy.id=901;binding.policy.source=900;binding.policy.target=902;binding.instrument=1;binding.kind=1;binding.base=.25;

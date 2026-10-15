@@ -684,6 +684,7 @@ static void stress(Host &h, bool historical, bool cc_instances = false, bool dyn
 #include "conductor_execution_cases.hpp"
 #include "phrase_output_cases.hpp"
 #include "m0_playback_cases.hpp"
+#include "m2_gesture_cases.hpp"
 int main(int argc, char **argv) {
   if (argc < 2)
     return 2;
@@ -698,6 +699,7 @@ int main(int argc, char **argv) {
   if (argc>2 && std::string(argv[2])=="--instrument-voices") {Host instrument_voices(argv[1]);instrument_voice_tests(instrument_voices);printf("PASS: %d voice checks\n",checks);return 0;}
   if (argc>2 && std::string(argv[2])=="--project") {project_state_tests(argv[1]);printf("PASS: %d project checks\n",checks);return 0;}
   if(argc>2 && std::string(argv[2])=="--phrase-output"){phrase_output_tests(argv[1]);printf("PASS: %d phrase output checks\n",checks);return 0;}
+  if(argc>2 && std::string(argv[2])=="--m2-gestures"){m2_gesture_tests(argv[1]);printf("PASS: %d M2 actual MIDI gesture checks\n",checks);return 0;}
   if(argc>2 && std::string(argv[2])=="--m1-groups"){m1_group_tests(argv[1]);printf("PASS: %d M1 group MIDI checks\n",checks);return 0;}
   if(argc>2 && std::string(argv[2])=="--m0-once"){m0_once_tests(argv[1]);printf("PASS: %d M0 ONCE MIDI checks\n",checks);return 0;}
   if(argc>2 && std::string(argv[2])=="--m0-entries"){m0_entry_tests(argv[1]);printf("PASS: %d M0 entry MIDI checks\n",checks);return 0;}

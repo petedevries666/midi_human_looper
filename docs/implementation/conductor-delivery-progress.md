@@ -2,7 +2,7 @@
 
 > **Read this first on every new Codex session.** Update this file in the SAME branch/PR as implementation work, after each focused commit. Never reset a checkout or merge/deploy automatically. See [the delivery plan](conductor-musical-delivery-plan.md) and [the master spec](../movement-phrase-conductor-master-spec.md).
 
-## Current status — M1 source MUTE GROUP implemented
+## Current status — M2 implementation in progress
 
 - **Branch:** `fix/m0-phrase-playback-contract`, explicitly stacked on PR #78 HEAD `493b13bc259d4e8649a2a4750d1a61b6d90b37b3` / #76. #77 (`6ad38ec`) stays independently reviewable, not implicitly integrated or deployed.
 - **Implemented:** native contract 2: direct LOOP toggle shared by Web/MIDI Learn/legacy Smart Switch; cross-source ONCE overlap; HOLD source-once with retained notes, PRESS cut/restart, RELEASE ignored; explicit source STOP. Native mode edits no longer pre-arm LOOP. REAPER execution keeps contract zero, no `@gfx` changes or feature port.
@@ -26,13 +26,22 @@
 - **Details/evidence:** [M1 contract and musician recipe](m1-phrase-source-mute-groups.md), `docs/evidence/m1/` and source-hash manifest. Original issue-54 25 files unchanged.
 - **Next precise implementation:** M2 separate stacked branch: extend the existing Smart Switch PRESS/HOLD dispatcher and worker-compiled STEP records to admit PRESS layers immediately and HOLD layers at the configured existing threshold; test short taps/release-before-threshold before adding REVEAL/CC7 ownership. Do not create another scheduler; do not conflate latched PLAY MODE HOLD with a long-press gesture. M2–M7 remain unfinished.
 
+## M2 current implementation checkpoint
+
+- Branch `feat/conductor-press-hold`, stacked on #80 HEAD `c956496`.
+- PRESS/HOLD actual DSP: 451 checks pass, including 44.1/48/96 kHz, 128/256/512/8192 frames, early release and exact-threshold release, repeated attacks, STOP pending cancellation and TEST TAP/HOLD. Native/API three tests pass, including held ONE_SHOT MOVEMENT and silent LOAD.
+- Runtime STEP record retains its 68-cell bound at this increment: 12 PHRASE entries filtered by HOLD bitmask, PRESS and HOLD MOVEMENT lists prepared separately on worker. No JSON, dynamic allocation or unbounded stored-list scan in callback. HOLD uses existing Smart Switch sample clock and configurable threshold.
+- UI TRIGGER inheritance/override is implemented but browser/screenshot qualification still pending at this checkpoint. REVEAL is not yet executable.
+- User resolved 15 October 2026: REVEAL unknown CC7 volume defaults to 127; REVEAL/GATE RELEASE remasks while retaining timeline, does not stop the instance. Record these decisions; do not ask again.
+- Next exact action: implement REVEAL note/timeline lifecycle and token-owned CC7 output via existing Controller Host. Preserve real event chronology: do not let post-DSP controller processing let future replacement/physical events cancel an earlier event incorrectly. Same-CC7 MOVEMENT overlap requires explicit safe restriction or chronological unification, not competing writers.
+
 ## Gate board (do not mark DONE without exact commit + MIDI proof)
 
 | Gate | Status | Implementation PR/HEAD | Real MIDI proof | User hardware |
 |---|---|---|---|---|
 | M0 Historical ONCE/LOOP/HOLD + PLAY/STOP | MIDI-TESTED: contract 2; grid/global qualification pending | this branch; commit history | 238 focused checks + actual JACK trace | NOT TESTED |
 | M1 SOURCE MUTE GROUP | MIDI-TESTED: source admission + warnings/persistence; later QUEUED/actions pending | separate stacked branch | 64 DSP checks + actual JACK | NOT TESTED |
-| M2 PRESS/HOLD + REVEAL | NOT STARTED | — | — | — |
+| M2 PRESS/HOLD + REVEAL | IN PROGRESS: PRESS/HOLD MIDI tested; REVEAL and browser pending | feat/conductor-press-hold | 451 DSP checks + 3 native tests | NOT TESTED |
 | M3 JOIN + instance policies | NOT STARTED | — | — | — |
 | M4 MOVEMENT completion (reuse Phase F) | PARTIAL PRE-EXISTING; NEEDS VERIFICATION | PR #62 and integration | prior branch evidence not yet reconciled | — |
 | M5 CONDUCTOR editor/traversal/transitions | PARTIAL PRE-EXISTING; NEEDS VERIFICATION | PR #76 integration | prior branch evidence not yet reconciled | — |

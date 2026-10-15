@@ -64,12 +64,17 @@ async function editConductor(sw){
  function properties(s,l){
   editing=l.id;side.replaceChildren();const b=l.block;
   side.append(node('h3',label(b)),node('small','LOCAL · source unchanged'));
+  if(b.type==='PHRASE'||b.type==='MOVEMENT'){
+   const row=node('label','TRIGGER','conductor-option'),policy=node('select'),value=node('select');policy.setAttribute('aria-label','TRIGGER inheritance');value.setAttribute('aria-label','TRIGGER override');
+   for(const name of ['INHERIT','OVERRIDE']){const o=node('option',name);o.value=name;policy.append(o);}for(const name of ['PRESS','HOLD']){const o=node('option',name);o.value=name;value.append(o);}policy.value=b.overrides.trigger?.mode||'INHERIT';value.value=b.overrides.trigger?.value||'PRESS';value.disabled=policy.value!=='OVERRIDE';
+   const update=()=>{checkpoint();b.overrides.trigger=policy.value==='INHERIT'?{mode:'INHERIT'}:{mode:'OVERRIDE',value:value.value};paint();properties(s,l);};policy.onchange=value.onchange=update;row.append(policy,value);side.append(row);
+  }
   if(b.type==='MOVEMENT'){
    const m=source(b);if(!m){side.append(node('p','MISSING SOURCE · preserved'));return;}
    side.append(previewCurve(m.points.map(p=>[...p,0]),m.interpolation==='HOLD'),node('output',`${m.duration}s · ${m.target.type==='CC'?`CH${m.target.channel} CC${m.target.number}`:'PARAMETER'}`));
    const row=node('label','RETRIGGER'),policy=node('select'),value=node('select');policy.setAttribute('aria-label','RETRIGGER inheritance');value.setAttribute('aria-label','RETRIGGER override');
    for(const v of ['INHERIT','OVERRIDE']){const o=node('option',v);o.value=v;policy.append(o);}for(const v of ['SOFT_RESTART','DIRECT']){const o=node('option',v);o.value=v;value.append(o);}policy.value=b.overrides.retrigger?.mode||'INHERIT';value.value=b.overrides.retrigger?.value||m.retrigger;value.disabled=policy.value!=='OVERRIDE';
-   const update=()=>{checkpoint();b.overrides.retrigger=policy.value==='INHERIT'?{mode:'INHERIT'}:{mode:'OVERRIDE',value:value.value};paint();properties(s,l);};policy.onchange=value.onchange=update;row.append(policy,value);side.append(row,node('small','ONE_SHOT · PRESS · source curve edited in MOVEMENTS'));return;
+   const update=()=>{checkpoint();b.overrides.retrigger=policy.value==='INHERIT'?{mode:'INHERIT'}:{mode:'OVERRIDE',value:value.value};paint();properties(s,l);};policy.onchange=value.onchange=update;row.append(policy,value);side.append(row,node('small','ONE_SHOT · source curve edited in MOVEMENTS'));return;
   }
   if(b.type!=='PHRASE'){side.append(node('p','UNSUPPORTED · preserved'));return;}
   for(const [key,title,kind] of [['playMode','MODE',20],['phrase_base_velocity','VEL',17],['phrase_velocity_decay','V.DEC',15],['phrase_time_decay','T.DEC',14]]){
@@ -83,7 +88,7 @@ async function editConductor(sw){
    const update=()=>{checkpoint();b.overrides[key]=policy.value==='INHERIT'?{mode:'INHERIT'}:{mode:'OVERRIDE',value:key==='playMode'?value.value:Number(value.value)};paint();properties(s,l);};
    policy.onchange=update;value.oninput=()=>output.value=value.value;value.onchange=update;row.append(policy,value,output);side.append(row);
   }
-  const unsupported=Object.entries(b.overrides).filter(([k,v])=>v.mode==='OVERRIDE'&&!['playMode','phrase_base_velocity','phrase_velocity_decay','phrase_time_decay'].includes(k));
+  const unsupported=Object.entries(b.overrides).filter(([k,v])=>v.mode==='OVERRIDE'&&!['trigger','playMode','phrase_base_velocity','phrase_velocity_decay','phrase_time_decay'].includes(k));
   if(unsupported.length)side.append(node('small','Other existing options preserved · '+unsupported.map(([k])=>k).join(', ')));
   const moves=node('details');moves.append(node('summary','MOVE / REPLACE'));
   const destination=node('select');destination.setAttribute('aria-label','Block destination');

@@ -58,7 +58,7 @@ inline Prepared prepare(const std::vector<unsigned>& bytes) {
       const auto &v=o.second.at("value");
       if(o.first=="destination")target(d,v);
       else if(o.first=="retrigger")d.soft=conductor::choice(v,{"SOFT_RESTART"});
-      else if((o.first=="trigger"&&conductor::choice(v,{"PRESS"}))||(o.first=="join"&&conductor::choice(v,{"TRIGGER"}))||(o.first=="movementPlayMode"&&conductor::choice(v,{"ONE_SHOT"}))){}
+      else if((o.first=="trigger"&&conductor::choice(v,{"PRESS","HOLD"}))||(o.first=="join"&&conductor::choice(v,{"TRIGGER"}))||(o.first=="movementPlayMode"&&conductor::choice(v,{"ONE_SHOT"}))){}
       else supported=false;
     }
     if(supported){out.blocks[b.at("id").text]=out.definitions.size();out.definitions.push_back(std::move(d));}

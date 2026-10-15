@@ -18,6 +18,7 @@ class NativeAPI:
         self.routes = {}
         self.modes = {}
         self.bad_readback = None
+        self.calls = []
 
     def zmop_get_route_from(self, zmop, dev):
         if self.bad_readback == (zmop, dev):
@@ -25,6 +26,7 @@ class NativeAPI:
         return self.routes.get((zmop, dev), 1)
 
     def zmop_set_route_from(self, zmop, dev, enabled):
+        self.calls.append(('route', zmop, dev, enabled))
         self.routes[(zmop, dev)] = enabled
         return 1
 
@@ -32,6 +34,7 @@ class NativeAPI:
         return self.modes.get(dev, 1)
 
     def zmip_set_flag_active_chain(self, dev, value):
+        self.calls.append(('mode', dev, value))
         self.modes[dev] = value
         return 1
 
@@ -108,6 +111,7 @@ class ExclusiveInput(unittest.TestCase):
         self.assertEqual(self.route(1, 0), 1)
         self.assertEqual(self.route(0, 24), 1)
         self.assertEqual(self.api.modes.get(0, 1), 1)
+        self.assertEqual(self.configure()['ZynMidiRouter:dev2_in'], set())
 
     def test_missing_keyboard_fails_closed(self):
         self.set_ports(['missing:out'])
@@ -156,6 +160,29 @@ class ExclusiveInput(unittest.TestCase):
         before = (dict(self.api.routes), dict(self.api.modes))
         self.configure()
         self.assertEqual((self.api.routes, self.api.modes), before)
+
+
+    def test_quarantine_precedes_keyboard_bypass_restore(self):
+        self.configure()
+        self.api.calls.clear()
+        self.set_ports([])
+        graph = self.configure()
+        self.assertEqual(graph['ZynMidiRouter:dev2_in'], set())
+        virtual_close = next(i for i, c in enumerate(self.api.calls)
+                             if c == ('route', 1, 2, 0))
+        keyboard_restore = next(i for i, c in enumerate(self.api.calls)
+                                if c == ('route', 1, 0, 1))
+        self.assertLess(virtual_close, keyboard_restore)
+
+    def test_failed_virtual_quarantine_never_restores_keyboard_bypass(self):
+        self.configure()
+        self.api.bad_readback = (1, 2)
+        self.set_ports([])
+        graph = self.configure()
+        self.assertEqual(graph['ZynMidiRouter:dev2_in'], set())
+        self.assertEqual(self.route(1, 0), 0)
+        self.assertEqual(self.api.modes[0], 0)
+
 
 
 if __name__ == '__main__':

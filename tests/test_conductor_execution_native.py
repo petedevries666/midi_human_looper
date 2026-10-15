@@ -64,8 +64,9 @@ class Execution(FreeCapture):
             self.assertEqual(state['phrases'][0]['baseVelocity'],1)
             self.assertEqual(state['instances'][0]['mode'],{'LOOP':0,'ONCE':1,'HOLD':2}[mode])
             self.command('conductor_release',switchId=1)
-            if mode=='HOLD':self.wait_for(lambda:not self.call()['instances'],'owned HOLD release')
-            else:self.assertEqual(len(self.call()['instances']),1)
+            self.assertEqual(len(self.call()['instances']),1,'M0: RELEASE does not stop latched HOLD, LOOP or ONCE')
+            self.command('phrase_stop',phraseId=1)
+            self.wait_for(lambda:not self.call()['instances'],'explicit source STOP releases override owner')
 
 if __name__=='__main__':
     suite=unittest.TestSuite(Execution(name) for name in ('test_steps_coexist_wrap_capacity_and_persistence','test_layers_missing_and_unsupported_no_fallback','test_local_hold_release_overrides_and_source_isolation'))

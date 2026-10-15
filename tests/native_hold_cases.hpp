@@ -4,7 +4,7 @@ static void native_hold_tests(const char* source) {
     Host h(source,false);ysfx_set_sample_rate(h.f,rate);ysfx_set_block_size(h.f,block);ysfx_init(h.f);
     h.run("slider9=1;slider5=0;panic_pending=0;mem[INST_TRANSFORM_COUNT_BASE]=0;clear_layer(0);mem[MODE_BASE]=2;mem[VEL_BASE]=1;store_event(0,0,144,60,100,0);store_event(0,16,144,64,90,0);store_event(0,32,128,60,0,0);store_event(0,48,128,64,0,0);");
     *NSEEL_VM_getramptr(h.f->vm.get(),unsigned(h.val("LEN_BASE")),nullptr)=std::max(128u,block*2);
-    ChainMode c(h.f,true,2);check(c.command(1,0),"native HOLD PRESS admitted");
+    ChainMode c(h.f,true,2);h.run("native_phrase_contract=0;");check(c.command(1,0),"native HOLD PRESS admitted");
     int ons=0,offs=0;auto process=[&]() {
       ysfx_process_float(h.f,nullptr,nullptr,0,0,block);ysfx_midi_event_t e{};
       while(ysfx_receive_midi(h.f,&e)) if(e.size==3 && (e.data[1]==60 || e.data[1]==64)) {

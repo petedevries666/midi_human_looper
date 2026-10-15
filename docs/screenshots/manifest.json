@@ -1,8 +1,8 @@
 {
   "browser": "151.0.7922.173",
-  "sourceRevision": "3f79687a7b6bb3a8cc4122cb2c18ed92f8ebdf50",
+  "sourceRevision": "5b5a67a0151bc2d24e7bc10e5c02d405483db866",
   "sourceDirty": true,
-  "runtimeBuildRevision": "3f79687a7b6bb3a8cc4122cb2c18ed92f8ebdf50",
+  "runtimeBuildRevision": "5b5a67a0151bc2d24e7bc10e5c02d405483db866.dirty",
   "application": "MIDI BAD MOTHERFUCKER",
   "data": "Native --demo views plus actual native --chain recovery: named CC source, real ARP MIDI, observed recording states and explicitly configured reference chains",
   "artifacts": [
@@ -1600,7 +1600,7 @@
       "checks": [],
       "nativeClockAdvanced": true,
       "capture": "Actual observed native state; browser telemetry briefly suspended for static capture, engine continues",
-      "runtimeBuildRevision": "3f79687a7b6bb3a8cc4122cb2c18ed92f8ebdf50",
+      "runtimeBuildRevision": "5b5a67a0151bc2d24e7bc10e5c02d405483db866.dirty",
       "data": "Actual native --chain; real CC mapping and recording actions"
     },
     {
@@ -1613,7 +1613,7 @@
       "checks": [],
       "nativeClockAdvanced": true,
       "capture": "Actual observed native state; browser telemetry briefly suspended for static capture, engine continues",
-      "runtimeBuildRevision": "3f79687a7b6bb3a8cc4122cb2c18ed92f8ebdf50",
+      "runtimeBuildRevision": "5b5a67a0151bc2d24e7bc10e5c02d405483db866.dirty",
       "data": "Actual native --chain; real CC mapping and recording actions"
     },
     {
@@ -1626,7 +1626,7 @@
       "checks": [],
       "nativeClockAdvanced": true,
       "capture": "Actual observed native state; browser telemetry briefly suspended for static capture, engine continues",
-      "runtimeBuildRevision": "3f79687a7b6bb3a8cc4122cb2c18ed92f8ebdf50",
+      "runtimeBuildRevision": "5b5a67a0151bc2d24e7bc10e5c02d405483db866.dirty",
       "data": "Actual native --chain; real CC mapping and recording actions"
     },
     {
@@ -1639,7 +1639,7 @@
       "checks": [],
       "nativeClockAdvanced": true,
       "capture": "Actual observed native state; browser telemetry briefly suspended for static capture, engine continues",
-      "runtimeBuildRevision": "3f79687a7b6bb3a8cc4122cb2c18ed92f8ebdf50",
+      "runtimeBuildRevision": "5b5a67a0151bc2d24e7bc10e5c02d405483db866.dirty",
       "data": "Actual native --chain; real CC mapping and recording actions"
     },
     {
@@ -1652,7 +1652,7 @@
       "checks": [],
       "nativeClockAdvanced": true,
       "capture": "Actual observed native state; browser telemetry briefly suspended for static capture, engine continues",
-      "runtimeBuildRevision": "3f79687a7b6bb3a8cc4122cb2c18ed92f8ebdf50",
+      "runtimeBuildRevision": "5b5a67a0151bc2d24e7bc10e5c02d405483db866.dirty",
       "data": "Actual native --chain; real CC mapping and recording actions"
     },
     {
@@ -1665,7 +1665,7 @@
       "checks": [],
       "nativeClockAdvanced": true,
       "capture": "Actual observed native state; browser telemetry briefly suspended for static capture, engine continues",
-      "runtimeBuildRevision": "3f79687a7b6bb3a8cc4122cb2c18ed92f8ebdf50",
+      "runtimeBuildRevision": "5b5a67a0151bc2d24e7bc10e5c02d405483db866.dirty",
       "data": "Actual native --chain; real CC mapping and recording actions"
     },
     {
@@ -1678,7 +1678,7 @@
       "checks": [],
       "nativeClockAdvanced": true,
       "capture": "Actual observed native state; browser telemetry briefly suspended for static capture, engine continues",
-      "runtimeBuildRevision": "3f79687a7b6bb3a8cc4122cb2c18ed92f8ebdf50",
+      "runtimeBuildRevision": "5b5a67a0151bc2d24e7bc10e5c02d405483db866.dirty",
       "data": "Actual native --chain; real CC mapping and recording actions"
     },
     {
@@ -1691,7 +1691,7 @@
       "checks": [],
       "nativeClockAdvanced": true,
       "capture": "Actual observed native state; browser telemetry briefly suspended for static capture, engine continues",
-      "runtimeBuildRevision": "3f79687a7b6bb3a8cc4122cb2c18ed92f8ebdf50",
+      "runtimeBuildRevision": "5b5a67a0151bc2d24e7bc10e5c02d405483db866.dirty",
       "data": "Actual native --chain; real CC mapping and recording actions"
     }
   ],

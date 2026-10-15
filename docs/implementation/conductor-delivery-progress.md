@@ -2,23 +2,24 @@
 
 > **Read this first on every new Codex session.** Update this file in the SAME branch/PR as implementation work, after each focused commit. Never reset a checkout or merge/deploy automatically. See [the delivery plan](conductor-musical-delivery-plan.md) and [the master spec](../movement-phrase-conductor-master-spec.md).
 
-## Current status — M0 implementation, increment 1
+## Current status — M0 implementation, increment 2
 
 - **Branch:** `fix/m0-phrase-playback-contract`, explicitly stacked on PR #78 HEAD `493b13bc259d4e8649a2a4750d1a61b6d90b37b3` / #76. #77 (`6ad38ec`) stays independently reviewable, not implicitly integrated or deployed.
-- **Implemented increment:** native free-time direct LOOP PLAY/STOP/PLAY. Previously the second PLAY emitted another Note On; it now queues the existing source-owned stop, then a third PLAY restarts at zero. No new scheduler, schema, UI or REAPER changes.
-- **Actual software MIDI:** `scripts/m0-playback-test.sh`, before exit 1 (`second=[[144,60,100]]`), after exit 0 / 114 checks (`second=[[128,60,0]]`) at 128/512/8192 frames, 48 kHz, through production `ChainMode` + full ysfx DSP MIDI output. This is deterministic actual engine MIDI, **not a JACK or hardware test**. Evidence: `docs/evidence/m0/loop-before.log`, `loop-after.log`.
-- **HOLD arbitration, user approved 15 October 2026:** **maintain phrase notes; next PRESS stops previous occurrence and restarts at zero; RELEASE ignored**. This supersedes native repeat-while-held behavior for HOLD. Do not confuse PLAY MODE HOLD with gesture HOLD or future GATED block admission.
-- **Historical reference:** `midi_human_looper.jsfx`, v1.23.0 header, `72b92db091d5aef05d37b45057b62ffca390c867`. Actual code chokes cross-source ONCE voices and latches HOLD with recorded Note Off suppressed; graphical HOLD second click stops only. The new native contract intentionally corrects cross-source ONCE and follows the user's explicit HOLD retrigger decision; do not claim these corrections already existed in that revision.
-- **Next exact coding action:** extend the focused real-DSP fixture for ONCE overlap and approved HOLD; fix native/shared entry paths with a native-only policy flag, preserve frozen REAPER behavior and Conductor independent admission. Then add actual JACK + browser/API path tests and finish M0. Only then M1 source MUTE GROUP.
-- **Focused regressions after LOOP fix:** `.build/m0-playback-host midi_human_looper.jsfx --native-hold` exit 0 / 864 existing HOLD checks; `--instances` exit 0 / 6698 actual ownership checks, including bounded overload. These validate the unchanged old HOLD path, **not** the newly approved HOLD behavior, which is next.
-- **Not yet implemented:** learned MIDI/legacy Smart Switch LOOP toggle; ONCE cross-source correction; approved HOLD; complete per-source STOP/global transport consistency; M1–M7. M0 is **not complete**.
-- **No V4 installation/qualification.** User-reported installed baseline remains `b4113da`. #77 final evidence shows Cloud XRUN and grid/MOVEMENT reception/pagination failures; do not repeat broad qualification in place of musical development.
+- **Implemented:** native contract 2: direct LOOP toggle shared by Web/MIDI Learn/legacy Smart Switch; cross-source ONCE overlap; HOLD source-once with retained notes, PRESS cut/restart, RELEASE ignored; explicit source STOP. Native mode edits no longer pre-arm LOOP. REAPER execution keeps contract zero, no `@gfx` changes or feature port.
+- **Actual MIDI:** focused default `scripts/m0-playback-test.sh` exit 0: 114 LOOP + 17 ONCE + 51 HOLD + 56 shared-entry checks. Native constructor used. Conductor NEW INSTANCE remains independent; twelve-slot saturation remains a clean refusal. Raw before/after logs in `docs/evidence/m0/`.
+- **Native/JACK:** rebuilt production binary; `tests/test_m0_playback_jack.py` exit 0 at 48k/8192, actual attack pitches 60,62,64,64,65, HOLD Off-before-On, LOOP STOPPED/PLAYING/STOPPED, PANIC cleanup, no overflow, observed chronological ordering. No sorting/model/API MIDI echo.
+- **Regression:** 18,508 full shared EEL checks exit 0; ownership 6698, old contract-zero HOLD 864, CONDUCTOR 125, native CONDUCTOR 3 tests and free capture/overdub 6 tests pass. Actual source SMF fixtures: 18 capture + 36 free captures pass. Browser pointer/keyboard/learned MIDI and source STOP/PANIC pass. No complete combined/LIVE rerun in this musical increment; prior #76/#77 Cloud risks remain open.
+- **Visual:** screenshot workflow exit 0; all 184 manifest images across five sizes inspected in contact sheets. Actual existing compact layout retained. Manifest records the honest dirty revision; capture preceded the final native-only mode-arming fix. This is not final-SHA/hardware visual qualification.
+- **HOLD approved 15 October 2026:** maintain phrase notes; next PRESS cuts and restarts, RELEASE ignored. Direct replacement preserves independent Conductor occurrences. Explicit source STOP stops all its occurrences. Unsafe mono/ARP restrictions remain.
+- **Historical reference:** v1.23.0, `72b92db091d5aef05d37b45057b62ffca390c867`. It chokes cross-source ONCE and latches HOLD; graphical second click stops only. Native corrections intentionally follow user approval, not a false claim of historical equivalence.
+- **Details and five-minute musician test:** [M0 native contract](m0-native-playback-contract.md). No build deployment without explicit review; no V4 qualification. Protected issue-54 originals: 25/25 SHA256 unchanged.
+- **Next executable action:** after committing this exact code/evidence, start a separate stacked M1 source-only MUTE GROUP PR: versioned source metadata, bounded preparation into existing runtime, targeted release after successful admission; deterministic smallest-source-ID arbitration and recomputed warnings in CONDUCTOR, compact phrase options, save/load and actual MIDI tests. Do not implement JOIN/REVEAL or arbitrary capacities.
 
 ## Gate board (do not mark DONE without exact commit + MIDI proof)
 
 | Gate | Status | Implementation PR/HEAD | Real MIDI proof | User hardware |
 |---|---|---|---|---|
-| M0 Historical ONCE/LOOP/HOLD + PLAY/STOP | IN PROGRESS: direct LOOP increment | this branch; commit history | 114 actual ysfx MIDI checks | NOT TESTED |
+| M0 Historical ONCE/LOOP/HOLD + PLAY/STOP | MIDI-TESTED: contract 2; grid/global qualification pending | this branch; commit history | 238 focused checks + actual JACK trace | NOT TESTED |
 | M1 SOURCE MUTE GROUP | NOT STARTED | — | — | — |
 | M2 PRESS/HOLD + REVEAL | NOT STARTED | — | — | — |
 | M3 JOIN + instance policies | NOT STARTED | — | — | — |
@@ -45,10 +46,9 @@ Populate the complete A01–L11 and R1–R7 matrix from the master spec incremen
 
 ## Current task / handoff
 
-- **Latest verified code commit:** `7e6ec26` (direct native LOOP toggle); this checkpoint only adds evidence/documentation.
-- **Changed:** `headless/chain_mode.hpp`; focused real-DSP test/runner in `tests/m0_playback_cases.hpp`, `tests/expression_host.cpp`, `scripts/m0-playback-test.sh`; evidence and this ledger.
-- **Next executable action:** ONCE overlap + HOLD retrigger/latched Note Off policy fixtures, then shared native-only fix and real JACK/API coverage. Preserve Conductor instance policies and the 12-instance bound.
-- **PR:** create one focused draft M0 implementation PR stacked on #78 once production-path cases are covered; no merge/deployment.
+- **Implementation PR:** [#79](https://github.com/petedevries666/midi_human_looper/pull/79), draft, branch `fix/m0-phrase-playback-contract`, base #78.
+- **Code:** new native runtime contract (no schema change), shared EEL default preserves REAPER, truthful API capability and HOLD browser interaction, integrated focused regression runners and actual JACK test.
+- **Next:** commit checkpoint with resulting code SHA, publish to #79, then start source MUTE GROUP on a separate stacked branch. M0 grid capture/global transport corner cases and broad Cloud timing release gate remain explicit follow-ups; do not mislabel full master-spec completion.
 
 ## First musician test sheet template (fill with real controls before offering an install)
 

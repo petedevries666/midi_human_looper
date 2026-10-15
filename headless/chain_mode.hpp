@@ -46,6 +46,7 @@ struct ChainMode {
     captureStart = NSEEL_VM_regvar(f->vm.get(), "chain_capture_start");
     captureEnd = NSEEL_VM_regvar(f->vm.get(), "chain_capture_end");
     *NSEEL_VM_regvar(f->vm.get(),"native_hold_enabled")=active?1:0;
+    *NSEEL_VM_regvar(f->vm.get(),"native_phrase_contract")=active?2:0;
     holdAccepted=NSEEL_VM_regvar(f->vm.get(),"chain_hold_accepted");
     *captureActive=0;
     phase = NSEEL_VM_regvar(f->vm.get(), "chain_phase");
@@ -76,11 +77,13 @@ struct ChainMode {
     independentPlay=compile("chain_instance_accepted=phrase_admit_independent(chain_target,0);");
     freeArm=compile("free_old_count=layer_count(chain_target);free_old_length=mem[LEN_BASE+chain_target];free_old_trigger=mem[TRIG_BASE+chain_target];record_overflow=0;select_phrase_record(chain_target);");
     freeFinish=compile("finish_phrase_record();overdub_active=0;overdub_armed=0;overdub_wait_note=0;");
-    freeStop=compile("mem[MODE_BASE+chain_target]<.5?free_loop_stop_mask|=1<<chain_target:native_hold_enqueue(chain_target,0);");
+    freeStop=compile("native_phrase_contract || mem[MODE_BASE+chain_target]<.5?free_loop_stop_mask|=1<<chain_target:native_hold_enqueue(chain_target,0);");
     // Legacy choke emits releases only after ysfx opens its DSP output buffer.
-    freePlay=compile("mem[MODE_BASE+chain_target]<.5?"
-        "(layer_count(chain_target)>0 && mem[LEN_BASE+chain_target]>=max(128,samplesblock/8)?(mem[TRIG_BASE+chain_target]>.5?(free_loop_stop_mask|=1<<chain_target;):(state!=STATE_PLAYING?play_sample_pos=0;mem[FREE_FINISHED_BASE+chain_target]=0;mem[FREE_LOOP_ANCHOR_BASE+chain_target]=play_sample_pos;mem[TRIG_BASE+chain_target]=1;state=STATE_PLAYING;););):"
-        "(native_hold_enqueue(chain_target,1););");
+    freePlay=compile("native_phrase_contract && mem[MODE_BASE+chain_target]<.5?"
+        "chain_hold_accepted=native_hold_enqueue(chain_target,2):"
+        "mem[MODE_BASE+chain_target]<.5?"
+        "(layer_count(chain_target)>0 && mem[LEN_BASE+chain_target]>=max(128,samplesblock/8)?(state!=STATE_PLAYING?play_sample_pos=0;mem[FREE_FINISHED_BASE+chain_target]=0;mem[FREE_LOOP_ANCHOR_BASE+chain_target]=play_sample_pos;mem[TRIG_BASE+chain_target]=1;state=STATE_PLAYING;);):"
+        "(chain_hold_accepted=native_hold_enqueue(chain_target,1););");
     align = compile(
         "loop_len_samples=chain_duration;slider6=chain_bpm;play_sample_pos="
         "chain_phase;state=chain_running?STATE_PLAYING:STATE_STOPPED;");
@@ -195,7 +198,10 @@ struct ChainMode {
         if(*phraseModes[selected]>=1.5){
           NSEEL_code_execute(holdPress);
           if(*holdAccepted<.5)return false;
-        }else NSEEL_code_execute(freePlay);
+        }else {
+          *holdAccepted=1;NSEEL_code_execute(freePlay);
+          if(*holdAccepted<.5)return false;
+        }
       }
       if(action==4){
         *target=selected;NSEEL_code_execute(holdRelease);*target=phrase;

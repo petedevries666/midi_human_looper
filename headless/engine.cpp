@@ -681,7 +681,7 @@ static std::string json(const Reply &r) {
       }
       o << "]}";
     }
-  o << "],\"nativeHeldRelease\":" << (s.chain?"true":"false") << ",\"phrases\":[";
+  o << "],\"nativePhraseContract\":" << (s.chain?2:1) << ",\"nativeHeldRelease\":false,\"phrases\":[";
   for (unsigned i = 0; i < 16; ++i) {
     if (i)
       o << ',';

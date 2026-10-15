@@ -15,6 +15,7 @@ import urllib.error
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/'zynthian/update'));sys.path.insert(0,str(ROOT/'headless'))
 import backend
+from update_fixture import FixtureAdmission
 from server import make_server
 SHA='a'*40
 PASSWORD='test-admin-password'
@@ -100,6 +101,7 @@ class UpdateControls(unittest.TestCase):
         calls=[]
         test=self
         class Runtime:
+            def quiesce(self,*args,**kw):return FixtureAdmission()
             def service(self,action):calls.append(action)
             def healthy(self,config,expected):
                 test.assertEqual(adapter.read_bytes(),b'old adapter')
@@ -115,6 +117,7 @@ class UpdateControls(unittest.TestCase):
         journal=dict(version=1,phase='pending',previous=json.loads(self.config.read_text()),candidate={},expected={},components=[dict(path=str(adapter),before=base64.b64encode(b'old adapter').decode(),after=base64.b64encode(b'new adapter').decode(),mode=0o640)])
         calls=[]
         class Runtime:
+            def quiesce(self,*args,**kw):return FixtureAdmission()
             apply_components=self.backend.apply_components
             restore_components=self.backend.restore_components
             def service(self,action):calls.append(action)

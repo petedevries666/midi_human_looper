@@ -46,6 +46,11 @@ class zynthian_engine_mbh(zynthian_engine):
         from server import Control
         self.Control = Control
     def add_processor(self, processor):
+        from update_admission import file_guard, startup_owner
+        directory=Path(self.my_data_dir)/'midi-human-looper'
+        with file_guard(directory,shared=True):
+            self._add_processor(processor,startup_owner(directory))
+    def _add_processor(self, processor, admission_owner=0):
         pid = int(processor.id)
         if pid < 0 or pid > 512 or self.instances or pid in self._live_entries:raise ValueError('invalid/duplicate processor ID')
         data = Path(self.my_data_dir)/'midi-human-looper'/f'processor-{pid}'
@@ -56,9 +61,12 @@ class zynthian_engine_mbh(zynthian_engine):
         name = f'mbh_{pid}'
         log = (data/'engine.log').open('ab')
         command=[self.config['binary'],str(self.root/'midi_human_looper.jsfx'),socket_path,'--jack','--chain','--chain-timing',str(self.chain_timing),'--client',name]
+        command.append('--managed-admission')
+        if admission_owner:command+=['--update-admission',str(admission_owner)]
         if self.grid_capture:command.append('--chain-grid-capture')
         engine = subprocess.Popen(command,stdout=log,stderr=log)
         entry = dict(engine=engine,web=None,log=log,control=self.Control(socket_path),phrase=0,data=data)
+        entry['control'].admission_owner=admission_owner
         self.instances[pid] = entry
         self._live_entries[pid] = entry
         # Oram treats this as both a regex source and an escaped literal destination.

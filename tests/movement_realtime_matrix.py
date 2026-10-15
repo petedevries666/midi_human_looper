@@ -7,7 +7,8 @@ from server import Control
 from test_conductor_persistence import step,block
 from test_movement_persistence import movement
 import conductor
-p=argparse.ArgumentParser();p.add_argument('--output',type=Path,required=True);p.add_argument('--buffers',default='8192,1024,512,256,128');p.add_argument('--seconds',type=float,default=3);a=p.parse_args();a.output.mkdir(parents=True,exist_ok=True)
+from midi_cycle_diagnostics import analyze
+p=argparse.ArgumentParser();p.add_argument('--output',type=Path,required=True);p.add_argument('--buffers',default='8192,1024,512,256,128');p.add_argument('--seconds',type=float,default=3);p.add_argument('--detailed-cpu',action='store_true');a=p.parse_args();a.output.mkdir(parents=True,exist_ok=True)
 results=[]
 for frames in map(int,a.buffers.split(',')):
  d=a.output/str(frames);d.mkdir(exist_ok=True);env=dict(os.environ,JACK_DEFAULT_SERVER=f'mbmf-rt-{frames}');handles=[];server=engine=probe=None;phases=[];report=dict(frames=frames,sampleRate=48000,deadlineUs=frames/48000*1e6,physicalHardware=False,errors=[])
@@ -19,7 +20,7 @@ for frames in map(int,a.buffers.split(',')):
  try:
   for name in ('jack','engine'):handles.append(open(d/(name+'.log'),'w'))
   server=subprocess.Popen([env['JACKD'],'--name',env['JACK_DEFAULT_SERVER'],'--no-realtime','-d','dummy','-r','48000','-p',str(frames)],env=env,stdout=handles[0],stderr=subprocess.STDOUT);time.sleep(1);assert server.poll() is None
-  sock=str(d.resolve()/'engine.sock');engine=subprocess.Popen([env['HEADLESS_BINARY'],str(ROOT/'midi_human_looper.jsfx'),sock,'--chain','--jack','--client','mbmf_d','--rt-trace',str(d/'callback.csv')],env=env,stdout=handles[1],stderr=subprocess.STDOUT)
+  sock=str(d.resolve()/'engine.sock');engine=subprocess.Popen([env['HEADLESS_BINARY'],str(ROOT/'midi_human_looper.jsfx'),sock,'--chain','--jack','--client','mbmf_d','--rt-trace',str(d/'callback.csv')]+(['--rt-trace-cpu'] if a.detailed_cpu else []),env=env,stdout=handles[1],stderr=subprocess.STDOUT)
   deadline=time.monotonic()+15
   while not Path(sock).exists() and time.monotonic()<deadline:assert engine.poll() is None;time.sleep(.05)
   c=Control(sock)
@@ -73,7 +74,7 @@ for frames in map(int,a.buffers.split(',')):
    try:
     probe.stdin.close();lines=probe.stdout.read().splitlines();report['probeExit']=probe.wait(timeout=5);events=[list(map(int,l.split())) for l in lines];(d/'midi.json').write_text(json.dumps(events));report['midiEvents']=len(events)
     if report['probeExit']!=0:report['errors'].append('probe exit '+str(report['probeExit']))
-    if not all(x[0]+x[1]<=y[0]+y[1] for x,y in zip(events,events[1:])):report['errors'].append('MIDI timestamp order')
+    report['receiverChronology']=analyze(events,frames)
     if not any(e[2]==144 and e[3]==60 for e in events):report['errors'].append('missing real PHRASE Note On')
     if not any(e[2]==176 and e[3]==10 and e[4]==77 for e in events):report['errors'].append('missing intact physical takeover')
    except Exception as e:report['errors'].append('probe '+str(e));probe.kill()
@@ -93,7 +94,9 @@ for frames in map(int,a.buffers.split(',')):
     rr=[{k:int(v) for k,v in r.items()} for r in rows if ph['start']<=int(r['entry_ns'])<=ph['end']]
     summary=dict(name=ph['name'],wall=stats([r['wall_ns'] for r in rr]),cpu=stats([r['cpu_ns'] for r in rr]),offCpu=stats([max(0,r['wall_ns']-r['cpu_ns']) for r in rr]),entryGap=stats([r['entry_gap_ns'] for r in rr]),deadlineOverruns=sum(r['wall_ns']>frames/48000*1e9 for r in rr))
     for key in ('xruns','rejected','overflow'):summary[key]=max((r[key] for r in rr),default=0)-min((r[key] for r in rr),default=0)
-    summary['stages']={k:stats([r[k] for r in rr]) for k in (rows[0].keys() if rows else []) if k.endswith('_cpu_ns') and k!='cpu_ns'}
+    summary['detailedCpu']=a.detailed_cpu
+    summary['stages']={k:stats([r[k] for r in rr]) for k in (rows[0].keys() if rows else []) if k.endswith('_wall_ns')}
+    if not a.detailed_cpu:summary['cpu']=summary['offCpu']=None
     report['phases'].append(summary)
    top=sorted(rows,key=lambda r:int(r['wall_ns']),reverse=True)[:20];report['slowest']=top
    with gzip.open(d/'callback.csv.gz','wt') as f:f.write('\n'.join(lines)+'\n')

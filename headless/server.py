@@ -38,6 +38,7 @@ def validate_patch_extensions(patch):
 class Control:
     def __init__(self, path):
         self.path = path
+        self.admission_owner = 0  # privileged native restore client only; never an HTTP field
         self.lock = threading.RLock()
         self.ids = itertools.count(1)
         self._observation=None
@@ -73,6 +74,7 @@ class Control:
             request_id = next(self.ids)
             line = f'{request_id} {op} {target} {arg} {revision} {ch} {note} {value}\n'
             if session:line=line.rstrip('\n')+f' session {session}\n'
+            if self.admission_owner:line=line.rstrip('\n')+f' admission {self.admission_owner}\n'
             if op in (13,28):line=line.rstrip('\n')+f' {module}\n'
             if name is not None:line=line.rstrip('\n')+' '+(name.encode('ascii').hex() or '-')+'\n'
             if settings is not None:line=line.rstrip('\n')+' '+' '.join(format(v,'.17g') for v in settings)+'\n'

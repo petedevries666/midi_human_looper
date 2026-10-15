@@ -1,5 +1,8 @@
 'use strict';
 let revision=1, engineSession=null, pending=false, renderedModel='', latest=null;
+// Next insertion type is an editor choice, not a musical parameter. Preserve it
+// by stable instrument ID when a pending native response rebuilds the rows.
+const transformerChoices=new Map();
 let selectedModule=null;
 let catalog=null, ws=null, reconnect=null, renderedSnapshots='', renderedSnapshotSession=null;
 const $=id=>document.getElementById(id);
@@ -296,6 +299,8 @@ function renderAB(s){
 function paintEffectiveRails(s){for(const rail of document.querySelectorAll('.tactile-slider input[type=range]')){const b=rail.mbmfBinding;if(!b||!rail.setEffective)continue;const p=[14,15,17].includes(b.kind)?s.phrases.find(p=>p.id===b.instrumentId):s.instruments.find(i=>i.id===b.instrumentId);if(!p)continue;const field={1:'level',14:'timeDecay',15:'velocityDecay',17:'baseVelocity'}[b.kind];if(field)rail.setEffective(p[field]);}}
 function render(s){
   if(engineSession===s.engineSessionId&&s.revision<revision)return;
+  if(engineSession!==s.engineSessionId)transformerChoices.clear();
+  for(const id of transformerChoices.keys())if(!s.instruments.some(i=>i.id===id))transformerChoices.delete(id);
   engineSession=s.engineSessionId;revision=s.revision;latest=s;
   $('connection').textContent='CONNECTED · Engine running';
   $('stop-native').hidden=!s.chainMode;paintPhraseStates(s);paintEffectiveRails(s);paintConductorRuntime(s);if(typeof refreshMovements==='function')refreshMovements(s);
@@ -352,10 +357,18 @@ async function testSwitch(id,gesture){
 }
 async function refresh(){try{render(await request('/api/v1/state'));}catch(e){$('connection').textContent='DISCONNECTED · Engine continues independently';$('error').textContent=e.message;}}
 function setPending(value){pending=value;for(const b of document.querySelectorAll('main button:not([data-live-release=held])')){if(value){b.dataset.pendingDisabled=b.disabled?'1':'0';b.disabled=true;}else if(b.dataset.pendingDisabled!==undefined){b.disabled=b.dataset.pendingDisabled==='1';delete b.dataset.pendingDisabled;}}}
-let commandQueue=Promise.resolve(),uiPointerHeld=false;
-document.addEventListener('pointerdown',()=>uiPointerHeld=true,true);
-for(const event of ['pointerup','pointercancel'])document.addEventListener(event,()=>{uiPointerHeld=false;setTimeout(()=>{if(latest&&!pending)render(latest);},0);},true);
-window.addEventListener('blur',()=>uiPointerHeld=false);
+let commandQueue=Promise.resolve(),uiPointerHeld=false,uiPointerEpoch=0;
+document.addEventListener('pointerdown',()=>{++uiPointerEpoch;uiPointerHeld=true;},true);
+for(const event of ['pointerup','pointercancel'])document.addEventListener(event,()=>{
+  // Keep the real target alive through mouseup/click, not just pointerup.
+  // A queued telemetry repaint can otherwise detach it before its action runs.
+  const epoch=uiPointerEpoch;
+  requestAnimationFrame(()=>requestAnimationFrame(()=>{
+    if(epoch!==uiPointerEpoch)return; // A newer gesture owns the guard now.
+    uiPointerHeld=false;if(latest&&!pending)render(latest);
+  }));
+},true);
+window.addEventListener('blur',()=>{++uiPointerEpoch;uiPointerHeld=false;});
 function command(value){const session=engineSession;const job=commandQueue.then(()=>executeCommand(value,session));commandQueue=job.catch(()=>{});return job;}
 async function executeCommand(value,session){while(pending)await new Promise(resolve=>setTimeout(resolve,10));if(session!==engineSession){$('error').textContent='Engine restarted; action cancelled.';return false;}setPending(true);try{render(await request('/api/v1/command',{protocolVersion:1,expectedRevision:revision,expectedEngineSessionId:engineSession,...value}));$('error').textContent='';return true;}catch(e){$('error').textContent=value.action?.startsWith('snapshot_')&&e.message==='unknown_target'?'Recall was not applied: a target is missing or has a legacy expression assignment.':e.message;await refresh();return false;}finally{setPending(false);}}
 function connectStream(){
@@ -669,6 +682,9 @@ function compactInstrument(i){
   const blank=node('option','+ ADD EMPTY TRANSFORMER');blank.value='empty';select.append(blank);
   for(const d of catalog?.modules.filter(m=>m.engineType>0&&(catalog.runtimeCapabilities?.transformerTypes||[1,2,3,4,5,6]).includes(m.engineType))||[]){const option=node('option',d.label);option.value=d.engineType;select.append(option);}
   select.value=catalog?.modules.find(m=>m.engineType>0&&(catalog.runtimeCapabilities?.transformerTypes||[1,2,3,4,5,6]).includes(m.engineType))?.engineType??'empty';
+  const chosen=transformerChoices.get(i.id);
+  if([...select.options].some(option=>option.value===chosen))select.value=chosen;
+  select.onchange=()=>transformerChoices.set(i.id,select.value);
   chain.title=i.serialPitchOrder?'Serial pitch order · Velocity → Polyphony → ARP; CC separate':'Legacy stages: Transpose → Range → Velocity → Polyphony → ARP; CC separate';chain.append(select,button('ADD TRANSFORMER',async()=>{if(select.value==='empty'){addEmptyTransformer(i);return;}await command({action:'module_structure',instrumentId:i.id,operation:'add',engineType:Number(select.value)});}),button('EDIT',()=>editInstrument(i)));n.append(chain);return n;
 }
 

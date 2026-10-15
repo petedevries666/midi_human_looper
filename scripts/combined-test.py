@@ -94,6 +94,7 @@ try:
             run([sys.executable,'tests/test_native_hold_browser.py'])
             run([sys.executable,'tests/test_recovery_browser.py'])
             run([sys.executable,'tests/test_hardware_feedback_browser.py'])
+            run([sys.executable,'tests/test_module_picker_browser.py'])
             run([sys.executable,'tests/test_issue53_browser.py'])
     if a.web_access:run(['scripts/az-hub-test.sh'],{'TEST_PYTHON':sys.executable})
     print('PASS selected combined regression suite',flush=True)

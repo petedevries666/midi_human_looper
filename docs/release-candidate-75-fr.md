@@ -12,7 +12,10 @@ Le défaut Learn est corrigé : réapprendre/effacer une source ne fait plus PAN
 sur tous les propriétaires Controller. Les autres pédales, snapshots et MOVEMENTS
 continuent. Les tests C++, l'API native et la vraie sortie JACK vérifient cette
 isolation, dont 201 valeurs de CC à cadence exacte pendant l'apprentissage.
-PANIC reste global. Les tests de géométrie sont rendus atomiques sans assouplir
+PANIC reste global. Deux défauts Web sont aussi corrigés et reproduits : le bouton
+EDIT détaché entre relâchement et clic, et le choix du prochain Transformer effacé
+par une réponse ADD en attente. Les choix restent indépendants par Instrument et
+n'ajoutent rien au schéma musical. Les tests de géométrie sont rendus atomiques sans assouplir
 leurs seuils ; les timeouts JACK continuent d'échouer en conservant les diagnostics.
 
 **Pas de merge automatique.** La qualification LIVE a effectivement échoué :

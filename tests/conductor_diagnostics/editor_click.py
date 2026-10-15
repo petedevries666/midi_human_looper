@@ -26,7 +26,12 @@ try:
   page.wait_for_function('()=>latest.instruments[0].transformers[0].parameters[0].value===12')
   assert page.evaluate('window.__pressedEdit.isConnected'),'telemetry detached the pressed target'
   detached=not page.evaluate('window.__pressedEdit.isConnected')
+  # Force a real telemetry repaint in the release/click window, after the
+  # application's pointerup listener. Holding only until pointerup is unsafe.
+  page.evaluate("document.addEventListener('pointerup',()=>queueMicrotask(()=>{render(latest);window.__releaseTargetDetached=!window.__pressedEdit.isConnected;}),{capture:true,once:true})")
   page.mouse.up()
+  released=page.evaluate('window.__releaseTargetDetached');print('RELEASE WINDOW',json.dumps({'targetDetached':released}),flush=True)
+  assert released is False,'telemetry detached target between pointerup and click'
   # Wait for browser event processing, not for a hoped-for passing condition.
   page.get_by_role('slider',name='VELOCITY',exact=True).wait_for()
   missed=page.get_by_role('slider',name='VELOCITY',exact=True).count()==0

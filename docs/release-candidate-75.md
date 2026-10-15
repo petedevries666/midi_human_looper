@@ -82,7 +82,8 @@ reproduction shows three identical document Y positions (513) but viewport Y
 413/349/285 across separate reads. A single browser task sees all three at Y285.
 The fixture now waits for authoritative source removal and samples the named rails
 atomically; existing alignment thresholds stay, plus presence/size checks. No CSS
-or Web application code is changed. The corrected complete browser workflow passes.
+or Web application code is changed by the geometry correction. The corrected
+complete browser workflow passes.
 The inherited test typo `returnPolicy` is corrected to actual `returnMode`.
 
 ## Reproducible qualification
@@ -129,7 +130,25 @@ intermediate failed runs are retained, not relabelled PASS.
 AZ/Webconf suite: 23 tests, exit 0. Twelve actual native/editor/portal PNGs were
 visually inspected (7 AZ, 4 gateway, 1 reviewed-release fixture). Systemd/MPV/RFB/
 release authority are explicitly fixtures, not observed physical service status.
-No `headless/web/` source change against #74; REAPER JSFX and #67 router unchanged.
+A later complete run exposed the remaining EDIT release/click window: telemetry
+could detach the module button after pointerup but before click. A deterministic
+native-browser repaint reproduces `targetDetached=true` before the fix. The UI
+now retains the guard across that window using two animation frames and a gesture
+epoch so an older release cannot clear a newer press. After: target stays attached
+and the actual VELOCITY editor opens. Parameter writes/MIDI/ownership are unchanged.
+A second deterministic case holds the **real** native ADD response while the
+user chooses the next types 4 and 6 on two instruments. Before: both reset to 1.
+After: choices remain 4/6; the native modules are exactly [1,4], independently,
+and SAVE/LOAD preserves those modules. Next-insertion choices are ephemeral editor
+state keyed by instrument/session, not new musical parameters or patch schema.
+The first post-release-guard hardware run still timed out; a subsequent diagnostic
+run passed. Its initial timeout did not retain module kinds, so we do not assert
+its exact cause. The forced ADD test demonstrates another real route to an absent
+VELOCITY editor, now fixed. Failure context is retained for any future timeout.
+Both prior UI race gates, the strengthened release/click test, independent picker
+case and complete hardware-feedback browser workflow pass targeted checks. No assertion or 30-second UI timeout is weakened. The full five-viewport
+screenshot workflow is required for this small Web fix; its manifest identifies
+actual capture revision. Frozen REAPER JSFX and #67 router stay unchanged.
 
 ## Blockers and boundaries
 

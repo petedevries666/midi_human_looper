@@ -38,7 +38,11 @@ try:
   value=float(rail.input_value());api.wait_for(lambda:api.call()['instruments'][0]['transformers'][0]['parameters'][0]['value']==value,'MIDI parameter updates while pointer is held')
   assert api.command('midi',channel=1,note=60,value=100)['lastEvent'][2]==60+value;api.command('midi',channel=1,note=60,value=0);page.mouse.up()
   rail.fill('12');api.wait_for(lambda:api.call()['instruments'][0]['transformers'][0]['parameters'][0]['value']==12,'restore transpose')
-  panel.locator('.module').nth(1).get_by_role('button',name='EDIT',exact=True).click();page.get_by_role('slider',name='VELOCITY',exact=True).wait_for()
+  panel.locator('.module').nth(1).get_by_role('button',name='EDIT',exact=True).click()
+  try:page.get_by_role('slider',name='VELOCITY',exact=True).wait_for()
+  except Exception:
+   print('MODULE SWITCH FAILURE',json.dumps(dict(browser=page.evaluate("({pending,revision,selectedModule,editorOpen:document.querySelector('#editor').open,title:document.querySelector('#editor h2')?.textContent,error:document.querySelector('#error').textContent,editorErrors:[...document.querySelectorAll('#editor [role=alert]')].map(e=>e.textContent),modules:[...document.querySelectorAll('[data-instrument-id=\"1\"] .module')].map(e=>({id:e.dataset.moduleId,text:e.textContent}))})"),native=api.call()['instruments'][0])),flush=True)
+   raise
   page.get_by_role('button',name='DONE',exact=True).click();page.locator('#editor').wait_for(state='hidden')
   row=page.locator('[data-phrase-id="1"]');row.get_by_role('button',name='REC / OVERDUB',exact=True).click();api.command('midi',channel=1,note=60,value=100);time.sleep(.15)
   row.get_by_role('button',name='FINISH REC',exact=True).click();page.get_by_role('button',name='PANIC',exact=True).click()

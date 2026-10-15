@@ -82,7 +82,7 @@ def _apply_exclusive(context, requested, virtual_names):
         _restore_exclusive(context)
         return True
     chains = context.chain_manager.chains
-    mb_chains = [c for c in chains.values() if c.zmop_index is not None and _contains_mb(c)]
+    mb_chains = [c for c in chains.values() if isinstance(c.zmop_index, int) and c.zmop_index >= 0 and _contains_mb(c)]
     if len(mb_chains) != 1 or len(virtual_names) != 1:
         _restore_exclusive(context)
         logging.error('MBMF exclusive input requires exactly one dedicated MB chain')
@@ -144,7 +144,7 @@ def _apply_exclusive(context, requested, virtual_names):
         port = context.devices_in[index]
         changes[(mb.zmop_index, index)] = (mb, port.name, 1)
         for chain in chains.values():
-            if chain.zmop_index is not None and chain is not mb:
+            if isinstance(chain.zmop_index, int) and chain.zmop_index >= 0 and chain is not mb:
                 changes[(chain.zmop_index, index)] = (chain, port.name, 0)
     # A virtual -> synth -> zynsmf -> seq_in -> MB return is possible even
     # when virtual -> MB is disabled. Break that separate internal path.

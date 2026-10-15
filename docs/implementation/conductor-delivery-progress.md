@@ -46,6 +46,7 @@ Populate the complete A01–L11 and R1–R7 matrix from the master spec incremen
 
 ## Current task / handoff
 
+- **Latest verified code commit:** `49a14b9f99d83b23fa299966b1862aadddae61fa` (checkpoint-only update follows; production code/tests already committed).
 - **Implementation PR:** [#79](https://github.com/petedevries666/midi_human_looper/pull/79), draft, branch `fix/m0-phrase-playback-contract`, base #78.
 - **Code:** new native runtime contract (no schema change), shared EEL default preserves REAPER, truthful API capability and HOLD browser interaction, integrated focused regression runners and actual JACK test.
 - **Next:** commit checkpoint with resulting code SHA, publish to #79, then start source MUTE GROUP on a separate stacked branch. M0 grid capture/global transport corner cases and broad Cloud timing release gate remain explicit follow-ups; do not mislabel full master-spec completion.

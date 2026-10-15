@@ -1,52 +1,37 @@
 # Current capability and qualification matrix
 
-Updated 14 October 2026; fresh audit includes #64–#71. This is the current status authority; archived checkpoints
-are history, not instructions to repeat completed work. **Draft implementation is
-not merged or hardware-qualified release functionality.**
+Updated 15 October 2026 for issue #75. This is the current capability authority;
+older checkpoints and #63 traces are historical, not qualification of this build.
+**Integration PR is draft until its final-HEAD regression and review gates pass.**
 
 ## Product direction
 
-REAPER-specific new features/UI/parity ports are frozen. Native Zynthian + Web
-are the active targets. Existing JSFX/projects/patches and source-MIDI interchange
-remain preserved. See [freeze decision](reaper-legacy-freeze.md) and the
-[fresh audit through #71](engineering-audit-2026-10.md).
+REAPER JSFX is frozen legacy. No new REAPER features or parity ports. Existing
+JSFX/projects/patches and relevant shared-core/interchange tests remain preserved.
+See [freeze decision](reaper-legacy-freeze.md). The master specification imported
+byte-for-byte from #55 (`73cdee5`) is the musical reference; its old dual-platform
+feature-development language is superseded by this freeze.
 
-## Dependency and review map
+## Integration and review map
 
-`main` → #30 (core/lifecycle/native snapshots/UI) → #34 (SMF interchange) → #37
-(portable carrier) → #38 (ReaScript/sync) → #40 (sample-grid transport correction)
-→ #41 (shared parameter contract) → #42 (project restoration authority)
-→ #43 (shared browser observation / named controller choices).
+Current candidate: `integration/zynthian-release-candidate`, freshly based on
+main `ab37a752693bf7d2d126a3a9e1ca1c863a5826a9`, tracking issue #75.
+The [integration report](release-candidate-75.md) and
+[complete source-PR inventory](release-candidate-75-pr-inventory.md) distinguish
+integrated ancestry, superseded overlapping branches and unimplemented designs.
+The exact tested SHA and full results are published on the integration PR.
 
-Named integration candidate: [PR #44](https://github.com/petedevries666/midi_human_looper/pull/44)
-(`integration/studio-live-rc`), based on #43 commit
-`57910e7`. All eight fetched PR heads were verified as ancestors on 10 October
-2026. Its build identity and read-only reliability monitor aid qualification;
-they do not establish physical acceptance. See [V4 first test](zynthian-v4-first-test.md)
-and [REAPER acceptance](reaper-studio-live-acceptance.md).
+Included: #30 → #34 → #37 → #38 → #40 → #41 → #42 → #43 → #44 → #47 → #48
+→ #49 → #50 → #56 → #57 → #58 → #60 → #61 → #62 → #64 → #66 → #67 → #68
+→ #71 → #72 → #73 → #74; plus #69 AZ hub and reconciled #63 optional diagnostics.
+Main's #27/#29 merge history is retained. #45/#46 overlapping implementations
+are superseded; #25/#28 experimental foundations remain isolated. Designs do not
+constitute completed modules. No hardware deployment or concert qualification.
 
-No PR was merged during consolidation. #30 remains a large review dependency;
-review lifecycle/ownership, native snapshots and UI separately before integrating.
-The full software regression suite is a gate, not automatic permission to label
-physical routing, REAPER API execution or Pi latency qualified. Keep #25 and #28
-separate pending scheduler continuation and playable-module integration; #32 is
-still a Motion specification. #35/#36 are design antecedents, #39 is the audit.
-
-## Current unmerged recovery stack (14 October)
-
-Fresh GitHub audit: #47 and #48 are review-ready and mergeable into their bases;
-#50/#56/#57/#58/#60/#61/#62/#63 remain drafts. #49 remains draft. #27 and #29
-are merged into main. Main differs from the #62 ancestry only by those two merge
-commits; their implementation commits are already in the stack. No merge was
-performed in this resumption. Earlier #44-only status is historical.
-
-Dependency path: #44 → #47 → #48 → #49 → #50 → #56 → #57 → #58 → #60 → #61
-→ #62. #63 is independent realtime qualification on #62. Native-destination
-routing fixes are also based on #62, without #63 instrumentation. Neither branch
-is a hardware-qualified release. The #63 final combined diagnostic run failed a
-Chromium EDIT timeout; the native-routing branch subsequently passed the full
-combined suite. This does not resolve intermittent live timing or qualify hardware. See
-[movement qualification](https://github.com/petedevries666/midi_human_looper/blob/d6169f9/docs/movement-realtime-qualification.md) on #63.
+Controller source reconfiguration now resets only its own mapping runtimes,
+without revoking unrelated MOVEMENT/Snapshot/physical leases. Explicit PANIC
+continues to cancel all automation. Native A/B configuration edits still retain
+their existing explicit cancellation behavior; no broad ownership rewrite.
 
 ## Implemented execution
 
@@ -70,7 +55,7 @@ combined suite. This does not resolve intermittent live timing or qualify hardwa
 | MOVEMENT | No equivalent execution yet | Linear/stepped CC curves, 10/25/50/100 Hz, ownership/replacement, parallel soft GLIDE, native STEP integration | #62 draft; actual engine/JACK tests; performance/hardware qualification incomplete |
 | Native chain destinations | Frozen host routing | #67 dedicated MB source into ZynMidiRouter, filtering by receiving channel | #64 direct shortcuts suppressed; graph/chain/snapshot/feedback hardware qualification remains |
 | PHRASE output channel | Existing shared source retained | #68 ORIGINAL / ALL / CH1–16, playback-only policy, latched owned destinations | Instrument OUT ALL is not implemented; MOVEMENT explicit channel unchanged |
-| Local Web entry / AZ | Not applicable | #66 mbmf.local trusted/token gateway; #69 separate az.local portal draft | Dynamic active process/port identity; #69 is not yet on #71 ancestry |
+| Local Web entry / AZ | Not applicable | #66 mbmf.local trusted/token gateway; #69 separate az.local portal integrated | Dynamic active process/port identity; optional Webconf installation, checked service status |
 | Reviewed UPDATE | Not applicable | #71 native/Web controls, common separately authorized worker | No published eligible release; UI-wide restart; physical activation/rollback unqualified |
 | Live BYPASS / MIDI LOG | Legacy behavior preserved | #70 requirements only, not implemented in #71 | No transparent native BYPASS/log claim |
 | HUMANIZER/ECHOCITY | Not released | Not playable modules | #25 algorithms/#28 scheduler remain isolated |
@@ -93,7 +78,8 @@ Zynthian native graph and snapshot precedence, Helix learn/takeover, device/port
 reconnection, STOP/PANIC, interrupted transfer/power loss. Desktop tests use large
 buffers for VM stability and cannot certify live latency.
 
-Setup/procedure: [consolidated candidate](consolidated-release-candidate.md),
+Setup/procedure: [current integration and rollback](release-candidate-75.md),
+[historical studio/live candidate](consolidated-release-candidate.md),
 [studio/live bridge](studio-live-bridge.md),
 [timing versions](chain-timing-v2.md), [restart authority](project-authority.md),
 [shared parameter contract](shared-parameter-contract.md).

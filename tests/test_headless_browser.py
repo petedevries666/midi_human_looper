@@ -22,17 +22,24 @@ try:
         page.on('pageerror',lambda error: errors.append(str(error)))
         page.goto(HeadlessTests.base)
         page.get_by_text('CONNECTED · Engine running',exact=True).wait_for()
-        assert page.locator('.phrase').count()==16
+        assert page.locator('.phrase').count()==6
+        page.locator('#phrase-pagination').get_by_role('button',name='→',exact=True).click()
+        assert page.locator('[data-phrase-id="7"]').count()==1
+        page.locator('#phrase-pagination').get_by_role('button',name='←',exact=True).click()
         assert page.locator('.instrument').count()==3
         assert page.locator('.switch').count()==4
-        assert page.locator('[data-switch-id="3"] .tests button').first.is_disabled()
+        assert page.locator('[data-switch-id="3"] .tests button').first.is_enabled(), 'Manual preview does not require a hardware-enabled switch'
         before=api.call()
+        assert page.locator('#metrics').text_content().find('Build '+before['buildRevision'])>=0
+        page.locator('[data-switch-id="1"] .switch-test').evaluate('(e)=>e.open=true')
         page.locator('[data-switch-id="1"]').get_by_role('button',name='TEST TAP',exact=True).click()
         page.wait_for_timeout(600)
+        assert page.locator('[data-switch-id="1"] .switch-test').evaluate('(e)=>e.open'), 'TEST panel must survive live state changes'
         assert api.call()['midiCount']>before['midiCount']
         page.get_by_role('button',name='PANIC',exact=True).click()
         page.wait_for_timeout(100)
         assert api.call()['activeNotes']==0
+        page.locator('[data-switch-id="2"] .switch-test').evaluate('(e)=>e.open=true')
         page.locator('[data-switch-id="2"]').get_by_role('button',name='SIMULATE FOOTSWITCH',exact=True).click()
         page.wait_for_timeout(80)
         assert api.call()['lastEvent'][2]==64
@@ -47,6 +54,7 @@ try:
         page.screenshot(path=os.environ.get('BROWSER_SCREENSHOT','/tmp/midi-headless-browser.png'),full_page=True)
         # Browser remains open while the independent web worker disappears/restarts.
         page.get_by_role('button',name='PANIC',exact=True).click()
+        page.locator('[data-switch-id="1"] .switch-test').evaluate('(e)=>e.open=true')
         page.locator('[data-switch-id="1"]').get_by_role('button',name='TEST TAP',exact=True).click()
         deadline=time.monotonic()+3
         before=api.call()

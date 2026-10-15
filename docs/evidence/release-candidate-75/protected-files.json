@@ -1,0 +1,31 @@
+{
+  "count": 25,
+  "changed": [],
+  "sha256": {
+    "docs/zynthian-admin-provisioning.md": "704e24468515fd2e083926705c72ddace55cae228815fde673378aecc3e113a3",
+    "docs/zynthian-admin-service.md": "41b725aa73919b58bef558d3cb5b83aa5aa89967d1f0b4e5cfe6a5673bf0a2c1",
+    "docs/zynthian-native-admin.md": "a8d8d87c34362235545ad598295c7f3903b086d35222b356025edfa329d0ae14",
+    "docs/zynthian-runtime-update.md": "6952352e026916c23d0cd576f8cb668933ce89638dae87f3c49ea090b27edfe7",
+    "headless/admin_client.py": "e509c774633288ccef102b08846db9aa2417eafe9dc531d402dc0ec93dab0e15",
+    "headless/browser_auth.py": "731f17e51ddc2822605f92ba1e5efbe1a1a83451dc169ddf854360ca647252e0",
+    "headless/server.py": "b1e2d9cd86d47204134624b9208d68ea46fede153c37f0aadf4f77f5ab4b06cf",
+    "headless/web/app.js": "bf35c8786c2ee0f097be42a3fc3de4d26bb6d3c4d521096cb134a0839f214c8c",
+    "headless/web/index.html": "bfddd532f0cc2f368d64189f543fb05c0a66bc9657932750a9a13e65582c5b76",
+    "headless/web/style.css": "077f68a959cbfedf72ccaf7767c406477079960e90e5b6194b904f94611d1b25",
+    "scripts/screenshots.py": "c36a968a9cde7a7f6030e156ffdea3894f34d6a9257b524651723675a7d97add",
+    "scripts/zynthian-admin-helper.py": "f98647d14fb9a1831cd07ccebb4322d99f975423291aa1476e91797aa1918cb9",
+    "scripts/zynthian-update.py": "fa5435bab29c58f5ff2423fddce2ac4776125947933c3f7e6f3058dc3ca0d3c8",
+    "tests/admin_fixture.py": "3af10866cf54234aa986aceab6953a34ba4e61ff93d80e96d1e12cba3bc61691",
+    "tests/fixtures/oram/control.py": "312ca3df0d7ad1bf5eec28f84bc1f66dda32a97871bc45bcd379050381a74ef8",
+    "tests/test_admin_browser.py": "6e7117d48f95cd7afb4483fb3f9f9ab51602144659a1cdccbfc40ed2f4644d97",
+    "tests/test_admin_provision.py": "fe894b9f08b3f740b3e44acfc8ed2d1d20c641cc606689c3efaf3c9577b97089",
+    "tests/test_zynthian_admin_helper.py": "034272ce8c75ac8c0df8e491f7f3fc6d72060cda99e1408db048ea85513a3a82",
+    "tests/test_zynthian_install.py": "45c4c354fc614404847276ce3c3407f2e9a7a427c0d3534c3c69175b8a050e9d",
+    "tests/test_zynthian_native_admin.py": "dbcc866f8df3a658a268e385cd2b7ee7fc83d67b629b4b293eaa04793928fe06",
+    "tests/test_zynthian_update.py": "51ee6719b54642281897d963aef8d2931a26d20c7d735deaf8a6d2ff3d6e2e45",
+    "zynthian/admin_provision.py": "81831f685d10961d38323bd8cf60633f076b2916b12466abdf24dcc9c3d37d8d",
+    "zynthian/install.py": "aea4eba5ca22bc3b8fec593ae01eb53f177bc72cf87c950919378b494adecf05",
+    "zynthian/zynthian_engine_mbh.py": "56527008a15ef20710e9a524b32c8caca977aed6abc42f982217b2ebcd9dd9c0",
+    "zynthian/zynthian_widget_mbh.py": "c815bf3f30b7b974cfbed39a046d4cd96c3e9914e82c6e4dc08e78367f791d30"
+  }
+}

@@ -1,0 +1,1701 @@
+{
+  "browser": "151.0.7922.173",
+  "sourceRevision": "3f79687a7b6bb3a8cc4122cb2c18ed92f8ebdf50",
+  "sourceDirty": true,
+  "runtimeBuildRevision": "3f79687a7b6bb3a8cc4122cb2c18ed92f8ebdf50",
+  "application": "MIDI BAD MOTHERFUCKER",
+  "data": "Native --demo views plus actual native --chain recovery: named CC source, real ARP MIDI, observed recording states and explicitly configured reference chains",
+  "artifacts": [
+    {
+      "view": "patch",
+      "viewport": [
+        320,
+        240
+      ],
+      "file": "patch-320x240.png",
+      "checks": []
+    },
+    {
+      "view": "update-unavailable",
+      "viewport": [
+        320,
+        240
+      ],
+      "file": "update-unavailable-320x240.png",
+      "checks": []
+    },
+    {
+      "view": "snapshots",
+      "viewport": [
+        320,
+        240
+      ],
+      "file": "snapshots-320x240.png",
+      "checks": []
+    },
+    {
+      "view": "smart-switches",
+      "viewport": [
+        320,
+        240
+      ],
+      "file": "smart-switches-320x240.png",
+      "checks": []
+    },
+    {
+      "view": "smart-switch-test",
+      "viewport": [
+        320,
+        240
+      ],
+      "file": "smart-switch-test-320x240.png",
+      "checks": []
+    },
+    {
+      "view": "smart-switch-editor",
+      "viewport": [
+        320,
+        240
+      ],
+      "file": "smart-switch-editor-320x240.png",
+      "checks": []
+    },
+    {
+      "view": "smart-switch-editor-bottom",
+      "viewport": [
+        320,
+        240
+      ],
+      "file": "smart-switch-editor-bottom-320x240.png",
+      "checks": []
+    },
+    {
+      "view": "conductor-empty-editor",
+      "viewport": [
+        320,
+        240
+      ],
+      "file": "conductor-empty-editor-320x240.png",
+      "checks": []
+    },
+    {
+      "view": "conductor-empty-editor-bottom",
+      "viewport": [
+        320,
+        240
+      ],
+      "file": "conductor-empty-editor-bottom-320x240.png",
+      "checks": []
+    },
+    {
+      "view": "conductor-source-menu-editor",
+      "viewport": [
+        320,
+        240
+      ],
+      "file": "conductor-source-menu-editor-320x240.png",
+      "checks": []
+    },
+    {
+      "view": "conductor-source-menu-editor-bottom",
+      "viewport": [
+        320,
+        240
+      ],
+      "file": "conductor-source-menu-editor-bottom-320x240.png",
+      "checks": []
+    },
+    {
+      "view": "conductor-four-step-editor",
+      "viewport": [
+        320,
+        240
+      ],
+      "file": "conductor-four-step-editor-320x240.png",
+      "checks": []
+    },
+    {
+      "view": "conductor-four-step-editor-bottom",
+      "viewport": [
+        320,
+        240
+      ],
+      "file": "conductor-four-step-editor-bottom-320x240.png",
+      "checks": []
+    },
+    {
+      "view": "conductor-override-editor",
+      "viewport": [
+        320,
+        240
+      ],
+      "file": "conductor-override-editor-320x240.png",
+      "checks": []
+    },
+    {
+      "view": "conductor-override-editor-bottom",
+      "viewport": [
+        320,
+        240
+      ],
+      "file": "conductor-override-editor-bottom-320x240.png",
+      "checks": []
+    },
+    {
+      "view": "movement-curve-editor",
+      "viewport": [
+        320,
+        240
+      ],
+      "file": "movement-curve-editor-320x240.png",
+      "checks": []
+    },
+    {
+      "view": "movement-library",
+      "viewport": [
+        320,
+        240
+      ],
+      "file": "movement-library-320x240.png",
+      "checks": []
+    },
+    {
+      "view": "movement-layer-editor",
+      "viewport": [
+        320,
+        240
+      ],
+      "file": "movement-layer-editor-320x240.png",
+      "checks": []
+    },
+    {
+      "view": "movement-layer-editor-bottom",
+      "viewport": [
+        320,
+        240
+      ],
+      "file": "movement-layer-editor-bottom-320x240.png",
+      "checks": []
+    },
+    {
+      "view": "phrases",
+      "viewport": [
+        320,
+        240
+      ],
+      "file": "phrases-320x240.png",
+      "checks": []
+    },
+    {
+      "view": "phrase-name-editor",
+      "viewport": [
+        320,
+        240
+      ],
+      "file": "phrase-name-editor-320x240.png",
+      "checks": []
+    },
+    {
+      "view": "phrase-editor",
+      "viewport": [
+        320,
+        240
+      ],
+      "file": "phrase-editor-320x240.png",
+      "checks": []
+    },
+    {
+      "view": "instruments",
+      "viewport": [
+        320,
+        240
+      ],
+      "file": "instruments-320x240.png",
+      "checks": []
+    },
+    {
+      "view": "empty-transformer",
+      "viewport": [
+        320,
+        240
+      ],
+      "file": "empty-transformer-320x240.png",
+      "checks": []
+    },
+    {
+      "view": "instrument-name-editor",
+      "viewport": [
+        320,
+        240
+      ],
+      "file": "instrument-name-editor-320x240.png",
+      "checks": []
+    },
+    {
+      "view": "instrument-editor",
+      "viewport": [
+        320,
+        240
+      ],
+      "file": "instrument-editor-320x240.png",
+      "checks": []
+    },
+    {
+      "view": "instrument-editor-bottom",
+      "viewport": [
+        320,
+        240
+      ],
+      "file": "instrument-editor-bottom-320x240.png",
+      "checks": []
+    },
+    {
+      "view": "controllers",
+      "viewport": [
+        320,
+        240
+      ],
+      "file": "controllers-320x240.png",
+      "checks": []
+    },
+    {
+      "view": "controller-live-test",
+      "viewport": [
+        320,
+        240
+      ],
+      "file": "controller-live-test-320x240.png",
+      "checks": []
+    },
+    {
+      "view": "controller-editor",
+      "viewport": [
+        320,
+        240
+      ],
+      "file": "controller-editor-320x240.png",
+      "checks": []
+    },
+    {
+      "view": "controller-advanced",
+      "viewport": [
+        320,
+        240
+      ],
+      "file": "controller-advanced-320x240.png",
+      "checks": []
+    },
+    {
+      "view": "snapshot-manager",
+      "viewport": [
+        320,
+        240
+      ],
+      "file": "snapshot-manager-320x240.png",
+      "checks": []
+    },
+    {
+      "view": "snapshot-menu",
+      "viewport": [
+        320,
+        240
+      ],
+      "file": "snapshot-menu-320x240.png",
+      "checks": []
+    },
+    {
+      "view": "snapshot-editor",
+      "viewport": [
+        320,
+        240
+      ],
+      "file": "snapshot-editor-320x240.png",
+      "checks": []
+    },
+    {
+      "view": "snapshot-editor-bottom",
+      "viewport": [
+        320,
+        240
+      ],
+      "file": "snapshot-editor-bottom-320x240.png",
+      "checks": []
+    },
+    {
+      "view": "snapshot-ab-editor",
+      "viewport": [
+        320,
+        240
+      ],
+      "file": "snapshot-ab-editor-320x240.png",
+      "checks": []
+    },
+    {
+      "view": "snapshot-ab-editor-bottom",
+      "viewport": [
+        320,
+        240
+      ],
+      "file": "snapshot-ab-editor-bottom-320x240.png",
+      "checks": []
+    },
+    {
+      "view": "snapshot-ab",
+      "viewport": [
+        320,
+        240
+      ],
+      "file": "snapshot-ab-320x240.png",
+      "checks": []
+    },
+    {
+      "view": "transformer-chain",
+      "viewport": [
+        320,
+        240
+      ],
+      "file": "transformer-chain-320x240.png",
+      "checks": []
+    },
+    {
+      "view": "transformer-editor",
+      "viewport": [
+        320,
+        240
+      ],
+      "file": "transformer-editor-320x240.png",
+      "checks": []
+    },
+    {
+      "view": "diagnostics",
+      "viewport": [
+        320,
+        240
+      ],
+      "file": "diagnostics-320x240.png",
+      "checks": []
+    },
+    {
+      "view": "patch",
+      "viewport": [
+        800,
+        480
+      ],
+      "file": "patch-800x480.png",
+      "checks": []
+    },
+    {
+      "view": "update-unavailable",
+      "viewport": [
+        800,
+        480
+      ],
+      "file": "update-unavailable-800x480.png",
+      "checks": []
+    },
+    {
+      "view": "snapshots",
+      "viewport": [
+        800,
+        480
+      ],
+      "file": "snapshots-800x480.png",
+      "checks": []
+    },
+    {
+      "view": "smart-switches",
+      "viewport": [
+        800,
+        480
+      ],
+      "file": "smart-switches-800x480.png",
+      "checks": []
+    },
+    {
+      "view": "smart-switch-test",
+      "viewport": [
+        800,
+        480
+      ],
+      "file": "smart-switch-test-800x480.png",
+      "checks": []
+    },
+    {
+      "view": "smart-switch-editor",
+      "viewport": [
+        800,
+        480
+      ],
+      "file": "smart-switch-editor-800x480.png",
+      "checks": []
+    },
+    {
+      "view": "smart-switch-editor-bottom",
+      "viewport": [
+        800,
+        480
+      ],
+      "file": "smart-switch-editor-bottom-800x480.png",
+      "checks": []
+    },
+    {
+      "view": "conductor-empty-editor",
+      "viewport": [
+        800,
+        480
+      ],
+      "file": "conductor-empty-editor-800x480.png",
+      "checks": []
+    },
+    {
+      "view": "conductor-source-menu-editor",
+      "viewport": [
+        800,
+        480
+      ],
+      "file": "conductor-source-menu-editor-800x480.png",
+      "checks": []
+    },
+    {
+      "view": "conductor-source-menu-editor-bottom",
+      "viewport": [
+        800,
+        480
+      ],
+      "file": "conductor-source-menu-editor-bottom-800x480.png",
+      "checks": []
+    },
+    {
+      "view": "conductor-four-step-editor",
+      "viewport": [
+        800,
+        480
+      ],
+      "file": "conductor-four-step-editor-800x480.png",
+      "checks": []
+    },
+    {
+      "view": "conductor-four-step-editor-bottom",
+      "viewport": [
+        800,
+        480
+      ],
+      "file": "conductor-four-step-editor-bottom-800x480.png",
+      "checks": []
+    },
+    {
+      "view": "conductor-override-editor",
+      "viewport": [
+        800,
+        480
+      ],
+      "file": "conductor-override-editor-800x480.png",
+      "checks": []
+    },
+    {
+      "view": "conductor-override-editor-bottom",
+      "viewport": [
+        800,
+        480
+      ],
+      "file": "conductor-override-editor-bottom-800x480.png",
+      "checks": []
+    },
+    {
+      "view": "movement-curve-editor",
+      "viewport": [
+        800,
+        480
+      ],
+      "file": "movement-curve-editor-800x480.png",
+      "checks": []
+    },
+    {
+      "view": "movement-library",
+      "viewport": [
+        800,
+        480
+      ],
+      "file": "movement-library-800x480.png",
+      "checks": []
+    },
+    {
+      "view": "movement-layer-editor",
+      "viewport": [
+        800,
+        480
+      ],
+      "file": "movement-layer-editor-800x480.png",
+      "checks": []
+    },
+    {
+      "view": "phrases",
+      "viewport": [
+        800,
+        480
+      ],
+      "file": "phrases-800x480.png",
+      "checks": []
+    },
+    {
+      "view": "phrase-name-editor",
+      "viewport": [
+        800,
+        480
+      ],
+      "file": "phrase-name-editor-800x480.png",
+      "checks": []
+    },
+    {
+      "view": "phrase-editor",
+      "viewport": [
+        800,
+        480
+      ],
+      "file": "phrase-editor-800x480.png",
+      "checks": []
+    },
+    {
+      "view": "instruments",
+      "viewport": [
+        800,
+        480
+      ],
+      "file": "instruments-800x480.png",
+      "checks": []
+    },
+    {
+      "view": "empty-transformer",
+      "viewport": [
+        800,
+        480
+      ],
+      "file": "empty-transformer-800x480.png",
+      "checks": []
+    },
+    {
+      "view": "instrument-name-editor",
+      "viewport": [
+        800,
+        480
+      ],
+      "file": "instrument-name-editor-800x480.png",
+      "checks": []
+    },
+    {
+      "view": "instrument-editor",
+      "viewport": [
+        800,
+        480
+      ],
+      "file": "instrument-editor-800x480.png",
+      "checks": []
+    },
+    {
+      "view": "controllers",
+      "viewport": [
+        800,
+        480
+      ],
+      "file": "controllers-800x480.png",
+      "checks": []
+    },
+    {
+      "view": "controller-live-test",
+      "viewport": [
+        800,
+        480
+      ],
+      "file": "controller-live-test-800x480.png",
+      "checks": []
+    },
+    {
+      "view": "controller-editor",
+      "viewport": [
+        800,
+        480
+      ],
+      "file": "controller-editor-800x480.png",
+      "checks": []
+    },
+    {
+      "view": "controller-advanced",
+      "viewport": [
+        800,
+        480
+      ],
+      "file": "controller-advanced-800x480.png",
+      "checks": []
+    },
+    {
+      "view": "snapshot-manager",
+      "viewport": [
+        800,
+        480
+      ],
+      "file": "snapshot-manager-800x480.png",
+      "checks": []
+    },
+    {
+      "view": "snapshot-menu",
+      "viewport": [
+        800,
+        480
+      ],
+      "file": "snapshot-menu-800x480.png",
+      "checks": []
+    },
+    {
+      "view": "snapshot-editor",
+      "viewport": [
+        800,
+        480
+      ],
+      "file": "snapshot-editor-800x480.png",
+      "checks": []
+    },
+    {
+      "view": "snapshot-ab-editor",
+      "viewport": [
+        800,
+        480
+      ],
+      "file": "snapshot-ab-editor-800x480.png",
+      "checks": []
+    },
+    {
+      "view": "snapshot-ab",
+      "viewport": [
+        800,
+        480
+      ],
+      "file": "snapshot-ab-800x480.png",
+      "checks": []
+    },
+    {
+      "view": "transformer-chain",
+      "viewport": [
+        800,
+        480
+      ],
+      "file": "transformer-chain-800x480.png",
+      "checks": []
+    },
+    {
+      "view": "transformer-editor",
+      "viewport": [
+        800,
+        480
+      ],
+      "file": "transformer-editor-800x480.png",
+      "checks": []
+    },
+    {
+      "view": "diagnostics",
+      "viewport": [
+        800,
+        480
+      ],
+      "file": "diagnostics-800x480.png",
+      "checks": []
+    },
+    {
+      "view": "patch",
+      "viewport": [
+        1366,
+        768
+      ],
+      "file": "patch-1366x768.png",
+      "checks": []
+    },
+    {
+      "view": "update-unavailable",
+      "viewport": [
+        1366,
+        768
+      ],
+      "file": "update-unavailable-1366x768.png",
+      "checks": []
+    },
+    {
+      "view": "snapshots",
+      "viewport": [
+        1366,
+        768
+      ],
+      "file": "snapshots-1366x768.png",
+      "checks": []
+    },
+    {
+      "view": "smart-switches",
+      "viewport": [
+        1366,
+        768
+      ],
+      "file": "smart-switches-1366x768.png",
+      "checks": []
+    },
+    {
+      "view": "smart-switch-test",
+      "viewport": [
+        1366,
+        768
+      ],
+      "file": "smart-switch-test-1366x768.png",
+      "checks": []
+    },
+    {
+      "view": "smart-switch-editor",
+      "viewport": [
+        1366,
+        768
+      ],
+      "file": "smart-switch-editor-1366x768.png",
+      "checks": []
+    },
+    {
+      "view": "conductor-empty-editor",
+      "viewport": [
+        1366,
+        768
+      ],
+      "file": "conductor-empty-editor-1366x768.png",
+      "checks": []
+    },
+    {
+      "view": "conductor-source-menu-editor",
+      "viewport": [
+        1366,
+        768
+      ],
+      "file": "conductor-source-menu-editor-1366x768.png",
+      "checks": []
+    },
+    {
+      "view": "conductor-source-menu-editor-bottom",
+      "viewport": [
+        1366,
+        768
+      ],
+      "file": "conductor-source-menu-editor-bottom-1366x768.png",
+      "checks": []
+    },
+    {
+      "view": "conductor-four-step-editor",
+      "viewport": [
+        1366,
+        768
+      ],
+      "file": "conductor-four-step-editor-1366x768.png",
+      "checks": []
+    },
+    {
+      "view": "conductor-override-editor",
+      "viewport": [
+        1366,
+        768
+      ],
+      "file": "conductor-override-editor-1366x768.png",
+      "checks": []
+    },
+    {
+      "view": "movement-curve-editor",
+      "viewport": [
+        1366,
+        768
+      ],
+      "file": "movement-curve-editor-1366x768.png",
+      "checks": []
+    },
+    {
+      "view": "movement-library",
+      "viewport": [
+        1366,
+        768
+      ],
+      "file": "movement-library-1366x768.png",
+      "checks": []
+    },
+    {
+      "view": "movement-layer-editor",
+      "viewport": [
+        1366,
+        768
+      ],
+      "file": "movement-layer-editor-1366x768.png",
+      "checks": []
+    },
+    {
+      "view": "phrases",
+      "viewport": [
+        1366,
+        768
+      ],
+      "file": "phrases-1366x768.png",
+      "checks": []
+    },
+    {
+      "view": "phrase-name-editor",
+      "viewport": [
+        1366,
+        768
+      ],
+      "file": "phrase-name-editor-1366x768.png",
+      "checks": []
+    },
+    {
+      "view": "phrase-editor",
+      "viewport": [
+        1366,
+        768
+      ],
+      "file": "phrase-editor-1366x768.png",
+      "checks": []
+    },
+    {
+      "view": "instruments",
+      "viewport": [
+        1366,
+        768
+      ],
+      "file": "instruments-1366x768.png",
+      "checks": []
+    },
+    {
+      "view": "empty-transformer",
+      "viewport": [
+        1366,
+        768
+      ],
+      "file": "empty-transformer-1366x768.png",
+      "checks": []
+    },
+    {
+      "view": "instrument-name-editor",
+      "viewport": [
+        1366,
+        768
+      ],
+      "file": "instrument-name-editor-1366x768.png",
+      "checks": []
+    },
+    {
+      "view": "instrument-editor",
+      "viewport": [
+        1366,
+        768
+      ],
+      "file": "instrument-editor-1366x768.png",
+      "checks": []
+    },
+    {
+      "view": "controllers",
+      "viewport": [
+        1366,
+        768
+      ],
+      "file": "controllers-1366x768.png",
+      "checks": []
+    },
+    {
+      "view": "controller-live-test",
+      "viewport": [
+        1366,
+        768
+      ],
+      "file": "controller-live-test-1366x768.png",
+      "checks": []
+    },
+    {
+      "view": "controller-editor",
+      "viewport": [
+        1366,
+        768
+      ],
+      "file": "controller-editor-1366x768.png",
+      "checks": []
+    },
+    {
+      "view": "controller-advanced",
+      "viewport": [
+        1366,
+        768
+      ],
+      "file": "controller-advanced-1366x768.png",
+      "checks": []
+    },
+    {
+      "view": "snapshot-manager",
+      "viewport": [
+        1366,
+        768
+      ],
+      "file": "snapshot-manager-1366x768.png",
+      "checks": []
+    },
+    {
+      "view": "snapshot-menu",
+      "viewport": [
+        1366,
+        768
+      ],
+      "file": "snapshot-menu-1366x768.png",
+      "checks": []
+    },
+    {
+      "view": "snapshot-editor",
+      "viewport": [
+        1366,
+        768
+      ],
+      "file": "snapshot-editor-1366x768.png",
+      "checks": []
+    },
+    {
+      "view": "snapshot-ab-editor",
+      "viewport": [
+        1366,
+        768
+      ],
+      "file": "snapshot-ab-editor-1366x768.png",
+      "checks": []
+    },
+    {
+      "view": "snapshot-ab",
+      "viewport": [
+        1366,
+        768
+      ],
+      "file": "snapshot-ab-1366x768.png",
+      "checks": []
+    },
+    {
+      "view": "transformer-chain",
+      "viewport": [
+        1366,
+        768
+      ],
+      "file": "transformer-chain-1366x768.png",
+      "checks": []
+    },
+    {
+      "view": "transformer-editor",
+      "viewport": [
+        1366,
+        768
+      ],
+      "file": "transformer-editor-1366x768.png",
+      "checks": []
+    },
+    {
+      "view": "diagnostics",
+      "viewport": [
+        1366,
+        768
+      ],
+      "file": "diagnostics-1366x768.png",
+      "checks": []
+    },
+    {
+      "view": "patch",
+      "viewport": [
+        1440,
+        900
+      ],
+      "file": "patch-1440x900.png",
+      "checks": []
+    },
+    {
+      "view": "update-unavailable",
+      "viewport": [
+        1440,
+        900
+      ],
+      "file": "update-unavailable-1440x900.png",
+      "checks": []
+    },
+    {
+      "view": "snapshots",
+      "viewport": [
+        1440,
+        900
+      ],
+      "file": "snapshots-1440x900.png",
+      "checks": []
+    },
+    {
+      "view": "smart-switches",
+      "viewport": [
+        1440,
+        900
+      ],
+      "file": "smart-switches-1440x900.png",
+      "checks": []
+    },
+    {
+      "view": "smart-switch-test",
+      "viewport": [
+        1440,
+        900
+      ],
+      "file": "smart-switch-test-1440x900.png",
+      "checks": []
+    },
+    {
+      "view": "smart-switch-editor",
+      "viewport": [
+        1440,
+        900
+      ],
+      "file": "smart-switch-editor-1440x900.png",
+      "checks": []
+    },
+    {
+      "view": "conductor-empty-editor",
+      "viewport": [
+        1440,
+        900
+      ],
+      "file": "conductor-empty-editor-1440x900.png",
+      "checks": []
+    },
+    {
+      "view": "conductor-source-menu-editor",
+      "viewport": [
+        1440,
+        900
+      ],
+      "file": "conductor-source-menu-editor-1440x900.png",
+      "checks": []
+    },
+    {
+      "view": "conductor-source-menu-editor-bottom",
+      "viewport": [
+        1440,
+        900
+      ],
+      "file": "conductor-source-menu-editor-bottom-1440x900.png",
+      "checks": []
+    },
+    {
+      "view": "conductor-four-step-editor",
+      "viewport": [
+        1440,
+        900
+      ],
+      "file": "conductor-four-step-editor-1440x900.png",
+      "checks": []
+    },
+    {
+      "view": "conductor-override-editor",
+      "viewport": [
+        1440,
+        900
+      ],
+      "file": "conductor-override-editor-1440x900.png",
+      "checks": []
+    },
+    {
+      "view": "movement-curve-editor",
+      "viewport": [
+        1440,
+        900
+      ],
+      "file": "movement-curve-editor-1440x900.png",
+      "checks": []
+    },
+    {
+      "view": "movement-library",
+      "viewport": [
+        1440,
+        900
+      ],
+      "file": "movement-library-1440x900.png",
+      "checks": []
+    },
+    {
+      "view": "movement-layer-editor",
+      "viewport": [
+        1440,
+        900
+      ],
+      "file": "movement-layer-editor-1440x900.png",
+      "checks": []
+    },
+    {
+      "view": "phrases",
+      "viewport": [
+        1440,
+        900
+      ],
+      "file": "phrases-1440x900.png",
+      "checks": []
+    },
+    {
+      "view": "phrase-name-editor",
+      "viewport": [
+        1440,
+        900
+      ],
+      "file": "phrase-name-editor-1440x900.png",
+      "checks": []
+    },
+    {
+      "view": "phrase-editor",
+      "viewport": [
+        1440,
+        900
+      ],
+      "file": "phrase-editor-1440x900.png",
+      "checks": []
+    },
+    {
+      "view": "instruments",
+      "viewport": [
+        1440,
+        900
+      ],
+      "file": "instruments-1440x900.png",
+      "checks": []
+    },
+    {
+      "view": "empty-transformer",
+      "viewport": [
+        1440,
+        900
+      ],
+      "file": "empty-transformer-1440x900.png",
+      "checks": []
+    },
+    {
+      "view": "instrument-name-editor",
+      "viewport": [
+        1440,
+        900
+      ],
+      "file": "instrument-name-editor-1440x900.png",
+      "checks": []
+    },
+    {
+      "view": "instrument-editor",
+      "viewport": [
+        1440,
+        900
+      ],
+      "file": "instrument-editor-1440x900.png",
+      "checks": []
+    },
+    {
+      "view": "controllers",
+      "viewport": [
+        1440,
+        900
+      ],
+      "file": "controllers-1440x900.png",
+      "checks": []
+    },
+    {
+      "view": "controller-live-test",
+      "viewport": [
+        1440,
+        900
+      ],
+      "file": "controller-live-test-1440x900.png",
+      "checks": []
+    },
+    {
+      "view": "controller-editor",
+      "viewport": [
+        1440,
+        900
+      ],
+      "file": "controller-editor-1440x900.png",
+      "checks": []
+    },
+    {
+      "view": "controller-advanced",
+      "viewport": [
+        1440,
+        900
+      ],
+      "file": "controller-advanced-1440x900.png",
+      "checks": []
+    },
+    {
+      "view": "snapshot-manager",
+      "viewport": [
+        1440,
+        900
+      ],
+      "file": "snapshot-manager-1440x900.png",
+      "checks": []
+    },
+    {
+      "view": "snapshot-menu",
+      "viewport": [
+        1440,
+        900
+      ],
+      "file": "snapshot-menu-1440x900.png",
+      "checks": []
+    },
+    {
+      "view": "snapshot-editor",
+      "viewport": [
+        1440,
+        900
+      ],
+      "file": "snapshot-editor-1440x900.png",
+      "checks": []
+    },
+    {
+      "view": "snapshot-ab-editor",
+      "viewport": [
+        1440,
+        900
+      ],
+      "file": "snapshot-ab-editor-1440x900.png",
+      "checks": []
+    },
+    {
+      "view": "snapshot-ab",
+      "viewport": [
+        1440,
+        900
+      ],
+      "file": "snapshot-ab-1440x900.png",
+      "checks": []
+    },
+    {
+      "view": "transformer-chain",
+      "viewport": [
+        1440,
+        900
+      ],
+      "file": "transformer-chain-1440x900.png",
+      "checks": []
+    },
+    {
+      "view": "transformer-editor",
+      "viewport": [
+        1440,
+        900
+      ],
+      "file": "transformer-editor-1440x900.png",
+      "checks": []
+    },
+    {
+      "view": "diagnostics",
+      "viewport": [
+        1440,
+        900
+      ],
+      "file": "diagnostics-1440x900.png",
+      "checks": []
+    },
+    {
+      "view": "patch",
+      "viewport": [
+        1904,
+        1032
+      ],
+      "file": "patch-1904x1032.png",
+      "checks": []
+    },
+    {
+      "view": "update-unavailable",
+      "viewport": [
+        1904,
+        1032
+      ],
+      "file": "update-unavailable-1904x1032.png",
+      "checks": []
+    },
+    {
+      "view": "snapshots",
+      "viewport": [
+        1904,
+        1032
+      ],
+      "file": "snapshots-1904x1032.png",
+      "checks": []
+    },
+    {
+      "view": "smart-switches",
+      "viewport": [
+        1904,
+        1032
+      ],
+      "file": "smart-switches-1904x1032.png",
+      "checks": []
+    },
+    {
+      "view": "smart-switch-test",
+      "viewport": [
+        1904,
+        1032
+      ],
+      "file": "smart-switch-test-1904x1032.png",
+      "checks": []
+    },
+    {
+      "view": "smart-switch-editor",
+      "viewport": [
+        1904,
+        1032
+      ],
+      "file": "smart-switch-editor-1904x1032.png",
+      "checks": []
+    },
+    {
+      "view": "conductor-empty-editor",
+      "viewport": [
+        1904,
+        1032
+      ],
+      "file": "conductor-empty-editor-1904x1032.png",
+      "checks": []
+    },
+    {
+      "view": "conductor-source-menu-editor",
+      "viewport": [
+        1904,
+        1032
+      ],
+      "file": "conductor-source-menu-editor-1904x1032.png",
+      "checks": []
+    },
+    {
+      "view": "conductor-source-menu-editor-bottom",
+      "viewport": [
+        1904,
+        1032
+      ],
+      "file": "conductor-source-menu-editor-bottom-1904x1032.png",
+      "checks": []
+    },
+    {
+      "view": "conductor-four-step-editor",
+      "viewport": [
+        1904,
+        1032
+      ],
+      "file": "conductor-four-step-editor-1904x1032.png",
+      "checks": []
+    },
+    {
+      "view": "conductor-override-editor",
+      "viewport": [
+        1904,
+        1032
+      ],
+      "file": "conductor-override-editor-1904x1032.png",
+      "checks": []
+    },
+    {
+      "view": "movement-curve-editor",
+      "viewport": [
+        1904,
+        1032
+      ],
+      "file": "movement-curve-editor-1904x1032.png",
+      "checks": []
+    },
+    {
+      "view": "movement-library",
+      "viewport": [
+        1904,
+        1032
+      ],
+      "file": "movement-library-1904x1032.png",
+      "checks": []
+    },
+    {
+      "view": "movement-layer-editor",
+      "viewport": [
+        1904,
+        1032
+      ],
+      "file": "movement-layer-editor-1904x1032.png",
+      "checks": []
+    },
+    {
+      "view": "phrases",
+      "viewport": [
+        1904,
+        1032
+      ],
+      "file": "phrases-1904x1032.png",
+      "checks": []
+    },
+    {
+      "view": "phrase-name-editor",
+      "viewport": [
+        1904,
+        1032
+      ],
+      "file": "phrase-name-editor-1904x1032.png",
+      "checks": []
+    },
+    {
+      "view": "phrase-editor",
+      "viewport": [
+        1904,
+        1032
+      ],
+      "file": "phrase-editor-1904x1032.png",
+      "checks": []
+    },
+    {
+      "view": "instruments",
+      "viewport": [
+        1904,
+        1032
+      ],
+      "file": "instruments-1904x1032.png",
+      "checks": []
+    },
+    {
+      "view": "empty-transformer",
+      "viewport": [
+        1904,
+        1032
+      ],
+      "file": "empty-transformer-1904x1032.png",
+      "checks": []
+    },
+    {
+      "view": "instrument-name-editor",
+      "viewport": [
+        1904,
+        1032
+      ],
+      "file": "instrument-name-editor-1904x1032.png",
+      "checks": []
+    },
+    {
+      "view": "instrument-editor",
+      "viewport": [
+        1904,
+        1032
+      ],
+      "file": "instrument-editor-1904x1032.png",
+      "checks": []
+    },
+    {
+      "view": "controllers",
+      "viewport": [
+        1904,
+        1032
+      ],
+      "file": "controllers-1904x1032.png",
+      "checks": []
+    },
+    {
+      "view": "controller-live-test",
+      "viewport": [
+        1904,
+        1032
+      ],
+      "file": "controller-live-test-1904x1032.png",
+      "checks": []
+    },
+    {
+      "view": "controller-editor",
+      "viewport": [
+        1904,
+        1032
+      ],
+      "file": "controller-editor-1904x1032.png",
+      "checks": []
+    },
+    {
+      "view": "controller-advanced",
+      "viewport": [
+        1904,
+        1032
+      ],
+      "file": "controller-advanced-1904x1032.png",
+      "checks": []
+    },
+    {
+      "view": "snapshot-manager",
+      "viewport": [
+        1904,
+        1032
+      ],
+      "file": "snapshot-manager-1904x1032.png",
+      "checks": []
+    },
+    {
+      "view": "snapshot-menu",
+      "viewport": [
+        1904,
+        1032
+      ],
+      "file": "snapshot-menu-1904x1032.png",
+      "checks": []
+    },
+    {
+      "view": "snapshot-editor",
+      "viewport": [
+        1904,
+        1032
+      ],
+      "file": "snapshot-editor-1904x1032.png",
+      "checks": []
+    },
+    {
+      "view": "snapshot-ab-editor",
+      "viewport": [
+        1904,
+        1032
+      ],
+      "file": "snapshot-ab-editor-1904x1032.png",
+      "checks": []
+    },
+    {
+      "view": "snapshot-ab",
+      "viewport": [
+        1904,
+        1032
+      ],
+      "file": "snapshot-ab-1904x1032.png",
+      "checks": []
+    },
+    {
+      "view": "transformer-chain",
+      "viewport": [
+        1904,
+        1032
+      ],
+      "file": "transformer-chain-1904x1032.png",
+      "checks": []
+    },
+    {
+      "view": "transformer-editor",
+      "viewport": [
+        1904,
+        1032
+      ],
+      "file": "transformer-editor-1904x1032.png",
+      "checks": []
+    },
+    {
+      "view": "diagnostics",
+      "viewport": [
+        1904,
+        1032
+      ],
+      "file": "diagnostics-1904x1032.png",
+      "checks": []
+    },
+    {
+      "view": "recovery-arp-editor",
+      "viewport": [
+        1904,
+        1032
+      ],
+      "file": "recovery-arp-editor-1904x1032.png",
+      "checks": [],
+      "nativeClockAdvanced": true,
+      "capture": "Actual observed native state; browser telemetry briefly suspended for static capture, engine continues",
+      "runtimeBuildRevision": "3f79687a7b6bb3a8cc4122cb2c18ed92f8ebdf50",
+      "data": "Actual native --chain; real CC mapping and recording actions"
+    },
+    {
+      "view": "recovery-modulator-menu",
+      "viewport": [
+        1904,
+        1032
+      ],
+      "file": "recovery-modulator-menu-1904x1032.png",
+      "checks": [],
+      "nativeClockAdvanced": true,
+      "capture": "Actual observed native state; browser telemetry briefly suspended for static capture, engine continues",
+      "runtimeBuildRevision": "3f79687a7b6bb3a8cc4122cb2c18ed92f8ebdf50",
+      "data": "Actual native --chain; real CC mapping and recording actions"
+    },
+    {
+      "view": "recovery-curve-editor",
+      "viewport": [
+        1904,
+        1032
+      ],
+      "file": "recovery-curve-editor-1904x1032.png",
+      "checks": [],
+      "nativeClockAdvanced": true,
+      "capture": "Actual observed native state; browser telemetry briefly suspended for static capture, engine continues",
+      "runtimeBuildRevision": "3f79687a7b6bb3a8cc4122cb2c18ed92f8ebdf50",
+      "data": "Actual native --chain; real CC mapping and recording actions"
+    },
+    {
+      "view": "recovery-record-armed",
+      "viewport": [
+        1904,
+        1032
+      ],
+      "file": "recovery-record-armed-1904x1032.png",
+      "checks": [],
+      "nativeClockAdvanced": true,
+      "capture": "Actual observed native state; browser telemetry briefly suspended for static capture, engine continues",
+      "runtimeBuildRevision": "3f79687a7b6bb3a8cc4122cb2c18ed92f8ebdf50",
+      "data": "Actual native --chain; real CC mapping and recording actions"
+    },
+    {
+      "view": "recovery-recording",
+      "viewport": [
+        1904,
+        1032
+      ],
+      "file": "recovery-recording-1904x1032.png",
+      "checks": [],
+      "nativeClockAdvanced": true,
+      "capture": "Actual observed native state; browser telemetry briefly suspended for static capture, engine continues",
+      "runtimeBuildRevision": "3f79687a7b6bb3a8cc4122cb2c18ed92f8ebdf50",
+      "data": "Actual native --chain; real CC mapping and recording actions"
+    },
+    {
+      "view": "recovery-performance",
+      "viewport": [
+        1904,
+        1032
+      ],
+      "file": "recovery-performance-1904x1032.png",
+      "checks": [],
+      "nativeClockAdvanced": true,
+      "capture": "Actual observed native state; browser telemetry briefly suspended for static capture, engine continues",
+      "runtimeBuildRevision": "3f79687a7b6bb3a8cc4122cb2c18ed92f8ebdf50",
+      "data": "Actual native --chain; real CC mapping and recording actions"
+    },
+    {
+      "view": "recovery-instrument-chains",
+      "viewport": [
+        1904,
+        1032
+      ],
+      "file": "recovery-instrument-chains-1904x1032.png",
+      "checks": [],
+      "nativeClockAdvanced": true,
+      "capture": "Actual observed native state; browser telemetry briefly suspended for static capture, engine continues",
+      "runtimeBuildRevision": "3f79687a7b6bb3a8cc4122cb2c18ed92f8ebdf50",
+      "data": "Actual native --chain; real CC mapping and recording actions"
+    },
+    {
+      "view": "recovery-transformer-editor",
+      "viewport": [
+        1904,
+        1032
+      ],
+      "file": "recovery-transformer-editor-1904x1032.png",
+      "checks": [],
+      "nativeClockAdvanced": true,
+      "capture": "Actual observed native state; browser telemetry briefly suspended for static capture, engine continues",
+      "runtimeBuildRevision": "3f79687a7b6bb3a8cc4122cb2c18ed92f8ebdf50",
+      "data": "Actual native --chain; real CC mapping and recording actions"
+    }
+  ],
+  "unsupported": {
+    "MOVEMENT advanced execution": "GATED/HOLD admissions, JOIN/REVEAL/FECK and musical durations are not enabled; screenshots cover implemented source and layer editing."
+  }
+}

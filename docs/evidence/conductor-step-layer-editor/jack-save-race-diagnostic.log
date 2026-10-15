@@ -1,0 +1,6 @@
+Cannot lock down 107341340 byte memory area (Cannot allocate memory)
+Traceback (most recent call last):
+  File "/workspace/mbmf-conductor-a/tests/test_conductor_execution_jack.py", line 80, in <module>
+    assert page.locator('#error').inner_text()=='',page.locator('#error').inner_text()
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: patch not saved

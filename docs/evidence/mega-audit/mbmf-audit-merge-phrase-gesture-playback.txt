@@ -1,0 +1,138 @@
+  their  100644 51148e78b2351410ab11a98fe815e95450c80372 docs/conductor-playback.md
+changed in both
+  base   100644 2de3f2ebaf1edd53f25eb6a0b00a2f5a2381d88e headless/controller_config.py
+  our    100644 5c79bc9f8a30182b91d7a51be4b6adc2f42ee379 headless/controller_config.py
+  their  100644 d0631bb1d629f8e339d339885af85e09a78d3936 headless/controller_config.py
+changed in both
+  base   100644 742d5d2b564489eb89d755cd76e43bfac32a0a20 headless/controller_host.hpp
+  our    100644 c6a1ede64e5cf9780a01d83b2fd299d645a317cd headless/controller_host.hpp
+  their  100644 f616173788560a88ec5750f893234beff3700127 headless/controller_host.hpp
+changed in both
+  base   100644 0307547566ee4426c50dddaff321fdb8f44fb546 headless/engine.cpp
+  our    100644 9fd601858834c8da356ced1bb265563f55dd50b6 headless/engine.cpp
+  their  100644 f11a907a0237e2e4ee59d94d7a06a9d420dc032d headless/engine.cpp
++<<<<<<< .our
++=======
++<<<<<<< .our
++=======
++<<<<<<< .our
++=======
++<<<<<<< .our
++=======
++<<<<<<< .our
++=======
++<<<<<<< .our
++=======
+changed in both
+  base   100644 298e41bb33a95e6ae5cd97f76c0544a916bb2716 headless/parameter_registry.hpp
+  our    100644 aaf261f3789354aa01bda50bb479c654762c87e3 headless/parameter_registry.hpp
+  their  100644 05b8ab5c0c1a6303e6286dfb84cc31c5c6b89127 headless/parameter_registry.hpp
++<<<<<<< .our
++=======
+changed in both
+  base   100644 1f0a393851573450e8092ec0cd408568e0872248 headless/portable_project.py
+  our    100644 08307789c48f30e87d86f5e2cb5f2a69a9290844 headless/portable_project.py
+  their  100644 454e746f78519896d1d8fe57e087c612593db295 headless/portable_project.py
+changed in both
+  base   100644 9085b05b99e885cd856f9174c13a09e916b89e1f headless/project_sync.py
+  our    100644 ce209b78f7fe2826789712732d808f2b84b5b9df headless/project_sync.py
+  their  100644 e936f566a985caabac4d1c0c29c1ad673d87d2dd headless/project_sync.py
++<<<<<<< .our
++=======
+changed in both
+  base   100644 9170f8de588f01e6ab3b5e82a301845369508d8b headless/server.py
+  our    100644 67336c4a02108ad796e682523b85c3ed3e90e815 headless/server.py
+  their  100644 b6aa75ba142402c16b73d089275ad6e991dcc28e headless/server.py
++<<<<<<< .our
++=======
+  our    100644 cb7b3d249600d6b50f2b14af932d4151c2a56eb9 headless/snapshot_wire.hpp
+  our    100644 4b0525701148608ac76c56015bd750da2ff1d41c headless/snapshots.hpp
+changed in both
+  base   100644 8215865f98fac5b3476512b42df894268e8d42e7 headless/web/app.js
+  our    100644 a866a8d1292cec7f20c92c347f39fb023514f7b1 headless/web/app.js
+  their  100644 6375ad523248fb8d323ee6a55bb9b4449b377d0a headless/web/app.js
++<<<<<<< .our
++=======
++<<<<<<< .our
++=======
++<<<<<<< .our
++=======
++<<<<<<< .our
++=======
++<<<<<<< .our
++=======
+changed in both
+  base   100644 b0bd3824bf854f285a270830408a94b4dd1cfaa3 midi_human_looper.jsfx
+  our    100644 4101e989cb6104864fdd251e2378d04774c046de midi_human_looper.jsfx
+  their  100644 f7901a0135ee3fce3b09736e444fcde6507cda48 midi_human_looper.jsfx
++<<<<<<< .our
++=======
++<<<<<<< .our
++=======
++<<<<<<< .our
++=======
++<<<<<<< .our
++=======
++<<<<<<< .our
++=======
++<<<<<<< .our
++=======
++<<<<<<< .our
++=======
++<<<<<<< .our
++=======
++<<<<<<< .our
++=======
++<<<<<<< .our
++=======
+changed in both
+  base   100644 55c06bbce8b90cd0893b5d08c1a3d80d02bef2c4 midi_human_looper_patch_io.lua
+  our    100644 a80afba72dcafb463b91a86c0f3f84ce9d08ad23 midi_human_looper_patch_io.lua
+  their  100644 5c58c0b237be1924b31105b99d58ec4037d2d0b3 midi_human_looper_patch_io.lua
+changed in both
+  base   100644 0265bf37355fb2a24d48052b20677fd4475329f9 modules/catalog.json
+  our    100644 6f061485588fe1ea17a31ba6e41518de6f78ba15 modules/catalog.json
+  their  100644 ac6caebb89d935122445fcb8c2771e4c7424fcab modules/catalog.json
++<<<<<<< .our
++=======
+  our    100644 2f56f8dfaba3b0cf72be27b6831a5942ed163f74 reaper/MBMF_Studio_Live_Bridge.lua
+changed in both
+  base   100755 57e4d77cf631a068c9f7ac81ea406433618bff29 scripts/combined-test.py
+  our    100755 4ea9450c460facfab32eadd8e3298a3f62cd6575 scripts/combined-test.py
+  their  100755 6dc6758c56299a0ee5b062c7933c44d6289a0062 scripts/combined-test.py
++<<<<<<< .our
++=======
++<<<<<<< .our
++=======
+changed in both
+  base   100644 9ba8ce6ddbd69452b4bbf163a51ee51d466503e5 scripts/generate-parameters.py
+  our    100644 6823ca65127347cfc777df5a0b3f76e20836366b scripts/generate-parameters.py
+  their  100644 35b1a0e164831eaa43f4b81cf02dd9ca20b8377a scripts/generate-parameters.py
+changed in both
+  base   100644 5dd9546284899003c62d0889250d1a4b05bc4d4c tests/expression_host.cpp
+  our    100644 a5d14c43b6fa4a8936226489c4d5cae8b7795725 tests/expression_host.cpp
+  their  100644 cc09e471127df731ec94cb2cef6c72716fcf26c6 tests/expression_host.cpp
++<<<<<<< .our
++=======
++<<<<<<< .our
++=======
+  our    100644 34c8efd14168442c73191deb1d0cb6fad764e6d5 tests/headless_jack.cpp
+  our    100644 13e2a3485fd3eeb06aba32945733f9e75b782a84 tests/parameter_contract_cases.hpp
+  their  100644 8f4a9a6094aa4d7f8f0d685d4cbf611037fa3d23 tests/phrase_gesture_cases.hpp
+  our    100644 81131e643abc0db477ce699a08554d45f0bd1fa1 tests/portable_parity.cpp
+  our    100644 fd1245cdb4e2b91ec67c66ba2b83fc6744c6d474 tests/test_headless_mvp.py
+changed in both
+  base   100644 f07abdce47362d1b680d7c55d3c1d3a1ee124a55 tests/test_jack_graph.py
+  our    100644 accfae2393b541b46044798235046ab2dfd16bac tests/test_jack_graph.py
+  their  100644 b2abe49d8305d573f439aabb615bcb19fc5e683c tests/test_jack_graph.py
+  our    100644 68ecc37570f1377db82fa75080a3729081a2d03d tests/test_module_registry.py
+changed in both
+  base   100644 6785e52fe904acfee6fa016f03c56718f3487d82 tests/test_patch_io.py
+  our    100644 22a6a1a0da7869563c0fad559fc91f22d7423055 tests/test_patch_io.py
+  their  100644 b04114a173787dd77121c42dc6910f0a7688521e tests/test_patch_io.py
+  their  100644 67e9499c1dc1d7e3ec20626a722194e3c26242e9 tests/test_phrase_gesture_browser.py
+  their  100644 c3e5c2a636e2d3cb833dff968e9bb4ebe68f8a70 tests/test_phrase_gestures.py
+  our    100644 3e02bbee00f45daddc48012ac4c6403d2a6ed0ee tests/test_portable_engine.py
+  our    100644 79615ecfa3199354365b80bbd1031a432399957f tests/test_portable_project.py
+  our    100644 1f9abedd7dacda042646e25af791d5ffe1413f3f tests/test_product_integration.py
+  our    100644 0f1df249a2f66b2acbafb07fa7b6350672c1239f tests/test_project_sync.py

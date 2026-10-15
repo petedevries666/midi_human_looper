@@ -1,0 +1,8 @@
+OUTPUT CAPACITY attempted=5120 accepted=4369 owned=4369 error=6 panic=1
+PASS instance ownership actual EEL checks: 6699
+concurrent fixed-state frames: 1 distinct hashes
+concurrent fixed-state frames: 1 distinct hashes
+concurrent fixed-state frames: 1 distinct hashes
+PASS: 18383 EEL2/GUI/MIDI checks
+PASS 18 actual capture fixtures: tick-zero multichannel chords, staggered durations and rests
+PASS 36 shared/native free captures: actual exported ticks, same-block chords and durations

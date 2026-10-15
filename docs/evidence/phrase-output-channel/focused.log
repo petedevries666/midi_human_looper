@@ -1,0 +1,5 @@
+PASS: 704 phrase output checks
+OUTPUT CAPACITY attempted=5120 accepted=4369 owned=4369 error=6 panic=1
+PASS instance ownership actual EEL checks: 6698
+PASS real Chromium selection, native state, independent phrases, SAVE/LOAD, source SMF identity, reload/reconnect and invalid-channel refusal
+PASS actual JACK ORIGINAL/CH2/CH16/ALL: channel-voice events, exact emitted destinations, sustain cleanup, frozen active policy, source MIDI unchanged and chronological output

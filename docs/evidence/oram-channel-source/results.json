@@ -1,0 +1,38 @@
+{
+  "parent": "d2f43f89087d7e4871a0a665427749e08386dee5",
+  "upstreamOram": "11d4e858367db465a431c701d9035432742a5a7d",
+  "upstreamAutoconnectSha256": "d8b9a105aec9a2780f4a821769f9e1fdc9660bdeb72ba97940804f4c18c8fa3f",
+  "tests": {
+    "install": {
+      "exit": 0,
+      "tests": 30
+    },
+    "source": {
+      "exit": 0,
+      "tests": 4
+    },
+    "legacyDestinations": {
+      "exit": 0,
+      "tests": 7
+    },
+    "legacyRouting": {
+      "exit": 0,
+      "tests": 5
+    },
+    "nativeBuild": {
+      "exit": 0
+    },
+    "nativeDummyJackCompatibility": {
+      "exit": 0
+    }
+  },
+  "nativeRouterRuntimeValidated": false,
+  "physicalHardwareValidated": false,
+  "excluded": [
+    "instrument output ALL broadcast",
+    "per-phrase output override",
+    "instrument-inherited MOVEMENT channel"
+  ],
+  "midiEngineModified": false,
+  "issue54ProtectedFilesUntouched": 25
+}

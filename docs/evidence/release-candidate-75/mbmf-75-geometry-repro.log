@@ -1,0 +1,43 @@
+{
+  "scope": "Actual native editor; controlled browser scroll between independent geometry reads only",
+  "independent": [
+    {
+      "x": 343,
+      "y": 413,
+      "scrollY": 100,
+      "documentY": 513
+    },
+    {
+      "x": 489.65625,
+      "y": 349,
+      "scrollY": 164,
+      "documentY": 513
+    },
+    {
+      "x": 636.328125,
+      "y": 285,
+      "scrollY": 228,
+      "documentY": 513
+    }
+  ],
+  "atomic": [
+    {
+      "x": 343,
+      "y": 285,
+      "scrollY": 228,
+      "documentY": 513
+    },
+    {
+      "x": 489.65625,
+      "y": 285,
+      "scrollY": 228,
+      "documentY": 513
+    },
+    {
+      "x": 636.328125,
+      "y": 285,
+      "scrollY": 228,
+      "documentY": 513
+    }
+  ]
+}

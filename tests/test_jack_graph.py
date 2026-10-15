@@ -57,6 +57,11 @@ with tempfile.TemporaryDirectory(prefix='midi-jack-') as temp:
         while not Path(path).exists() and time.monotonic()<deadline:
             if engine.poll() is not None:raise RuntimeError(engine.stderr.read().decode())
             time.sleep(.02)
+        # Socket creation precedes JACK activation. A real command round trip
+        # proves the callback and control worker are running before connection.
+        # Keep every MIDI ordering/tie assertion unchanged.
+        ordering_ready=command(0,0,0,0,1)
+        assert ordering_ready['sampleRate']==48000,ordering_ready
         observer=subprocess.Popen([probe,'--ordering'],env=env)
         assert observer.wait(timeout=10)==0,'same-block timestamp/tie ordering failed'
         state=command(2,0,0,0,1)

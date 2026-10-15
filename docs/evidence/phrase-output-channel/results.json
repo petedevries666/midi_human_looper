@@ -1,0 +1,43 @@
+{
+  "parent": "e56e9c30d21ad2912268e8d5925eb7356724e5f9",
+  "checks": {
+    "focused": {
+      "exit": 0,
+      "eelChecks": 704
+    },
+    "fullEel": {
+      "exit": 0,
+      "eelChecks": 18508
+    },
+    "native": {
+      "exit": 0
+    },
+    "browserWithNativeRestart": {
+      "exit": 0
+    },
+    "actualDummyJack": {
+      "exit": 0
+    },
+    "screenshots": {
+      "exit": 0,
+      "artifacts": 179,
+      "visuallyInspected": true
+    }
+  },
+  "physicalHardwareValidated": false,
+  "instrumentOutputAllImplemented": false,
+  "movementRoutingChanged": false,
+  "zynthianRoutingChanged": false,
+  "issue54ProtectedFilesUntouched": 25,
+  "limitations": [
+    "ALL refused on existing unsafe shared mono/ARP path",
+    "Web-only selector; shared EEL playback supports serialized setting",
+    "existing SMF import remains note-only"
+  ],
+  "testedCodeCommit": "6597faa3dac68cc0941ac198f898d8207abc2a68",
+  "cleanBuildAndRetest": {
+    "buildExit": 0,
+    "browserExit": 0,
+    "jackExit": 0
+  }
+}

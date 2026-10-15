@@ -1,6 +1,19 @@
-# MIDI Human Looper
+# MIDI BAD MOTHER FUCKER
 
-Experimental free-time MIDI phrase instrument for REAPER JSFX, designed through live playing rather than around a fixed sequencer workflow.
+**Active development: native Zynthian + Web.** REAPER JSFX is frozen legacy;
+existing projects, patches and relevant interchange tests remain supported.
+See the [development freeze](docs/reaper-legacy-freeze.md),
+[current capability matrix](docs/capabilities.md) and
+[engineering audit](docs/engineering-audit-2026-10.md).
+
+Current consolidation: [issue #75 release candidate, gates and rollback](docs/release-candidate-75.md).
+This includes the separate AZ portal and optional RT diagnostics; it is not yet
+a hardware-qualified concert release.
+
+MIDI phrase looper and modular processor for REAPER JSFX and native Zynthian/JACK.
+The native prototype supports independent synchronized instrument chains; see the
+[integration status and explicit module limitations](docs/product-integration-status.md).
+HUMANIZER and ECHOCITY are not yet playable effects.
 
 For the native Zynthian Piano/Bass/Synthesizer prototype, see
 [installation, chain setup, physical test and rollback](docs/zynthian-native-chains.md).
@@ -19,7 +32,7 @@ For the native Zynthian Piano/Bass/Synthesizer prototype, see
 3. Same-phrase ONE SHOT retriggers may overlap. Retrigger velocity decay makes repeated footswitch presses behave like a human-controlled MIDI echo.
 4. Triggering a different ONE SHOT phrase softly chokes the previous phrase group.
 5. MIDI channels inside phrases remain meaningful. Do not flatten multichannel performances.
-6. Keep the REAPER prototype fast to iterate, even while the eventual engine is intended to be portable to Zynthian/LV2.
+6. Develop native Zynthian + Web; preserve the frozen REAPER implementation and existing project data.
 
 ## Patch compatibility contract (from v1.4.5)
 
@@ -28,6 +41,10 @@ During the v1.x REAPER prototype, the current serialized phrase/event and two-pa
 Header field 9 now carries `PATCH_SCHEMA_VERSION = 1`. Projects saved with v1.4.4 and earlier contain 0 in that reserved field and are intentionally treated as legacy schema 1. This means an existing v1.4.4 REAPER project should reopen with its recorded phrases/patch banks intact after updating the JSFX to v1.4.5.
 
 Before any future incompatible storage change, add a migration path first. Do not make musical material collateral damage of UI/engine development.
+
+## Historical release notes
+
+The following entries describe previous releases, not current development priorities.
 
 ## v1.4.1
 
@@ -159,3 +176,5 @@ The runnable JACK MIDI host and reconnecting browser interface live in `headless
 Start with [the first-test guide](docs/zynthian-first-test.md); build/run/test scripts
 are in `scripts/`. This preserves the REAPER JSFX. Physical Pi/Helix validation is
 required; the desktop dummy JACK graph is a functional test, not a latency claim.
+
+Phrase MIDI interchange: [supported formats, browser controls and tests](docs/phrase-midi-interchange.md).

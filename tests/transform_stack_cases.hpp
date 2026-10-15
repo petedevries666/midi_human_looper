@@ -48,7 +48,7 @@ static void transform_stack_tests(Host &h) {
   h.eq("mem[cc_cfg(1)+2]", 0, "expression edit applies on release");
   // Actual one-shot playback traverses the same processors and retains recorded
   // data.
-  h.run("slider9=1;mem[COUNT_BASE]=0;store_event(0,0,144,60,100,0);"
+  h.run("slider9=1;mem[phrase_output_addr(0)]=2;mem[COUNT_BASE]=0;store_event(0,0,144,60,100,0);"
         "store_event(0,256,128,60,0,0);mem[LEN_BASE]=384;mem[MODE_BASE]=1;"
         "mem[DECAY_BASE]=1;trigger_request=0;");
   cc_expect(cc_block(h), {{145, 72, 40}},

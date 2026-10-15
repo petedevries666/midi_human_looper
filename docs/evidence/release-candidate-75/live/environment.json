@@ -1,0 +1,11 @@
+{
+  "platform": "Linux-6.18.44-x86_64-with-glibc2.41",
+  "cpuCount": 5,
+  "cpuMax": "400000 100000",
+  "memoryMax": "34359738368",
+  "nativeTree": "1b3e04a686e99b8890af49239a9410d27e4f03e8",
+  "controllerTree": "2ced171b85f307089e75e79459f544fb1b2ce73a",
+  "jsfxTree": "4101e989cb6104864fdd251e2378d04774c046de",
+  "buildCommit": "fb81761719ff76a477cd8cf09ea0316fb126e3ff",
+  "conditions": "Private non-realtime dummy JACK; no browser, edits or other test/build jobs during measured windows. Three pre-existing standalone Cloud fixture processes remain untouched, approximately 3.6\u20134.1% CPU each before run. Physical hardware false."
+}

@@ -1,0 +1,4 @@
+RELEASE WINDOW {"targetDetached": false}
+EDITOR CLICK OBSERVATION {"oldButtonDetached": false, "velocityEditorOpened": true, "nativeTranspose": 12}
+IDLE EDITOR POSITIVE CONTROL: VELOCITY opened
+PASS telemetry preserves pointer target and real EDIT interaction

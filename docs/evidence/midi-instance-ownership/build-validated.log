@@ -1,0 +1,11 @@
+headless/engine.cpp:178:35: warning: ignoring attributes on template argument ‘EEL_F*’ {aka ‘double*’} [-Wignored-attributes]
+  178 |   std::array<std::array<EEL_F*,128>,16> switchFields;
+      |                                   ^
+headless/engine.cpp:180:23: warning: ignoring attributes on template argument ‘EEL_F*’ {aka ‘double*’} [-Wignored-attributes]
+  180 |   std::array<EEL_F*,12> voiceActive,voiceLayer;
+      |                       ^
+headless/engine.cpp:181:23: warning: ignoring attributes on template argument ‘EEL_F*’ {aka ‘double*’} [-Wignored-attributes]
+  181 |   std::array<EEL_F*,16> phraseTriggers,phraseFinished;
+      |                       ^
+PASS bounded FIFO
+Built /workspace/mbmf-conductor-a/.build/midi-headless-engine on x86_64 (64 bits)

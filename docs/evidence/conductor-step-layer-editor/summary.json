@@ -1,0 +1,37 @@
+{
+  "base": "48417cfdfe39ebd92dcd9d544d693903efa32bad",
+  "spec": "73cdee5604992ca3bd68e4c6c3b97c545333b127",
+  "testedSource": "c9b38e1b03568e013134ac77fad31975fabf563e",
+  "binarySha256": "62e987251b60865399cb6858b13f6e024453831ae926b647de132567e88a4632",
+  "platform": "Cloud x86_64; dummy JACK 48000 Hz / 8192 frames; Chromium",
+  "combinedExit": 0,
+  "sharedEELChecks": 18508,
+  "strictNativeASAN": "functional exit=0; diagnostic files=0",
+  "knownUIRaces": "both positive contracts PASS; pending mode 0 applied; pressed EDIT remained connected",
+  "legacyCrossSourceOnce": "unchanged shared/native XFAIL",
+  "physicalHardwareValidated": false,
+  "merged": false,
+  "deployed": false,
+  "issue54FilesUnchanged": 25,
+  "unchangedEngineFiles": [
+    "midi_human_looper.jsfx",
+    "headless/engine.cpp",
+    "headless/conductor.py",
+    "headless/conductor_document.hpp",
+    "headless/conductor_execution.hpp"
+  ],
+  "sourceHashes": {
+    "headless/server.py": "8e823bd3c4de0f27b5c28016181607263d533bbb928c9db99f2c264d6cba0721",
+    "headless/web/app.js": "aa54875eac12e9c08c18cfcfaa9e45b7b01ae8f9be4cc328bd2897b619b4fee8",
+    "headless/web/conductor.js": "cfddb0dabb334c4fdc335c903138c878a8d4198b98a28b242ca3dd15ae31bf5c",
+    "headless/web/index.html": "c0cc372ad9486b306ec50528e3ece9cd6ebfc2d71d4b71e9e34b1d195d54a40e",
+    "headless/web/style.css": "6aae338dd121913b85a4fce3e00483991a0391030dc0231be2523d935140051b"
+  },
+  "screenshotsExit": 0,
+  "screenshotArtifacts": 163,
+  "screenshotSource": "c9b38e1b03568e013134ac77fad31975fabf563e",
+  "runtimeBuildRevision": "c9b38e1b03568e013134ac77fad31975fabf563e.dirty",
+  "visualReview": "All manifest views across five sizes via 16 contact sheets, plus original-size representative new editor PNGs",
+  "mergeable": "MERGEABLE",
+  "mergeStateStatus": "CLEAN"
+}

@@ -1,0 +1,40 @@
+{
+  "scope": "Python control worker JSON encoding/read CPU only; no JACK/ARM latency claim",
+  "runtimeBuildRevision": "74c72d8db495f9c08a6e2c7ba4eed3aeaf7547a0",
+  "nativePayloadBytes": 11714,
+  "iterations": 256,
+  "samples": 9,
+  "before": {
+    "cpuUsPerRead": [
+      144.64788671875,
+      190.76003515625,
+      135.7665234375,
+      136.6249140625,
+      131.54842578125,
+      149.01802734375,
+      144.692515625,
+      135.218125,
+      151.3524296875
+    ],
+    "medianCpuUs": 144.64788671875,
+    "transientTracemallocPeakBytes": 23542
+  },
+  "after": {
+    "cpuUsPerRead": [
+      0.414171875,
+      0.36026953125,
+      0.42753515625,
+      0.36073828125,
+      0.6054140625,
+      0.3577109375,
+      0.3558984375,
+      0.35622265625,
+      0.35416796875
+    ],
+    "medianCpuUs": 0.36026953125,
+    "transientTracemallocPeakBytes": 256
+  },
+  "cachedPayloadRetainedBytes": 11714,
+  "freshness": "Same frozen observed state; expiry and command invalidation have separate regression tests",
+  "measurement": "CPU samples without tracing; separate transient allocation samples with warmed cache"
+}

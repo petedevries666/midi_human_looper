@@ -1,0 +1,45 @@
+{
+  "binarySha256": "9296cf5d431b4ab9a846a36d3098301edd500c185c021b340267ec25b9a79427",
+  "completeArchive": "summary-full.json.gz",
+  "uncompressedSha256": "8ff2a1fe5f7c1e8237d15789944d3fe17b38bb81fc349ee899810709119dcd11",
+  "results": [
+    {
+      "profile": "LIVE_LIGHT",
+      "frames": 512,
+      "errors": [],
+      "file": "512-LIVE_LIGHT/summary.json"
+    },
+    {
+      "profile": "LIVE_NORMAL",
+      "frames": 512,
+      "errors": [],
+      "file": "512-LIVE_NORMAL/summary.json"
+    },
+    {
+      "profile": "STRESS",
+      "frames": 512,
+      "errors": [
+        "probe MIDI timestamp regression [(1389, [188416, 32, 144, 61, 100], [188416, 0, 176, 20, 61]), (1413, [189952, 208, 176, 27, 51], [189952, 176, 176, 20, 46])]"
+      ],
+      "file": "512-STRESS/summary.json"
+    },
+    {
+      "profile": "LIVE_LIGHT",
+      "frames": 256,
+      "errors": [],
+      "file": "256-LIVE_LIGHT/summary.json"
+    },
+    {
+      "profile": "LIVE_NORMAL",
+      "frames": 256,
+      "errors": [],
+      "file": "256-LIVE_NORMAL/summary.json"
+    },
+    {
+      "profile": "STRESS",
+      "frames": 256,
+      "errors": [],
+      "file": "256-STRESS/summary.json"
+    }
+  ]
+}

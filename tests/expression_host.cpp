@@ -673,20 +673,47 @@ static void stress(Host &h, bool historical, bool cc_instances = false, bool dyn
 #include "smart_switch_cases.hpp"
 #include "time_decay_cases.hpp"
 #include "transform_stack_cases.hpp"
+#include "parameter_contract_cases.hpp"
 #include "chain_mode_cases.hpp"
+#include "native_hold_cases.hpp"
+#include "free_capture_cases.hpp"
+#include "recovery_arp_cases.hpp"
+#include "recovery_recording_cases.hpp"
+#include "conductor_baseline_cases.hpp"
+#include "instance_ownership_cases.hpp"
+#include "conductor_execution_cases.hpp"
+#include "phrase_output_cases.hpp"
 int main(int argc, char **argv) {
   if (argc < 2)
     return 2;
+  if (argc>2 && std::string(argv[2])=="--conductor-execution") {conductor_execution_tests(argv[1]);return 0;}
+  if (argc>2 && std::string(argv[2])=="--instances") {instance_ownership_tests(argv[1]);return 0;}
+  if (argc>2 && std::string(argv[2])=="--conductor-baseline") return conductor_baseline_tests(argv[1],argc>3 && std::string(argv[3])=="--strict");
+  if (argc>2 && std::string(argv[2])=="--recovery-recording") {recovery_recording_tests(argv[1]);printf("PASS: %d recording lifecycle checks\n",checks);return 0;}
+  if (argc>2 && std::string(argv[2])=="--recovery-arp") {recovery_arp_tests(argv[1]);printf("PASS: %d real ARP checks\n",checks);return 0;}
+  if (argc>2 && std::string(argv[2])=="--free-capture") {free_capture_tests(argv[1]);printf("PASS: %d free capture checks\n",checks);return 0;}
+  if (argc>2 && std::string(argv[2])=="--native-hold") {native_hold_tests(argv[1]);printf("PASS: %d native HOLD checks\n",checks);return 0;}
   if (argc>2 && std::string(argv[2])=="--instruments") {Host instruments(argv[1]);dynamic_instrument_tests(instruments);printf("PASS: %d instrument checks\n",checks);return 0;}
   if (argc>2 && std::string(argv[2])=="--instrument-voices") {Host instrument_voices(argv[1]);instrument_voice_tests(instrument_voices);printf("PASS: %d voice checks\n",checks);return 0;}
   if (argc>2 && std::string(argv[2])=="--project") {project_state_tests(argv[1]);printf("PASS: %d project checks\n",checks);return 0;}
+  if(argc>2 && std::string(argv[2])=="--phrase-output"){phrase_output_tests(argv[1]);printf("PASS: %d phrase output checks\n",checks);return 0;}
   Host h(argv[1]);
   if (argc > 2 && (std::string(argv[2]) == "--historical" ||
                    std::string(argv[2]) == "--isolated")) {
     stress(h, std::string(argv[2]) == "--historical");
     return 0;
   }
+  conductor_execution_tests(argv[1]);
+  instance_ownership_tests(argv[1]);
+  recovery_recording_tests(argv[1]);
+  recovery_arp_tests(argv[1]);
+  free_capture_tests(argv[1]);
   chain_mode_tests(argv[1]);
+  native_hold_tests(argv[1]);
+  chain_capture_origin_tests(argv[1]);
+  chain_exact_timing_tests(argv[1]);
+  chain_exact_playback_tests(argv[1]);
+  parameter_contract_tests(argv[1]);
   Host bursts(argv[1]);midi_burst_tests(bursts);
   assignment(h);
   persistence(h, argv[2]);

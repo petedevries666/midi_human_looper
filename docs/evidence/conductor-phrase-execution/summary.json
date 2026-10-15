@@ -1,0 +1,65 @@
+{
+  "base": "b82b9a1c80066d2c3f4322bb5c4f6a5bf7860ddc",
+  "spec": "73cdee5604992ca3bd68e4c6c3b97c545333b127",
+  "testedImplementation": "84ca2c04cb730608171dc4368f46add3cf9e05be",
+  "binarySha256": "1aeb499617912df4d57c93fe922f5544bb018d3a526c820d38f7cf0ba49e8a51",
+  "platform": "Cloud x86_64; pinned ysfx 8077347ccf4115567aed81400281dca57acbb0cc",
+  "jack": {
+    "sampleRate": 48000,
+    "blockFrames": 8192,
+    "privateServer": "mbmf-conductor-d",
+    "hardwareValidated": false
+  },
+  "executedResults": {
+    "combinedExit": 0,
+    "sharedEELChecks": 18508,
+    "focusedConductorChecks": 125,
+    "focusedOwnershipASANChecks": 6698,
+    "conductorNativeTests": 3,
+    "conductorPersistenceTests": 23,
+    "strictNativeASAN": "functional exit=0, diagnostic files=0",
+    "manualBrowser": "PASS"
+  },
+  "knownFailures": {
+    "pendingEdit": {
+      "exit": 1,
+      "requestedMode": 0,
+      "nativeMode": 1,
+      "parameterPosts": 0,
+      "idleControl": "PASS"
+    },
+    "editorClick": {
+      "exit": 1,
+      "oldButtonDetached": true,
+      "velocityEditorOpened": false,
+      "nativeTranspose": 12,
+      "idleControl": "PASS"
+    },
+    "legacyCrossSourceOnce": "XFAIL shared and native, intentionally unchanged"
+  },
+  "preservation": {
+    "issue54FilesUnchanged": 25,
+    "gfxUnchanged": true,
+    "webUnchanged": true,
+    "zynthianUnchanged": true,
+    "merged": false,
+    "deployed": false
+  },
+  "sourceHashes": {
+    "docs/conductor-phrase-execution.md": "e69097219bbe9ac855d33ee685f76efe233a4ecec122f49f58a21546b33f4017",
+    "headless/conductor_execution.hpp": "9702a4d093f0a96ff78be91032ddc9dc559ca54ecac41cef64f200d308e73f17",
+    "headless/engine.cpp": "8d433ee6747ec31e96d167de12bade21c0b7b28ffc01c4479dde6dbdb3e5b861",
+    "headless/server.py": "d126ef37c12e8713594a2bc3a6259d4fa3834e49d30b16c03b52f42e0bb46a0c",
+    "midi_human_looper.jsfx": "3d6dbaf90011f407714563e472f66e455015f2209d39ee031a8e155b5456de02",
+    "scripts/combined-test.py": "2db631dae25578b357ed16105f69e7c1e283cb838ddd0a7c93e9fc2d5afd8f32",
+    "scripts/conductor-execution-test.sh": "bdc4a244001202c604d90bc04a496e167e82d9f484a5cb822e0a0d8fa8c691ce",
+    "scripts/conductor-persistence-test.sh": "cd9ea6cfd7722c3adf8bf482f6308cf69d95e2b2a6f798dfb6cb116fbd1b8506",
+    "scripts/headless-test.sh": "62d199b88b9aecc7427661a5671dec757608d33256a0803f1367b3e370ac64d0",
+    "tests/conductor_execution_cases.hpp": "95742532398970061b683b162eee0510091c3bba09aed1798698ebad979c59e7",
+    "tests/conductor_jack.cpp": "d0843bb6d5834be752fc46c70f5055219cee0f7940fb5a6226b9a05b79386085",
+    "tests/expression_host.cpp": "ee7e89c2c5ae801de714225a317f363fe2a8f44c3a1056cc6067259ae9cb0600",
+    "tests/test_conductor_execution_browser.py": "c9a9348df856387315d2fba1c5eef37146e51bd107aba6fb58c1f570dacb9a50",
+    "tests/test_conductor_execution_jack.py": "22560a5c651f760313f690945ce187b1314216221283c9f4670b839fc2fccf37",
+    "tests/test_conductor_execution_native.py": "b42f167a85f6c8b06fd320cb0e7847f61f4d6d7b203b95ea5e484cc37fb75c30"
+  }
+}

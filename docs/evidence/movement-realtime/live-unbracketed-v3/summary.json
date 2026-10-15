@@ -1,0 +1,43 @@
+{
+  "binarySha256": "817cf0c7b65aef1dcc4286030161e81cdb3febaae22b31f0821b3cfdd531d763",
+  "completeArchive": "summary-full.json.gz",
+  "uncompressedSha256": "f493923018c825371dece7c666a7e3cede167f981d2bd3bf0993b07766158b44",
+  "results": [
+    {
+      "profile": "LIVE_LIGHT",
+      "frames": 512,
+      "errors": [],
+      "file": "512-LIVE_LIGHT/summary.json"
+    },
+    {
+      "profile": "LIVE_NORMAL",
+      "frames": 512,
+      "errors": [],
+      "file": "512-LIVE_NORMAL/summary.json"
+    },
+    {
+      "profile": "STRESS",
+      "frames": 512,
+      "errors": [],
+      "file": "512-STRESS/summary.json"
+    },
+    {
+      "profile": "LIVE_LIGHT",
+      "frames": 256,
+      "errors": [],
+      "file": "256-LIVE_LIGHT/summary.json"
+    },
+    {
+      "profile": "LIVE_NORMAL",
+      "frames": 256,
+      "errors": [],
+      "file": "256-LIVE_NORMAL/summary.json"
+    },
+    {
+      "profile": "STRESS",
+      "frames": 256,
+      "errors": [],
+      "file": "256-STRESS/summary.json"
+    }
+  ]
+}

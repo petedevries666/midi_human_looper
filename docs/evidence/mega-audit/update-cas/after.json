@@ -1,0 +1,14 @@
+{
+  "update": {
+    "scope": "Actual file activation, service fixture only",
+    "error": "Installation configuration changed after preflight; no activation performed. Check and confirm again.",
+    "finalPort": 9000,
+    "serviceCalls": []
+  },
+  "learn": {
+    "scope": "Actual native control/runtime state, not JACK wire capture",
+    "before": 1,
+    "after": 0,
+    "cancelledDelta": 1
+  }
+}

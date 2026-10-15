@@ -1,0 +1,14 @@
+Exact committed Git archive validation: 6e11265cbe81f32f6e9166bd8a28856cd71b9079
+
+Used git archive for zynthian/web_access and zynthian/install.py, exactly the
+installer's payload, extracted into an isolated TemporaryDirectory. Imported
+provision.py from that archive and exercised configure() with the upstream
+Webconf fixture and existing install.json. Hardware dependency checks disabled
+only for this fixture; the actual install script retains its dependency checks.
+
+PASS read-only preflight (writesPerformed=False)
+PASS fresh hub install
+PASS repeat hub install
+PASS hub-only rollback (MBMF helper retained; AZ helper removed)
+PASS full rollback (Webconf original bytes restored)
+Exit 0. No system services, device data, JACK or networking modified.

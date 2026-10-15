@@ -1,0 +1,6 @@
+PICKER AFTER REAL ACK {"selected": "1", "other": "1", "nativeTypes": [1]}
+Traceback (most recent call last):
+  File "/workspace/mbmf-conductor-a/tests/test_module_picker_browser.py", line 29, in <module>
+    assert selected=='4' and other.input_value()=='6','acknowledgement erased an independently selected next type'
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: acknowledgement erased an independently selected next type

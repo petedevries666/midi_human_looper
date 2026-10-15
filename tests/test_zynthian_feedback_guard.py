@@ -15,9 +15,10 @@ class NativeAPI:
         self.modes = {}
         self.calls = []
         self.bad_readback = None
+        self.bad_mode = False
 
     def zmip_get_flag_active_chain(self, index):
-        return self.modes.get(index, 1)
+        return 1 if self.bad_mode else self.modes.get(index, 1)
 
     def zmip_set_flag_active_chain(self, index, value):
         self.calls.append(('mode', index, value))
@@ -95,6 +96,14 @@ class FeedbackGuard(unittest.TestCase):
         router.configure(self.ctx, routes)
         self.assertEqual(routes['ZynMidiRouter:dev2_in'], set())
         self.assertEqual(routes['synthv1:in'], set())
+        for zmop in (4, 7, 9, 11, 13):
+            self.assertEqual(self.api.routes[(zmop, 2)], 0)
+
+    def test_native_mode_readback_failure_disables_source(self):
+        self.api.bad_mode = True
+        routes = {}
+        router.configure(self.ctx, routes)
+        self.assertEqual(routes['ZynMidiRouter:dev2_in'], set())
         for zmop in (4, 7, 9, 11, 13):
             self.assertEqual(self.api.routes[(zmop, 2)], 0)
 

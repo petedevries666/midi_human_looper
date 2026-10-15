@@ -1,0 +1,2 @@
+OUTPUT CAPACITY attempted=5120 accepted=4369 owned=4369 error=6 panic=1
+PASS instance ownership actual EEL checks: 6698

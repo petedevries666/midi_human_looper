@@ -10,6 +10,7 @@
 - **HOLD arbitration, user approved 15 October 2026:** **maintain phrase notes; next PRESS stops previous occurrence and restarts at zero; RELEASE ignored**. This supersedes native repeat-while-held behavior for HOLD. Do not confuse PLAY MODE HOLD with gesture HOLD or future GATED block admission.
 - **Historical reference:** `midi_human_looper.jsfx`, v1.23.0 header, `72b92db091d5aef05d37b45057b62ffca390c867`. Actual code chokes cross-source ONCE voices and latches HOLD with recorded Note Off suppressed; graphical HOLD second click stops only. The new native contract intentionally corrects cross-source ONCE and follows the user's explicit HOLD retrigger decision; do not claim these corrections already existed in that revision.
 - **Next exact coding action:** extend the focused real-DSP fixture for ONCE overlap and approved HOLD; fix native/shared entry paths with a native-only policy flag, preserve frozen REAPER behavior and Conductor independent admission. Then add actual JACK + browser/API path tests and finish M0. Only then M1 source MUTE GROUP.
+- **Focused regressions after LOOP fix:** `.build/m0-playback-host midi_human_looper.jsfx --native-hold` exit 0 / 864 existing HOLD checks; `--instances` exit 0 / 6698 actual ownership checks, including bounded overload. These validate the unchanged old HOLD path, **not** the newly approved HOLD behavior, which is next.
 - **Not yet implemented:** learned MIDI/legacy Smart Switch LOOP toggle; ONCE cross-source correction; approved HOLD; complete per-source STOP/global transport consistency; M1–M7. M0 is **not complete**.
 - **No V4 installation/qualification.** User-reported installed baseline remains `b4113da`. #77 final evidence shows Cloud XRUN and grid/MOVEMENT reception/pagination failures; do not repeat broad qualification in place of musical development.
 
@@ -44,7 +45,7 @@ Populate the complete A01–L11 and R1–R7 matrix from the master spec incremen
 
 ## Current task / handoff
 
-- **Current code:** the commit containing this checkpoint; tested working-source increment over plan HEAD `493b13bc` (no self-referential SHA claim). The next checkpoint records its concrete commit ID.
+- **Latest verified code commit:** `7e6ec26` (direct native LOOP toggle); this checkpoint only adds evidence/documentation.
 - **Changed:** `headless/chain_mode.hpp`; focused real-DSP test/runner in `tests/m0_playback_cases.hpp`, `tests/expression_host.cpp`, `scripts/m0-playback-test.sh`; evidence and this ledger.
 - **Next executable action:** ONCE overlap + HOLD retrigger/latched Note Off policy fixtures, then shared native-only fix and real JACK/API coverage. Preserve Conductor instance policies and the 12-instance bound.
 - **PR:** create one focused draft M0 implementation PR stacked on #78 once production-path cases are covered; no merge/deployment.

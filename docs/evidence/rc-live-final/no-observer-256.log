@@ -1,0 +1,154 @@
+jackdmp 1.9.22
+Copyright 2001-2005 Paul Davis and others.
+Copyright 2004-2016 Grame.
+Copyright 2016-2023 Filipe Coelho.
+jackdmp comes with ABSOLUTELY NO WARRANTY
+This is free software, and you are welcome to redistribute it
+under certain conditions; see the file COPYING for details
+JACK server starting in non-realtime mode
+self-connect-mode is "Don't restrict self connect requests"
+Cannot lock down 107341340 byte memory area (Cannot allocate memory)
+JackTimedDriver::Process XRun = 6262 usec
+JackTimedDriver::Process XRun = 10 usec
+JackTimedDriver::Process XRun = 8614 usec
+JackTimedDriver::Process XRun = 127 usec
+JackTimedDriver::Process XRun = 1013 usec
+JackTimedDriver::Process XRun = 108 usec
+JackTimedDriver::Process XRun = 11 usec
+JackTimedDriver::Process XRun = 159 usec
+JackTimedDriver::Process XRun = 104 usec
+JackTimedDriver::Process XRun = 555 usec
+JackTimedDriver::Process XRun = 12 usec
+JackTimedDriver::Process XRun = 85 usec
+JackTimedDriver::Process XRun = 8 usec
+JackTimedDriver::Process XRun = 87 usec
+JackTimedDriver::Process XRun = 115 usec
+JackTimedDriver::Process XRun = 167 usec
+JackTimedDriver::Process XRun = 211 usec
+JackTimedDriver::Process XRun = 109 usec
+JackTimedDriver::Process XRun = 190 usec
+JackTimedDriver::Process XRun = 124 usec
+JackTimedDriver::Process XRun = 11 usec
+JackTimedDriver::Process XRun = 120 usec
+JackEngine::XRun: client = mbmf_negative_control was not finished, state = Running
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackTimedDriver::Process XRun = 97 usec
+JackTimedDriver::Process XRun = 323286 usec
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackTimedDriver::Process XRun = 23 usec
+JackTimedDriver::Process XRun = 26 usec
+JackTimedDriver::Process XRun = 364 usec
+JackTimedDriver::Process XRun = 1602 usec
+JackTimedDriver::Process XRun = 166023 usec
+JackTimedDriver::Process XRun = 1388 usec
+JackTimedDriver::Process XRun = 186 usec
+JackEngine::XRun: client = mbmf_negative_control was not finished, state = Triggered
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackTimedDriver::Process XRun = 23 usec
+JackEngine::XRun: client = mbmf_negative_control was not finished, state = Triggered
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackTimedDriver::Process XRun = 162 usec
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackTimedDriver::Process XRun = 343 usec
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackTimedDriver::Process XRun = 177 usec
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackTimedDriver::Process XRun = 349 usec
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackTimedDriver::Process XRun = 348 usec
+JackTimedDriver::Process XRun = 146 usec
+JackEngine::XRun: client = mbmf_negative_control was not finished, state = Triggered
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackEngine::XRun: client = mbmf_negative_control was not finished, state = Triggered
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackTimedDriver::Process XRun = 818 usec
+JackEngine::XRun: client = mbmf_negative_control was not finished, state = Triggered
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackTimedDriver::Process XRun = 7150 usec
+JackEngine::XRun: client = mbmf_negative_control was not finished, state = Triggered
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackTimedDriver::Process XRun = 271 usec
+JackTimedDriver::Process XRun = 29 usec
+JackTimedDriver::Process XRun = 37 usec
+JackTimedDriver::Process XRun = 24439 usec
+JackTimedDriver::Process XRun = 702 usec
+JackTimedDriver::Process XRun = 161 usec
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackTimedDriver::Process XRun = 428 usec
+JackTimedDriver::Process XRun = 1642 usec
+JackTimedDriver::Process XRun = 24151 usec
+JackTimedDriver::Process XRun = 16 usec
+JackTimedDriver::Process XRun = 215 usec
+JackTimedDriver::Process XRun = 142 usec
+JackTimedDriver::Process XRun = 19861 usec
+JackTimedDriver::Process XRun = 26244 usec
+JackTimedDriver::Process XRun = 170 usec
+JackEngine::XRun: client = mbmf_negative_control was not finished, state = Triggered
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackTimedDriver::Process XRun = 86 usec
+JackTimedDriver::Process XRun = 2884 usec
+JackEngine::XRun: client = mbmf_negative_control was not finished, state = Running
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackEngine::XRun: client = mbmf_negative_control was not finished, state = Triggered
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackTimedDriver::Process XRun = 470 usec
+JackTimedDriver::Process XRun = 449 usec
+JackTimedDriver::Process XRun = 208 usec
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackTimedDriver::Process XRun = 3572 usec
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackTimedDriver::Process XRun = 2533 usec
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackTimedDriver::Process XRun = 35 usec
+JackEngine::XRun: client = mbmf_negative_control was not finished, state = Triggered
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackTimedDriver::Process XRun = 419 usec
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackTimedDriver::Process XRun = 255 usec
+JackTimedDriver::Process XRun = 24057 usec
+JackTimedDriver::Process XRun = 176 usec
+JackEngine::XRun: client = mbmf_negative_control was not finished, state = Triggered
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackTimedDriver::Process XRun = 22 usec
+JackTimedDriver::Process XRun = 178 usec
+JackTimedDriver::Process XRun = 19 usec
+JackTimedDriver::Process XRun = 364 usec
+JackTimedDriver::Process XRun = 288 usec
+JackTimedDriver::Process XRun = 26 usec
+JackTimedDriver::Process XRun = 51 usec
+JackEngine::XRun: client = mbmf_negative_control was not finished, state = Triggered
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackTimedDriver::Process XRun = 157734 usec
+JackTimedDriver::Process XRun = 12269 usec
+JackTimedDriver::Process XRun = 600 usec
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackTimedDriver::Process XRun = 6238 usec
+JackEngine::XRun: client = mbmf_negative_control was not finished, state = Triggered
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackTimedDriver::Process XRun = 24 usec
+JackEngine::XRun: client = mbmf_negative_control was not finished, state = Triggered
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackEngine::XRun: client = mbmf_negative_control was not finished, state = Triggered
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackEngine::XRun: client = mbmf_negative_control was not finished, state = Triggered
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+Jack main caught signal 15

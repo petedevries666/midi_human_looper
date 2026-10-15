@@ -1,0 +1,36 @@
+{
+  "sourceSha256": "d35845feeb3a6aac4529e86805ffe536a11fd9b707787d9d0f97c3a97d40d66c",
+  "variant": "Committed tests/jack_idle_control.cpp with Trace construction removed: no worker, no callback diagnostic clocks; JACK buffer operations unchanged",
+  "results": [
+    {
+      "frames": 256,
+      "exit": 0,
+      "result": {
+        "startNs": 422015635009594,
+        "endNs": 422035635934177,
+        "xruns": 67
+      },
+      "stderr": "Cannot lock down 107341340 byte memory area (Cannot allocate memory)\n",
+      "cgroupBefore": "usage_usec 40377981231\nuser_usec 32188458022\nsystem_usec 8189523209\nnice_usec 0\nnr_periods 1877516\nnr_throttled 5664\nthrottled_usec 841097694\nnr_bursts 0\nburst_usec 0\n",
+      "cgroupAfter": "usage_usec 40417388390\nuser_usec 32219938120\nsystem_usec 8197450270\nnice_usec 0\nnr_periods 1877636\nnr_throttled 5684\nthrottled_usec 843855559\nnr_bursts 0\nburst_usec 0\n",
+      "engine": false,
+      "instrumentation": false,
+      "physicalHardware": false
+    },
+    {
+      "frames": 512,
+      "exit": 0,
+      "result": {
+        "startNs": 422037750531166,
+        "endNs": 422057751963076,
+        "xruns": 4
+      },
+      "stderr": "Cannot lock down 107341340 byte memory area (Cannot allocate memory)\n",
+      "cgroupBefore": "usage_usec 40417606568\nuser_usec 32220044357\nsystem_usec 8197562211\nnice_usec 0\nnr_periods 1877641\nnr_throttled 5684\nthrottled_usec 843855559\nnr_bursts 0\nburst_usec 0\n",
+      "cgroupAfter": "usage_usec 40420246809\nuser_usec 32222123363\nsystem_usec 8198123446\nnice_usec 0\nnr_periods 1877746\nnr_throttled 5684\nthrottled_usec 843855559\nnr_bursts 0\nburst_usec 0\n",
+      "engine": false,
+      "instrumentation": false,
+      "physicalHardware": false
+    }
+  ]
+}

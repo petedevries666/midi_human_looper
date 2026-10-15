@@ -1,0 +1,18 @@
+Cannot lock down 107341340 byte memory area (Cannot allocate memory)
+512 LIVE_LIGHT errors []
+Cannot lock down 107341340 byte memory area (Cannot allocate memory)
+512 LIVE_NORMAL errors []
+Cannot lock down 107341340 byte memory area (Cannot allocate memory)
+512 STRESS errors []
+Cannot lock down 107341340 byte memory area (Cannot allocate memory)
+256 LIVE_LIGHT errors []
+Traceback (most recent call last):
+  File "/workspace/mbmf-conductor-a/tests/movement_live_profiles.py", line 87, in <module>
+    if server:server.terminate();server.wait(timeout=10)
+                                 ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/subprocess.py", line 1264, in wait
+    return self._wait(timeout=timeout)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/subprocess.py", line 2045, in _wait
+    raise TimeoutExpired(self.args, timeout)
+subprocess.TimeoutExpired: Command '['/workspace/scratch/midi-deps/root/usr/bin/jackd', '--name', 'mbmf-live-256', '--no-realtime', '-d', 'dummy', '-r', '48000', '-p', '256']' timed out after 10 seconds

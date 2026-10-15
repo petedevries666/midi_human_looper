@@ -1,0 +1,21 @@
+headless/engine.cpp:188:35: warning: ignoring attributes on template argument ‘EEL_F*’ {aka ‘double*’} [-Wignored-attributes]
+  188 |   std::array<std::array<EEL_F*,128>,16> switchFields;
+      |                                   ^
+headless/engine.cpp:189:33: warning: ignoring attributes on template argument ‘EEL_F*’ {aka ‘double*’} [-Wignored-attributes]
+  189 |   std::array<std::array<EEL_F*,8>,16> conductorFields;
+      |                                 ^
+headless/engine.cpp:190:33: warning: ignoring attributes on template argument ‘EEL_F*’ {aka ‘double*’} [-Wignored-attributes]
+  190 |   std::array<std::array<EEL_F*,2>,16> switchAdmission;
+      |                                 ^
+headless/engine.cpp:192:23: warning: ignoring attributes on template argument ‘EEL_F*’ {aka ‘double*’} [-Wignored-attributes]
+  192 |   std::array<EEL_F*,12> voiceActive,voiceLayer;
+      |                       ^
+headless/engine.cpp:193:23: warning: ignoring attributes on template argument ‘EEL_F*’ {aka ‘double*’} [-Wignored-attributes]
+  193 |   std::array<EEL_F*,16> phraseTriggers,phraseFinished;
+      |                       ^
+headless/engine.cpp: In lambda function:
+headless/engine.cpp:2162:113: warning: ignoring attributes on template argument ‘EEL_F*’ {aka ‘double*’} [-Wignored-attributes]
+ 2162 |               std::any_of(model.switchAdmission.begin(),model.switchAdmission.end(),[](const std::array<EEL_F*,2>& p){return *p[0]>.5||*p[1]>.5;}))reply.status=3;
+      |                                                                                                                 ^
+PASS bounded FIFO
+Built /workspace/mbmf-conductor-a/.build/midi-headless-engine on x86_64 (64 bits)

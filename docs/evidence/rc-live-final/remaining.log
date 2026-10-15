@@ -1,0 +1,479 @@
+RECORDED FAILURE: first combined invocation exited 1 in test_zynthian_chains; not rerunning its preceding gates
++ /workspace/setup-tools/venv/bin/python tests/test_zynthian_dedicated_chain.py
+Cannot lock down 107341340 byte memory area (Cannot allocate memory)
+Cannot lock down 107341340 byte memory area (Cannot allocate memory)
+PASS one actual MBMF instance: 3-channel source capture/playback, native-style fanout, identical ordered output streams, explicit receiver channel isolation, LOOP/ONCE/retrigger/HOLD/release/short-tap, actual ARP chord generation/disable, STOP/transport/restart/removal cleanup
+GATE EXIT 0: /workspace/setup-tools/venv/bin/python tests/test_zynthian_dedicated_chain.py
++ /workspace/setup-tools/venv/bin/python tests/test_jack_graph.py
+Cannot lock down 107341340 byte memory area (Cannot allocate memory)
+PANIC diagnostic {'blocks': 127, 'midiCount': 8259, 'activeNotes': 0, 'outputOverflow': 0, 'lateBlocks': 0, 'maxCallbackUs': 7662.11, 'lastEvent': [64512, 191, 64, 0]}
+JACK notes on=4 off=2050 emergency=0
+Cannot lock down 107341340 byte memory area (Cannot allocate memory)
+PASS actual JACK graph: two Instruments, phrase switch, Note On/Off and PANIC
+Flood diagnostic {'midiCount': 70119, 'outputOverflow': 13443, 'pendingOutput': 0, 'lateBlocks': 6}
+JACK notes on=1632 off=28154 emergency=288
+Cannot lock down 107341340 byte memory area (Cannot allocate memory)
+JACK notes on=5 off=2 emergency=0
+ORDER frame=11 offset=16 note=91 status=144
+ORDER frame=11 offset=120 note=94 status=144
+ORDER frame=11 offset=120 note=94 status=128
+ORDER frame=11 offset=220 note=92 status=144
+ORDER frame=11 offset=400 note=90 status=144
+PASS actual JACK FIFO overflow: emergency channel releases, bounded recovery and final PANIC
+PASS actual JACK timestamp ordering: nonmonotonic generation sorted in one block; equal-time Note On/Off stable
+GATE EXIT 0: /workspace/setup-tools/venv/bin/python tests/test_jack_graph.py
++ scripts/movement-jack-test.sh
+Cannot lock down 107341340 byte memory area (Cannot allocate memory)
+Traceback (most recent call last):
+  File "/workspace/mbmf-conductor-a/tests/test_movement_jack.py", line 122, in <module>
+    assert len(isolated_events)==201 and [e[4] for e in isolated_events]==[int(min(i,200-i)*127/100+.5) for i in range(201)],isolated_events
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: [[2482176, 16, 176, 26, 0], [2482176, 1936, 176, 26, 1], [2482176, 3856, 176, 26, 3], [2482176, 5776, 176, 26, 4], [2482176, 7696, 176, 26, 5], [2490368, 1424, 176, 26, 6], [2490368, 3344, 176, 26, 8], [2490368, 5264, 176, 26, 9], [2490368, 7184, 176, 26, 10], [2498560, 912, 176, 26, 11], [2498560, 2832, 176, 26, 13], [2498560, 4752, 176, 26, 14], [2498560, 6672, 176, 26, 15], [2506752, 400, 176, 26, 17], [2506752, 2320, 176, 26, 18], [2506752, 4240, 176, 26, 19], [2506752, 6160, 176, 26, 20], [2506752, 8080, 176, 26, 22], [2514944, 1808, 176, 26, 23], [2514944, 3728, 176, 26, 24], [2514944, 5648, 176, 26, 25], [2514944, 7568, 176, 26, 27], [2531328, 784, 176, 26, 33], [2531328, 2704, 176, 26, 34], [2531328, 4624, 176, 26, 36], [2531328, 6544, 176, 26, 37], [2539520, 272, 176, 26, 38], [2539520, 2192, 176, 26, 39], [2539520, 4112, 176, 26, 41], [2539520, 6032, 176, 26, 42], [2539520, 7952, 176, 26, 43], [2547712, 1680, 176, 26, 44], [2547712, 3600, 176, 26, 46], [2547712, 5520, 176, 26, 47], [2547712, 7440, 176, 26, 48], [2555904, 1168, 176, 26, 50], [2555904, 3088, 176, 26, 51], [2555904, 5008, 176, 26, 52], [2555904, 6928, 176, 26, 53], [2564096, 656, 176, 26, 55], [2564096, 2576, 176, 26, 56], [2564096, 4496, 176, 26, 57], [2564096, 6416, 176, 26, 58], [2572288, 144, 176, 26, 60], [2572288, 2064, 176, 26, 61], [2572288, 3984, 176, 26, 62], [2572288, 5904, 176, 26, 64], [2572288, 7824, 176, 26, 65], [2580480, 1552, 176, 26, 66], [2580480, 3472, 176, 26, 67], [2580480, 5392, 176, 26, 69], [2580480, 7312, 176, 26, 70], [2588672, 1040, 176, 26, 71], [2588672, 2960, 176, 26, 72], [2588672, 4880, 176, 26, 74], [2588672, 6800, 176, 26, 75], [2596864, 528, 176, 26, 76], [2596864, 2448, 176, 26, 77], [2596864, 4368, 176, 26, 79], [2596864, 6288, 176, 26, 80], [2605056, 16, 176, 26, 81], [2605056, 1936, 176, 26, 83], [2605056, 3856, 176, 26, 84], [2605056, 5776, 176, 26, 85], [2605056, 7696, 176, 26, 86], [2613248, 1424, 176, 26, 88], [2613248, 3344, 176, 26, 89], [2613248, 5264, 176, 26, 90], [2613248, 7184, 176, 26, 91], [2621440, 912, 176, 26, 93], [2621440, 2832, 176, 26, 94], [2621440, 4752, 176, 26, 95], [2621440, 6672, 176, 26, 97], [2629632, 400, 176, 26, 98], [2629632, 2320, 176, 26, 99], [2629632, 4240, 176, 26, 100], [2629632, 6160, 176, 26, 102], [2629632, 8080, 176, 26, 103], [2637824, 1808, 176, 26, 104], [2637824, 3728, 176, 26, 105], [2637824, 5648, 176, 26, 107], [2637824, 7568, 176, 26, 108], [2646016, 1296, 176, 26, 109], [2646016, 3216, 176, 26, 110], [2646016, 5136, 176, 26, 112], [2646016, 7056, 176, 26, 113], [2654208, 784, 176, 26, 114], [2654208, 2704, 176, 26, 116], [2654208, 4624, 176, 26, 117], [2654208, 6544, 176, 26, 118], [2662400, 272, 176, 26, 119], [2662400, 2192, 176, 26, 121], [2662400, 4112, 176, 26, 122], [2662400, 6032, 176, 26, 123], [2662400, 7952, 176, 26, 124], [2670592, 1680, 176, 26, 126], [2670592, 3600, 176, 26, 127], [2670592, 5520, 176, 26, 126], [2670592, 7440, 176, 26, 124], [2678784, 1168, 176, 26, 123], [2678784, 3088, 176, 26, 122], [2678784, 5008, 176, 26, 121], [2678784, 6928, 176, 26, 119], [2686976, 656, 176, 26, 118], [2686976, 2576, 176, 26, 117], [2686976, 4496, 176, 26, 116], [2686976, 6416, 176, 26, 114], [2695168, 144, 176, 26, 113], [2695168, 2064, 176, 26, 112], [2695168, 3984, 176, 26, 110], [2695168, 5904, 176, 26, 109], [2695168, 7824, 176, 26, 108], [2703360, 1552, 176, 26, 107], [2703360, 3472, 176, 26, 105], [2703360, 5392, 176, 26, 104], [2703360, 7312, 176, 26, 103], [2711552, 1040, 176, 26, 102], [2711552, 2960, 176, 26, 100], [2711552, 4880, 176, 26, 99], [2711552, 6800, 176, 26, 98], [2719744, 528, 176, 26, 97], [2719744, 2448, 176, 26, 95], [2719744, 4368, 176, 26, 94], [2719744, 6288, 176, 26, 93], [2727936, 16, 176, 26, 91], [2727936, 1936, 176, 26, 90], [2727936, 3856, 176, 26, 89], [2727936, 5776, 176, 26, 88], [2727936, 7696, 176, 26, 86], [2736128, 1424, 176, 26, 85], [2736128, 3344, 176, 26, 84], [2736128, 5264, 176, 26, 83], [2736128, 7184, 176, 26, 81], [2744320, 912, 176, 26, 80], [2744320, 2832, 176, 26, 79], [2744320, 4752, 176, 26, 77], [2744320, 6672, 176, 26, 76], [2752512, 400, 176, 26, 75], [2752512, 2320, 176, 26, 74], [2752512, 4240, 176, 26, 72], [2752512, 6160, 176, 26, 71], [2752512, 8080, 176, 26, 70], [2760704, 1808, 176, 26, 69], [2760704, 3728, 176, 26, 67], [2760704, 5648, 176, 26, 66], [2760704, 7568, 176, 26, 65], [2768896, 1296, 176, 26, 64], [2768896, 3216, 176, 26, 62], [2768896, 5136, 176, 26, 61], [2768896, 7056, 176, 26, 60], [2777088, 784, 176, 26, 58], [2777088, 2704, 176, 26, 57], [2777088, 4624, 176, 26, 56], [2777088, 6544, 176, 26, 55], [2785280, 272, 176, 26, 53], [2785280, 2192, 176, 26, 52], [2785280, 4112, 176, 26, 51], [2785280, 6032, 176, 26, 50], [2785280, 7952, 176, 26, 48], [2793472, 1680, 176, 26, 47], [2793472, 3600, 176, 26, 46], [2793472, 5520, 176, 26, 44], [2793472, 7440, 176, 26, 43], [2801664, 1168, 176, 26, 42], [2801664, 3088, 176, 26, 41], [2801664, 5008, 176, 26, 39], [2801664, 6928, 176, 26, 38], [2809856, 656, 176, 26, 37], [2809856, 2576, 176, 26, 36], [2809856, 4496, 176, 26, 34], [2809856, 6416, 176, 26, 33], [2818048, 144, 176, 26, 32], [2818048, 2064, 176, 26, 30], [2818048, 3984, 176, 26, 29], [2818048, 5904, 176, 26, 28], [2818048, 7824, 176, 26, 27], [2826240, 1552, 176, 26, 25], [2826240, 3472, 176, 26, 24], [2826240, 5392, 176, 26, 23], [2826240, 7312, 176, 26, 22], [2834432, 1040, 176, 26, 20], [2834432, 2960, 176, 26, 19], [2834432, 4880, 176, 26, 18], [2834432, 6800, 176, 26, 17], [2842624, 528, 176, 26, 15], [2842624, 2448, 176, 26, 14], [2842624, 4368, 176, 26, 13], [2842624, 6288, 176, 26, 11], [2850816, 16, 176, 26, 10], [2850816, 1936, 176, 26, 9], [2850816, 3856, 176, 26, 8], [2850816, 5776, 176, 26, 6], [2850816, 7696, 176, 26, 5], [2859008, 1424, 176, 26, 4], [2859008, 3344, 176, 26, 3], [2859008, 5264, 176, 26, 1], [2859008, 7184, 176, 26, 0]]
+RECORDED GATE FAILURE: exit 1: scripts/movement-jack-test.sh
++ /workspace/setup-tools/venv/bin/python tests/test_zynthian_update.py
+...........PASS bounded FIFO
+....
+----------------------------------------------------------------------
+Ran 15 tests in 4.067s
+
+OK
+GATE EXIT 0: /workspace/setup-tools/venv/bin/python tests/test_zynthian_update.py
++ /workspace/setup-tools/venv/bin/python tests/test_update_admission.py
+test_activation_holds_native_boundary_through_restart_and_health (__main__.AdmissionTests.test_activation_holds_native_boundary_through_restart_and_health) ... ok
+test_activation_rechecks_activity_after_checkpoint_before_stop (__main__.AdmissionTests.test_activation_rechecks_activity_after_checkpoint_before_stop) ... ok
+test_controller_glide_cannot_mutate_frozen_checkpoint (__main__.AdmissionTests.test_controller_glide_cannot_mutate_frozen_checkpoint) ... ok
+test_empty_switch_held_refuses_update (__main__.AdmissionTests.test_empty_switch_held_refuses_update) ... ok
+test_failed_multi_processor_acquire_releases_only_own_lease (__main__.AdmissionTests.test_failed_multi_processor_acquire_releases_only_own_lease) ... ok
+test_real_leases_reject_held_notes_and_armed_recording (__main__.AdmissionTests.test_real_leases_reject_held_notes_and_armed_recording) ... ok
+test_rollback_failure_retains_fence_until_explicit_recovery (__main__.AdmissionTests.test_rollback_failure_retains_fence_until_explicit_recovery) ... ok
+test_startup_guard_excludes_marker_race (__main__.AdmissionTests.test_startup_guard_excludes_marker_race) ... ok
+test_worker_fence_new_processor_restore_and_checkpoint (__main__.AdmissionTests.test_worker_fence_new_processor_restore_and_checkpoint) ... ok
+
+----------------------------------------------------------------------
+Ran 9 tests in 6.486s
+
+OK
+GATE EXIT 0: /workspace/setup-tools/venv/bin/python tests/test_update_admission.py
++ /workspace/setup-tools/venv/bin/python tests/test_midi_cycle_diagnostics.py
+....
+----------------------------------------------------------------------
+Ran 4 tests in 0.000s
+
+OK
+GATE EXIT 0: /workspace/setup-tools/venv/bin/python tests/test_midi_cycle_diagnostics.py
++ scripts/admission-jack-test.sh
+Cannot lock down 107341340 byte memory area (Cannot allocate memory)
+PASS actual JACK admission: closed MIDI notes/CC/sustain/Smart Switch suppressed, held-note refusal, wrong-owner refusal, no queued attacks, explicit resume, PANIC stays closed; actual notes [62, 66, 67]
+GATE EXIT 0: scripts/admission-jack-test.sh
++ /workspace/setup-tools/venv/bin/python tests/test_update_controls.py
+........
+----------------------------------------------------------------------
+Ran 8 tests in 2.902s
+
+OK
+GATE EXIT 0: /workspace/setup-tools/venv/bin/python tests/test_update_controls.py
++ /workspace/setup-tools/venv/bin/python tests/test_update_native.py
+....
+----------------------------------------------------------------------
+Ran 4 tests in 0.003s
+
+OK
+GATE EXIT 0: /workspace/setup-tools/venv/bin/python tests/test_update_native.py
++ /workspace/setup-tools/venv/bin/python tests/test_zynthian_channel_source.py
+....
+----------------------------------------------------------------------
+Ran 4 tests in 0.001s
+
+OK
+GATE EXIT 0: /workspace/setup-tools/venv/bin/python tests/test_zynthian_channel_source.py
++ /workspace/setup-tools/venv/bin/python tests/test_patch_extension_preservation.py
+....................
+----------------------------------------------------------------------
+Ran 20 tests in 9.887s
+
+OK
+GATE EXIT 0: /workspace/setup-tools/venv/bin/python tests/test_patch_extension_preservation.py
++ /workspace/setup-tools/venv/bin/python tests/test_native_free_capture.py
+test_hardware_stop_state_and_record_finalization (__main__.FreeCapture.test_hardware_stop_state_and_record_finalization) ... ok
+test_free_capture (__main__.FreeCapture.test_free_capture) ... ok
+test_overdub_cancel_and_independent_loop (__main__.FreeCapture.test_overdub_cancel_and_independent_loop) ... ok
+test_inactive_clear_and_targeted_loop_stop (__main__.FreeCapture.test_inactive_clear_and_targeted_loop_stop) ... ok
+test_controller_removal_sequence_and_clear_patch (__main__.FreeCapture.test_controller_removal_sequence_and_clear_patch) ... ok
+test_switch_stop_capture_finalization (__main__.FreeCapture.test_switch_stop_capture_finalization) ... ok
+
+----------------------------------------------------------------------
+Ran 6 tests in 12.217s
+
+OK
+GATE EXIT 0: /workspace/setup-tools/venv/bin/python tests/test_native_free_capture.py
++ /workspace/setup-tools/venv/bin/python tests/test_observation.py
+....
+----------------------------------------------------------------------
+Ran 4 tests in 0.023s
+
+OK
+GATE EXIT 0: /workspace/setup-tools/venv/bin/python tests/test_observation.py
++ /workspace/setup-tools/venv/bin/python tests/test_reliability_report.py
+......
+----------------------------------------------------------------------
+Ran 6 tests in 0.000s
+
+OK
+GATE EXIT 0: /workspace/setup-tools/venv/bin/python tests/test_reliability_report.py
++ /workspace/setup-tools/venv/bin/python tests/test_controller_integration.py
+.........
+----------------------------------------------------------------------
+Ran 9 tests in 4.219s
+
+OK
+GATE EXIT 0: /workspace/setup-tools/venv/bin/python tests/test_controller_integration.py
++ /workspace/setup-tools/venv/bin/python tests/test_snapshots.py
+..............
+----------------------------------------------------------------------
+Ran 14 tests in 18.167s
+
+OK
+GATE EXIT 0: /workspace/setup-tools/venv/bin/python tests/test_snapshots.py
++ /workspace/setup-tools/venv/bin/python tests/test_product_integration.py
+.
+----------------------------------------------------------------------
+Ran 1 test in 1.689s
+
+OK
+GATE EXIT 0: /workspace/setup-tools/venv/bin/python tests/test_product_integration.py
++ /workspace/setup-tools/venv/bin/python tests/test_web_names.py
+...
+----------------------------------------------------------------------
+Ran 3 tests in 1.323s
+
+OK
+GATE EXIT 0: /workspace/setup-tools/venv/bin/python tests/test_web_names.py
++ /workspace/setup-tools/venv/bin/python tests/test_phrase_midi.py
+......
+----------------------------------------------------------------------
+Ran 6 tests in 0.040s
+
+OK
+GATE EXIT 0: /workspace/setup-tools/venv/bin/python tests/test_phrase_midi.py
++ /workspace/setup-tools/venv/bin/python tests/test_portable_project.py
+......
+----------------------------------------------------------------------
+Ran 6 tests in 1.593s
+
+OK
+GATE EXIT 0: /workspace/setup-tools/venv/bin/python tests/test_portable_project.py
++ /workspace/setup-tools/venv/bin/python tests/test_conductor_legacy_contract.py
+.....
+----------------------------------------------------------------------
+Ran 5 tests in 0.809s
+
+OK
+GATE EXIT 0: /workspace/setup-tools/venv/bin/python tests/test_conductor_legacy_contract.py
++ /workspace/setup-tools/venv/bin/python tests/test_conductor_persistence.py
+.......................
+----------------------------------------------------------------------
+Ran 23 tests in 21.922s
+
+OK
+GATE EXIT 0: /workspace/setup-tools/venv/bin/python tests/test_conductor_persistence.py
++ /workspace/setup-tools/venv/bin/python tests/test_movement_persistence.py
+.....
+----------------------------------------------------------------------
+Ran 5 tests in 4.534s
+
+OK
+GATE EXIT 0: /workspace/setup-tools/venv/bin/python tests/test_movement_persistence.py
++ scripts/movement-test.sh
+MOVEMENT_CPU rate=10 block=8192 sr=48000 samples=8388608 callbacks=1024 mean_us=0.417364 max_us=1.037 emitted=223
+MOVEMENT_CPU rate=25 block=8192 sr=48000 samples=8388608 callbacks=1024 mean_us=2.66603 max_us=1515.66 emitted=223
+MOVEMENT_CPU rate=50 block=8192 sr=48000 samples=8388608 callbacks=1024 mean_us=0.471246 max_us=37.407 emitted=223
+MOVEMENT_CPU rate=100 block=8192 sr=48000 samples=8388608 callbacks=1024 mean_us=1.85465 max_us=416.801 emitted=223
+PASS 1204 production MOVEMENT runtime/Controller checks
+GATE EXIT 0: scripts/movement-test.sh
++ scripts/movement-test.sh
+MOVEMENT_CPU rate=10 block=8192 sr=48000 samples=8388608 callbacks=1024 mean_us=2.14388 max_us=189.229 emitted=223
+MOVEMENT_CPU rate=25 block=8192 sr=48000 samples=8388608 callbacks=1024 mean_us=7.7861 max_us=1657.58 emitted=223
+MOVEMENT_CPU rate=50 block=8192 sr=48000 samples=8388608 callbacks=1024 mean_us=11.6803 max_us=959.659 emitted=223
+MOVEMENT_CPU rate=100 block=8192 sr=48000 samples=8388608 callbacks=1024 mean_us=19.5089 max_us=1675.41 emitted=223
+PASS 1204 production MOVEMENT runtime/Controller checks
+GATE EXIT 0: scripts/movement-test.sh
++ scripts/realtime-trace-test.sh
+PASS zero callback allocations; ordered bounded ring; 10000 records; mean instrumented scope ns=7564
+PASS zero callback allocations; ordered bounded ring; 10000 records; mean instrumented scope ns=5413
+GATE EXIT 0: scripts/realtime-trace-test.sh
++ /workspace/setup-tools/venv/bin/python tests/test_conductor_execution_native.py
+test_steps_coexist_wrap_capacity_and_persistence (__main__.Execution.test_steps_coexist_wrap_capacity_and_persistence) ... ok
+test_layers_missing_and_unsupported_no_fallback (__main__.Execution.test_layers_missing_and_unsupported_no_fallback) ... ok
+test_local_hold_release_overrides_and_source_isolation (__main__.Execution.test_local_hold_release_overrides_and_source_isolation) ... ok
+
+----------------------------------------------------------------------
+Ran 3 tests in 3.600s
+
+OK
+GATE EXIT 0: /workspace/setup-tools/venv/bin/python tests/test_conductor_execution_native.py
++ /workspace/setup-tools/venv/bin/python tests/test_portable_engine.py
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.870s
+
+OK
+GATE EXIT 0: /workspace/setup-tools/venv/bin/python tests/test_portable_engine.py
++ /workspace/setup-tools/venv/bin/python tests/test_project_sync.py
+.
+----------------------------------------------------------------------
+Ran 1 test in 8.269s
+
+OK
+GATE EXIT 0: /workspace/setup-tools/venv/bin/python tests/test_project_sync.py
++ /workspace/setup-tools/venv/bin/python tests/test_project_authority.py
+.
+----------------------------------------------------------------------
+Ran 1 test in 4.099s
+
+OK
+GATE EXIT 0: /workspace/setup-tools/venv/bin/python tests/test_project_authority.py
++ /workspace/setup-tools/venv/bin/python tests/test_reaper_bridge.py
+....
+----------------------------------------------------------------------
+Ran 4 tests in 0.005s
+
+OK
+GATE EXIT 0: /workspace/setup-tools/venv/bin/python tests/test_reaper_bridge.py
++ /workspace/setup-tools/venv/bin/python tests/test_phrase_midi_integration.py
+..
+----------------------------------------------------------------------
+Ran 2 tests in 3.174s
+
+OK
+GATE EXIT 0: /workspace/setup-tools/venv/bin/python tests/test_phrase_midi_integration.py
++ scripts/controller-test.sh
+PASS: 162709 synthetic-time Controller Engine checks
+PASS: 579 Controller host adapter checks
+GATE EXIT 0: scripts/controller-test.sh
++ scripts/controller-test.sh
+PASS: 162709 synthetic-time Controller Engine checks
+PASS: 579 Controller host adapter checks
+GATE EXIT 0: scripts/controller-test.sh
++ scripts/conductor-baseline.sh
+XFAIL ONCE_CROSS_SOURCE_CHOKE {"activeVoices":1,"midi":[[128,48,0],[144,72,83]]}
+PASS VOICE_EXHAUSTION_GLOBAL_RELEASE before=12 after=12 MIDI=[]
+PASS CHOKE_RELEASES_LIVE_OWNER liveOwners=1 MIDI=[[144,72,83]]
+BASELINE: 84 checks; 1 known contract failures; legacy cross-source compatibility remains XFAIL; two ownership contracts promoted with real MIDI
+GATE EXIT 0: scripts/conductor-baseline.sh
++ /workspace/setup-tools/venv/bin/python tests/test_conductor_native_baseline.py
+XFAIL NATIVE_ONCE_CROSS_SOURCE_CHOKE: authoritative PLAYING phrases = [2]
+PASS native adapter fixture import, first/second admission, PANIC and source SAVE/LOAD
+GATE EXIT 0: /workspace/setup-tools/venv/bin/python tests/test_conductor_native_baseline.py
++ /workspace/setup-tools/venv/bin/python tests/test_instance_ownership_native.py
+PASS actual native instance IDs/generations, independent admission, targeted/stale STOP, bounded refusal, PANIC, source persistence
+GATE EXIT 0: /workspace/setup-tools/venv/bin/python tests/test_instance_ownership_native.py
++ tests/run_host_tests.sh
+CONDUCTOR EEL PRESS trace [[144,48,100],[144,52,100],[144,56,100],[144,60,100],[144,48,100]]
+CONDUCTOR COST {"layers":1,"blocks":100,"frames":128,"medianUs":37.914,"p95Us":123.859,"maxUs":259.272}
+CONDUCTOR COST {"layers":2,"blocks":100,"frames":128,"medianUs":36.071,"p95Us":90.486,"maxUs":729.526}
+CONDUCTOR COST {"layers":12,"blocks":100,"frames":128,"medianUs":57.002,"p95Us":222.998,"maxUs":922.37}
+PASS actual CONDUCTOR shared EEL checks: 125
+OUTPUT CAPACITY attempted=5120 accepted=4369 owned=4369 error=6 panic=1
+PASS instance ownership actual EEL checks: 6824
+concurrent fixed-state frames: 1 distinct hashes
+concurrent fixed-state frames: 1 distinct hashes
+concurrent fixed-state frames: 1 distinct hashes
+PASS: 18508 EEL2/GUI/MIDI checks
+PASS 18 actual capture fixtures: tick-zero multichannel chords, staggered durations and rests
+PASS 36 shared/native free captures: actual exported ticks, same-block chords and durations
+GATE EXIT 0: tests/run_host_tests.sh
++ scripts/portable-test.sh
+In file included from tests/portable_parity.cpp:4:
+tests/expression_host.cpp: In function ‘int expression_regression_main(int, char**)’:
+tests/expression_host.cpp:749:1: warning: control reaches end of non-void function [-Wreturn-type]
+  749 | }
+      | ^
+PASS portable shared-EEL2 MIDI parity at 44100/48000 Hz (41 checks)
+......
+----------------------------------------------------------------------
+Ran 6 tests in 1.676s
+
+OK
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.831s
+
+OK
+GATE EXIT 0: scripts/portable-test.sh
++ scripts/conductor-persistence-test.sh
+headless/engine.cpp:188:35: warning: ignoring attributes on template argument ‘EEL_F*’ {aka ‘double*’} [-Wignored-attributes]
+  188 |   std::array<std::array<EEL_F*,128>,16> switchFields;
+      |                                   ^
+headless/engine.cpp:189:33: warning: ignoring attributes on template argument ‘EEL_F*’ {aka ‘double*’} [-Wignored-attributes]
+  189 |   std::array<std::array<EEL_F*,8>,16> conductorFields;
+      |                                 ^
+headless/engine.cpp:190:33: warning: ignoring attributes on template argument ‘EEL_F*’ {aka ‘double*’} [-Wignored-attributes]
+  190 |   std::array<std::array<EEL_F*,2>,16> switchAdmission;
+      |                                 ^
+headless/engine.cpp:192:23: warning: ignoring attributes on template argument ‘EEL_F*’ {aka ‘double*’} [-Wignored-attributes]
+  192 |   std::array<EEL_F*,12> voiceActive,voiceLayer;
+      |                       ^
+headless/engine.cpp:193:23: warning: ignoring attributes on template argument ‘EEL_F*’ {aka ‘double*’} [-Wignored-attributes]
+  193 |   std::array<EEL_F*,16> phraseTriggers,phraseFinished;
+      |                       ^
+headless/engine.cpp: In lambda function:
+headless/engine.cpp:2162:113: warning: ignoring attributes on template argument ‘EEL_F*’ {aka ‘double*’} [-Wignored-attributes]
+ 2162 |               std::any_of(model.switchAdmission.begin(),model.switchAdmission.end(),[](const std::array<EEL_F*,2>& p){return *p[0]>.5||*p[1]>.5;}))reply.status=3;
+      |                                                                                                                 ^
+PASS bounded FIFO
+Built /workspace/mbmf-conductor-a/.build/midi-headless-engine-conductor-asan on x86_64 (64 bits)
+.......................
+----------------------------------------------------------------------
+Ran 23 tests in 23.983s
+
+OK
+test_steps_coexist_wrap_capacity_and_persistence (__main__.Execution.test_steps_coexist_wrap_capacity_and_persistence) ... ok
+test_layers_missing_and_unsupported_no_fallback (__main__.Execution.test_layers_missing_and_unsupported_no_fallback) ... ok
+test_local_hold_release_overrides_and_source_isolation (__main__.Execution.test_local_hold_release_overrides_and_source_isolation) ... ok
+
+----------------------------------------------------------------------
+Ran 3 tests in 6.050s
+
+OK
+.....
+----------------------------------------------------------------------
+Ran 5 tests in 7.654s
+
+OK
+Native sanitizer gate: functional exit=0, diagnostic files=0
+GATE EXIT 0: scripts/conductor-persistence-test.sh
++ /workspace/setup-tools/venv/bin/python tests/test_patch_io.py
+......
+----------------------------------------------------------------------
+Ran 6 tests in 0.023s
+
+OK
+GATE EXIT 0: /workspace/setup-tools/venv/bin/python tests/test_patch_io.py
++ /workspace/setup-tools/venv/bin/python tests/test_headless_browser.py
+Traceback (most recent call last):
+  File "/workspace/mbmf-conductor-a/tests/test_headless_browser.py", line 27, in <module>
+    assert page.locator('[data-phrase-id="7"]').count()==1
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError
+RECORDED GATE FAILURE: exit 1: /workspace/setup-tools/venv/bin/python
++ /workspace/setup-tools/venv/bin/python tests/test_update_controls_browser.py
+PASS actual native editor, separate password refusal, reviewed CHECK, confirmation cancellation, reload, no engine activation; root/release authority explicitly fixtured
+GATE EXIT 0: /workspace/setup-tools/venv/bin/python tests/test_update_controls_browser.py
++ scripts/phrase-output-test.sh
+PASS: 704 phrase output checks
+OUTPUT CAPACITY attempted=5120 accepted=4369 owned=4369 error=6 panic=1
+PASS instance ownership actual EEL checks: 6698
+PASS real Chromium selection, native state, independent phrases, SAVE/LOAD, source SMF identity, reload/reconnect/native restart without autoplay and invalid-channel refusal
+PASS actual JACK ORIGINAL/CH2/CH16/ALL: channel-voice events, exact emitted destinations, sustain cleanup, frozen active policy, source MIDI unchanged and chronological output
+GATE EXIT 0: scripts/phrase-output-test.sh
++ /workspace/setup-tools/venv/bin/python tests/test_headless_editor.py
+PASS generic browser editor: descriptor rendering, draft DONE/CANCEL/ESC/outside, atomic commit, Transformer output, stale conflict and responsive layout
+GATE EXIT 0: /workspace/setup-tools/venv/bin/python tests/test_headless_editor.py
++ /workspace/setup-tools/venv/bin/python tests/test_conductor_execution_browser.py
+PASS actual Chromium TEST: unassigned/disabled hardware source, four STEPS and concurrent native instances; browser disconnect leaves playback autonomous
+GATE EXIT 0: /workspace/setup-tools/venv/bin/python tests/test_conductor_execution_browser.py
++ /workspace/setup-tools/venv/bin/python tests/test_conductor_editor_browser.py
+PASS browser CONDUCTOR: automatic four STEPS, UUID references, layers/move/delete/UNDO, overrides, source isolation, SAVE/LOAD, reconnect, native TEST/wrap, stale-session refusal and missing source preservation
+GATE EXIT 0: /workspace/setup-tools/venv/bin/python tests/test_conductor_editor_browser.py
++ /workspace/setup-tools/venv/bin/python tests/test_movement_browser.py
+.
+----------------------------------------------------------------------
+Ran 1 test in 5.509s
+
+OK
+GATE EXIT 0: /workspace/setup-tools/venv/bin/python tests/test_movement_browser.py
++ /workspace/setup-tools/venv/bin/python tests/conductor_diagnostics/pending_edit.py
+PENDING EDIT OBSERVATION {"requestedMode": 0, "nativeMode": 0, "parameterPosts": [{"protocolVersion": 1, "expectedRevision": 2, "expectedEngineSessionId": 684792304496534, "action": "parameter_set", "targetId": 1, "moduleId": 0, "kind": 20, "value": 0}], "uiError": ""}
+IDLE POSITIVE CONTROL {"nativeMode": 0, "parameterPosts": [{"protocolVersion": 1, "expectedRevision": 2, "expectedEngineSessionId": 684792304496534, "action": "parameter_set", "targetId": 1, "moduleId": 0, "kind": 20, "value": 0}, {"protocolVersion": 1, "expectedRevision": 3, "expectedEngineSessionId": 684792304496534, "action": "parameter_set", "targetId": 1, "moduleId": 0, "kind": 20, "value": 0}]}
+PASS pending-command enabled edit: one real POST, correct target/value, idle control preserved
+GATE EXIT 0: /workspace/setup-tools/venv/bin/python tests/conductor_diagnostics/pending_edit.py
++ /workspace/setup-tools/venv/bin/python tests/conductor_diagnostics/editor_click.py
+RELEASE WINDOW {"targetDetached": false}
+EDITOR CLICK OBSERVATION {"oldButtonDetached": false, "velocityEditorOpened": true, "nativeTranspose": 12}
+IDLE EDITOR POSITIVE CONTROL: VELOCITY opened
+PASS telemetry preserves pointer target and real EDIT interaction
+GATE EXIT 0: /workspace/setup-tools/venv/bin/python tests/conductor_diagnostics/editor_click.py
++ /workspace/setup-tools/venv/bin/python tests/test_controller_browser.py
+PASS Controller browser: Learn, mapping drafts, points/bends, output, persistence, REAPER export, ESC and responsive layout
+GATE EXIT 0: /workspace/setup-tools/venv/bin/python tests/test_controller_browser.py
++ /workspace/setup-tools/venv/bin/python tests/test_snapshot_browser.py
+PASS actual Chromium snapshot capture, inline rename, dirty state, update, transactional settings DONE/CANCEL and confirmed deletion
+GATE EXIT 0: /workspace/setup-tools/venv/bin/python tests/test_snapshot_browser.py
++ /workspace/setup-tools/venv/bin/python tests/test_product_browser.py
+PASS compact editor: six phrases, inline instance isolation, confirmed deletion, stable replacement ID, shared Phrase Learn and Snapshot capture
+GATE EXIT 0: /workspace/setup-tools/venv/bin/python tests/test_product_browser.py
++ /workspace/setup-tools/venv/bin/python tests/test_web_parity_browser.py
+PASS real browser: persistent isolated rename, Enter/Escape, reconnect, mode controls, signature and responsive rows
+GATE EXIT 0: /workspace/setup-tools/venv/bin/python tests/test_web_parity_browser.py
++ /workspace/setup-tools/venv/bin/python tests/test_tactile_browser.py
+PASS tactile controls: mouse drag, keyboard, phrase isolation, SVG action routing, module draft and refresh persistence
+GATE EXIT 0: /workspace/setup-tools/venv/bin/python tests/test_tactile_browser.py
++ /workspace/setup-tools/venv/bin/python tests/test_performance_density.py
+PASS primary action inventory, six visible rows, responsive layout and measured label reduction
+{"before": {"phrases": {"labels": 58, "words": 98, "characters": 481}, "instruments": {"labels": 21, "words": 51, "characters": 279}, "transformer-editor": {"labels": 4, "words": 3, "characters": 19}}, "after": {"phrases": {"labels": 53, "words": 52, "characters": 149}, "instruments": {"labels": 18, "words": 18, "characters": 51}, "transformer-editor": {"labels": 4, "words": 4, "characters": 15}}}
+GATE EXIT 0: /workspace/setup-tools/venv/bin/python tests/test_performance_density.py
++ /workspace/setup-tools/venv/bin/python tests/test_phrase_midi_browser.py
+PASS browser MIDI preview/CANCEL/replace actual standard MIDI download and confirmed content-only CLEAR
+GATE EXIT 0: /workspace/setup-tools/venv/bin/python tests/test_phrase_midi_browser.py
++ /workspace/setup-tools/venv/bin/python tests/test_native_hold_browser.py
+PASS native HOLD actual MIDI output: pointer, keyboard, short tap, learned MIDI PRESS/zero RELEASE and PANIC
+GATE EXIT 0: /workspace/setup-tools/venv/bin/python tests/test_native_hold_browser.py
++ /workspace/setup-tools/venv/bin/python tests/test_recovery_browser.py
+PASS contextual named modulation, multipoint/bend/presets/persistence, real recording states and browser ARP enable, named DOWN, RATE/GATE, actual generated native MIDI, PANIC and save/load
+GATE EXIT 0: /workspace/setup-tools/venv/bin/python tests/test_recovery_browser.py
++ /workspace/setup-tools/venv/bin/python tests/test_hardware_feedback_browser.py
+PASS issue #51: rename focus, EDIT/REMOVE, aligned rails, live module switching, real LOOP STOP/CLEAR, sequencer persistence and confirmed CLEAR PATCH
+GATE EXIT 0: /workspace/setup-tools/venv/bin/python tests/test_hardware_feedback_browser.py
++ /workspace/setup-tools/venv/bin/python tests/test_module_picker_browser.py
+PICKER AFTER REAL ACK {"selected": "4", "other": "6", "nativeTypes": [1]}
+PASS actual pending ADD, independent type pickers, correct native module kinds and SAVE/LOAD
+GATE EXIT 0: /workspace/setup-tools/venv/bin/python tests/test_module_picker_browser.py
++ /workspace/setup-tools/venv/bin/python tests/test_issue53_browser.py
+PASS manual source browser/MIDI path
+PASS targeted keyboard recording with independent LOOP
+PASS issue #53 chromium: blank draft, targeted keyboard FINISH, unbound TAP MIDI, source test ownership/Learn isolation, mapped MIDI output, persistence/removal
+GATE EXIT 0: /workspace/setup-tools/venv/bin/python tests/test_issue53_browser.py
++ scripts/az-hub-test.sh
+.........
+----------------------------------------------------------------------
+Ran 9 tests in 0.208s
+
+OK
+.503 GET / (127.0.0.1) 92.40ms
+....404 GET /favicon.ico (127.0.0.1) 33.42ms
+401 GET /mbmf/api/v1/descriptors (127.0.0.1) 20.92ms
+401 GET /mbmf/api/v1/state (127.0.0.1) 28.79ms
+..401 GET /api/v1/state (127.0.0.1) 100.90ms
+403 GET /api/v1/state (127.0.0.1) 3.62ms
+.403 POST /api/v1/auth/pair (127.0.0.1) 2.53ms
+.
+----------------------------------------------------------------------
+Ran 9 tests in 15.753s
+
+OK
+401 POST /az/api/action (127.0.0.1): Sign in to Webconf for LUMAZ options
+401 POST /az/api/action (127.0.0.1) 2.18ms
+409 POST /az/api/action (127.0.0.1) 1.32ms
+409 POST /az/api/action (127.0.0.1) 1.63ms
+409 POST /az/api/action (127.0.0.1) 1.08ms
+403 POST /az/api/action (127.0.0.1): Same origin required
+403 POST /az/api/action (127.0.0.1) 1.65ms
+403 POST /az/api/action (127.0.0.1) 2.29ms
+409 POST /az/api/action (127.0.0.1) 3.82ms
+409 POST /az/api/action (127.0.0.1) 2.74ms
+409 POST /az/api/action (127.0.0.1) 39.42ms
+.404 GET /favicon.ico (127.0.0.1) 4.22ms
+.409 POST /az/api/action (127.0.0.1) 5.39ms
+409 POST /az/api/action (127.0.0.1): Operation already in progress
+409 POST /az/api/action (127.0.0.1) 1.16ms
+.403 GET /az/api/status (127.0.0.1): Same origin required
+403 GET /az/api/status (127.0.0.1) 1.53ms
+403 GET /az/api/status (127.0.0.1) 1.38ms
+.404 GET /az/api/status (127.0.0.1) 9.77ms
+.
+----------------------------------------------------------------------
+Ran 5 tests in 23.495s
+
+OK
+GATE EXIT 0: scripts/az-hub-test.sh
+ALL REMAINING GATES EXECUTED; aggregate failures: ['first combined: test_zynthian_chains.py grid phase assertion after receiver XRUN', 'exit 1: scripts/movement-jack-test.sh', 'exit 1: /workspace/setup-tools/venv/bin/python']

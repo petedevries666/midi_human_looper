@@ -1,0 +1,9 @@
+Traceback (most recent call last):
+  File "/workspace/mbmf-conductor-a/tests/movement_live_profiles.py", line 27, in <module>
+    command(op=2)
+  File "/workspace/mbmf-conductor-a/tests/movement_live_profiles.py", line 26, in command
+    s=c.request();r=c.request(revision=s['revision'],session=s['engineSessionId'],**args);assert r.get('status')=='ok' or (args.get('op')==4 and r.get('format')=='MIDI_HUMAN_LOOPER_PATCH'),str(r)[:1000];return r
+      ^^^^^^^^^^^
+  File "/workspace/mbmf-conductor-a/headless/server.py", line 106, in request
+    client.connect(self.path)
+FileNotFoundError: [Errno 2] No such file or directory

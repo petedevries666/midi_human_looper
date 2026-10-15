@@ -1,0 +1,3 @@
+Cannot lock down 107341340 byte memory area (Cannot allocate memory)
+PASS native Zynthian adapter: three isolated chains, sequential recording during playback, shared phase, Note Offs, per-chain STOP/SAVE/LOAD and snapshot recreation
+RETAINED JACK FIXTURE /tmp/mbh-chains-gaj18zh3

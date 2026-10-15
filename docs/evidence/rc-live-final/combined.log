@@ -1,0 +1,65 @@
++ scripts/headless-test.sh
+PASS bounded FIFO
+...............
+----------------------------------------------------------------------
+Ran 15 tests in 7.976s
+
+OK
+.......
+----------------------------------------------------------------------
+Ran 7 tests in 0.528s
+
+OK
+..............................
+----------------------------------------------------------------------
+Ran 30 tests in 7.133s
+
+OK
+.....
+----------------------------------------------------------------------
+Ran 5 tests in 0.002s
+
+OK
+.......
+----------------------------------------------------------------------
+Ran 7 tests in 0.002s
+
+OK
+Cannot lock down 107341340 byte memory area (Cannot allocate memory)
+PASS actual JACK CONDUCTOR: hardware-like PRESS input, four STEPS/wrap, independent layers, missing reference silence, selective STOP, PANIC, silent LOAD and timestamp ordering {"notes": [[434176, 16, 144, 60, 100], [466944, 16, 144, 62, 100], [499712, 16, 144, 64, 100], [532480, 16, 144, 65, 100], [565248, 16, 144, 60, 100], [802816, 16, 144, 60, 100], [802816, 16, 144, 62, 100], [835584, 0, 128, 60, 0], [892928, 0, 128, 62, 0]], "cleanupMessages": 624, "attacks": [60, 62, 64, 65, 60, 60, 62]}
+Cannot lock down 107341340 byte memory area (Cannot allocate memory)
+PASS actual JACK CONDUCTOR: hardware-like PRESS input, four STEPS/wrap, independent layers, missing reference silence, selective STOP, PANIC, silent LOAD and timestamp ordering {"notes": [[688128, 0, 144, 60, 100], [737280, 0, 144, 62, 100], [786432, 0, 144, 64, 100], [835584, 0, 144, 65, 100], [884736, 0, 144, 60, 100], [1343488, 16, 144, 60, 100], [1343488, 16, 144, 62, 100], [1384448, 0, 128, 60, 0], [1466368, 0, 128, 62, 0]], "cleanupMessages": 720, "attacks": [60, 62, 64, 65, 60, 60, 62]}
+Cannot lock down 107341340 byte memory area (Cannot allocate memory)
+PASS actual JACK ownership: targeted STOP preserves live note, legacy choke, final releases and stable ordering [[0, 229376, 0, 144, 60, 100], [0, 245760, 0, 144, 60, 91], [0, 278528, 0, 144, 62, 91], [0, 344064, 0, 128, 60, 0], [0, 368640, 0, 128, 62, 0], [0, 393216, 0, 144, 60, 91], [0, 417792, 0, 128, 60, 0], [0, 417792, 0, 144, 62, 91], [0, 450560, 0, 128, 62, 0]]
+Cannot lock down 107341340 byte memory area (Cannot allocate memory)
+PASS actual JACK shared-buffer overload: bounded partial emission, queued attacks cancelled, stacked-note cleanup, source preserved {"ons": 64, "emergency": 64, "instanceError": 6, "outputOverflow": 1}
+Cannot lock down 107341340 byte memory area (Cannot allocate memory)
+PASS three native-chain Chromium editors: independent sources and chain telemetry
+CHAIN FAILURE 1 process exit None
+Cannot lock down 107341340 byte memory area (Cannot allocate memory)
+READY /tmp/mbh-chains-kxxp0z8d/midi-human-looper/processor-1/control.sock
+EDITOR http://127.0.0.1:8766
+
+CHAIN FAILURE 2 process exit None
+Cannot lock down 107341340 byte memory area (Cannot allocate memory)
+READY /tmp/mbh-chains-kxxp0z8d/midi-human-looper/processor-2/control.sock
+EDITOR http://127.0.0.1:8767
+
+CHAIN FAILURE 3 process exit None
+Cannot lock down 107341340 byte memory area (Cannot allocate memory)
+READY /tmp/mbh-chains-kxxp0z8d/midi-human-looper/processor-3/control.sock
+EDITOR http://127.0.0.1:8768
+
+JACK FAILURE LOG Cannot lock down 107341340 byte memory area (Cannot allocate memory)
+JackEngine::XRun: client = mbh_three_chain_probe was not finished, state = Triggered
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackTimedDriver::Process XRun = 674 usec
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+Jack main caught signal 15
+
+Traceback (most recent call last):
+  File "/workspace/mbmf-conductor-a/tests/test_zynthian_chains.py", line 217, in <module>
+    assert all((e[1]+e[2])%PERIOD==0 for e in playback),playback
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: [[0, 2105344, 6656, 144, 60, 100], [0, 2105344, 6656, 144, 60, 100], [0, 2310144, 2048, 144, 60, 100], [0, 2310144, 2048, 144, 60, 100], [0, 3072000, 0, 144, 60, 100], [0, 3072000, 0, 144, 60, 100]]
+FAILED: exit 1: scripts/headless-test.sh

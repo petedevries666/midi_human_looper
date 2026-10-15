@@ -1,0 +1,3750 @@
+{
+  "head": "6ad38ece5e9becbb810ef41b973666687f31c1cd",
+  "binary": "4af61a382265a33c9493da67c7e1ea201e4d20a87b0783d04f514459557affa9  /workspace/mbmf-conductor-a/.build/midi-headless-engine",
+  "combinedExit": 1,
+  "remainingExit": 1,
+  "liveInitialExit": 1,
+  "liveRestExits": {
+    "LIVE_NORMAL": 0,
+    "STRESS": 0
+  },
+  "results": [
+    {
+      "frames": 256,
+      "profile": "LIVE_LIGHT",
+      "errors": [],
+      "measured": {
+        "seconds": 20.366241638,
+        "callbacks": 2651,
+        "wall": {
+          "p95Us": 271.634,
+          "p99Us": 3570.627,
+          "maxUs": 1377118.967
+        },
+        "cpu": null,
+        "offCpu": null,
+        "entryGap": {
+          "p95Us": 6742.33,
+          "p99Us": 23738.866,
+          "maxUs": 1633091.488
+        },
+        "wallOverruns": 19,
+        "cpuOverruns": null,
+        "xruns": 160,
+        "movementMin": 0,
+        "movementMax": 1,
+        "phraseInstancesMax": 1,
+        "phraseSourcesMax": 1,
+        "notes": 24,
+        "cc": 295,
+        "noteOns": 12,
+        "rejected": 0,
+        "overflow": 0,
+        "instanceRejected": 0,
+        "stages": {
+          "clock_read_wall_ns": {
+            "p95Us": 0.5,
+            "p99Us": 0.665,
+            "maxUs": 3703.811
+          },
+          "resource_read_wall_ns": {
+            "p95Us": 0.1,
+            "p99Us": 0.116,
+            "maxUs": 54.111
+          },
+          "input_recovery_wall_ns": {
+            "p95Us": 3.578,
+            "p99Us": 50.031,
+            "maxUs": 2245.827
+          },
+          "commands_wall_ns": {
+            "p95Us": 0.78,
+            "p99Us": 9.276,
+            "maxUs": 667181.979
+          },
+          "controller_transport_wall_ns": {
+            "p95Us": 5.863,
+            "p99Us": 75.1,
+            "maxUs": 417595.525
+          },
+          "movement_parameters_wall_ns": {
+            "p95Us": 2.168,
+            "p99Us": 31.854,
+            "maxUs": 85319.326
+          },
+          "performance_wall_ns": {
+            "p95Us": 1.247,
+            "p99Us": 20.723,
+            "maxUs": 357532.915
+          },
+          "eel_phrase_transformers_wall_ns": {
+            "p95Us": 145.223,
+            "p99Us": 2300.301,
+            "maxUs": 663798.144
+          },
+          "movement_cc_actions_wall_ns": {
+            "p95Us": 1.852,
+            "p99Us": 27.091,
+            "maxUs": 42201.707
+          },
+          "midi_collect_wall_ns": {
+            "p95Us": 0.287,
+            "p99Us": 0.418,
+            "maxUs": 563.128
+          },
+          "sort_wall_ns": {
+            "p95Us": 0.483,
+            "p99Us": 0.634,
+            "maxUs": 0.874
+          },
+          "emit_observe_reply_wall_ns": {
+            "p95Us": 1.694,
+            "p99Us": 20.815,
+            "maxUs": 42131.814
+          },
+          "jack_cycle_clock_wall_ns": {
+            "p95Us": 0.661,
+            "p99Us": 1.041,
+            "maxUs": 90.358
+          },
+          "jack_output_buffer_wall_ns": {
+            "p95Us": 0.68,
+            "p99Us": 12.407,
+            "maxUs": 767.489
+          },
+          "jack_output_clear_wall_ns": {
+            "p95Us": 0.329,
+            "p99Us": 3.647,
+            "maxUs": 313.499
+          },
+          "recovery_wall_ns": {
+            "p95Us": 0.0,
+            "p99Us": 0.0,
+            "maxUs": 0.0
+          },
+          "queued_output_wall_ns": {
+            "p95Us": 0.111,
+            "p99Us": 0.169,
+            "maxUs": 2.965
+          },
+          "jack_input_buffer_wall_ns": {
+            "p95Us": 0.668,
+            "p99Us": 2.797,
+            "maxUs": 2181.598
+          },
+          "jack_input_count_wall_ns": {
+            "p95Us": 0.204,
+            "p99Us": 0.28,
+            "maxUs": 150.544
+          },
+          "jack_input_get_wall_ns": {
+            "p95Us": 0.0,
+            "p99Us": 0.0,
+            "maxUs": 3.207
+          },
+          "input_copy_wall_ns": {
+            "p95Us": 0.0,
+            "p99Us": 0.0,
+            "maxUs": 0.943
+          },
+          "input_dispatch_wall_ns": {
+            "p95Us": 0.15,
+            "p99Us": 0.237,
+            "maxUs": 145.464
+          },
+          "movement_render_wall_ns": {
+            "p95Us": 1.33,
+            "p99Us": 11.328,
+            "maxUs": 42198.95
+          },
+          "controller_tick_wall_ns": {
+            "p95Us": 3.054,
+            "p99Us": 37.938,
+            "maxUs": 417444.423
+          },
+          "jack_transport_query_wall_ns": {
+            "p95Us": 0.509,
+            "p99Us": 1.003,
+            "maxUs": 728.218
+          },
+          "chain_tick_wall_ns": {
+            "p95Us": 0.89,
+            "p99Us": 12.693,
+            "maxUs": 755.189
+          }
+        },
+        "notesPerSecond": 1.1784206642829973,
+        "ccPerSecond": 14.484753998478508,
+        "noteOnsPerSecond": 0.5892103321414986,
+        "orderErrors": 0,
+        "minorFaults": 0,
+        "majorFaults": 0,
+        "userUs": null,
+        "systemUs": null,
+        "involuntarySwitches": 0,
+        "clockReads": {
+          "p95Us": 0.5,
+          "p99Us": 0.665,
+          "maxUs": 3703.811
+        },
+        "resourceReads": {
+          "p95Us": 0.1,
+          "p99Us": 0.116,
+          "maxUs": 54.111
+        },
+        "cpuAboveWall": null,
+        "detailedCpu": false,
+        "externalCpu": {
+          "seconds": 1.593365648,
+          "wallSeconds": 19.947577511,
+          "sampling": "10ms worker-side JACK thread clock; each read has before/after bounds, no per-callback CPU attribution",
+          "wallSecondsMin": 19.947574988,
+          "wallSecondsMax": 19.947604546
+        },
+        "deadlineQualified": false
+      },
+      "chronology": {
+        "clockDiscontinuityCount": 9,
+        "clockDiscontinuities": [
+          {
+            "index": 7,
+            "previous": [
+              126720,
+              16,
+              176,
+              20,
+              8,
+              85,
+              21504,
+              0
+            ],
+            "current": [
+              128768,
+              144,
+              176,
+              20,
+              9,
+              92,
+              23296,
+              2
+            ]
+          },
+          {
+            "index": 12,
+            "previous": [
+              136448,
+              144,
+              176,
+              20,
+              14,
+              122,
+              30976,
+              2
+            ],
+            "current": [
+              138752,
+              16,
+              176,
+              20,
+              15,
+              130,
+              33024,
+              4
+            ]
+          },
+          {
+            "index": 116,
+            "previous": [
+              320512,
+              144,
+              176,
+              20,
+              9,
+              840,
+              214784,
+              7
+            ],
+            "current": [
+              322560,
+              16,
+              176,
+              20,
+              10,
+              847,
+              216576,
+              9
+            ]
+          },
+          {
+            "index": 173,
+            "previous": [
+              420352,
+              144,
+              176,
+              20,
+              75,
+              1229,
+              314368,
+              13
+            ],
+            "current": [
+              422400,
+              16,
+              176,
+              20,
+              76,
+              1236,
+              316160,
+              14
+            ]
+          },
+          {
+            "index": 174,
+            "previous": [
+              422400,
+              16,
+              176,
+              20,
+              76,
+              1236,
+              316160,
+              14
+            ],
+            "current": [
+              424704,
+              144,
+              176,
+              20,
+              77,
+              1243,
+              317952,
+              20
+            ]
+          },
+          {
+            "index": 175,
+            "previous": [
+              424704,
+              144,
+              176,
+              20,
+              77,
+              1243,
+              317952,
+              20
+            ],
+            "current": [
+              426752,
+              16,
+              176,
+              20,
+              79,
+              1250,
+              319744,
+              22
+            ]
+          },
+          {
+            "index": 188,
+            "previous": [
+              449792,
+              16,
+              176,
+              20,
+              94,
+              1340,
+              342784,
+              22
+            ],
+            "current": [
+              455424,
+              144,
+              176,
+              20,
+              98,
+              1359,
+              347648,
+              29
+            ]
+          },
+          {
+            "index": 189,
+            "previous": [
+              455424,
+              144,
+              176,
+              20,
+              98,
+              1359,
+              347648,
+              29
+            ],
+            "current": [
+              457728,
+              16,
+              176,
+              20,
+              99,
+              1367,
+              349696,
+              37
+            ]
+          },
+          {
+            "index": 315,
+            "previous": [
+              681728,
+              16,
+              176,
+              20,
+              127,
+              2242,
+              573696,
+              47
+            ],
+            "current": [
+              823040,
+              0,
+              176,
+              64,
+              0,
+              2679,
+              685568,
+              180
+            ]
+          }
+        ],
+        "absoluteTimestampAmbiguityCount": 0,
+        "absoluteTimestampAmbiguities": [],
+        "withinCycleOrderErrors": 0,
+        "receiverPositionOrderErrors": 0
+      },
+      "traceFooters": [
+        "# dropped=0",
+        "# detailed_cpu=0"
+      ],
+      "peakStagesMs": [
+        [
+          "commands_wall_ns",
+          667.181979
+        ],
+        [
+          "eel_phrase_transformers_wall_ns",
+          663.798144
+        ],
+        [
+          "emit_observe_reply_wall_ns",
+          42.131814
+        ],
+        [
+          "movement_cc_actions_wall_ns",
+          2.600722
+        ]
+      ],
+      "peakCpuBound": {
+        "cpuUpperMs": 512.848314,
+        "offCpuLowerMs": 864.270653,
+        "before": {
+          "wall_ns": 421654991354428,
+          "thread_cpu_ns": 669295742,
+          "wall_after_ns": 421654991414474
+        },
+        "after": {
+          "wall_ns": 421656529438431,
+          "thread_cpu_ns": 1182144056,
+          "wall_after_ns": 421656529441941
+        }
+      },
+      "summaryPath": "live/256-LIVE_LIGHT/summary.json"
+    },
+    {
+      "frames": 512,
+      "profile": "LIVE_LIGHT",
+      "errors": [],
+      "measured": {
+        "seconds": 20.000151596,
+        "callbacks": 1846,
+        "wall": {
+          "p95Us": 130.916,
+          "p99Us": 753.179,
+          "maxUs": 10335.495
+        },
+        "cpu": null,
+        "offCpu": null,
+        "entryGap": {
+          "p95Us": 11305.231,
+          "p99Us": 13175.308,
+          "maxUs": 130513.058
+        },
+        "wallOverruns": 0,
+        "cpuOverruns": null,
+        "xruns": 24,
+        "movementMin": 0,
+        "movementMax": 1,
+        "phraseInstancesMax": 1,
+        "phraseSourcesMax": 1,
+        "notes": 24,
+        "cc": 300,
+        "noteOns": 12,
+        "rejected": 0,
+        "overflow": 0,
+        "instanceRejected": 0,
+        "stages": {
+          "clock_read_wall_ns": {
+            "p95Us": 0.498,
+            "p99Us": 0.576,
+            "maxUs": 394.219
+          },
+          "resource_read_wall_ns": {
+            "p95Us": 0.102,
+            "p99Us": 0.118,
+            "maxUs": 80.393
+          },
+          "input_recovery_wall_ns": {
+            "p95Us": 3.456,
+            "p99Us": 12.346,
+            "maxUs": 6694.765
+          },
+          "commands_wall_ns": {
+            "p95Us": 0.779,
+            "p99Us": 0.933,
+            "maxUs": 350.523
+          },
+          "controller_transport_wall_ns": {
+            "p95Us": 5.103,
+            "p99Us": 22.237,
+            "maxUs": 589.385
+          },
+          "movement_parameters_wall_ns": {
+            "p95Us": 2.12,
+            "p99Us": 2.738,
+            "maxUs": 492.584
+          },
+          "performance_wall_ns": {
+            "p95Us": 1.269,
+            "p99Us": 1.558,
+            "maxUs": 527.52
+          },
+          "eel_phrase_transformers_wall_ns": {
+            "p95Us": 81.949,
+            "p99Us": 448.778,
+            "maxUs": 4669.682
+          },
+          "movement_cc_actions_wall_ns": {
+            "p95Us": 1.39,
+            "p99Us": 2.543,
+            "maxUs": 847.918
+          },
+          "midi_collect_wall_ns": {
+            "p95Us": 0.282,
+            "p99Us": 0.39,
+            "maxUs": 1040.046
+          },
+          "sort_wall_ns": {
+            "p95Us": 0.367,
+            "p99Us": 0.454,
+            "maxUs": 186.155
+          },
+          "emit_observe_reply_wall_ns": {
+            "p95Us": 1.653,
+            "p99Us": 2.168,
+            "maxUs": 552.039
+          },
+          "jack_cycle_clock_wall_ns": {
+            "p95Us": 0.707,
+            "p99Us": 0.842,
+            "maxUs": 233.722
+          },
+          "jack_output_buffer_wall_ns": {
+            "p95Us": 0.737,
+            "p99Us": 0.95,
+            "maxUs": 6677.61
+          },
+          "jack_output_clear_wall_ns": {
+            "p95Us": 0.324,
+            "p99Us": 0.429,
+            "maxUs": 44.806
+          },
+          "recovery_wall_ns": {
+            "p95Us": 0.0,
+            "p99Us": 0.0,
+            "maxUs": 0.0
+          },
+          "queued_output_wall_ns": {
+            "p95Us": 0.157,
+            "p99Us": 0.164,
+            "maxUs": 0.32
+          },
+          "jack_input_buffer_wall_ns": {
+            "p95Us": 0.75,
+            "p99Us": 0.976,
+            "maxUs": 1259.173
+          },
+          "jack_input_count_wall_ns": {
+            "p95Us": 0.223,
+            "p99Us": 0.264,
+            "maxUs": 88.504
+          },
+          "jack_input_get_wall_ns": {
+            "p95Us": 0.0,
+            "p99Us": 0.0,
+            "maxUs": 3.066
+          },
+          "input_copy_wall_ns": {
+            "p95Us": 0.0,
+            "p99Us": 0.0,
+            "maxUs": 0.849
+          },
+          "input_dispatch_wall_ns": {
+            "p95Us": 0.181,
+            "p99Us": 0.259,
+            "maxUs": 39.193
+          },
+          "movement_render_wall_ns": {
+            "p95Us": 1.005,
+            "p99Us": 1.514,
+            "maxUs": 847.359
+          },
+          "controller_tick_wall_ns": {
+            "p95Us": 2.838,
+            "p99Us": 4.341,
+            "maxUs": 585.934
+          },
+          "jack_transport_query_wall_ns": {
+            "p95Us": 0.513,
+            "p99Us": 0.649,
+            "maxUs": 58.559
+          },
+          "chain_tick_wall_ns": {
+            "p95Us": 0.946,
+            "p99Us": 1.066,
+            "maxUs": 511.206
+          }
+        },
+        "notesPerSecond": 1.1999909043089436,
+        "ccPerSecond": 14.999886303861794,
+        "noteOnsPerSecond": 0.5999954521544718,
+        "orderErrors": 0,
+        "minorFaults": 0,
+        "majorFaults": 0,
+        "userUs": null,
+        "systemUs": null,
+        "involuntarySwitches": 0,
+        "clockReads": {
+          "p95Us": 0.498,
+          "p99Us": 0.576,
+          "maxUs": 394.219
+        },
+        "resourceReads": {
+          "p95Us": 0.102,
+          "p99Us": 0.118,
+          "maxUs": 80.393
+        },
+        "cpuAboveWall": null,
+        "detailedCpu": false,
+        "externalCpu": {
+          "seconds": 0.225703768,
+          "wallSeconds": 19.986833483,
+          "sampling": "10ms worker-side JACK thread clock; each read has before/after bounds, no per-callback CPU attribution",
+          "wallSecondsMin": 19.986831826,
+          "wallSecondsMax": 19.9868354
+        },
+        "deadlineQualified": false
+      },
+      "chronology": {
+        "clockDiscontinuityCount": 1,
+        "clockDiscontinuities": [
+          {
+            "index": 323,
+            "previous": [
+              698880,
+              16,
+              176,
+              20,
+              127,
+              1146,
+              586240,
+              0
+            ],
+            "current": [
+              1073664,
+              0,
+              176,
+              64,
+              0,
+              1869,
+              956416,
+              24
+            ]
+          }
+        ],
+        "absoluteTimestampAmbiguityCount": 0,
+        "absoluteTimestampAmbiguities": [],
+        "withinCycleOrderErrors": 0,
+        "receiverPositionOrderErrors": 0
+      },
+      "traceFooters": [
+        "# dropped=0",
+        "# detailed_cpu=0"
+      ],
+      "peakStagesMs": [
+        [
+          "input_recovery_wall_ns",
+          6.694765
+        ],
+        [
+          "jack_output_buffer_wall_ns",
+          6.67761
+        ],
+        [
+          "eel_phrase_transformers_wall_ns",
+          3.428614
+        ],
+        [
+          "controller_transport_wall_ns",
+          0.089611
+        ]
+      ],
+      "peakCpuBound": {
+        "cpuUpperMs": 8.643453,
+        "offCpuLowerMs": 1.692042,
+        "before": {
+          "wall_ns": 421582375334361,
+          "thread_cpu_ns": 279967462,
+          "wall_after_ns": 421582375372852
+        },
+        "after": {
+          "wall_ns": 421582397428897,
+          "thread_cpu_ns": 288610915,
+          "wall_after_ns": 421582397431438
+        }
+      },
+      "summaryPath": "live/512-LIVE_LIGHT/summary.json"
+    },
+    {
+      "frames": 512,
+      "profile": "LIVE_NORMAL",
+      "errors": [],
+      "measured": {
+        "seconds": 20.005124844,
+        "callbacks": 1752,
+        "wall": {
+          "p95Us": 324.056,
+          "p99Us": 2475.146,
+          "maxUs": 23807.792
+        },
+        "cpu": null,
+        "offCpu": null,
+        "entryGap": {
+          "p95Us": 12196.225,
+          "p99Us": 23329.862,
+          "maxUs": 455608.1
+        },
+        "wallOverruns": 2,
+        "cpuOverruns": null,
+        "xruns": 45,
+        "movementMin": 1,
+        "movementMax": 2,
+        "phraseInstancesMax": 3,
+        "phraseSourcesMax": 3,
+        "notes": 228,
+        "cc": 899,
+        "noteOns": 114,
+        "rejected": 0,
+        "overflow": 0,
+        "instanceRejected": 0,
+        "stages": {
+          "clock_read_wall_ns": {
+            "p95Us": 0.511,
+            "p99Us": 0.656,
+            "maxUs": 344.818
+          },
+          "resource_read_wall_ns": {
+            "p95Us": 0.091,
+            "p99Us": 0.111,
+            "maxUs": 10.598
+          },
+          "input_recovery_wall_ns": {
+            "p95Us": 8.609,
+            "p99Us": 49.105,
+            "maxUs": 1114.806
+          },
+          "commands_wall_ns": {
+            "p95Us": 0.822,
+            "p99Us": 22.056,
+            "maxUs": 23219.276
+          },
+          "controller_transport_wall_ns": {
+            "p95Us": 6.711,
+            "p99Us": 96.028,
+            "maxUs": 5967.056
+          },
+          "movement_parameters_wall_ns": {
+            "p95Us": 2.415,
+            "p99Us": 23.574,
+            "maxUs": 293.546
+          },
+          "performance_wall_ns": {
+            "p95Us": 1.326,
+            "p99Us": 11.811,
+            "maxUs": 2053.236
+          },
+          "eel_phrase_transformers_wall_ns": {
+            "p95Us": 194.347,
+            "p99Us": 1549.656,
+            "maxUs": 9751.532
+          },
+          "movement_cc_actions_wall_ns": {
+            "p95Us": 2.032,
+            "p99Us": 24.885,
+            "maxUs": 7738.525
+          },
+          "midi_collect_wall_ns": {
+            "p95Us": 0.376,
+            "p99Us": 1.0,
+            "maxUs": 466.882
+          },
+          "sort_wall_ns": {
+            "p95Us": 0.556,
+            "p99Us": 0.755,
+            "maxUs": 46.17
+          },
+          "emit_observe_reply_wall_ns": {
+            "p95Us": 2.091,
+            "p99Us": 34.954,
+            "maxUs": 752.072
+          },
+          "jack_cycle_clock_wall_ns": {
+            "p95Us": 0.684,
+            "p99Us": 1.386,
+            "maxUs": 64.95
+          },
+          "jack_output_buffer_wall_ns": {
+            "p95Us": 0.794,
+            "p99Us": 15.309,
+            "maxUs": 289.908
+          },
+          "jack_output_clear_wall_ns": {
+            "p95Us": 0.324,
+            "p99Us": 3.475,
+            "maxUs": 847.313
+          },
+          "recovery_wall_ns": {
+            "p95Us": 0.0,
+            "p99Us": 0.0,
+            "maxUs": 0.0
+          },
+          "queued_output_wall_ns": {
+            "p95Us": 0.136,
+            "p99Us": 0.183,
+            "maxUs": 2.895
+          },
+          "jack_input_buffer_wall_ns": {
+            "p95Us": 0.777,
+            "p99Us": 9.718,
+            "maxUs": 80.976
+          },
+          "jack_input_count_wall_ns": {
+            "p95Us": 0.205,
+            "p99Us": 0.281,
+            "maxUs": 90.668
+          },
+          "jack_input_get_wall_ns": {
+            "p95Us": 0.0,
+            "p99Us": 0.123,
+            "maxUs": 3.221
+          },
+          "input_copy_wall_ns": {
+            "p95Us": 0.0,
+            "p99Us": 0.406,
+            "maxUs": 3.634
+          },
+          "input_dispatch_wall_ns": {
+            "p95Us": 0.169,
+            "p99Us": 5.616,
+            "maxUs": 218.545
+          },
+          "movement_render_wall_ns": {
+            "p95Us": 1.495,
+            "p99Us": 10.243,
+            "maxUs": 4964.666
+          },
+          "controller_tick_wall_ns": {
+            "p95Us": 3.875,
+            "p99Us": 62.342,
+            "maxUs": 5870.372
+          },
+          "jack_transport_query_wall_ns": {
+            "p95Us": 0.511,
+            "p99Us": 0.789,
+            "maxUs": 172.769
+          },
+          "chain_tick_wall_ns": {
+            "p95Us": 1.037,
+            "p99Us": 9.648,
+            "maxUs": 1495.511
+          }
+        },
+        "notesPerSecond": 11.397079587252987,
+        "ccPerSecond": 44.93848486377384,
+        "noteOnsPerSecond": 5.698539793626494,
+        "orderErrors": 0,
+        "minorFaults": 0,
+        "majorFaults": 0,
+        "userUs": null,
+        "systemUs": null,
+        "involuntarySwitches": 0,
+        "clockReads": {
+          "p95Us": 0.511,
+          "p99Us": 0.656,
+          "maxUs": 344.818
+        },
+        "resourceReads": {
+          "p95Us": 0.091,
+          "p99Us": 0.111,
+          "maxUs": 10.598
+        },
+        "cpuAboveWall": null,
+        "detailedCpu": false,
+        "externalCpu": {
+          "seconds": 0.35555288,
+          "wallSeconds": 19.994723436,
+          "sampling": "10ms worker-side JACK thread clock; each read has before/after bounds, no per-callback CPU attribution",
+          "wallSecondsMin": 19.994721054,
+          "wallSecondsMax": 19.994725088
+        },
+        "deadlineQualified": false
+      },
+      "chronology": {
+        "clockDiscontinuityCount": 17,
+        "clockDiscontinuities": [
+          {
+            "index": 31,
+            "previous": [
+              160256,
+              16,
+              176,
+              21,
+              61,
+              67,
+              33792,
+              0
+            ],
+            "current": [
+              161280,
+              464,
+              144,
+              36,
+              100,
+              68,
+              34304,
+              1
+            ]
+          },
+          {
+            "index": 34,
+            "previous": [
+              161280,
+              464,
+              144,
+              40,
+              100,
+              68,
+              34304,
+              1
+            ],
+            "current": [
+              161792,
+              400,
+              176,
+              20,
+              66,
+              70,
+              35328,
+              3
+            ]
+          },
+          {
+            "index": 197,
+            "previous": [
+              284672,
+              400,
+              128,
+              40,
+              0,
+              310,
+              158208,
+              4
+            ],
+            "current": [
+              287744,
+              272,
+              176,
+              20,
+              112,
+              314,
+              160256,
+              6
+            ]
+          },
+          {
+            "index": 247,
+            "previous": [
+              327680,
+              16,
+              176,
+              21,
+              10,
+              392,
+              200192,
+              8
+            ],
+            "current": [
+              329728,
+              400,
+              176,
+              20,
+              9,
+              395,
+              201728,
+              10
+            ]
+          },
+          {
+            "index": 380,
+            "previous": [
+              431616,
+              272,
+              176,
+              21,
+              20,
+              594,
+              303616,
+              10
+            ],
+            "current": [
+              434176,
+              144,
+              176,
+              21,
+              25,
+              598,
+              305664,
+              11
+            ]
+          },
+          {
+            "index": 393,
+            "previous": [
+              451584,
+              16,
+              176,
+              21,
+              71,
+              632,
+              323072,
+              13
+            ],
+            "current": [
+              453632,
+              400,
+              176,
+              21,
+              76,
+              635,
+              324608,
+              13
+            ]
+          },
+          {
+            "index": 398,
+            "previous": [
+              455680,
+              272,
+              176,
+              21,
+              81,
+              639,
+              326656,
+              17
+            ],
+            "current": [
+              458240,
+              144,
+              176,
+              21,
+              86,
+              642,
+              328192,
+              18
+            ]
+          },
+          {
+            "index": 421,
+            "previous": [
+              488960,
+              144,
+              176,
+              21,
+              86,
+              702,
+              358912,
+              19
+            ],
+            "current": [
+              491008,
+              16,
+              176,
+              21,
+              81,
+              705,
+              360448,
+              21
+            ]
+          },
+          {
+            "index": 423,
+            "previous": [
+              492544,
+              400,
+              176,
+              21,
+              76,
+              708,
+              361984,
+              21
+            ],
+            "current": [
+              495104,
+              272,
+              176,
+              21,
+              71,
+              712,
+              364032,
+              22
+            ]
+          },
+          {
+            "index": 435,
+            "previous": [
+              502272,
+              144,
+              176,
+              21,
+              38,
+              726,
+              371200,
+              22
+            ],
+            "current": [
+              504832,
+              16,
+              176,
+              20,
+              40,
+              730,
+              373248,
+              27
+            ]
+          },
+          {
+            "index": 444,
+            "previous": [
+              508416,
+              272,
+              176,
+              21,
+              30,
+              737,
+              376832,
+              27
+            ],
+            "current": [
+              513536,
+              16,
+              176,
+              20,
+              41,
+              745,
+              380928,
+              33
+            ]
+          },
+          {
+            "index": 474,
+            "previous": [
+              534528,
+              144,
+              176,
+              21,
+              97,
+              786,
+              401920,
+              33
+            ],
+            "current": [
+              538112,
+              400,
+              176,
+              20,
+              107,
+              792,
+              404992,
+              34
+            ]
+          },
+          {
+            "index": 484,
+            "previous": [
+              545792,
+              400,
+              176,
+              21,
+              127,
+              807,
+              412672,
+              38
+            ],
+            "current": [
+              548864,
+              272,
+              176,
+              20,
+              122,
+              811,
+              414720,
+              39
+            ]
+          },
+          {
+            "index": 486,
+            "previous": [
+              548864,
+              272,
+              176,
+              21,
+              122,
+              811,
+              414720,
+              39
+            ],
+            "current": [
+              550400,
+              144,
+              176,
+              20,
+              117,
+              815,
+              416768,
+              39
+            ]
+          },
+          {
+            "index": 726,
+            "previous": [
+              732672,
+              272,
+              176,
+              21,
+              112,
+              1171,
+              599040,
+              39
+            ],
+            "current": [
+              735744,
+              144,
+              176,
+              20,
+              117,
+              1175,
+              601088,
+              42
+            ]
+          },
+          {
+            "index": 925,
+            "previous": [
+              887808,
+              80,
+              144,
+              40,
+              100,
+              1472,
+              753152,
+              43
+            ],
+            "current": [
+              889856,
+              144,
+              176,
+              20,
+              15,
+              1475,
+              754688,
+              43
+            ]
+          },
+          {
+            "index": 927,
+            "previous": [
+              889856,
+              144,
+              176,
+              21,
+              15,
+              1475,
+              754688,
+              43
+            ],
+            "current": [
+              891392,
+              16,
+              176,
+              20,
+              20,
+              1479,
+              756736,
+              45
+            ]
+          }
+        ],
+        "absoluteTimestampAmbiguityCount": 0,
+        "absoluteTimestampAmbiguities": [],
+        "withinCycleOrderErrors": 0,
+        "receiverPositionOrderErrors": 0
+      },
+      "traceFooters": [
+        "# dropped=0",
+        "# detailed_cpu=0"
+      ],
+      "peakStagesMs": [
+        [
+          "commands_wall_ns",
+          23.219276
+        ],
+        [
+          "eel_phrase_transformers_wall_ns",
+          0.371746
+        ],
+        [
+          "controller_transport_wall_ns",
+          0.088708
+        ],
+        [
+          "controller_tick_wall_ns",
+          0.062342
+        ]
+      ],
+      "peakCpuBound": {
+        "cpuUpperMs": 23.529515,
+        "offCpuLowerMs": 0.278277,
+        "before": {
+          "wall_ns": 421596819233925,
+          "thread_cpu_ns": 151630857,
+          "wall_after_ns": 421596819260271
+        },
+        "after": {
+          "wall_ns": 421596852287239,
+          "thread_cpu_ns": 175160372,
+          "wall_after_ns": 421596852291600
+        }
+      },
+      "summaryPath": "live/512-LIVE_NORMAL/summary.json"
+    },
+    {
+      "frames": 512,
+      "profile": "STRESS",
+      "errors": [],
+      "measured": {
+        "seconds": 20.011591396,
+        "callbacks": 574,
+        "wall": {
+          "p95Us": 30052.214,
+          "p99Us": 296722.294,
+          "maxUs": 856856.202
+        },
+        "cpu": null,
+        "offCpu": null,
+        "entryGap": {
+          "p95Us": 171384.87,
+          "p99Us": 482890.942,
+          "maxUs": 1608503.897
+        },
+        "wallOverruns": 50,
+        "cpuOverruns": null,
+        "xruns": 172,
+        "movementMin": 7,
+        "movementMax": 8,
+        "phraseInstancesMax": 12,
+        "phraseSourcesMax": 12,
+        "notes": 4775,
+        "cc": 4812,
+        "noteOns": 3064,
+        "rejected": 0,
+        "overflow": 0,
+        "instanceRejected": 0,
+        "stages": {
+          "clock_read_wall_ns": {
+            "p95Us": 0.794,
+            "p99Us": 7.479,
+            "maxUs": 118.796
+          },
+          "resource_read_wall_ns": {
+            "p95Us": 0.097,
+            "p99Us": 0.113,
+            "maxUs": 0.173
+          },
+          "input_recovery_wall_ns": {
+            "p95Us": 239.567,
+            "p99Us": 13957.654,
+            "maxUs": 433593.25
+          },
+          "commands_wall_ns": {
+            "p95Us": 11.799,
+            "p99Us": 116.565,
+            "maxUs": 13295.596
+          },
+          "controller_transport_wall_ns": {
+            "p95Us": 112.234,
+            "p99Us": 2869.408,
+            "maxUs": 162567.466
+          },
+          "movement_parameters_wall_ns": {
+            "p95Us": 38.931,
+            "p99Us": 251.061,
+            "maxUs": 12898.796
+          },
+          "performance_wall_ns": {
+            "p95Us": 20.949,
+            "p99Us": 158.688,
+            "maxUs": 165093.236
+          },
+          "eel_phrase_transformers_wall_ns": {
+            "p95Us": 18731.425,
+            "p99Us": 220000.111,
+            "maxUs": 855640.342
+          },
+          "movement_cc_actions_wall_ns": {
+            "p95Us": 129.505,
+            "p99Us": 1292.494,
+            "maxUs": 148866.65
+          },
+          "midi_collect_wall_ns": {
+            "p95Us": 8.118,
+            "p99Us": 36.457,
+            "maxUs": 11920.429
+          },
+          "sort_wall_ns": {
+            "p95Us": 3.872,
+            "p99Us": 12.479,
+            "maxUs": 2655.543
+          },
+          "emit_observe_reply_wall_ns": {
+            "p95Us": 70.043,
+            "p99Us": 349.776,
+            "maxUs": 5242.203
+          },
+          "jack_cycle_clock_wall_ns": {
+            "p95Us": 1.3,
+            "p99Us": 12.908,
+            "maxUs": 192780.005
+          },
+          "jack_output_buffer_wall_ns": {
+            "p95Us": 16.668,
+            "p99Us": 242.551,
+            "maxUs": 6988.273
+          },
+          "jack_output_clear_wall_ns": {
+            "p95Us": 4.457,
+            "p99Us": 49.735,
+            "maxUs": 458.069
+          },
+          "recovery_wall_ns": {
+            "p95Us": 0.0,
+            "p99Us": 0.0,
+            "maxUs": 0.0
+          },
+          "queued_output_wall_ns": {
+            "p95Us": 0.228,
+            "p99Us": 1.273,
+            "maxUs": 108.164
+          },
+          "jack_input_buffer_wall_ns": {
+            "p95Us": 11.863,
+            "p99Us": 99.935,
+            "maxUs": 239090.557
+          },
+          "jack_input_count_wall_ns": {
+            "p95Us": 0.334,
+            "p99Us": 0.496,
+            "maxUs": 6.263
+          },
+          "jack_input_get_wall_ns": {
+            "p95Us": 0.933,
+            "p99Us": 1.357,
+            "maxUs": 25.268
+          },
+          "input_copy_wall_ns": {
+            "p95Us": 7.478,
+            "p99Us": 87.421,
+            "maxUs": 126869.727
+          },
+          "input_dispatch_wall_ns": {
+            "p95Us": 54.559,
+            "p99Us": 1754.929,
+            "maxUs": 164919.742
+          },
+          "movement_render_wall_ns": {
+            "p95Us": 98.341,
+            "p99Us": 1175.67,
+            "maxUs": 148845.582
+          },
+          "controller_tick_wall_ns": {
+            "p95Us": 80.147,
+            "p99Us": 701.151,
+            "maxUs": 162515.043
+          },
+          "jack_transport_query_wall_ns": {
+            "p95Us": 1.216,
+            "p99Us": 14.522,
+            "maxUs": 1689.739
+          },
+          "chain_tick_wall_ns": {
+            "p95Us": 12.345,
+            "p99Us": 72.39,
+            "maxUs": 2767.838
+          }
+        },
+        "notesPerSecond": 238.6117078601978,
+        "ccPerSecond": 240.460636277125,
+        "noteOnsPerSecond": 153.11126133688924,
+        "orderErrors": 0,
+        "minorFaults": 0,
+        "majorFaults": 0,
+        "userUs": null,
+        "systemUs": null,
+        "involuntarySwitches": 0,
+        "clockReads": {
+          "p95Us": 0.794,
+          "p99Us": 7.479,
+          "maxUs": 118.796
+        },
+        "resourceReads": {
+          "p95Us": 0.097,
+          "p99Us": 0.113,
+          "maxUs": 0.173
+        },
+        "cpuAboveWall": null,
+        "detailedCpu": false,
+        "externalCpu": {
+          "seconds": 5.529636756,
+          "wallSeconds": 19.990997476,
+          "sampling": "10ms worker-side JACK thread clock; each read has before/after bounds, no per-callback CPU attribution",
+          "wallSecondsMin": 19.990995372,
+          "wallSecondsMax": 19.990999533
+        },
+        "deadlineQualified": false
+      },
+      "chronology": {
+        "clockDiscontinuityCount": 84,
+        "clockDiscontinuities": [
+          {
+            "index": 71,
+            "previous": [
+              168448,
+              336,
+              176,
+              27,
+              9,
+              27,
+              13312,
+              7
+            ],
+            "current": [
+              169984,
+              272,
+              176,
+              20,
+              16,
+              29,
+              14336,
+              11
+            ]
+          },
+          {
+            "index": 129,
+            "previous": [
+              171520,
+              176,
+              176,
+              27,
+              31,
+              32,
+              15872,
+              11
+            ],
+            "current": [
+              174592,
+              16,
+              129,
+              80,
+              0,
+              35,
+              17408,
+              14
+            ]
+          },
+          {
+            "index": 153,
+            "previous": [
+              174592,
+              80,
+              176,
+              27,
+              50,
+              35,
+              17408,
+              14
+            ],
+            "current": [
+              175616,
+              48,
+              176,
+              20,
+              57,
+              36,
+              17920,
+              16
+            ]
+          },
+          {
+            "index": 307,
+            "previous": [
+              180736,
+              208,
+              176,
+              27,
+              122,
+              46,
+              23040,
+              16
+            ],
+            "current": [
+              183296,
+              144,
+              176,
+              20,
+              112,
+              47,
+              23552,
+              17
+            ]
+          },
+          {
+            "index": 315,
+            "previous": [
+              183296,
+              144,
+              176,
+              27,
+              112,
+              47,
+              23552,
+              17
+            ],
+            "current": [
+              183296,
+              144,
+              176,
+              20,
+              112,
+              48,
+              24064,
+              17
+            ]
+          },
+          {
+            "index": 323,
+            "previous": [
+              183296,
+              144,
+              176,
+              27,
+              112,
+              48,
+              24064,
+              17
+            ],
+            "current": [
+              188416,
+              16,
+              145,
+              80,
+              100,
+              49,
+              24576,
+              24
+            ]
+          },
+          {
+            "index": 347,
+            "previous": [
+              188416,
+              112,
+              176,
+              27,
+              107,
+              49,
+              24576,
+              24
+            ],
+            "current": [
+              191488,
+              16,
+              176,
+              20,
+              91,
+              51,
+              25600,
+              26
+            ]
+          },
+          {
+            "index": 389,
+            "previous": [
+              191488,
+              496,
+              128,
+              61,
+              0,
+              51,
+              25600,
+              26
+            ],
+            "current": [
+              194048,
+              432,
+              176,
+              20,
+              76,
+              52,
+              26112,
+              30
+            ]
+          },
+          {
+            "index": 404,
+            "previous": [
+              195072,
+              368,
+              176,
+              27,
+              66,
+              54,
+              27136,
+              31
+            ],
+            "current": [
+              196096,
+              0,
+              176,
+              21,
+              61,
+              55,
+              27648,
+              32
+            ]
+          },
+          {
+            "index": 411,
+            "previous": [
+              196096,
+              0,
+              176,
+              27,
+              61,
+              55,
+              27648,
+              32
+            ],
+            "current": [
+              196096,
+              0,
+              176,
+              21,
+              61,
+              56,
+              28160,
+              32
+            ]
+          },
+          {
+            "index": 425,
+            "previous": [
+              196096,
+              304,
+              176,
+              27,
+              56,
+              56,
+              28160,
+              32
+            ],
+            "current": [
+              197120,
+              240,
+              176,
+              21,
+              46,
+              57,
+              28672,
+              34
+            ]
+          },
+          {
+            "index": 479,
+            "previous": [
+              199680,
+              80,
+              176,
+              27,
+              20,
+              62,
+              31232,
+              36
+            ],
+            "current": [
+              202240,
+              16,
+              176,
+              21,
+              10,
+              63,
+              31744,
+              41
+            ]
+          },
+          {
+            "index": 587,
+            "previous": [
+              204288,
+              368,
+              176,
+              27,
+              15,
+              67,
+              33792,
+              41
+            ],
+            "current": [
+              205312,
+              336,
+              176,
+              21,
+              20,
+              68,
+              34304,
+              41
+            ]
+          },
+          {
+            "index": 594,
+            "previous": [
+              205312,
+              336,
+              176,
+              27,
+              20,
+              68,
+              34304,
+              41
+            ],
+            "current": [
+              205824,
+              272,
+              176,
+              21,
+              30,
+              70,
+              35328,
+              44
+            ]
+          },
+          {
+            "index": 807,
+            "previous": [
+              211456,
+              400,
+              176,
+              27,
+              91,
+              81,
+              40960,
+              44
+            ],
+            "current": [
+              212480,
+              368,
+              176,
+              21,
+              97,
+              82,
+              41472,
+              44
+            ]
+          },
+          {
+            "index": 814,
+            "previous": [
+              212480,
+              368,
+              176,
+              27,
+              97,
+              82,
+              41472,
+              44
+            ],
+            "current": [
+              212480,
+              336,
+              176,
+              21,
+              102,
+              83,
+              41984,
+              45
+            ]
+          },
+          {
+            "index": 861,
+            "previous": [
+              213504,
+              272,
+              176,
+              27,
+              112,
+              85,
+              43008,
+              45
+            ],
+            "current": [
+              214528,
+              240,
+              176,
+              21,
+              117,
+              86,
+              43520,
+              45
+            ]
+          },
+          {
+            "index": 868,
+            "previous": [
+              214528,
+              240,
+              176,
+              27,
+              117,
+              86,
+              43520,
+              45
+            ],
+            "current": [
+              214528,
+              208,
+              176,
+              21,
+              122,
+              87,
+              44032,
+              45
+            ]
+          },
+          {
+            "index": 944,
+            "previous": [
+              216064,
+              112,
+              176,
+              27,
+              117,
+              90,
+              45568,
+              48
+            ],
+            "current": [
+              218624,
+              80,
+              176,
+              21,
+              112,
+              91,
+              46080,
+              49
+            ]
+          },
+          {
+            "index": 1065,
+            "previous": [
+              222208,
+              336,
+              176,
+              27,
+              71,
+              98,
+              49664,
+              49
+            ],
+            "current": [
+              223744,
+              304,
+              176,
+              21,
+              66,
+              99,
+              50176,
+              49
+            ]
+          },
+          {
+            "index": 1072,
+            "previous": [
+              223744,
+              304,
+              176,
+              27,
+              66,
+              99,
+              50176,
+              49
+            ],
+            "current": [
+              223744,
+              32,
+              144,
+              36,
+              100,
+              100,
+              50688,
+              49
+            ]
+          },
+          {
+            "index": 1127,
+            "previous": [
+              223744,
+              272,
+              176,
+              27,
+              61,
+              100,
+              50688,
+              49
+            ],
+            "current": [
+              223744,
+              240,
+              176,
+              21,
+              56,
+              101,
+              51200,
+              49
+            ]
+          },
+          {
+            "index": 1155,
+            "previous": [
+              225280,
+              144,
+              176,
+              27,
+              41,
+              104,
+              52736,
+              53
+            ],
+            "current": [
+              226304,
+              112,
+              176,
+              21,
+              36,
+              105,
+              53248,
+              53
+            ]
+          },
+          {
+            "index": 1162,
+            "previous": [
+              226304,
+              112,
+              176,
+              27,
+              36,
+              105,
+              53248,
+              53
+            ],
+            "current": [
+              226304,
+              80,
+              176,
+              21,
+              30,
+              106,
+              53760,
+              53
+            ]
+          },
+          {
+            "index": 1202,
+            "previous": [
+              226816,
+              288,
+              128,
+              61,
+              0,
+              107,
+              54272,
+              55
+            ],
+            "current": [
+              227840,
+              16,
+              176,
+              21,
+              20,
+              108,
+              54784,
+              55
+            ]
+          },
+          {
+            "index": 1216,
+            "previous": [
+              227840,
+              496,
+              176,
+              27,
+              15,
+              108,
+              54784,
+              55
+            ],
+            "current": [
+              227840,
+              464,
+              176,
+              21,
+              10,
+              109,
+              55296,
+              56
+            ]
+          },
+          {
+            "index": 1223,
+            "previous": [
+              227840,
+              464,
+              176,
+              27,
+              10,
+              109,
+              55296,
+              56
+            ],
+            "current": [
+              229376,
+              16,
+              145,
+              80,
+              100,
+              110,
+              55808,
+              63
+            ]
+          },
+          {
+            "index": 1349,
+            "previous": [
+              229888,
+              400,
+              144,
+              61,
+              100,
+              111,
+              56320,
+              63
+            ],
+            "current": [
+              232448,
+              368,
+              176,
+              21,
+              5,
+              112,
+              56832,
+              63
+            ]
+          },
+          {
+            "index": 1356,
+            "previous": [
+              232448,
+              368,
+              176,
+              27,
+              5,
+              112,
+              56832,
+              63
+            ],
+            "current": [
+              232448,
+              16,
+              145,
+              80,
+              100,
+              113,
+              57344,
+              63
+            ]
+          },
+          {
+            "index": 1416,
+            "previous": [
+              233984,
+              240,
+              176,
+              27,
+              25,
+              116,
+              58880,
+              64
+            ],
+            "current": [
+              235520,
+              16,
+              145,
+              80,
+              100,
+              117,
+              59392,
+              65
+            ]
+          },
+          {
+            "index": 1439,
+            "previous": [
+              235520,
+              208,
+              176,
+              27,
+              30,
+              117,
+              59392,
+              65
+            ],
+            "current": [
+              236544,
+              16,
+              129,
+              80,
+              0,
+              118,
+              59904,
+              67
+            ]
+          },
+          {
+            "index": 1462,
+            "previous": [
+              236544,
+              176,
+              176,
+              27,
+              36,
+              118,
+              59904,
+              67
+            ],
+            "current": [
+              236544,
+              144,
+              176,
+              21,
+              41,
+              119,
+              60416,
+              67
+            ]
+          }
+        ],
+        "absoluteTimestampAmbiguityCount": 21,
+        "absoluteTimestampAmbiguities": [
+          {
+            "index": 814,
+            "previous": [
+              212480,
+              368,
+              176,
+              27,
+              97,
+              82,
+              41472,
+              44
+            ],
+            "current": [
+              212480,
+              336,
+              176,
+              21,
+              102,
+              83,
+              41984,
+              45
+            ]
+          },
+          {
+            "index": 868,
+            "previous": [
+              214528,
+              240,
+              176,
+              27,
+              117,
+              86,
+              43520,
+              45
+            ],
+            "current": [
+              214528,
+              208,
+              176,
+              21,
+              122,
+              87,
+              44032,
+              45
+            ]
+          },
+          {
+            "index": 1072,
+            "previous": [
+              223744,
+              304,
+              176,
+              27,
+              66,
+              99,
+              50176,
+              49
+            ],
+            "current": [
+              223744,
+              32,
+              144,
+              36,
+              100,
+              100,
+              50688,
+              49
+            ]
+          },
+          {
+            "index": 1127,
+            "previous": [
+              223744,
+              272,
+              176,
+              27,
+              61,
+              100,
+              50688,
+              49
+            ],
+            "current": [
+              223744,
+              240,
+              176,
+              21,
+              56,
+              101,
+              51200,
+              49
+            ]
+          },
+          {
+            "index": 1162,
+            "previous": [
+              226304,
+              112,
+              176,
+              27,
+              36,
+              105,
+              53248,
+              53
+            ],
+            "current": [
+              226304,
+              80,
+              176,
+              21,
+              30,
+              106,
+              53760,
+              53
+            ]
+          },
+          {
+            "index": 1216,
+            "previous": [
+              227840,
+              496,
+              176,
+              27,
+              15,
+              108,
+              54784,
+              55
+            ],
+            "current": [
+              227840,
+              464,
+              176,
+              21,
+              10,
+              109,
+              55296,
+              56
+            ]
+          },
+          {
+            "index": 1356,
+            "previous": [
+              232448,
+              368,
+              176,
+              27,
+              5,
+              112,
+              56832,
+              63
+            ],
+            "current": [
+              232448,
+              16,
+              145,
+              80,
+              100,
+              113,
+              57344,
+              63
+            ]
+          },
+          {
+            "index": 1462,
+            "previous": [
+              236544,
+              176,
+              176,
+              27,
+              36,
+              118,
+              59904,
+              67
+            ],
+            "current": [
+              236544,
+              144,
+              176,
+              21,
+              41,
+              119,
+              60416,
+              67
+            ]
+          },
+          {
+            "index": 1543,
+            "previous": [
+              241152,
+              496,
+              176,
+              27,
+              39,
+              120,
+              60928,
+              71
+            ],
+            "current": [
+              241152,
+              464,
+              176,
+              20,
+              109,
+              121,
+              61440,
+              71
+            ]
+          },
+          {
+            "index": 1575,
+            "previous": [
+              243200,
+              432,
+              176,
+              27,
+              37,
+              122,
+              61952,
+              72
+            ],
+            "current": [
+              243200,
+              256,
+              144,
+              36,
+              100,
+              123,
+              62464,
+              72
+            ]
+          },
+          {
+            "index": 1895,
+            "previous": [
+              254976,
+              400,
+              176,
+              27,
+              102,
+              138,
+              70144,
+              91
+            ],
+            "current": [
+              254976,
+              368,
+              176,
+              20,
+              107,
+              139,
+              70656,
+              92
+            ]
+          },
+          {
+            "index": 2511,
+            "previous": [
+              277504,
+              448,
+              128,
+              61,
+              0,
+              176,
+              89600,
+              106
+            ],
+            "current": [
+              277504,
+              80,
+              176,
+              20,
+              61,
+              177,
+              90112,
+              106
+            ]
+          },
+          {
+            "index": 3073,
+            "previous": [
+              304640,
+              208,
+              176,
+              27,
+              30,
+              217,
+              110592,
+              117
+            ],
+            "current": [
+              304640,
+              176,
+              176,
+              20,
+              36,
+              218,
+              111104,
+              117
+            ]
+          },
+          {
+            "index": 3163,
+            "previous": [
+              308224,
+              464,
+              176,
+              27,
+              71,
+              224,
+              114176,
+              119
+            ],
+            "current": [
+              308224,
+              432,
+              176,
+              20,
+              76,
+              225,
+              114688,
+              120
+            ]
+          },
+          {
+            "index": 3599,
+            "previous": [
+              322560,
+              80,
+              176,
+              27,
+              41,
+              251,
+              128000,
+              121
+            ],
+            "current": [
+              322560,
+              48,
+              176,
+              20,
+              36,
+              252,
+              128512,
+              122
+            ]
+          },
+          {
+            "index": 3825,
+            "previous": [
+              331264,
+              48,
+              176,
+              27,
+              46,
+              267,
+              136192,
+              125
+            ],
+            "current": [
+              331264,
+              16,
+              176,
+              20,
+              51,
+              268,
+              136704,
+              125
+            ]
+          },
+          {
+            "index": 4043,
+            "previous": [
+              340992,
+              464,
+              176,
+              27,
+              112,
+              284,
+              144896,
+              131
+            ],
+            "current": [
+              340992,
+              288,
+              144,
+              36,
+              100,
+              285,
+              145408,
+              131
+            ]
+          },
+          {
+            "index": 4147,
+            "previous": [
+              343552,
+              304,
+              176,
+              27,
+              86,
+              289,
+              147456,
+              133
+            ],
+            "current": [
+              343552,
+              272,
+              176,
+              20,
+              81,
+              290,
+              147968,
+              133
+            ]
+          },
+          {
+            "index": 4163,
+            "previous": [
+              345088,
+              208,
+              176,
+              27,
+              71,
+              291,
+              148480,
+              134
+            ],
+            "current": [
+              345088,
+              32,
+              128,
+              36,
+              0,
+              292,
+              148992,
+              136
+            ]
+          },
+          {
+            "index": 4245,
+            "previous": [
+              351744,
+              464,
+              176,
+              27,
+              30,
+              296,
+              151040,
+              145
+            ],
+            "current": [
+              351744,
+              432,
+              176,
+              20,
+              25,
+              297,
+              151552,
+              145
+            ]
+          },
+          {
+            "index": 4501,
+            "previous": [
+              372224,
+              176,
+              176,
+              27,
+              97,
+              318,
+              162304,
+              170
+            ],
+            "current": [
+              372224,
+              16,
+              129,
+              88,
+              0,
+              319,
+              162816,
+              170
+            ]
+          }
+        ],
+        "withinCycleOrderErrors": 0,
+        "receiverPositionOrderErrors": 0
+      },
+      "traceFooters": [
+        "# dropped=0",
+        "# detailed_cpu=0"
+      ],
+      "peakStagesMs": [
+        [
+          "eel_phrase_transformers_wall_ns",
+          855.640342
+        ],
+        [
+          "input_recovery_wall_ns",
+          0.897323
+        ],
+        [
+          "input_dispatch_wall_ns",
+          0.772081
+        ],
+        [
+          "movement_cc_actions_wall_ns",
+          0.126586
+        ]
+      ],
+      "peakCpuBound": {
+        "cpuUpperMs": 389.660154,
+        "offCpuLowerMs": 467.196048,
+        "before": {
+          "wall_ns": 421616880563576,
+          "thread_cpu_ns": 1272638786,
+          "wall_after_ns": 421616880682951
+        },
+        "after": {
+          "wall_ns": 421618358977597,
+          "thread_cpu_ns": 1662298940,
+          "wall_after_ns": 421618359015497
+        }
+      },
+      "summaryPath": "live/512-STRESS/summary.json"
+    },
+    {
+      "frames": 256,
+      "profile": "STRESS",
+      "errors": [],
+      "measured": {
+        "seconds": 20.003881991,
+        "callbacks": 3745,
+        "wall": {
+          "p95Us": 705.678,
+          "p99Us": 1310.136,
+          "maxUs": 13902.901
+        },
+        "cpu": null,
+        "offCpu": null,
+        "entryGap": {
+          "p95Us": 5708.343,
+          "p99Us": 6709.842,
+          "maxUs": 19010.231
+        },
+        "wallOverruns": 3,
+        "cpuOverruns": null,
+        "xruns": 17,
+        "movementMin": 7,
+        "movementMax": 8,
+        "phraseInstancesMax": 12,
+        "phraseSourcesMax": 12,
+        "notes": 14400,
+        "cc": 14486,
+        "noteOns": 8960,
+        "rejected": 0,
+        "overflow": 0,
+        "instanceRejected": 1,
+        "stages": {
+          "clock_read_wall_ns": {
+            "p95Us": 0.56,
+            "p99Us": 0.663,
+            "maxUs": 50.919
+          },
+          "resource_read_wall_ns": {
+            "p95Us": 0.097,
+            "p99Us": 0.105,
+            "maxUs": 54.186
+          },
+          "input_recovery_wall_ns": {
+            "p95Us": 16.602,
+            "p99Us": 43.092,
+            "maxUs": 994.69
+          },
+          "commands_wall_ns": {
+            "p95Us": 0.711,
+            "p99Us": 0.775,
+            "maxUs": 40.908
+          },
+          "controller_transport_wall_ns": {
+            "p95Us": 4.473,
+            "p99Us": 18.182,
+            "maxUs": 2484.915
+          },
+          "movement_parameters_wall_ns": {
+            "p95Us": 1.719,
+            "p99Us": 2.357,
+            "maxUs": 761.734
+          },
+          "performance_wall_ns": {
+            "p95Us": 1.083,
+            "p99Us": 1.264,
+            "maxUs": 229.249
+          },
+          "eel_phrase_transformers_wall_ns": {
+            "p95Us": 671.976,
+            "p99Us": 1259.593,
+            "maxUs": 13882.764
+          },
+          "movement_cc_actions_wall_ns": {
+            "p95Us": 3.878,
+            "p99Us": 24.6,
+            "maxUs": 511.703
+          },
+          "midi_collect_wall_ns": {
+            "p95Us": 1.234,
+            "p99Us": 2.225,
+            "maxUs": 509.869
+          },
+          "sort_wall_ns": {
+            "p95Us": 1.051,
+            "p99Us": 1.964,
+            "maxUs": 105.354
+          },
+          "emit_observe_reply_wall_ns": {
+            "p95Us": 2.96,
+            "p99Us": 34.561,
+            "maxUs": 427.621
+          },
+          "jack_cycle_clock_wall_ns": {
+            "p95Us": 0.63,
+            "p99Us": 0.698,
+            "maxUs": 846.474
+          },
+          "jack_output_buffer_wall_ns": {
+            "p95Us": 0.65,
+            "p99Us": 0.718,
+            "maxUs": 115.92
+          },
+          "jack_output_clear_wall_ns": {
+            "p95Us": 0.303,
+            "p99Us": 0.348,
+            "maxUs": 630.876
+          },
+          "recovery_wall_ns": {
+            "p95Us": 0.0,
+            "p99Us": 0.0,
+            "maxUs": 0.0
+          },
+          "queued_output_wall_ns": {
+            "p95Us": 0.091,
+            "p99Us": 0.137,
+            "maxUs": 15.151
+          },
+          "jack_input_buffer_wall_ns": {
+            "p95Us": 0.681,
+            "p99Us": 0.787,
+            "maxUs": 249.727
+          },
+          "jack_input_count_wall_ns": {
+            "p95Us": 0.202,
+            "p99Us": 0.214,
+            "maxUs": 65.539
+          },
+          "jack_input_get_wall_ns": {
+            "p95Us": 0.0,
+            "p99Us": 0.959,
+            "maxUs": 3.591
+          },
+          "input_copy_wall_ns": {
+            "p95Us": 0.0,
+            "p99Us": 1.093,
+            "maxUs": 254.32
+          },
+          "input_dispatch_wall_ns": {
+            "p95Us": 3.478,
+            "p99Us": 14.845,
+            "maxUs": 559.187
+          },
+          "movement_render_wall_ns": {
+            "p95Us": 3.078,
+            "p99Us": 16.995,
+            "maxUs": 188.028
+          },
+          "controller_tick_wall_ns": {
+            "p95Us": 2.448,
+            "p99Us": 4.243,
+            "maxUs": 501.726
+          },
+          "jack_transport_query_wall_ns": {
+            "p95Us": 0.471,
+            "p99Us": 0.529,
+            "maxUs": 332.62
+          },
+          "chain_tick_wall_ns": {
+            "p95Us": 0.832,
+            "p99Us": 0.975,
+            "maxUs": 2480.953
+          }
+        },
+        "notesPerSecond": 719.8602754444734,
+        "ccPerSecond": 724.1594409783778,
+        "noteOnsPerSecond": 447.91306027656117,
+        "orderErrors": 0,
+        "minorFaults": 0,
+        "majorFaults": 0,
+        "userUs": null,
+        "systemUs": null,
+        "involuntarySwitches": 0,
+        "clockReads": {
+          "p95Us": 0.56,
+          "p99Us": 0.663,
+          "maxUs": 50.919
+        },
+        "resourceReads": {
+          "p95Us": 0.097,
+          "p99Us": 0.105,
+          "maxUs": 54.186
+        },
+        "cpuAboveWall": null,
+        "detailedCpu": false,
+        "externalCpu": {
+          "seconds": 1.499028719,
+          "wallSeconds": 19.992687593,
+          "sampling": "10ms worker-side JACK thread clock; each read has before/after bounds, no per-callback CPU attribution",
+          "wallSecondsMin": 19.992685752,
+          "wallSecondsMax": 19.992689429
+        },
+        "deadlineQualified": false
+      },
+      "chronology": {
+        "clockDiscontinuityCount": 7,
+        "clockDiscontinuities": [
+          {
+            "index": 3023,
+            "previous": [
+              229120,
+              80,
+              176,
+              27,
+              10,
+              411,
+              104960,
+              0
+            ],
+            "current": [
+              230144,
+              16,
+              145,
+              80,
+              100,
+              414,
+              105728,
+              0
+            ]
+          },
+          {
+            "index": 3039,
+            "previous": [
+              230144,
+              16,
+              145,
+              95,
+              100,
+              414,
+              105728,
+              0
+            ],
+            "current": [
+              230144,
+              16,
+              176,
+              20,
+              0,
+              415,
+              105984,
+              1
+            ]
+          },
+          {
+            "index": 5811,
+            "previous": [
+              316416,
+              144,
+              176,
+              27,
+              102,
+              752,
+              192256,
+              4
+            ],
+            "current": [
+              317440,
+              112,
+              176,
+              20,
+              97,
+              754,
+              192768,
+              7
+            ]
+          },
+          {
+            "index": 12909,
+            "previous": [
+              553472,
+              208,
+              176,
+              27,
+              122,
+              1676,
+              428800,
+              7
+            ],
+            "current": [
+              554752,
+              144,
+              176,
+              21,
+              122,
+              1680,
+              429824,
+              11
+            ]
+          },
+          {
+            "index": 17487,
+            "previous": [
+              708864,
+              112,
+              176,
+              27,
+              15,
+              2282,
+              583936,
+              11
+            ],
+            "current": [
+              709632,
+              80,
+              176,
+              21,
+              10,
+              2284,
+              584448,
+              11
+            ]
+          },
+          {
+            "index": 17494,
+            "previous": [
+              709632,
+              80,
+              176,
+              27,
+              10,
+              2284,
+              584448,
+              11
+            ],
+            "current": [
+              709888,
+              16,
+              145,
+              80,
+              100,
+              2286,
+              584960,
+              13
+            ]
+          },
+          {
+            "index": 24505,
+            "previous": [
+              944896,
+              240,
+              176,
+              27,
+              56,
+              3204,
+              819968,
+              14
+            ],
+            "current": [
+              945664,
+              208,
+              176,
+              21,
+              51,
+              3206,
+              820480,
+              16
+            ]
+          }
+        ],
+        "absoluteTimestampAmbiguityCount": 0,
+        "absoluteTimestampAmbiguities": [],
+        "withinCycleOrderErrors": 0,
+        "receiverPositionOrderErrors": 0
+      },
+      "traceFooters": [
+        "# dropped=0",
+        "# detailed_cpu=0"
+      ],
+      "peakStagesMs": [
+        [
+          "eel_phrase_transformers_wall_ns",
+          13.882764
+        ],
+        [
+          "controller_transport_wall_ns",
+          0.006952
+        ],
+        [
+          "controller_tick_wall_ns",
+          0.00486
+        ],
+        [
+          "movement_cc_actions_wall_ns",
+          0.004072
+        ]
+      ],
+      "peakCpuBound": {
+        "cpuUpperMs": 15.223582,
+        "offCpuLowerMs": 0.0,
+        "before": {
+          "wall_ns": 421955806621056,
+          "thread_cpu_ns": 197168576,
+          "wall_after_ns": 421955806623072
+        },
+        "after": {
+          "wall_ns": 421955838887147,
+          "thread_cpu_ns": 212392158,
+          "wall_after_ns": 421955838889113
+        }
+      },
+      "summaryPath": "live-rest-STRESS/256-STRESS/summary.json"
+    },
+    {
+      "frames": 256,
+      "profile": "LIVE_NORMAL",
+      "errors": [],
+      "measured": {
+        "seconds": 20.001754698,
+        "callbacks": 3239,
+        "wall": {
+          "p95Us": 191.988,
+          "p99Us": 640.638,
+          "maxUs": 176514.709
+        },
+        "cpu": null,
+        "offCpu": null,
+        "entryGap": {
+          "p95Us": 5983.531,
+          "p99Us": 9311.091,
+          "maxUs": 328076.148
+        },
+        "wallOverruns": 7,
+        "cpuOverruns": null,
+        "xruns": 54,
+        "movementMin": 1,
+        "movementMax": 2,
+        "phraseInstancesMax": 3,
+        "phraseSourcesMax": 3,
+        "notes": 210,
+        "cc": 816,
+        "noteOns": 105,
+        "rejected": 0,
+        "overflow": 0,
+        "instanceRejected": 0,
+        "stages": {
+          "clock_read_wall_ns": {
+            "p95Us": 0.495,
+            "p99Us": 0.596,
+            "maxUs": 203.916
+          },
+          "resource_read_wall_ns": {
+            "p95Us": 0.105,
+            "p99Us": 0.126,
+            "maxUs": 150.745
+          },
+          "input_recovery_wall_ns": {
+            "p95Us": 3.991,
+            "p99Us": 44.121,
+            "maxUs": 15947.903
+          },
+          "commands_wall_ns": {
+            "p95Us": 0.88,
+            "p99Us": 10.14,
+            "maxUs": 435.518
+          },
+          "controller_transport_wall_ns": {
+            "p95Us": 6.571,
+            "p99Us": 75.188,
+            "maxUs": 164565.611
+          },
+          "movement_parameters_wall_ns": {
+            "p95Us": 2.284,
+            "p99Us": 28.665,
+            "maxUs": 135.542
+          },
+          "performance_wall_ns": {
+            "p95Us": 1.159,
+            "p99Us": 9.321,
+            "maxUs": 196.731
+          },
+          "eel_phrase_transformers_wall_ns": {
+            "p95Us": 134.729,
+            "p99Us": 516.465,
+            "maxUs": 130615.006
+          },
+          "movement_cc_actions_wall_ns": {
+            "p95Us": 1.843,
+            "p99Us": 22.45,
+            "maxUs": 1740.117
+          },
+          "midi_collect_wall_ns": {
+            "p95Us": 0.295,
+            "p99Us": 0.462,
+            "maxUs": 173.801
+          },
+          "sort_wall_ns": {
+            "p95Us": 0.437,
+            "p99Us": 0.617,
+            "maxUs": 31.257
+          },
+          "emit_observe_reply_wall_ns": {
+            "p95Us": 1.677,
+            "p99Us": 31.791,
+            "maxUs": 959.993
+          },
+          "jack_cycle_clock_wall_ns": {
+            "p95Us": 0.644,
+            "p99Us": 1.026,
+            "maxUs": 84.087
+          },
+          "jack_output_buffer_wall_ns": {
+            "p95Us": 0.678,
+            "p99Us": 10.14,
+            "maxUs": 15924.021
+          },
+          "jack_output_clear_wall_ns": {
+            "p95Us": 0.264,
+            "p99Us": 3.051,
+            "maxUs": 105.085
+          },
+          "recovery_wall_ns": {
+            "p95Us": 0.0,
+            "p99Us": 0.0,
+            "maxUs": 0.0
+          },
+          "queued_output_wall_ns": {
+            "p95Us": 0.144,
+            "p99Us": 0.204,
+            "maxUs": 69.482
+          },
+          "jack_input_buffer_wall_ns": {
+            "p95Us": 0.626,
+            "p99Us": 5.578,
+            "maxUs": 11320.076
+          },
+          "jack_input_count_wall_ns": {
+            "p95Us": 0.204,
+            "p99Us": 0.278,
+            "maxUs": 80.358
+          },
+          "jack_input_get_wall_ns": {
+            "p95Us": 0.0,
+            "p99Us": 0.0,
+            "maxUs": 24.555
+          },
+          "input_copy_wall_ns": {
+            "p95Us": 0.0,
+            "p99Us": 0.0,
+            "maxUs": 12.098
+          },
+          "input_dispatch_wall_ns": {
+            "p95Us": 0.151,
+            "p99Us": 3.215,
+            "maxUs": 119.21
+          },
+          "movement_render_wall_ns": {
+            "p95Us": 1.236,
+            "p99Us": 8.362,
+            "maxUs": 397.307
+          },
+          "controller_tick_wall_ns": {
+            "p95Us": 3.511,
+            "p99Us": 57.66,
+            "maxUs": 421.77
+          },
+          "jack_transport_query_wall_ns": {
+            "p95Us": 0.478,
+            "p99Us": 0.699,
+            "maxUs": 259.304
+          },
+          "chain_tick_wall_ns": {
+            "p95Us": 0.897,
+            "p99Us": 7.927,
+            "maxUs": 12210.435
+          }
+        },
+        "notesPerSecond": 10.499078864365742,
+        "ccPerSecond": 40.79642073010689,
+        "noteOnsPerSecond": 5.249539432182871,
+        "orderErrors": 0,
+        "minorFaults": 0,
+        "majorFaults": 0,
+        "userUs": null,
+        "systemUs": null,
+        "involuntarySwitches": 0,
+        "clockReads": {
+          "p95Us": 0.495,
+          "p99Us": 0.596,
+          "maxUs": 203.916
+        },
+        "resourceReads": {
+          "p95Us": 0.105,
+          "p99Us": 0.126,
+          "maxUs": 150.745
+        },
+        "cpuAboveWall": null,
+        "detailedCpu": false,
+        "externalCpu": {
+          "seconds": 0.750019829,
+          "wallSeconds": 19.997401703,
+          "sampling": "10ms worker-side JACK thread clock; each read has before/after bounds, no per-callback CPU attribution",
+          "wallSecondsMin": 19.997397744,
+          "wallSecondsMax": 19.997403996
+        },
+        "deadlineQualified": false
+      },
+      "chronology": {
+        "clockDiscontinuityCount": 11,
+        "clockDiscontinuities": [
+          {
+            "index": 25,
+            "previous": [
+              182016,
+              144,
+              176,
+              21,
+              46,
+              95,
+              24064,
+              1
+            ],
+            "current": [
+              187136,
+              144,
+              176,
+              20,
+              56,
+              110,
+              27904,
+              5
+            ]
+          },
+          {
+            "index": 47,
+            "previous": [
+              200704,
+              16,
+              176,
+              21,
+              91,
+              163,
+              41472,
+              5
+            ],
+            "current": [
+              204800,
+              144,
+              176,
+              20,
+              97,
+              169,
+              43008,
+              12
+            ]
+          },
+          {
+            "index": 51,
+            "previous": [
+              206848,
+              16,
+              176,
+              21,
+              102,
+              177,
+              45056,
+              13
+            ],
+            "current": [
+              209664,
+              144,
+              176,
+              20,
+              107,
+              184,
+              46848,
+              17
+            ]
+          },
+          {
+            "index": 53,
+            "previous": [
+              209664,
+              144,
+              176,
+              21,
+              107,
+              184,
+              46848,
+              17
+            ],
+            "current": [
+              211968,
+              16,
+              176,
+              20,
+              112,
+              192,
+              48896,
+              22
+            ]
+          },
+          {
+            "index": 55,
+            "previous": [
+              211968,
+              16,
+              176,
+              21,
+              112,
+              192,
+              48896,
+              22
+            ],
+            "current": [
+              214016,
+              144,
+              176,
+              20,
+              117,
+              197,
+              50176,
+              26
+            ]
+          },
+          {
+            "index": 57,
+            "previous": [
+              214016,
+              144,
+              176,
+              21,
+              117,
+              197,
+              50176,
+              26
+            ],
+            "current": [
+              216832,
+              16,
+              176,
+              20,
+              122,
+              205,
+              52224,
+              29
+            ]
+          },
+          {
+            "index": 59,
+            "previous": [
+              216832,
+              16,
+              176,
+              21,
+              122,
+              205,
+              52224,
+              29
+            ],
+            "current": [
+              219648,
+              144,
+              176,
+              20,
+              127,
+              212,
+              54016,
+              34
+            ]
+          },
+          {
+            "index": 73,
+            "previous": [
+              225536,
+              16,
+              176,
+              21,
+              112,
+              235,
+              59904,
+              34
+            ],
+            "current": [
+              227840,
+              144,
+              176,
+              20,
+              107,
+              242,
+              61696,
+              37
+            ]
+          },
+          {
+            "index": 81,
+            "previous": [
+              233728,
+              16,
+              176,
+              21,
+              91,
+              265,
+              67584,
+              38
+            ],
+            "current": [
+              235776,
+              144,
+              176,
+              20,
+              86,
+              272,
+              69376,
+              38
+            ]
+          },
+          {
+            "index": 493,
+            "previous": [
+              589824,
+              16,
+              176,
+              21,
+              112,
+              1655,
+              423424,
+              41
+            ],
+            "current": [
+              591616,
+              144,
+              176,
+              20,
+              107,
+              1661,
+              424960,
+              44
+            ]
+          },
+          {
+            "index": 514,
+            "previous": [
+              606976,
+              144,
+              176,
+              21,
+              66,
+              1721,
+              440320,
+              44
+            ],
+            "current": [
+              609280,
+              144,
+              128,
+              36,
+              0,
+              1726,
+              441600,
+              48
+            ]
+          }
+        ],
+        "absoluteTimestampAmbiguityCount": 0,
+        "absoluteTimestampAmbiguities": [],
+        "withinCycleOrderErrors": 0,
+        "receiverPositionOrderErrors": 0
+      },
+      "traceFooters": [
+        "# dropped=0",
+        "# detailed_cpu=0"
+      ],
+      "peakStagesMs": [
+        [
+          "controller_transport_wall_ns",
+          164.565611
+        ],
+        [
+          "eel_phrase_transformers_wall_ns",
+          11.654644
+        ],
+        [
+          "movement_cc_actions_wall_ns",
+          0.126711
+        ],
+        [
+          "movement_parameters_wall_ns",
+          0.074003
+        ]
+      ],
+      "peakCpuBound": {
+        "cpuUpperMs": 138.065519,
+        "offCpuLowerMs": 38.44919,
+        "before": {
+          "wall_ns": 421930838418935,
+          "thread_cpu_ns": 187752835,
+          "wall_after_ns": 421930838421479
+        },
+        "after": {
+          "wall_ns": 421931036296586,
+          "thread_cpu_ns": 325818354,
+          "wall_after_ns": 421931036299026
+        }
+      },
+      "summaryPath": "live-rest-LIVE_NORMAL/256-LIVE_NORMAL/summary.json"
+    }
+  ],
+  "observerFree": {
+    "sourceSha256": "d35845feeb3a6aac4529e86805ffe536a11fd9b707787d9d0f97c3a97d40d66c",
+    "variant": "Committed tests/jack_idle_control.cpp with Trace construction removed: no worker, no callback diagnostic clocks; JACK buffer operations unchanged",
+    "results": [
+      {
+        "frames": 256,
+        "exit": 0,
+        "result": {
+          "startNs": 422015635009594,
+          "endNs": 422035635934177,
+          "xruns": 67
+        },
+        "stderr": "Cannot lock down 107341340 byte memory area (Cannot allocate memory)\n",
+        "cgroupBefore": "usage_usec 40377981231\nuser_usec 32188458022\nsystem_usec 8189523209\nnice_usec 0\nnr_periods 1877516\nnr_throttled 5664\nthrottled_usec 841097694\nnr_bursts 0\nburst_usec 0\n",
+        "cgroupAfter": "usage_usec 40417388390\nuser_usec 32219938120\nsystem_usec 8197450270\nnice_usec 0\nnr_periods 1877636\nnr_throttled 5684\nthrottled_usec 843855559\nnr_bursts 0\nburst_usec 0\n",
+        "engine": false,
+        "instrumentation": false,
+        "physicalHardware": false
+      },
+      {
+        "frames": 512,
+        "exit": 0,
+        "result": {
+          "startNs": 422037750531166,
+          "endNs": 422057751963076,
+          "xruns": 4
+        },
+        "stderr": "Cannot lock down 107341340 byte memory area (Cannot allocate memory)\n",
+        "cgroupBefore": "usage_usec 40417606568\nuser_usec 32220044357\nsystem_usec 8197562211\nnice_usec 0\nnr_periods 1877641\nnr_throttled 5684\nthrottled_usec 843855559\nnr_bursts 0\nburst_usec 0\n",
+        "cgroupAfter": "usage_usec 40420246809\nuser_usec 32222123363\nsystem_usec 8198123446\nnice_usec 0\nnr_periods 1877746\nnr_throttled 5684\nthrottled_usec 843855559\nnr_bursts 0\nburst_usec 0\n",
+        "engine": false,
+        "instrumentation": false,
+        "physicalHardware": false
+      }
+    ]
+  }
+}

@@ -45,4 +45,23 @@ static void m2_gesture_tests(const char *source) {
     h.run("sw_submit(0,0,2,0);");h.block();check(h.events().empty(),"M2 TEST HOLD is single admission per PRESS");
     h.eq("mem[conductor_header(0)+3]",0,"M2 TEST HOLD never advances STEP");
   }
+  {
+    Host h(source);conductor_fixture(h);ChainMode chain(h.f,true,2);conductor_install(h,m2_model());
+    h.run("mem[sw_cfg(0)+8]=250;mem[sw_cfg(0)+7]=1000;mem[sw_cfg(0)+6]=1;mem[sw_cfg(0)+16]=SW_NEXT;clear_layer(2);store_event(2,0,144,76,90,0);store_event(2,srate,128,76,0,0);mem[LEN_BASE+2]=srate*30;mem[MODE_BASE+2]=1;mem[LEN_BASE]=srate*30;mem[LEN_BASE+1]=srate*30;");
+    h.midi(144,110,127);h.events();
+    h.midi(144,110,0);h.events(); // Note On velocity zero is also RELEASE.
+    for(unsigned j=0;j<110;++j){h.block();check(conductor_count(h.events(),144,72)==0,"M2 velocity-zero RELEASE cancels HOLD");}
+    h.midi(144,110,127);auto e=h.events();
+    check(conductor_count(e,144,72)==1,"M2 next PRESS not absorbed as DOUBLE; next STEP plays immediately");
+    h.eq("mem[conductor_header(0)+3]",1,"M2 quick second PRESS advances exactly one STEP");
+  }
+  {
+    Host h(source);conductor_fixture(h);ChainMode chain(h.f,true,2);conductor_install(h,m2_model());
+    h.run("mem[sw_cfg(0)+8]=250;mem[LEN_BASE]=srate*30;mem[LEN_BASE+1]=srate*30;loop(11,phrase_admit_independent(0,0));");
+    h.block();h.events();h.midi(144,110,127);h.events();
+    check(conductor_active(h)==12,"M2 PRESS can reserve the last existing voice");
+    for(unsigned j=0;j<110;++j){h.block();check(conductor_count(h.events(),144,72)==0,"M2 saturated HOLD never emits an unowned attack");}
+    h.eq("mem[conductor_header(0)+4]",2,"M2 HOLD saturation is explicitly refused");
+    check(conductor_active(h)==12,"M2 refused HOLD preserves every earlier voice");
+  }
 }

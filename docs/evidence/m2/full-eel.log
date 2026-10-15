@@ -1,0 +1,13 @@
+CONDUCTOR EEL PRESS trace [[144,48,100],[144,52,100],[144,56,100],[144,60,100],[144,48,100]]
+CONDUCTOR COST {"layers":1,"blocks":100,"frames":128,"medianUs":33.54,"p95Us":96.007,"maxUs":927.214}
+CONDUCTOR COST {"layers":2,"blocks":100,"frames":128,"medianUs":34.882,"p95Us":81.3,"maxUs":763.411}
+CONDUCTOR COST {"layers":12,"blocks":100,"frames":128,"medianUs":54.561,"p95Us":95.614,"maxUs":181.563}
+PASS actual CONDUCTOR shared EEL checks: 125
+OUTPUT CAPACITY attempted=5120 accepted=4369 owned=4369 error=6 panic=1
+PASS instance ownership actual EEL checks: 6824
+concurrent fixed-state frames: 1 distinct hashes
+concurrent fixed-state frames: 1 distinct hashes
+concurrent fixed-state frames: 1 distinct hashes
+PASS: 18508 EEL2/GUI/MIDI checks
+PASS 18 actual capture fixtures: tick-zero multichannel chords, staggered durations and rests
+PASS 36 shared/native free captures: actual exported ticks, same-block chords and durations

@@ -65,7 +65,7 @@ async function editConductor(sw){
   editing=l.id;side.replaceChildren();const b=l.block;
   side.append(node('h3',label(b)),node('small','LOCAL · source unchanged'));
   if(b.type==='PHRASE'||b.type==='MOVEMENT'){
-   const row=node('label','TRIGGER','conductor-option'),policy=node('select'),value=node('select');policy.setAttribute('aria-label','TRIGGER inheritance');value.setAttribute('aria-label','TRIGGER override');
+   const row=node('label','TRIG','conductor-option'),policy=node('select'),value=node('select');row.title='Trigger gesture';policy.setAttribute('aria-label','TRIGGER inheritance');value.setAttribute('aria-label','TRIGGER override');
    for(const name of ['INHERIT','OVERRIDE']){const o=node('option',name);o.value=name;policy.append(o);}for(const name of ['PRESS','HOLD']){const o=node('option',name);o.value=name;value.append(o);}policy.value=b.overrides.trigger?.mode||'INHERIT';value.value=b.overrides.trigger?.value||'PRESS';value.disabled=policy.value!=='OVERRIDE';
    const update=()=>{checkpoint();b.overrides.trigger=policy.value==='INHERIT'?{mode:'INHERIT'}:{mode:'OVERRIDE',value:value.value};paint();properties(s,l);};policy.onchange=value.onchange=update;row.append(policy,value);side.append(row);
   }

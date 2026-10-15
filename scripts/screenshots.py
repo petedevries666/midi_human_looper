@@ -151,6 +151,10 @@ def run(output, performance=False):
                 page.get_by_label('VEL inheritance',exact=True).select_option('OVERRIDE')
                 page.get_by_label('VEL override',exact=True).fill('0.5')
                 capture('conductor-override-editor')
+                col.get_by_role('button',name='EDIT BLOCK',exact=True).nth(1).click()
+                page.get_by_label('TRIGGER inheritance',exact=True).select_option('OVERRIDE')
+                page.get_by_label('TRIGGER override',exact=True).select_option('HOLD')
+                capture('conductor-hold-trigger-editor','[aria-label="TRIGGER override"]')
                 page.get_by_role('button',name='CANCEL',exact=True).click()
                 # Actual source authoring and native config, not a mock curve.
                 page.locator('#movement-section').evaluate('e=>e.open=true')
@@ -236,7 +240,7 @@ def run(output, performance=False):
             artifacts.extend(recovery['artifacts'])
             for artifact in recovery['artifacts']:artifact['runtimeBuildRevision']=recovery['runtimeBuildRevision'];artifact['data']=recovery['data']
         manifest=dict(browser=browser.version,sourceRevision=subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip(),sourceDirty=bool(subprocess.check_output(['git','status','--porcelain','--untracked-files=no'],cwd=ROOT,text=True).strip()),runtimeBuildRevision=api.call()['buildRevision'],application='MIDI BAD MOTHERFUCKER',data='Native --demo views plus actual native --chain recovery: named CC source, real ARP MIDI, observed recording states and explicitly configured reference chains',artifacts=artifacts,
-                      unsupported={'MOVEMENT advanced execution':'GATED/HOLD admissions, JOIN/REVEAL/FECK and musical durations are not enabled; screenshots cover implemented source and layer editing.'})
+                      unsupported={'MOVEMENT advanced execution':'GATED, JOIN/REVEAL/FECK and musical durations are not enabled; PRESS/HOLD admissions use the actual native dispatcher.'})
         (output/'manifest.json').write_text(json.dumps(manifest,indent=2)+'\n')
         failures=[a for a in artifacts if a['checks']]
         if failures:

@@ -1,0 +1,70 @@
+{
+  "scope": "Cloud software qualification only; no physical Zynthian/Helix test",
+  "engineCodeCommit": "8a131d58922e5a6c31a9887143afc2801467a4ee",
+  "sourceHashes": {
+    "midi_human_looper.jsfx": "ba76965b755528c01b1dbffa091c4c3edb6071e5b9bfe883dee10283af171255",
+    "headless/engine.cpp": "b4bd15d6e3b9b8525bd68fca3b2f380070da27b02af9c0f462ddd8e4acef913e",
+    "headless/conductor_execution.hpp": "e595fbe667d27681b393a0698bd29e7ee0dde9e3e75741e1f3dd47f0913a8f0b",
+    "headless/movement_engine.hpp": "f18b9307f871ac8a108f0f5f868a1b658c46500305070951636a0b1314efc82f",
+    "headless/web/conductor.js": "2674a1ba3d37be0828d144140a67b95f37ae9d081416e38d2cea2b8e3384fea0",
+    "tests/m2_gesture_cases.hpp": "4ed38609fb81a5a1c6a853c5589f9ac44ba265a6c32ed740c2c41636bc464f08",
+    "tests/test_conductor_gestures_native.py": "19bf1cf6c8b83521d66b4e7603f8608f956fb703abcc1f47016db8443748bd6a",
+    "tests/test_conductor_gestures_jack.py": "67a89d27f6d05f4d8f71cb267f5c0d3a7bb33f67a87fe3e46be7e543d64343dd",
+    "tests/test_recovery_browser.py": "9ad88b55b091ef39c1641d3c0f222af1d6e2ec45e7afd88efb7d000d0023fafe",
+    "scripts/screenshots.py": "3b7836391d753f587b0271c4632a66b26cf70b4ec031eb140ed2e7350954139b"
+  },
+  "nativeBinaryHash": "9105ce01917d6c6e16eb143f6fb1426bd0ef9585275da3514d19cde437b44d54",
+  "asanBinaryHash": "bcd30f2be63091c1e44c1295fb489570d717e17a5666465b9468518e81b14cc8",
+  "m2DspChecks": 692,
+  "nativeTests": 3,
+  "nativeAsanTests": 3,
+  "asanDiagnostics": 0,
+  "fullSharedEelChecks": 18508,
+  "captureSmfFixtures": 54,
+  "jack": {
+    "sampleRate": 48000,
+    "blockFrames": 8192,
+    "observedAttacks": [
+      48,
+      48,
+      72,
+      48,
+      72
+    ],
+    "holdDelaySamples": 12000,
+    "chronology": "asserted in observed order",
+    "outputOverflow": 0
+  },
+  "screenshots": {
+    "count": 192,
+    "viewports": [
+      [
+        320,
+        240
+      ],
+      [
+        800,
+        480
+      ],
+      [
+        1366,
+        768
+      ],
+      [
+        1440,
+        900
+      ],
+      [
+        1904,
+        1032
+      ]
+    ],
+    "layoutFindings": 0,
+    "visualReview": "All views inspected in 15 contact sheets; feature images also inspected individually",
+    "exitCode": 0
+  },
+  "fullCombinedExecuted": false,
+  "liveMatrixExecuted": false,
+  "originalIssue54FilesUnchanged": 25,
+  "revealImplemented": false
+}

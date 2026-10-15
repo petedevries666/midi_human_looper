@@ -2,7 +2,7 @@
 """Native producer/actual DSP, no UI-clock gesture classification."""
 import copy,json,sys,time,unittest
 from test_conductor_execution_native import Execution
-from test_conductor_persistence import step,block
+from test_conductor_persistence import step,block,uid
 from test_movement_persistence import movement
 class Gestures(Execution):
     def setUp(self):
@@ -28,7 +28,7 @@ class Gestures(Execution):
         m=movement();m.update(duration=1,target=dict(type='CC',channel=3,number=74))
         self.model.update(version=2,ccRate=25,movements=[m])
         held=block(m['id'],'MOVEMENT');held['overrides']['trigger']=dict(mode='OVERRIDE',value='HOLD')
-        self.model['switches'][0]['steps'][0]['layers'].append(dict(id=__import__('conductor').uuid.uuid4().__str__(),block=held))
+        self.model['switches'][0]['steps'][0]['layers'].append(dict(id=uid(),block=held))
         self.commit();self.command('test',switchId=1)
         self.assertEqual(len(self.call()['instances']),1);self.assertEqual(self.call()['movements']['active'],0)
         self.command('test',switchId=1,gesture='hold');state=self.call()

@@ -1,0 +1,3 @@
+Cannot lock down 107341340 byte memory area (Cannot allocate memory)
+INJECTED GAP RESULT {"chainError": 1, "chainRecording": 0, "chainRunning": 0, "activeNotes": 0, "outputOverflow": 0, "lateBlocks": 4, "chainFrameGap": 16384, "chainClockGap": 16384, "maxCallbackUs": 5760.39}
+PASS controlled callback interruption: existing guard aborts recording, no active notes/overflow

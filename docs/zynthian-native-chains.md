@@ -1,3 +1,7 @@
+> For the Oram discovery fix and the preferred dedicated-chain workflow, use
+> [Oram discovery and routing qualification](zynthian-oram-discovery.md).
+> Direct chain routing requires explicit receiver channel filtering.
+
 # Native Zynthian chain prototype: issue #26
 
 This adds **MIDI Bad Mother Fucker** to Zynthian's **MIDI Tool** selection, before
@@ -7,11 +11,14 @@ launcher, LV2 adapter, extra JACK server, manual jack_connect or boot service is
 needed. The optional Firefox editor is a control worker owned by each instance;
 closing Firefox never stops the engine.
 
+For the current stacked candidate, use [candidate setup](consolidated-release-candidate.md)
+rather than assuming main contains the draft features below.
+
 ## Build and install on the Pi
 
 Back up your working Zynthian snapshot first. Recommended first target: Pi 4/5,
-ARM64, at least 2 GB RAM. Three existing JSFX hosts use roughly 300–400 MB before
-synth/sample memory; actual Pi performance and ARMHF atomic support need checking.
+ARM64, at least 2 GB RAM. Total Pi CPU/RSS and synth/sample memory must be measured; no hardware memory
+or latency qualification is claimed. ARMHF atomic support also needs checking.
 Run the following in Zynthian's local/SSH terminal, under the same environment/user
 as the UI/JACK service (normally root on standard Zynthian images):
 
@@ -19,8 +26,9 @@ as the UI/JACK service (normally root on standard Zynthian images):
 cd /zynthian/zynthian-plugins
 git clone https://github.com/petedevries666/midi_human_looper.git
 cd midi_human_looper
-git fetch origin feat/zynthian-native-chains
-git switch --track origin/feat/zynthian-native-chains
+git fetch origin main
+git switch main
+git pull --ff-only
 scripts/headless-setup.sh
 scripts/headless-check.sh
 python3 zynthian/install.py --lan
@@ -91,14 +99,12 @@ chains continue. Native trigger controls can use Zynthian's normal MIDI Learn.
 The existing Controller editor/assignments are available independently in each web
 editor; use unused note/CC sources to avoid conflicts with Zynthian input filtering.
 
-The first prototype deliberately uses a fixed two-bar grid. Its period is rounded
-to a whole JACK processing block, so all instances agree without splitting the
-original EEL block. At 48 kHz/512 frames/120 BPM it is exactly 192,000 samples
-(four seconds). At other tempos the rounding error is at most half a block per
-period; it does not cause drift between these instances, but this is not yet
-sample-exact BBT grid alignment to other Zynthian sequencers. Recording preserves
-performed offsets within that grid. Live MIDI and recorded timestamps retain the
-existing one-block JACK graph latency.
+The prototype uses a fixed two-bar 4/4 grid. New installations select timing v2:
+nearest-sample musical length, exact frame modulo phase and in-buffer record arm.
+Existing configurations without `chain_timing_version` retain v1's block-rounded
+grid. See [timing version compatibility](chain-timing-v2.md) before opting an old
+patch into v2; incompatible periods are refused rather than silently retimed.
+Physical JACK graph latency/BBT alignment still requires qualification.
 
 JACK BBT supplies tempo when available, otherwise 120 BPM is used. Keep 4/4 and
 fixed tempo for this first test. A tempo change or transport seek stops playback and releases notes
@@ -219,10 +225,14 @@ operation are still part of physical acceptance.
 
 ## Cloud integration regression buffer
 
-The three-processor desktop regression uses 48 kHz / 2,048 frames (42.7 ms)
-so browser startup on a shared, non-realtime cloud machine does not invalidate
-recording. The two-bar period is rounded to 192,512 samples at that buffer size;
-this is a software workflow test, not a Raspberry Pi latency qualification.
+The three-processor desktop regression defaults to 48 kHz / 2,048 frames
+(42.7 ms), with `CHAIN_JACK_BLOCK=4096` or `8192` available for throttled CI.
+This cloud machine occasionally misses recording deadlines even at 2,048 frames;
+those runs fail safely with `chainError=1`, not silent recording corruption.
+The full cloud functional matrix uses `CHAIN_JACK_BLOCK=8192` (170.7 ms), with
+its two-bar period rounded to 196,608 samples. This is not a low-latency or
+Raspberry Pi performance qualification. The separate ordering/overflow JACK tests
+continue using their existing smaller buffers. No Zynthian JACK settings change.
 A missed recording callback cancels the take and now reports a clock error.
 A missed playback callback releases channel state with 48 bounded MIDI channel
 messages (CC64/123/120) on this processor's output, resets owned notes and resumes
@@ -230,3 +240,55 @@ at the common transport phase. It does not queue thousands of obsolete releases
 in front of current attacks. Synths must respect those channel-mode messages.
 Transport discontinuities and capture errors expose `chainFrameGap` and
 `chainClockGap` diagnostics. Genuine seeks and tempo changes still stop playback.
+
+## Optional integrated Snapshot editor test branch
+
+The core native-chain prerequisite is merged into `main`. To test the integration
+PR, after cloning use `git fetch origin feat/product-integration` and
+`git switch --track origin/feat/product-integration`, then rebuild with
+`scripts/headless-setup.sh`. Do not run an old native binary against the new server
+or adapter: the integrated native action opcode is 40 and Snapshot capture remains
+20. The current discovery installer preserves an existing managed adapter. A full
+runtime/adapter upgrade remains separate: stop processors, back up and validate the
+matching binary, JSFX and adapter before changing them. For a catalog-only upgrade,
+follow the Oram guide above without uninstalling.
+
+1. Run `scripts/headless-check.sh`, then `python3 zynthian/install.py --lan`.
+2. Save existing Zynthian work and restart only the UI when ready. Add MBH as a
+   MIDI Tool before Piano, Bass and Synth, with chain inputs 1, 2 and 3.
+3. Set fixed 4/4 at 120 BPM before creating processors. Select Phrase 1 and RECORD
+   Piano. It waits for the common boundary, records two bars and loops. Record Bass
+   and Synth while Piano continues. RECORD again overdubs; FINISH closes held notes.
+4. Open Firefox at `http://ZYNTHIAN_IP:8765+PROCESSOR_ID` (for ID 1: port 8766).
+   Enter the token from `midi-human-looper/editor.token`. Each tab controls its own
+   processor and patch. PANIC/STOP one processor must not affect the other two.
+5. Set Instrument volume, CAPTURE Snapshot A, change volume/Transpose, CAPTURE B.
+   EDIT B sets a two-second morph. Recall A, then MORPH B during looping. Learn a
+   distinct Helix Controller source, map volume with GLIDE, and move it during morph.
+   It must take over without automation fighting it. Existing Switch assignments
+   can use OPTIONS → MORPH TO NEXT; full switch assignment popup is still pending.
+6. CLOSE Firefox. Playback and an active morph must finish without the browser.
+   SAVE each processor and a Zynthian snapshot, recreate/reload with the same IDs,
+   and confirm phrases, modules, Controller mappings and Snapshots remain independent.
+7. PANIC, remove each processor, and verify every synth releases its notes. Perform
+   the rollback instructions above if retaining the prototype is not desired.
+
+The regression probe has separate JACK source and sink clients, so the test graph
+is acyclic and does not insert an implicit feedback-period delay into recording.
+It exercises actual overdub on Piano while Bass/Synth remain playing, Snapshot
+capture/recall and per-processor persistence/recreation. Three processor captures
+must remain on the shared two-bar grid. This does not qualify physical latency.
+
+Native chain STOP/PANIC and SAVE/LOAD cleanup now uses the same bounded channel
+release path as missed playback. This prevents rapid SAVE → LOAD → PLAY from
+filling the output FIFO with repeated 2,048-note sweeps at large buffers. The
+separate REAPER/standalone paths retain their established explicit note sweeps.
+Actual JACK capture validates chronological output and an empty final note ledger,
+including channel-mode cleanup. Synth response to CC64/123/120 remains mandatory
+for this native cleanup policy and must be verified on the physical image.
+For the initial Helix expression test, use an unassigned CC such as 21 or 22;
+legacy expression CCs remain protected and cannot be silently reassigned.
+
+Autonomous restart commitment is separate from manual slot SAVE/LOAD. See
+[project authority](project-authority.md) for the active portable revision and
+explicit Zynthian snapshot precedence.

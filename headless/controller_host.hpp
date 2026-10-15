@@ -1,14 +1,17 @@
 #pragma once
 #include "controller_engine.hpp"
+#include "parameter_registry.hpp"
 #include <array>
 #include <cstdint>
 // Host adapter configuration v1. Stable IDs are never array positions.
 namespace controller {
 struct Source {
   uint32_t id = 0;
+  char name[17]{};
   int kind = 0, channel = 0, number = 0; // kind 0=unassigned, 1=note, 2=CC
   bool valid() const {
-    return id && id <= 16777215 && kind >= 0 && kind <= 2 && channel >= 0 &&
+    for(char ch:name)if(ch && (ch<32 || ch>=127))return false;
+    return name[16]==0 && id && id <= 16777215 && kind >= 0 && kind <= 2 && channel >= 0 &&
            channel < 16 && number >= 0 && number < 128 &&
            (kind != 2 || (number != 64 && number < 120));
   }
@@ -20,15 +23,21 @@ struct Binding {
   double base = 0; // normalized committed value; runtime never serialized
   bool valid() const {
     return policy.valid() && instrument && instrument <= 16777215 &&
-           module <= 16777215 && kind >= 0 && kind < 16 &&
-           (kind < 14 || (instrument <= 16 && !module)) &&
+           module <= 16777215 && kind >= 0 && kind <= 24 &&
+           (performance::phraseKind(kind) ? instrument <= 16 && !module
+            : kind == 16                  ? instrument == 1 && !module
+            : kind >= 21 && kind <= 23    ? !module
+            : kind == 24                  ? module != 0
+                                          : true) &&
            std::isfinite(base) && base >= 0 && base <= 1;
   }
 };
 struct Configuration {
   std::array<Source, 16> sources{};
   std::array<Binding, 32> bindings{};
+  std::array<Curve,4> presets{};std::array<bool,4> presetEnabled{};
   bool valid() const {
+    for(unsigned i=0;i<4;++i)if(presetEnabled[i]&&!presets[i].valid())return false;
     for (unsigned i = 0; i < sources.size(); ++i)
       if (sources[i].id) {
         if (!sources[i].valid())
@@ -69,6 +78,8 @@ class Host {
   Engine core;
   Configuration config;
   uint32_t learning = 0;
+  bool commandLearning = false;
+  Source capturedCommand;
   Source candidate;
   int conflict = 0;
   // Captured note release must never leak into performance routing.
@@ -79,6 +90,15 @@ public:
   const Configuration &configuration() const { return config; }
   const Target *target(uint32_t id) const { return core.target(id); }
   uint32_t learnTarget() const { return learning; }
+  bool learnsCommand() const { return commandLearning; }
+  bool learnCommand(uint32_t id) {
+    if (!id || id > 16777215) return false;
+    cancel(); learning = id; commandLearning = true; return true;
+  }
+  bool takeCommandCapture(Source &out) {
+    if (!capturedCommand.id) return false;
+    out = capturedCommand; capturedCommand = Source{}; return true;
+  }
   const Source &learnCandidate() const { return candidate; }
   int learnConflict() const { return conflict; }
   template <class Resolve>
@@ -92,6 +112,8 @@ public:
     core.tick(time);
     config = next;
     learning = 0;
+    commandLearning = false;
+    capturedCommand = Source{};
     candidate = Source{};
     conflict = 0;
     for (auto &b : config.bindings)
@@ -111,7 +133,8 @@ public:
         return false;
     for (auto &a : config.sources)
       if (a.id == s.id) {
-        a = s;
+        auto next=s;if(!next.name[0])for(unsigned j=0;j<17;++j)next.name[j]=a.name[j];
+        a = next;
         panic();
         return true;
       }
@@ -121,6 +144,24 @@ public:
         return true;
       }
     return false;
+  }
+  bool preset(unsigned slot,const Curve &curve){if(slot>=4 || !curve.valid())return false;config.presets[slot]=curve;config.presetEnabled[slot]=true;return true;}
+  bool rename(uint32_t id,const char* name){for(auto &s:config.sources)if(s.id==id){for(unsigned j=0;j<17;++j)s.name[j]=name[j];return true;}return false;}
+  // Manual audition enters the same policy core as MIDI, by stable source ID.
+  // It never participates in Learn, changes a binding, or emits input MIDI.
+  bool testSource(uint32_t id,unsigned value,double now) {
+    if(value>127)return false;
+    for(const auto &s:config.sources)if(s.id==id){
+      return core.input(id,s.kind==1?(value?1.:0.):value/127.,now,value>0);
+    }
+    return false;
+  }
+  bool removeSource(uint32_t id) {
+    for(auto &s:config.sources)if(s.id==id){
+      for(auto &b:config.bindings)if(b.policy.id && b.policy.source==id)remove(b.policy.id);
+      if(learning==id || candidate.id==id || conflict==int(id))cancel();
+      s=Source{};return true;
+    }return false;
   }
   bool forget(uint32_t id) {
     for (auto &s : config.sources)
@@ -143,6 +184,8 @@ public:
   }
   void cancel() {
     learning = 0;
+    commandLearning = false;
+    capturedCommand = Source{};
     candidate = Source{};
     conflict = 0;
   }
@@ -150,11 +193,21 @@ public:
     if (!learning || !candidate.kind || conflict < 0)
       return false;
     for (auto &s : config.sources)
-      if (s.id != learning && s.kind == candidate.kind &&
-          s.channel == candidate.channel && s.number == candidate.number)
+      if ((commandLearning || s.id != learning) && s.kind == candidate.kind &&
+          s.channel == candidate.channel && s.number == candidate.number) {
         s.kind = 0;
+        if (commandLearning)
+          for (const auto &b : config.bindings)
+            if (b.policy.id && b.policy.source == s.id) {
+              core.removeMapping(b.policy.id);
+              core.configure(b.policy);
+            }
+      }
     auto s = candidate;
     s.id = learning;
+    if (commandLearning) {
+      cancel(); capturedCommand = s; return true;
+    }
     bool ok = source(s);
     if (ok)
       cancel();
@@ -182,6 +235,7 @@ public:
     if (!kind || (kind == 2 && (num == 64 || num >= 120)))
       return false;
     if (learning && !off) {
+      if (commandLearning && kind != 1) return true; // Phrase trigger learns notes only.
       if (candidate.kind)
         return true; // Await deliberate conflict decision.
       candidate.id = learning;
@@ -192,7 +246,7 @@ public:
         quarantine[ch][num] = true;
       conflict = legacy(kind, ch, num) ? -1 : 0;
       for (auto &s : config.sources)
-        if (!conflict && s.id != learning && s.kind == kind &&
+        if (!conflict && (commandLearning || s.id != learning) && s.kind == kind &&
             s.channel == ch && s.number == num)
           conflict = int(s.id);
       if (!conflict)
@@ -285,6 +339,26 @@ public:
           apply(b, t->effective);
       }
     return changed;
+  }
+  bool retirePerformanceTarget(uint32_t id) {
+    for (const auto &b : config.bindings)
+      if (b.policy.id && b.policy.target == id)
+        return false;
+    return core.removeTarget(id);
+  }
+  unsigned freeTargets() const { return core.freeTargets(); }
+  uint64_t acquirePerformanceTarget(uint32_t id, double value) {
+    return core.external(id, value, 0, time);
+  }
+  bool updatePerformanceTarget(uint32_t id, uint64_t token, double value) {
+    return core.updateExternal(id, token, value);
+  }
+  bool cancelPerformanceTarget(uint32_t id, uint64_t token) {
+    return core.releaseExternal(id, token);
+  }
+  bool stagePerformanceTarget(uint32_t id, double effective) {
+    return core.target(id) ? core.recall(id, effective)
+                           : core.addTarget(id, effective);
   }
   uint64_t morph(uint32_t id, double goal, double seconds,
                  Ease ease = Ease::Linear,

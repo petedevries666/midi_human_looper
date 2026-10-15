@@ -1,0 +1,4 @@
+XFAIL ONCE_CROSS_SOURCE_CHOKE {"activeVoices":1,"midi":[[128,48,0],[144,72,83]]}
+XFAIL VOICE_EXHAUSTION_GLOBAL_RELEASE {"before":12,"after":1,"midi":[[128,48,0],[144,48,91]]}
+XFAIL CHOKE_RELEASES_LIVE_OWNER {"liveOwners":1,"midi":[[128,48,0],[144,72,83]]}
+BASELINE: 85 checks; 3 known contract failures; no engine correction in PR A

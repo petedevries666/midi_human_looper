@@ -1,5 +1,10 @@
 # Global Snapshots: ownership prerequisite
 
+This document describes PR #29 only. The subsequent actual manager implementation
+and exact remaining coding steps are in [global-snapshots-manager.md](global-snapshots-manager.md).
+Its old next-branch suggestion below is historical; continue on
+`feat/global-snapshots-manager`.
+
 ## Scope and integration audit
 
 Base: main `17e0ac6` after stable host/descriptor/Controller/JACK PRs #19–#24.

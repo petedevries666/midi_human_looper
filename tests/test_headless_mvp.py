@@ -74,10 +74,23 @@ class HeadlessTests(unittest.TestCase):
     def setUp(self):
         self.command('panic')
 
+    def test_read_only_release_monitor(self):
+        before=self.call()
+        result=subprocess.run([sys.executable,str(ROOT/'scripts/monitor-live-engine.py'),
+                               '--socket',self.sock,'--seconds','1'],
+                              capture_output=True,text=True,timeout=5)
+        self.assertEqual(result.returncode,1,'mock backend cannot qualify a JACK test')
+        report=json.loads(result.stdout)
+        self.assertEqual(report['last']['buildRevision'],before['buildRevision'])
+        self.assertEqual(report['observations'],2)
+        self.assertIn('not a JACK hardware observation',report['problems'])
+        self.assertEqual(self.call()['revision'],before['revision'])
+
     def test_real_engine_and_fifo(self):
         result=subprocess.run([BINARY,'--queue-test'],capture_output=True,text=True,check=True)
         self.assertIn('PASS bounded FIFO',result.stdout)
         state=self.call()
+        self.assertRegex(state["buildRevision"],r"^[0-9a-f]{40}(?:\.dirty)?$")
         self.assertEqual(state['schemaVersion'],7)
         self.assertEqual(len(state['phrases']),16)
         self.assertEqual([s['id'] for s in state['switches']],[1,2,3,4])

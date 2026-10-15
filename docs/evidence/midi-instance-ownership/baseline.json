@@ -1,0 +1,300 @@
+{
+  "version": 1,
+  "scope": "production EEL; Cloud wall-clock workload, not hardware qualification",
+  "knownFailures": [
+    {
+      "id": "ONCE_CROSS_SOURCE_CHOKE",
+      "status": "XFAIL",
+      "observed": {
+        "activeVoices": 1,
+        "midi": [
+          [
+            128,
+            48,
+            0
+          ],
+          [
+            144,
+            72,
+            83
+          ]
+        ]
+      }
+    }
+  ],
+  "capacities": {
+    "IO_SCHEMA": 7,
+    "LAYERS": 16,
+    "MAX_EVENTS_PER_LAYER": 2048,
+    "EV_SIZE": 5,
+    "MAX_ONCE_VOICES": 12,
+    "INST_CAP": 8,
+    "TRANSFORM_SLOTS": 6,
+    "SW_COUNT": 16,
+    "SW_STEPS": 64,
+    "EXP_POINTS": 6,
+    "PATCH_PAYLOAD_SIZE": 171649,
+    "I_RUNTIME_END": 651343,
+    "controllerTargets": 512,
+    "controllerPolicyMappings": 64,
+    "controllerSources": 16,
+    "controllerBindings": 32,
+    "controllerCurvePoints": 16,
+    "controllerCoreBytes": 79896,
+    "controllerConfigBytes": 18024
+  },
+  "measurements": [
+    {
+      "sampleRate": 44100,
+      "block": 128,
+      "voices": 1,
+      "iterations": 64,
+      "medianUs": 9.527,
+      "p95Us": 10.002,
+      "maxUs": 181.173,
+      "budgetUs": 2902.49
+    },
+    {
+      "sampleRate": 44100,
+      "block": 128,
+      "voices": 12,
+      "iterations": 64,
+      "medianUs": 10.902,
+      "p95Us": 11.485,
+      "maxUs": 30.953,
+      "budgetUs": 2902.49
+    },
+    {
+      "sampleRate": 44100,
+      "block": 256,
+      "voices": 1,
+      "iterations": 64,
+      "medianUs": 9.469,
+      "p95Us": 14.74,
+      "maxUs": 1121.38,
+      "budgetUs": 5804.99
+    },
+    {
+      "sampleRate": 44100,
+      "block": 256,
+      "voices": 12,
+      "iterations": 64,
+      "medianUs": 11.067,
+      "p95Us": 321.153,
+      "maxUs": 1060.57,
+      "budgetUs": 5804.99
+    },
+    {
+      "sampleRate": 44100,
+      "block": 512,
+      "voices": 1,
+      "iterations": 64,
+      "medianUs": 9.543,
+      "p95Us": 13.933,
+      "maxUs": 406.64,
+      "budgetUs": 11610
+    },
+    {
+      "sampleRate": 44100,
+      "block": 512,
+      "voices": 12,
+      "iterations": 64,
+      "medianUs": 10.94,
+      "p95Us": 12.036,
+      "maxUs": 118.253,
+      "budgetUs": 11610
+    },
+    {
+      "sampleRate": 44100,
+      "block": 8192,
+      "voices": 1,
+      "iterations": 64,
+      "medianUs": 9.444,
+      "p95Us": 125.878,
+      "maxUs": 1565.26,
+      "budgetUs": 185760
+    },
+    {
+      "sampleRate": 44100,
+      "block": 8192,
+      "voices": 12,
+      "iterations": 64,
+      "medianUs": 11.117,
+      "p95Us": 34.257,
+      "maxUs": 256.281,
+      "budgetUs": 185760
+    },
+    {
+      "sampleRate": 48000,
+      "block": 128,
+      "voices": 1,
+      "iterations": 64,
+      "medianUs": 14.657,
+      "p95Us": 15.073,
+      "maxUs": 46.457,
+      "budgetUs": 2666.67
+    },
+    {
+      "sampleRate": 48000,
+      "block": 128,
+      "voices": 12,
+      "iterations": 64,
+      "medianUs": 10.895,
+      "p95Us": 11.344,
+      "maxUs": 33.074,
+      "budgetUs": 2666.67
+    },
+    {
+      "sampleRate": 48000,
+      "block": 256,
+      "voices": 1,
+      "iterations": 64,
+      "medianUs": 9.607,
+      "p95Us": 10.595,
+      "maxUs": 417.711,
+      "budgetUs": 5333.33
+    },
+    {
+      "sampleRate": 48000,
+      "block": 256,
+      "voices": 12,
+      "iterations": 64,
+      "medianUs": 10.864,
+      "p95Us": 15.322,
+      "maxUs": 83.739,
+      "budgetUs": 5333.33
+    },
+    {
+      "sampleRate": 48000,
+      "block": 512,
+      "voices": 1,
+      "iterations": 64,
+      "medianUs": 9.466,
+      "p95Us": 9.727,
+      "maxUs": 11.187,
+      "budgetUs": 10666.7
+    },
+    {
+      "sampleRate": 48000,
+      "block": 512,
+      "voices": 12,
+      "iterations": 64,
+      "medianUs": 10.874,
+      "p95Us": 11.182,
+      "maxUs": 12.358,
+      "budgetUs": 10666.7
+    },
+    {
+      "sampleRate": 48000,
+      "block": 8192,
+      "voices": 1,
+      "iterations": 64,
+      "medianUs": 9.445,
+      "p95Us": 10.175,
+      "maxUs": 58.437,
+      "budgetUs": 170667
+    },
+    {
+      "sampleRate": 48000,
+      "block": 8192,
+      "voices": 12,
+      "iterations": 64,
+      "medianUs": 10.906,
+      "p95Us": 70.322,
+      "maxUs": 233.758,
+      "budgetUs": 170667
+    },
+    {
+      "sampleRate": 96000,
+      "block": 128,
+      "voices": 1,
+      "iterations": 64,
+      "medianUs": 9.466,
+      "p95Us": 11.047,
+      "maxUs": 252.254,
+      "budgetUs": 1333.33
+    },
+    {
+      "sampleRate": 96000,
+      "block": 128,
+      "voices": 12,
+      "iterations": 64,
+      "medianUs": 10.9,
+      "p95Us": 12.64,
+      "maxUs": 69.465,
+      "budgetUs": 1333.33
+    },
+    {
+      "sampleRate": 96000,
+      "block": 256,
+      "voices": 1,
+      "iterations": 64,
+      "medianUs": 9.464,
+      "p95Us": 12.572,
+      "maxUs": 747.396,
+      "budgetUs": 2666.67
+    },
+    {
+      "sampleRate": 96000,
+      "block": 256,
+      "voices": 12,
+      "iterations": 64,
+      "medianUs": 10.902,
+      "p95Us": 36.783,
+      "maxUs": 1068.21,
+      "budgetUs": 2666.67
+    },
+    {
+      "sampleRate": 96000,
+      "block": 512,
+      "voices": 1,
+      "iterations": 64,
+      "medianUs": 9.472,
+      "p95Us": 9.899,
+      "maxUs": 41.362,
+      "budgetUs": 5333.33
+    },
+    {
+      "sampleRate": 96000,
+      "block": 512,
+      "voices": 12,
+      "iterations": 64,
+      "medianUs": 11.24,
+      "p95Us": 13.009,
+      "maxUs": 96.956,
+      "budgetUs": 5333.33
+    },
+    {
+      "sampleRate": 96000,
+      "block": 8192,
+      "voices": 1,
+      "iterations": 64,
+      "medianUs": 9.524,
+      "p95Us": 9.87,
+      "maxUs": 45.526,
+      "budgetUs": 85333.3
+    },
+    {
+      "sampleRate": 96000,
+      "block": 8192,
+      "voices": 12,
+      "iterations": 64,
+      "medianUs": 10.882,
+      "p95Us": 11.346,
+      "maxUs": 31.289,
+      "budgetUs": 85333.3
+    }
+  ],
+  "provenance": {
+    "recordedAtUTC": "2026-10-13T16:00:14.228592+00:00",
+    "checkoutCommit": "ffdc4d0ba829ba07b3e6c40d9c947ab31f70aa76",
+    "engineBaseCommit": "25fcb1e458ffdce7286ff4c60cd4546d586e19a4",
+    "specCommit": "73cdee5604992ca3bd68e4c6c3b97c545333b127",
+    "machine": "x86_64",
+    "sourceHashes": {
+      "midi_human_looper.jsfx": "75e776e3fb0392a8dcef17f8c19fa4eae8c68d136d9798c902df4a19438ccd15",
+      "tests/conductor_baseline_cases.hpp": "e51feeecd9e01974372b9b572001bf958c340bf43f15bb8190699ec864a74de3",
+      "tests/expression_host.cpp": "d5a56ef0d0b77edbf0f6961f29474c22ad5c38c47c3d22ad8f511dc97896a9fc"
+    }
+  }
+}

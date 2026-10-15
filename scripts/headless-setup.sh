@@ -11,7 +11,7 @@ if [[ ! -d "$YSFX_SOURCE/.git" ]]; then git clone https://github.com/jpcima/ysfx
 [[ -z "$(git -C "$YSFX_SOURCE" status --porcelain)" ]] || { echo 'ysfx checkout has changes; refusing checkout' >&2;exit 1; }
 git -C "$YSFX_SOURCE" checkout 8077347ccf4115567aed81400281dca57acbb0cc
 git -C "$YSFX_SOURCE" submodule update --init --recursive
-cmake -S "$YSFX_SOURCE" -B "$YSFX_SOURCE/build" -DYSFX_PLUGIN=OFF -DYSFX_TOOLS=ON -DCMAKE_BUILD_TYPE=Release
+cmake -S "$YSFX_SOURCE" -B "$YSFX_SOURCE/build" -DYSFX_PLUGIN=OFF -DYSFX_TOOLS=ON -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_FLAGS=-fsigned-char -DCMAKE_CXX_FLAGS=-fsigned-char
 cmake --build "$YSFX_SOURCE/build" --parallel "${BUILD_JOBS:-2}"
 export YSFX_SOURCE
 exec scripts/headless-build.sh

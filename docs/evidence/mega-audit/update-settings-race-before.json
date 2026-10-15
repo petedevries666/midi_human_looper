@@ -1,0 +1,11 @@
+{
+  "scope": "Actual activation function on disposable files; systemd health/restart are fixtures",
+  "originalPort": 8765,
+  "concurrentPort": 9000,
+  "activatedPort": 8765,
+  "serviceCalls": [
+    "stop",
+    "start"
+  ],
+  "lostConcurrentSettings": true
+}

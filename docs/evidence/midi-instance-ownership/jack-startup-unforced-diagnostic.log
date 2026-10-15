@@ -1,0 +1,18 @@
+Cannot lock down 107341340 byte memory area (Cannot allocate memory)
+PANIC diagnostic {'blocks': 126, 'midiCount': 8259, 'activeNotes': 0, 'outputOverflow': 0, 'lateBlocks': 1, 'maxCallbackUs': 4088.34, 'lastEvent': [64000, 191, 64, 0]}
+JACK notes on=4 off=2050 emergency=0
+Cannot lock down 107341340 byte memory area (Cannot allocate memory)
+PASS actual JACK graph: two Instruments, phrase switch, Note On/Off and PANIC
+Flood diagnostic {'midiCount': 73190, 'outputOverflow': 13443, 'pendingOutput': 1104, 'lateBlocks': 1}
+JACK notes on=3168 off=29561 emergency=288
+PASS actual JACK FIFO overflow: emergency channel releases, bounded recovery and final PANIC
+ORDERING_START_DIAGNOSTIC {'socketExists': True, 'enginePoll': None}
+Cannot lock down 107341340 byte memory area (Cannot allocate memory)
+JACK notes on=5 off=2 emergency=0
+ORDER frame=11 offset=16 note=91 status=144
+ORDER frame=11 offset=120 note=94 status=144
+ORDER frame=11 offset=120 note=94 status=128
+ORDER frame=11 offset=220 note=92 status=144
+ORDER frame=11 offset=400 note=90 status=144
+ORDERING_EXIT_DIAGNOSTIC 0 enginePoll None
+PASS actual JACK timestamp ordering: nonmonotonic generation sorted in one block; equal-time Note On/Off stable

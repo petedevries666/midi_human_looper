@@ -1,0 +1,2 @@
+@init: 1469: syntax error: 'mask&= <!> ~(1<<out);mem[h+16+ch]=mask;mask==0?mem[h+9]=max(0,mem[h+9]-'
+FAIL: compile full JSFX

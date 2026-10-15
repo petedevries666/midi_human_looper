@@ -1,0 +1,5 @@
+MOVEMENT_CPU rate=10 block=8192 sr=48000 samples=8388608 callbacks=1024 mean_us=1.67351 max_us=88.826 emitted=223
+MOVEMENT_CPU rate=25 block=8192 sr=48000 samples=8388608 callbacks=1024 mean_us=1.89575 max_us=118.729 emitted=223
+MOVEMENT_CPU rate=50 block=8192 sr=48000 samples=8388608 callbacks=1024 mean_us=2.41655 max_us=250.782 emitted=223
+MOVEMENT_CPU rate=100 block=8192 sr=48000 samples=8388608 callbacks=1024 mean_us=3.30581 max_us=76.778 emitted=223
+PASS 1204 production MOVEMENT runtime/Controller checks

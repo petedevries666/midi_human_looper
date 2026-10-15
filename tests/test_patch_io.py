@@ -129,6 +129,15 @@ class PatchIO(unittest.TestCase):
         del data['controllerEngine'];path.write_text(json.dumps(data))
         self.assertEqual(self.tick(2,1),3);self.assertEqual(self.mem[32],144)
 
+    def test_conductor_original_rejected_without_erasing_or_loading(self):
+        data=dict(format='MIDI_HUMAN_LOOPER_PATCH',schema=7,work_mem_size=2,
+                  globals=[0]*9,memory=[144,60],conductor={'version':1,'configuration':[123,125]})
+        path=self.root/'patch1.json';original=json.dumps(data);path.write_text(original)
+        self.mem[32]=777
+        self.assertEqual(self.tick(2,1),5);self.assertEqual(self.mem[32],777)
+        self.mem[2],self.mem[3]=7,2
+        self.assertEqual(self.tick(1,1),5);self.assertEqual(path.read_text(),original)
+
     def test_invalid_save_and_heartbeat(self):
         self.assertEqual(self.mem[15], 1)
         self.assertEqual(self.mem[16], 7)

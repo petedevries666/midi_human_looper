@@ -1,0 +1,2 @@
+FAIL: output failure must explicitly request bounded recovery
+OUTPUT CAPACITY OBSERVATION attempted=5120 accepted=4369 owned=4369 error=0 panic=0

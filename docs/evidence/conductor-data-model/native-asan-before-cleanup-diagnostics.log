@@ -1,0 +1,20 @@
+Native ASAN/UBSAN test exit: 0
+Sanitizer diagnostic files: 2
+
+=================================================================
+==569284==ERROR: LeakSanitizer: detected memory leaks
+
+Direct leak of 196464 byte(s) in 3 object(s) allocated from:
+    #0 0x7f5e70ba2c57 in malloc ../../../../src/libsanitizer/asan/asan_malloc_linux.cpp:69
+    #1 0x55c6dcc762a2 in __newBlock_align.constprop.0 (/workspace/mbmf-conductor-a/.build/midi-headless-engine-conductor-asan+0x4e22a2) (BuildId: 810a07af10208ed19b79b506cf1a45dd2601a001)
+
+SUMMARY: AddressSanitizer: 196464 byte(s) leaked in 3 allocation(s).
+
+=================================================================
+==568900==ERROR: LeakSanitizer: detected memory leaks
+
+Direct leak of 196464 byte(s) in 3 object(s) allocated from:
+    #0 0x7f92de1bec57 in malloc ../../../../src/libsanitizer/asan/asan_malloc_linux.cpp:69
+    #1 0x561117ff82a2 in __newBlock_align.constprop.0 (/workspace/mbmf-conductor-a/.build/midi-headless-engine-conductor-asan+0x4e22a2) (BuildId: 810a07af10208ed19b79b506cf1a45dd2601a001)
+
+SUMMARY: AddressSanitizer: 196464 byte(s) leaked in 3 allocation(s).

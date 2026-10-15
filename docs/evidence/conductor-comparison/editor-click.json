@@ -1,0 +1,108 @@
+{
+  "versions": {
+    "base": "25fcb1e458ffdce7286ff4c60cd4546d586e19a4",
+    "A": "706f90ca7f22d0ee5d8dcdcac361861143ef5519"
+  },
+  "spec": "73cdee5604992ca3bd68e4c6c3b97c545333b127",
+  "protocol": "Two repetitions each per checkout/test, order base/A/A/base, serialized, identical shared production binary and probe; diagnostic Chromium script leaves original assertions/timeouts unchanged",
+  "machine": "x86_64",
+  "python": "Python 3.12.14",
+  "chromium": "Chromium 151.0.7922.173 built on Debian GNU/Linux 13 (trixie)",
+  "binarySha256": "ebaa1f5e7f3228dab6da668ac4ee5dda4768100d4e7c62d23bbde57c458b7f14",
+  "probeSha256": "925afae950b6c3fb54dc3a1ac4d5297b38db43b1386fa7791904f2ca8d9bb445",
+  "testHashes": {
+    "original": "26c323ab71be9145cad09623abe164acf6af106a1831f3c6dfe774599818fa6e",
+    "a": "a6e12bb7d02dbb28617a2303a01b4fc632e0d37297d981f803f3cb482b195726"
+  },
+  "environment": {
+    "HEADLESS_BINARY": "/workspace/mbmf-conductor-base/.build/midi-headless-engine",
+    "JACKD": "/workspace/scratch/midi-deps/root/usr/bin/jackd",
+    "JACK_DRIVER_DIR": "/workspace/scratch/midi-deps/root/usr/lib/x86_64-linux-gnu/jack",
+    "CHAIN_JACK_BLOCK": "8192",
+    "CHAIN_TIMING_VERSION": "2",
+    "CHROMIUM_PATH": "/usr/bin/chromium",
+    "RUN_CHAIN_BROWSER": "1"
+  },
+  "runs": [
+    {
+      "test": "editor-click-loss",
+      "order": 1,
+      "version": "base",
+      "startedUTC": "2026-10-13T13:08:04.898138+00:00",
+      "loadBefore": [
+        0.2646484375,
+        0.41796875,
+        0.26904296875
+      ],
+      "log": "editor-click-loss-1-base.log",
+      "returnCode": 1,
+      "seconds": 2.579,
+      "loadAfter": [
+        0.2646484375,
+        0.41796875,
+        0.26904296875
+      ],
+      "logSha256": "6717ad24719a1418d8999b1bafc9522b9697ecb217203a427eee279db8c00045"
+    },
+    {
+      "test": "editor-click-loss",
+      "order": 2,
+      "version": "A",
+      "startedUTC": "2026-10-13T13:08:07.477819+00:00",
+      "loadBefore": [
+        0.2646484375,
+        0.41796875,
+        0.26904296875
+      ],
+      "log": "editor-click-loss-2-A.log",
+      "returnCode": 1,
+      "seconds": 2.584,
+      "loadAfter": [
+        0.2431640625,
+        0.41064453125,
+        0.267578125
+      ],
+      "logSha256": "6717ad24719a1418d8999b1bafc9522b9697ecb217203a427eee279db8c00045"
+    },
+    {
+      "test": "editor-click-loss",
+      "order": 3,
+      "version": "A",
+      "startedUTC": "2026-10-13T13:08:10.062264+00:00",
+      "loadBefore": [
+        0.2431640625,
+        0.41064453125,
+        0.267578125
+      ],
+      "log": "editor-click-loss-3-A.log",
+      "returnCode": 1,
+      "seconds": 2.681,
+      "loadAfter": [
+        0.2431640625,
+        0.41064453125,
+        0.267578125
+      ],
+      "logSha256": "6717ad24719a1418d8999b1bafc9522b9697ecb217203a427eee279db8c00045"
+    },
+    {
+      "test": "editor-click-loss",
+      "order": 4,
+      "version": "base",
+      "startedUTC": "2026-10-13T13:08:12.743932+00:00",
+      "loadBefore": [
+        0.2431640625,
+        0.41064453125,
+        0.267578125
+      ],
+      "log": "editor-click-loss-4-base.log",
+      "returnCode": 1,
+      "seconds": 2.537,
+      "loadAfter": [
+        0.46435546875,
+        0.4541015625,
+        0.28271484375
+      ],
+      "logSha256": "6717ad24719a1418d8999b1bafc9522b9697ecb217203a427eee279db8c00045"
+    }
+  ]
+}

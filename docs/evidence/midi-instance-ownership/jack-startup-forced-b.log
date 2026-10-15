@@ -1,0 +1,16 @@
+Cannot lock down 107341340 byte memory area (Cannot allocate memory)
+PANIC diagnostic {'blocks': 124, 'midiCount': 8259, 'activeNotes': 0, 'outputOverflow': 0, 'lateBlocks': 4, 'maxCallbackUs': 2918.26, 'lastEvent': [62976, 191, 64, 0]}
+JACK notes on=4 off=2050 emergency=0
+Cannot lock down 107341340 byte memory area (Cannot allocate memory)
+PASS actual JACK graph: two Instruments, phrase switch, Note On/Off and PANIC
+Flood diagnostic {'midiCount': 73190, 'outputOverflow': 13443, 'pendingOutput': 1104, 'lateBlocks': 5}
+JACK notes on=3168 off=29561 emergency=288
+PASS actual JACK FIFO overflow: emergency channel releases, bounded recovery and final PANIC
+ORDERING_START_DIAGNOSTIC {'socketExists': True, 'enginePoll': None}
+Cannot lock down 107341340 byte memory area (Cannot allocate memory)
+ORDERING_EXIT_DIAGNOSTIC 3 enginePoll None
+Traceback (most recent call last):
+  File "/tmp/mbmf-jack-startup-delay.py", line 65, in <module>
+    assert ordering_result==0,'same-block timestamp/tie ordering failed'
+           ^^^^^^^^^^^^^^^^^^
+AssertionError: same-block timestamp/tie ordering failed

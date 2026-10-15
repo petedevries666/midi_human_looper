@@ -5,6 +5,11 @@ fanout, and no edits to Zynthian's real-time router implementation.
 """
 import logging
 import re
+import json
+from pathlib import Path
+
+# Explicit opt-in: default Zynthian input routing is untouched.
+CONFIG_PATH = Path("/zynthian/zynthian-my-data/midi-human-looper/install.json")
 
 
 def sources(context):
@@ -21,9 +26,164 @@ def sources(context):
     return result
 
 
+
+def _read_exclusive_ports():
+    """Exact JACK input port names, never an inferred keyboard or synth."""
+    try:
+        config = json.loads(CONFIG_PATH.read_text(encoding='utf-8'))
+    except FileNotFoundError:
+        return []
+    ports = config.get('exclusive_midi_input_ports', [])
+    if (not isinstance(ports, list) or any(not isinstance(p, str) or
+            not p or p.startswith(('mbh_', 'ZynMidiRouter:')) for p in ports)
+            or len(ports) != len(set(ports))):
+        raise ValueError('invalid exclusive_midi_input_ports')
+    return ports
+
+
+def _restore_exclusive(context):
+    """Restore only native routes and modes owned by optional isolation."""
+    saved = getattr(context, '_mbmf_exclusive', None)
+    if not saved:
+        return
+    chains = context.chain_manager.chains
+    for (zmop, index), (chain, port_name, previous) in saved['routes'].items():
+        if chains.get(chain.chain_id) is not chain or chain.zmop_index != zmop:
+            continue
+        if port_name is not None and (index >= len(context.devices_in) or
+                context.devices_in[index] is None or
+                context.devices_in[index].name != port_name):
+            continue
+        try:
+            context.lib_zyncore.zmop_set_route_from(zmop, index, previous)
+        except Exception:
+            logging.exception('MBMF failed restoring exclusive MIDI route')
+    for index, (port_name, previous) in saved['modes'].items():
+        if index >= len(context.devices_in) or context.devices_in[index] is None:
+            continue
+        if context.devices_in[index].name != port_name:
+            continue
+        try:
+            context.lib_zyncore.zmip_set_flag_active_chain(index, previous)
+            context.devices_in_mode[index] = previous
+        except Exception:
+            logging.exception('MBMF failed restoring exclusive MIDI input mode')
+    context._mbmf_exclusive = None
+
+
+def _apply_exclusive(context, requested, virtual_names):
+    """Keyboard -> MB -> native virtual input -> synth, without direct bypass.
+
+    Explicit named physical inputs go to MB, not directly to other chains.
+    ZynSMF/step/CV returns to MB are blocked to avoid a transport-time
+    feedback path. All unrelated devices and their other routes are retained.
+    """
+    if not requested:
+        _restore_exclusive(context)
+        return True
+    chains = context.chain_manager.chains
+    mb_chains = [c for c in chains.values() if c.zmop_index is not None and _contains_mb(c)]
+    if len(mb_chains) != 1 or len(virtual_names) != 1:
+        _restore_exclusive(context)
+        logging.error('MBMF exclusive input requires exactly one dedicated MB chain')
+        return False
+
+    # Zynthian's internal seq/step/CV input indices lie beyond device slots.
+    limit = getattr(context, 'max_num_devs', None)
+    if type(limit) is not int or limit < 1 or limit > len(context.devices_in):
+        _restore_exclusive(context)
+        logging.error('MBMF exclusive input: invalid native device-slot count')
+        return False
+    indexes = {}
+    for index, port in enumerate(context.devices_in[:limit]):
+        if port is not None and port.name in requested:
+            if port.name in indexes:
+                _restore_exclusive(context)
+                logging.error('MBMF duplicate keyboard input %s', port.name)
+                return False
+            indexes[port.name] = index
+    if len(indexes) != len(requested) or any(name in virtual_names for name in requested):
+        _restore_exclusive(context)
+        logging.error('MBMF configured exclusive keyboard port missing or unsafe')
+        return False
+
+    # If native slots or chain instances were recycled, restore only valid
+    # old ownership and capture a fresh baseline for the new graph.
+    old = getattr(context, '_mbmf_exclusive', None)
+    if old:
+        stale = any((i >= len(context.devices_in) or
+                     context.devices_in[i] is None or
+                     context.devices_in[i].name != name)
+                    for i, (name, _) in old['modes'].items())
+        stale |= any(chains.get(chain.chain_id) is not chain or chain.zmop_index != zmop
+                     for (zmop, _), (chain, _, _) in old['routes'].items())
+        if stale:
+            _restore_exclusive(context)
+    saved = getattr(context, '_mbmf_exclusive', None)
+    if not saved:
+        context._mbmf_exclusive = saved = {'routes': {}, 'modes': {}}
+
+    mb = mb_chains[0]
+    internal = []
+    for getter in ('get_zmip_seq_index', 'get_zmip_step_index', 'get_zmip_int_index'):
+        fn = getattr(context.state_manager, getter, None)
+        if not callable(fn):
+            _restore_exclusive(context)
+            logging.error('MBMF exclusive input cannot identify internal route %s', getter)
+            return False
+        internal.append(fn())
+    if any(type(i) is not int or i < limit for i in internal):
+        _restore_exclusive(context)
+        logging.error('MBMF exclusive internal MIDI indices invalid')
+        return False
+
+    changes = {}
+    # Disable physical keyboard bypass to synth and other MIDI chains.
+    # Do not change ttymidi/video or any other unselected device.
+    for index in indexes.values():
+        port = context.devices_in[index]
+        changes[(mb.zmop_index, index)] = (mb, port.name, 1)
+        for chain in chains.values():
+            if chain.zmop_index is not None and chain is not mb:
+                changes[(chain.zmop_index, index)] = (chain, port.name, 0)
+    # A virtual -> synth -> zynsmf -> seq_in -> MB return is possible even
+    # when virtual -> MB is disabled. Break that separate internal path.
+    for index in internal:
+        changes[(mb.zmop_index, index)] = (mb, None, 0)
+
+    try:
+        for index in indexes.values():
+            port_name = context.devices_in[index].name
+            if index not in saved['modes']:
+                saved['modes'][index] = (
+                    port_name, context.lib_zyncore.zmip_get_flag_active_chain(index))
+            if context.lib_zyncore.zmip_set_flag_active_chain(index, 0) != 1:
+                raise RuntimeError('keyboard MULTI set failed')
+            context.devices_in_mode[index] = 0
+            if context.lib_zyncore.zmip_get_flag_active_chain(index) != 0:
+                raise RuntimeError('keyboard MULTI readback failed')
+        # Exclusions first, only then allow keyboard -> MB.
+        for (zmop, index), (chain, name, enabled) in sorted(
+                changes.items(), key=lambda item: item[1][2]):
+            key = (zmop, index)
+            if key not in saved['routes']:
+                saved['routes'][key] = (chain, name,
+                    context.lib_zyncore.zmop_get_route_from(zmop, index))
+            if context.lib_zyncore.zmop_set_route_from(zmop, index, enabled) != 1:
+                raise RuntimeError('exclusive route set failed')
+            if context.lib_zyncore.zmop_get_route_from(zmop, index) != enabled:
+                raise RuntimeError('exclusive route readback failed')
+    except Exception:
+        logging.exception('MBMF exclusive input failed; restoring prior MIDI matrix')
+        _restore_exclusive(context)
+        return False
+    return True
+
 def discover(context):
     """Extend Oram's input-device discovery, preserving unrelated devices."""
     current = sources(context)
+    if not current:
+        _restore_exclusive(context)
     owned = getattr(context, '_mbmf_source_inputs', {})
     for index, record in list(owned.items()):
         if record['name'] not in current:
@@ -91,6 +251,13 @@ def configure(context, required_routes):
     if owned is None:
         context._mbmf_source_inputs = owned = {}
     chains = context.chain_manager.chains
+    try:
+        requested = _read_exclusive_ports()
+        exclusive_safe = _apply_exclusive(context, requested, names)
+    except Exception:
+        logging.exception('MBMF invalid exclusive MIDI input config; virtual source blocked')
+        _restore_exclusive(context)
+        exclusive_safe = False
     for index, port in enumerate(context.devices_in):
         if port is None or port.name not in names:
             continue
@@ -129,7 +296,7 @@ def configure(context, required_routes):
 
         # Exclude MB and all other unsafe destinations BEFORE admitting synths.
         # A failed readback leaves the source disconnected (no feedback storm).
-        safe = mb_chain_count > 0
+        safe = mb_chain_count > 0 and exclusive_safe
         try:
             if context.lib_zyncore.zmip_set_flag_active_chain(index, 0) != 1:
                 safe = False
@@ -146,6 +313,7 @@ def configure(context, required_routes):
             safe = False
 
         if not safe:
+            _restore_exclusive(context)
             # Stop every route from this source, including any previously admitted
             # receiver. Oram will disconnect the owned devN_in JACK connection.
             for zmop, _ in routes:

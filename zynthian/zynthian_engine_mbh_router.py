@@ -41,11 +41,40 @@ def _read_exclusive_ports():
     return ports
 
 
+def _quarantine_virtual(context):
+    """Block native MB virtual source *before* restoring physical bypass routes.
+
+    Native ZynMidiRouter matrices are invisible in jack_lsp. Closing the
+    virtual source first makes rollback safe even when devN_in JACK remains
+    connected until Oram reconciles its desired graph.
+    """
+    virtual = sources(context)
+    indices = [i for i, p in enumerate(context.devices_in)
+               if p is not None and p.name in virtual]
+    for index in indices:
+        for chain in context.chain_manager.chains.values():
+            zmop = chain.zmop_index
+            if not isinstance(zmop, int) or zmop < 0:
+                continue
+            try:
+                if context.lib_zyncore.zmop_set_route_from(zmop, index, 0) != 1:
+                    raise RuntimeError('native quarantine setter failed')
+                if context.lib_zyncore.zmop_get_route_from(zmop, index) != 0:
+                    raise RuntimeError('native quarantine readback failed')
+            except Exception:
+                logging.exception('MBMF virtual input could NOT be quarantined')
+                return False
+    return True
+
+
 def _restore_exclusive(context):
-    """Restore only native routes and modes owned by optional isolation."""
+    """Restore owned physical routes only once virtual output is quarantined."""
     saved = getattr(context, '_mbmf_exclusive', None)
     if not saved:
-        return
+        return True
+    if not _quarantine_virtual(context):
+        logging.error('MBMF leaves physical input isolated: unsafe restore')
+        return False
     chains = context.chain_manager.chains
     for (zmop, index), (chain, port_name, previous) in saved['routes'].items():
         if chains.get(chain.chain_id) is not chain or chain.zmop_index != zmop:
@@ -69,6 +98,7 @@ def _restore_exclusive(context):
         except Exception:
             logging.exception('MBMF failed restoring exclusive MIDI input mode')
     context._mbmf_exclusive = None
+    return True
 
 
 def _apply_exclusive(context, requested, virtual_names):
@@ -79,8 +109,10 @@ def _apply_exclusive(context, requested, virtual_names):
     feedback path. All unrelated devices and their other routes are retained.
     """
     if not requested:
-        _restore_exclusive(context)
-        return True
+        # No explicit consent to native feedback-sensitive routing.
+        # The caller blocks the virtual source; any saved keyboard matrix
+        # may be restored only after native virtual quarantine.
+        return _restore_exclusive(context)
     chains = context.chain_manager.chains
     mb_chains = [c for c in chains.values() if isinstance(c.zmop_index, int) and c.zmop_index >= 0 and _contains_mb(c)]
     if len(mb_chains) != 1 or len(virtual_names) != 1:
@@ -296,7 +328,10 @@ def configure(context, required_routes):
 
         # Exclude MB and all other unsafe destinations BEFORE admitting synths.
         # A failed readback leaves the source disconnected (no feedback storm).
-        safe = mb_chain_count > 0 and exclusive_safe
+        # Never reconnect MB virtual input without an explicit, verified
+        # physical keyboard isolation policy. The previous implicit default
+        # caused a real MIDI storm during REC on Kit V4.
+        safe = mb_chain_count > 0 and bool(requested) and exclusive_safe
         try:
             if context.lib_zyncore.zmip_set_flag_active_chain(index, 0) != 1:
                 safe = False

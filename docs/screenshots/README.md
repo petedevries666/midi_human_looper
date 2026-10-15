@@ -31,6 +31,7 @@ CONDUCTOR PHRASE/MOVEMENT editing is implemented; advanced admissions remain exp
 | movement-library | [PNG](movement-library-320x240.png) | [PNG](movement-library-800x480.png) | [PNG](movement-library-1366x768.png) | [PNG](movement-library-1440x900.png) | [PNG](movement-library-1904x1032.png) |
 | patch | [PNG](patch-320x240.png) | [PNG](patch-800x480.png) | [PNG](patch-1366x768.png) | [PNG](patch-1440x900.png) | [PNG](patch-1904x1032.png) |
 | phrase-editor | [PNG](phrase-editor-320x240.png) | [PNG](phrase-editor-800x480.png) | [PNG](phrase-editor-1366x768.png) | [PNG](phrase-editor-1440x900.png) | [PNG](phrase-editor-1904x1032.png) |
+| phrase-editor-bottom | [PNG](phrase-editor-bottom-320x240.png) | — | — | — | — |
 | phrase-name-editor | [PNG](phrase-name-editor-320x240.png) | [PNG](phrase-name-editor-800x480.png) | [PNG](phrase-name-editor-1366x768.png) | [PNG](phrase-name-editor-1440x900.png) | [PNG](phrase-name-editor-1904x1032.png) |
 | phrases | [PNG](phrases-320x240.png) | [PNG](phrases-800x480.png) | [PNG](phrases-1366x768.png) | [PNG](phrases-1440x900.png) | [PNG](phrases-1904x1032.png) |
 | recovery-arp-editor | — | — | — | — | [PNG](recovery-arp-editor-1904x1032.png) |

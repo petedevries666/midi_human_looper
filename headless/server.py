@@ -243,12 +243,12 @@ class Handler(BaseHTTPRequestHandler):
             self.project_command('capture');return
         if path == '/api/v1/conductor':
             try:
-                from conductor import decode as decode_conductor, resolve
+                from conductor import decode as decode_conductor, resolve, mute_group_warnings
                 with self.server.control.lock:
                     state=self.server.control.request()
                     patch=self.server.control.request(op=48)
                 model=decode_conductor(patch['conductor']) if patch.get('conductor') else None
-                self.respond(200,{'engineSessionId':state['engineSessionId'],'revision':state['revision'],'executionSupported':True,'supportedExecution':['SEQUENTIAL','IMMEDIATE','PRESS_INSTANT','PHRASE_POLY','MOVEMENT_CC','MOVEMENT_PARAMETER','LINEAR','HOLD_CURVE','ONE_SHOT'],'runtime':{str(v['id']):v.get('conductor',{}) for v in state['switches']},'model':model,'missingReferences':resolve(model,{v['id'] for v in state['switches']}) if model else []})
+                self.respond(200,{'engineSessionId':state['engineSessionId'],'revision':state['revision'],'executionSupported':True,'supportedExecution':['SEQUENTIAL','IMMEDIATE','PRESS_INSTANT','PHRASE_POLY','MOVEMENT_CC','MOVEMENT_PARAMETER','LINEAR','HOLD_CURVE','ONE_SHOT'],'runtime':{str(v['id']):v.get('conductor',{}) for v in state['switches']},'model':model,'missingReferences':resolve(model,{v['id'] for v in state['switches']}) if model else [],'muteGroupWarnings':mute_group_warnings(model) if model else []})
             except (ValueError,OSError):self.respond(503,{'error':'CONDUCTOR unavailable'})
             return
         if path == '/api/v1/descriptors':

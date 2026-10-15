@@ -29,6 +29,8 @@ inline std::vector<double> compile(const std::vector<unsigned>& bytes,double bas
   std::vector<double> out(16*8,0);
   if(bytes.empty())return out;
   auto root=document(bytes);std::map<std::string,unsigned> slots;
+  std::array<unsigned,16> groups{};
+  for(const auto& s:root.at("sources").array)if(s.object.count("muteGroup"))groups[unsigned(s.at("slot").number)-1]=unsigned(s.at("muteGroup").number);
   for(const auto& s:root.at("sources").array)slots[s.at("id").text]=unsigned(s.at("slot").number)-1;
   for(const auto& sw:root.at("switches").array) {
     unsigned si=16;for(unsigned j=0;j<16;++j)if(owners[j]==sw.at("switchId").number)si=j;
@@ -40,6 +42,12 @@ inline std::vector<double> compile(const std::vector<unsigned>& bytes,double bas
       std::array<double,68> record{};std::vector<double> admissions;
       record[0]=choice(step.at("transition"),{"INHERIT","IMMEDIATE"});
       unsigned n=0;
+      std::map<unsigned,unsigned> winners;
+      for(const auto& layer:step.at("layers").array){
+        const auto& b=layer.at("block");if(b.type=='z'||!choice(b.at("type"),{"PHRASE"})||!supportedBlock(b))continue;
+        auto source=slots.find(b.at("sourceId").text);if(source==slots.end())continue;
+        unsigned slot=source->second,g=groups[slot];if(g && (!winners.count(g)||slot<winners[g]))winners[g]=slot;
+      }
       for(const auto& layer:step.at("layers").array) {
         const auto& b=layer.at("block");if(b.type=='z')continue;
         if(choice(b.at("type"),{"MOVEMENT"})){
@@ -53,6 +61,7 @@ inline std::vector<double> compile(const std::vector<unsigned>& bytes,double bas
         if(!supportedBlock(b)){record[0]=0;continue;}
         auto it=slots.find(b.at("sourceId").text);
         if(it==slots.end()){++record[1];continue;}
+        if(groups[it->second] && winners[groups[it->second]]!=it->second)continue;
         if(n>=12){record[0]=0;record[3]=2;continue;}
         unsigned row=4+n*5;record[row]=it->second;record[row+1]=-1;
         auto mode=b.at("overrides").object.find("playMode");

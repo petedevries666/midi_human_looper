@@ -10,6 +10,7 @@ import uuid
 
 VERSION = 1
 DOCUMENT_VERSION = 2
+GROUP_VERSION = 3
 # Existing control channel byte ceiling, not a musical STEPS/LAYERS limit (Q3).
 MAX_BYTES = 16000000
 OPTIONS = {
@@ -68,8 +69,8 @@ def destination(value):
 def validate(data):
     if not isinstance(data, dict):
         raise ValueError('CONDUCTOR document required')
-    fields(data, ('version', 'sources', 'switches', 'movements', 'ccRate') if data.get('version') == DOCUMENT_VERSION else ('version', 'sources', 'switches'))
-    if type(data['version']) is not int or data['version'] not in (VERSION, DOCUMENT_VERSION):
+    fields(data, ('version', 'sources', 'switches', 'movements', 'ccRate') if data.get('version') in (DOCUMENT_VERSION, GROUP_VERSION) else ('version', 'sources', 'switches'))
+    if type(data['version']) is not int or data['version'] not in (VERSION, DOCUMENT_VERSION, GROUP_VERSION):
         raise ValueError('CONDUCTOR unsupported version')
     used = set()
     def unique(value):
@@ -82,7 +83,8 @@ def validate(data):
     slots = set()
     sources = {}
     for source in data['sources']:
-        fields(source, ('id', 'type', 'slot'))
+        fields(source, ('id', 'type', 'slot', 'muteGroup') if data['version']==GROUP_VERSION else ('id', 'type', 'slot'))
+        if data['version']==GROUP_VERSION: integer(source['muteGroup'], 0, 16777215)
         unique(source['id'])
         # Only the existing PHRASE pool has a production storage binding today.
         # MOVEMENT refs are valid but unresolved until its source library exists.
@@ -92,7 +94,7 @@ def validate(data):
         if source['slot'] in slots:
             raise ValueError('CONDUCTOR aliased PHRASE slot')
         slots.add(source['slot']); sources[source['id']] = source
-    if data['version'] == DOCUMENT_VERSION:
+    if data['version'] in (DOCUMENT_VERSION, GROUP_VERSION):
         if type(data['ccRate']) is not int or data['ccRate'] not in (10, 25, 50, 100):
             raise ValueError('MOVEMENT invalid global CC rate')
         if not isinstance(data['movements'], list):
@@ -243,3 +245,29 @@ def resolve(data, existing_switches=None):
                 if block and block['type'] != 'ACTION' and block['sourceId'] not in sources:
                     missing.append(dict(blockId=block['id'], sourceId=block['sourceId'], reason='missing_source'))
     return missing
+
+
+def with_mute_groups(data):
+    """Explicit versioned adoption; legacy documents are never mutated in place."""
+    validate(data)
+    result=copy.deepcopy(data)
+    result.update(version=GROUP_VERSION)
+    result.setdefault('movements',[]); result.setdefault('ccRate',25)
+    for source in result['sources']: source.setdefault('muteGroup',0)
+    return validate(result)
+
+
+def mute_group_warnings(data):
+    validate(data)
+    sources={s['id']:s for s in data['sources']}
+    result=[]
+    for switch in data['switches']:
+        for step in switch['steps']:
+            groups={}
+            for layer in step['layers']:
+                block=layer['block']
+                source=sources.get(block.get('sourceId')) if block and block['type']=='PHRASE' else None
+                if source and source.get('muteGroup',0): groups.setdefault(source['muteGroup'],set()).add(source['slot'])
+            for group,slots in sorted(groups.items()):
+                if len(slots)>1: result.append(dict(switchId=switch['switchId'],stepId=step['id'],muteGroup=group,winnerPhraseId=min(slots),phraseIds=sorted(slots)))
+    return result

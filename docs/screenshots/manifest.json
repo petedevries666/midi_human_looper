@@ -1,8 +1,8 @@
 {
   "browser": "151.0.7922.173",
-  "sourceRevision": "e060877fb19f84e1464b3d6324e80959d00dca65",
+  "sourceRevision": "3f79687a7b6bb3a8cc4122cb2c18ed92f8ebdf50",
   "sourceDirty": true,
-  "runtimeBuildRevision": "e060877fb19f84e1464b3d6324e80959d00dca65",
+  "runtimeBuildRevision": "3f79687a7b6bb3a8cc4122cb2c18ed92f8ebdf50",
   "application": "MIDI BAD MOTHERFUCKER",
   "data": "Native --demo views plus actual native --chain recovery: named CC source, real ARP MIDI, observed recording states and explicitly configured reference chains",
   "artifacts": [
@@ -1598,7 +1598,9 @@
       ],
       "file": "recovery-arp-editor-1904x1032.png",
       "checks": [],
-      "runtimeBuildRevision": "e060877fb19f84e1464b3d6324e80959d00dca65",
+      "nativeClockAdvanced": true,
+      "capture": "Actual observed native state; browser telemetry briefly suspended for static capture, engine continues",
+      "runtimeBuildRevision": "3f79687a7b6bb3a8cc4122cb2c18ed92f8ebdf50",
       "data": "Actual native --chain; real CC mapping and recording actions"
     },
     {
@@ -1609,7 +1611,9 @@
       ],
       "file": "recovery-modulator-menu-1904x1032.png",
       "checks": [],
-      "runtimeBuildRevision": "e060877fb19f84e1464b3d6324e80959d00dca65",
+      "nativeClockAdvanced": true,
+      "capture": "Actual observed native state; browser telemetry briefly suspended for static capture, engine continues",
+      "runtimeBuildRevision": "3f79687a7b6bb3a8cc4122cb2c18ed92f8ebdf50",
       "data": "Actual native --chain; real CC mapping and recording actions"
     },
     {
@@ -1620,7 +1624,9 @@
       ],
       "file": "recovery-curve-editor-1904x1032.png",
       "checks": [],
-      "runtimeBuildRevision": "e060877fb19f84e1464b3d6324e80959d00dca65",
+      "nativeClockAdvanced": true,
+      "capture": "Actual observed native state; browser telemetry briefly suspended for static capture, engine continues",
+      "runtimeBuildRevision": "3f79687a7b6bb3a8cc4122cb2c18ed92f8ebdf50",
       "data": "Actual native --chain; real CC mapping and recording actions"
     },
     {
@@ -1631,7 +1637,9 @@
       ],
       "file": "recovery-record-armed-1904x1032.png",
       "checks": [],
-      "runtimeBuildRevision": "e060877fb19f84e1464b3d6324e80959d00dca65",
+      "nativeClockAdvanced": true,
+      "capture": "Actual observed native state; browser telemetry briefly suspended for static capture, engine continues",
+      "runtimeBuildRevision": "3f79687a7b6bb3a8cc4122cb2c18ed92f8ebdf50",
       "data": "Actual native --chain; real CC mapping and recording actions"
     },
     {
@@ -1642,7 +1650,9 @@
       ],
       "file": "recovery-recording-1904x1032.png",
       "checks": [],
-      "runtimeBuildRevision": "e060877fb19f84e1464b3d6324e80959d00dca65",
+      "nativeClockAdvanced": true,
+      "capture": "Actual observed native state; browser telemetry briefly suspended for static capture, engine continues",
+      "runtimeBuildRevision": "3f79687a7b6bb3a8cc4122cb2c18ed92f8ebdf50",
       "data": "Actual native --chain; real CC mapping and recording actions"
     },
     {
@@ -1653,7 +1663,9 @@
       ],
       "file": "recovery-performance-1904x1032.png",
       "checks": [],
-      "runtimeBuildRevision": "e060877fb19f84e1464b3d6324e80959d00dca65",
+      "nativeClockAdvanced": true,
+      "capture": "Actual observed native state; browser telemetry briefly suspended for static capture, engine continues",
+      "runtimeBuildRevision": "3f79687a7b6bb3a8cc4122cb2c18ed92f8ebdf50",
       "data": "Actual native --chain; real CC mapping and recording actions"
     },
     {
@@ -1664,7 +1676,9 @@
       ],
       "file": "recovery-instrument-chains-1904x1032.png",
       "checks": [],
-      "runtimeBuildRevision": "e060877fb19f84e1464b3d6324e80959d00dca65",
+      "nativeClockAdvanced": true,
+      "capture": "Actual observed native state; browser telemetry briefly suspended for static capture, engine continues",
+      "runtimeBuildRevision": "3f79687a7b6bb3a8cc4122cb2c18ed92f8ebdf50",
       "data": "Actual native --chain; real CC mapping and recording actions"
     },
     {
@@ -1675,7 +1689,9 @@
       ],
       "file": "recovery-transformer-editor-1904x1032.png",
       "checks": [],
-      "runtimeBuildRevision": "e060877fb19f84e1464b3d6324e80959d00dca65",
+      "nativeClockAdvanced": true,
+      "capture": "Actual observed native state; browser telemetry briefly suspended for static capture, engine continues",
+      "runtimeBuildRevision": "3f79687a7b6bb3a8cc4122cb2c18ed92f8ebdf50",
       "data": "Actual native --chain; real CC mapping and recording actions"
     }
   ],

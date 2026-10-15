@@ -150,6 +150,22 @@ case and complete hardware-feedback browser workflow pass targeted checks. No as
 screenshot workflow is required for this small Web fix; its manifest identifies
 actual capture revision. Frozen REAPER JSFX and #67 router stay unchanged.
 
+## Screenshot provenance and visual limitation
+
+The complete five-viewport workflow is run, with automated layout/PNG validation
+and manual overview of every view plus full-size critical captures. Inspection
+caught a partly black RECORDING PNG despite valid DOM/layout. Surface recapture
+and viewport resizing did not reliably fix it; the rejected image is retained as
+negative evidence, not a passing screenshot. No product CSS/recording state was
+changed to disguise it.
+
+Recovery captures now briefly suspend **only the browser observation handler**
+while taking one actually observed frame, then restore it in `finally`. The actual
+native clock must advance during capture. No MIDI/engine state, DOM values or
+responses are invented; ordinary functional tests retain live telemetry.
+This permits honest static UI evidence, **not a claim that continuous Cloud
+Chromium repaint is glitch-free**. That visual risk remains explicitly open.
+
 ## Blockers and boundaries
 
 - Historical and possibly current Cloud deadline/XRUN excursions require attributed
@@ -197,6 +213,11 @@ project fingerprints. Interrupted pending journal uses RECOVER. Never delete the
 journal to force another update. If no healthy runtime returns, retain evidence
 and use the documented previous configuration/runtime with its matching project.
 No promise that old binaries execute new semantics merely because schema stays 7.
+
+For live input, set Instrument OUT to the desired channel. PHRASE ORIGINAL is
+independent: it preserves recorded channels and does not inherit Instrument OUT.
+For a phrase recorded on CH1 that should play the CH2 synth, explicitly select
+PHRASE CH2. MOVEMENT uses its own explicit channel; no Instrument OUT ALL.
 
 First V4 acceptance after review: one MBMF source into three independent synth
 channels 2/3/4 through Oram; physical overlap/sustain/STOP/PANIC/ALL output; save,

@@ -15,11 +15,23 @@ try:
    if not os.environ.get('SCREENSHOT_RECOVERY_DIR'):return
    sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'scripts'))
    from screenshots import AUDIT,verify_png
-   if selector:page.locator(selector).first.evaluate("e=>e.scrollIntoView({block:'start'})")
-   errors=page.evaluate(AUDIT);assert not errors,errors
-   output=Path(os.environ['SCREENSHOT_RECOVERY_DIR']);output.mkdir(parents=True,exist_ok=True)
-   path=output/f'{name}-1904x1032.png';page.evaluate('() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');page.evaluate('document.fonts.ready');page.screenshot(animations='disabled');page.wait_for_timeout(80);page.screenshot(path=str(path),animations='disabled');verify_png(path,1904,1032)
-   evidence.append(dict(view=name,viewport=[1904,1032],file=path.name,checks=[]))
+   # Capture one actually observed frame. Native MIDI continues; only this
+   # browser's observation handler is suspended during scroll/paint/capture.
+   # This is static evidence, not proof of glitch-free continuous rendering.
+   before_capture=api.call()['sampleClock']
+   page.evaluate("() => {window.__captureTelemetry={socket:ws,handler:ws?.onmessage};if(ws)ws.onmessage=null;}")
+   try:
+    if selector:page.locator(selector).first.evaluate("e=>e.scrollIntoView({block:'start'})")
+    errors=page.evaluate(AUDIT);assert not errors,errors
+    output=Path(os.environ['SCREENSHOT_RECOVERY_DIR']);output.mkdir(parents=True,exist_ok=True)
+    path=output/f'{name}-1904x1032.png'
+    page.evaluate('() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))')
+    page.evaluate('document.fonts.ready');page.screenshot(animations='disabled');page.wait_for_timeout(150)
+    page.screenshot(path=str(path),animations='disabled');verify_png(path,1904,1032)
+   finally:
+    page.evaluate("() => {const saved=window.__captureTelemetry;if(saved.socket)saved.socket.onmessage=saved.handler;delete window.__captureTelemetry;}")
+   after_capture=api.call()['sampleClock'];assert after_capture>before_capture,'static capture must not pause native execution'
+   evidence.append(dict(view=name,viewport=[1904,1032],file=path.name,checks=[],nativeClockAdvanced=True,capture='Actual observed native state; browser telemetry briefly suspended for static capture, engine continues'))
   panel=page.locator('[data-instrument-id="1"]');panel.get_by_label('Transformer type for Instrument 1',exact=True).select_option('5');panel.get_by_role('button',name='ADD TRANSFORMER',exact=True).click()
   panel.locator('.module').last.get_by_role('button',name='EDIT',exact=True).click()
   page.get_by_role('button',name='ARP ENABLED',exact=True).click()

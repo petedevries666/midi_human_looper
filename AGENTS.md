@@ -33,6 +33,11 @@ instrument chains. Chromium uses software rendering (`--disable-gpu`) and waits
 for paint completion before capture: Cloud GPU rasterization can otherwise leave
 partially painted PNGs even when DOM checks pass. Inspect the images themselves.
 The metadata identifies demo and recovery fixture provenance separately.
+Recovery PNGs capture one actually observed native state: only the browser's
+telemetry handler is briefly suspended during screenshot scroll/paint and restored
+in `finally`. The native clock must advance. No musical state/DOM values are
+invented. These static images do not qualify continuous live repaint: incomplete
+Cloud Chromium painting was observed and remains a separate visual risk.
 
 ## Codex Cloud setup
 

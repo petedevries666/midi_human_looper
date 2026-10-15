@@ -30,15 +30,23 @@ with tempfile.TemporaryDirectory(prefix='mbmf-m0-jack-') as tmp:
             # Long ONCE sources coexist; short HOLD retains past source Note Off.
             length=30 if mode==1 else 2
             cmd(op=35,target=p,arg=1,phrase=dict(lengthSeconds=length,events=[[0,144,pitch,100],[length-.5,128,pitch,0]]))
+        groups=bool(os.environ.get('M1_GROUP_TEST'))
+        if groups:
+            import conductor
+            state=c.request();patch=c.request(op=4,revision=state['revision'],session=state['engineSessionId'])
+            model=conductor.with_mute_groups(conductor.migrate(patch))
+            for source in model['sources'][:2]:source['muteGroup']=7
+            patch['conductor']=conductor.encode(model)
+            cmd(op=5,target=7,patch=patch)
         probe=subprocess.Popen([env['CONDUCTOR_JACK_PROBE']],env=env,stdin=subprocess.PIPE,stdout=subprocess.PIPE,text=True)
         assert probe.stdout.readline().strip()=='READY'
         cmd(op=6,target=0);time.sleep(.4)
         cmd(op=6,target=1);time.sleep(.4)
-        assert len(c.request()['instances'])==2,'ONCE sources must coexist'
+        assert len(c.request()['instances'])==(1 if groups else 2),'ONCE sources coexist unless same-group admission stops the old source'
         cmd(op=6,target=2);time.sleep(2.5)
-        assert len(c.request()['instances'])==3,'HOLD retained after source end'
+        assert len(c.request()['instances'])==(2 if groups else 3),'HOLD retained after source end'
         cmd(op=6,target=2);time.sleep(.4)
-        assert len(c.request()['instances'])==3,'HOLD retrigger replaces its own occurrence'
+        assert len(c.request()['instances'])==(2 if groups else 3),'HOLD retrigger replaces its own occurrence'
         print('M0 before LOOP',json.dumps(c.request()['phrases'][3]),flush=True)
         cmd(op=6,target=3);time.sleep(.4)
         print('M0 first LOOP',json.dumps(c.request()['phrases'][3]),flush=True)
@@ -52,6 +60,8 @@ with tempfile.TemporaryDirectory(prefix='mbmf-m0-jack-') as tmp:
         musical=[e[2:] for e in trace if e[2]&240 in (128,144)]
         print('M0 JACK actual note trace:',json.dumps(musical),flush=True)
         assert [e[1] for e in musical if e[0]&240==144 and e[2]>0]==[60,62,64,64,65],musical
+        if groups:
+            assert musical[:3]==[[144,60,100],[128,60,0],[144,62,100]],musical
         hold=[e for e in musical if e[1]==64]
         assert hold[:3]==[[144,64,100],[128,64,0],[144,64,100]],hold
         loop=[e for e in musical if e[1]==65]
@@ -59,7 +69,7 @@ with tempfile.TemporaryDirectory(prefix='mbmf-m0-jack-') as tmp:
         assert any(e[2]&240==176 and e[3] in (120,123) for e in trace),'PANIC must emit receiver cleanup'
         # Chronology checked as observed; never sorted or filtered into order.
         assert all(a[0]+a[1]<=b[0]+b[1] for a,b in zip(trace,trace[1:])),trace
-        print('PASS M0 actual JACK: ONCE overlap, latched HOLD/retrigger, LOOP toggle, PANIC; 48k/8192 Cloud dummy backend')
+        print(('M1 source group ON' if groups else 'M0 source groups OFF')+' PASS actual JACK: ONCE overlap, latched HOLD/retrigger, LOOP toggle, PANIC; 48k/8192 Cloud dummy backend')
     finally:
         if probe is not None:probe.terminate();probe.communicate(timeout=5)
         for process in (engine,jack):

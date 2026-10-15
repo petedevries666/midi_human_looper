@@ -937,6 +937,12 @@ static void control(int listener, Queue<Request, 64> &commands,
     auto prepared=movement::prepare(bytes);
     auto cells=conductor::compile(bytes,base,owners,prepared.blocks);
     movements.install(std::move(prepared));
+    std::array<unsigned,16> groups{};
+    if(!bytes.empty()){auto sourceDocument=conductor::document(bytes);
+      for(const auto& source:sourceDocument.at("sources").array)
+        if(source.object.count("muteGroup"))groups[unsigned(source.at("slot").number)-1]=unsigned(source.at("muteGroup").number);
+    }
+    for(unsigned i=0;i<16;++i)*cell(patch.fx,unsigned(variable(patch.fx,"PHRASE_GROUP_BASE"))+i)=groups[i];
     // Touch/resolve every cell on the worker while processing is paused.
     for(unsigned i=0;i<cells.size();++i)*cell(patch.fx,base+i)=cells[i];
     *NSEEL_VM_regvar(patch.fx->vm.get(),"conductor_host_enabled")=1;

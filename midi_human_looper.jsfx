@@ -338,6 +338,7 @@ instance_init_page=INSTANCE_BASE;loop(ceil((INSTANCE_STORAGE_END-INSTANCE_BASE)/
  mem[instance_init_page]=0;instance_init_page+=65536;);
 instance_output_fault=0;instance_output_open=0;instance_serial=0;instance_last_source=-1;instance_repeat=0;instance_rejected=0;instance_error=0;instance_route_record=-1;
 CONDUCTOR_BASE=ceil((INSTANCE_STORAGE_END+65536)/65536)*65536;
+PHRASE_GROUP_BASE=CONDUCTOR_BASE-16; // native source metadata, outside frozen patch payload
 conductor_host_enabled=0;conductor_release_mask=0;
 function instance_header(v) (INSTANCE_BASE+v*INSTANCE_HEADER;);
 function instance_row(v,r) (INSTANCE_POOL_BASE+(v*INSTANCE_ROWS+r)*INSTANCE_ROW;);
@@ -2344,14 +2345,28 @@ function phrase_toggle_stop(layer,offs) local(j)
   layer==last_trigger_layer?last_trigger_layer=-1;
 );
 
+// Source-only native MUTE GROUP. Called only after new admission is reserved.
+// At most the existing sixteen source slots and twelve owned voices are visited.
+function phrase_group_admit(layer,offs)
+local(g,other)
+(
+ native_phrase_contract && mem[PHRASE_GROUP_BASE+layer]>0?(
+  g=mem[PHRASE_GROUP_BASE+layer];other=0;loop(LAYERS,
+   other!=layer && mem[PHRASE_GROUP_BASE+other]==g && (mem[TRIG_BASE+other]>.5 || phrase_playing(other))?(
+    mem[MODE_BASE+other]<.5?free_loop_stop_at(other,offs):phrase_toggle_stop(other,offs);
+   );other+=1;
+  );
+ );
+);
+
 // One direct-source LOOP policy shared by native PLAY, learned MIDI and switches.
 // Conductor independent LOOP admissions do not pass through this toggle.
 function phrase_loop_source_trigger(layer,offs)
 (
  native_phrase_contract && mem[TRIG_BASE+layer]>.5 ? free_loop_stop_at(layer,offs) : (
-  loop_len_samples>0?(
+  native_phrase_contract && mem[PHRASE_GROUP_BASE+layer]>0 && !instance_poly_routes()?(instance_error=3;instance_rejected+=1;free_play_error=layer+1;):loop_len_samples>0?(
    native_free_time?(mem[FREE_LOOP_ANCHOR_BASE+layer]=play_sample_pos+offs;mem[FREE_FINISHED_BASE+layer]=0;);
-   mem[TRIG_BASE+layer]=1;state=STATE_PLAYING;
+   mem[TRIG_BASE+layer]=1;state=STATE_PLAYING;phrase_group_admit(layer,offs);
   );
  );
 );
@@ -2388,7 +2403,7 @@ trigger_request>=0 ? (
   requested_layer=trigger_request;
   trigger_request=-1;
   held=native_hold_enabled && mem[MODE_BASE+requested_layer]==2;
-  safe=instance_poly_routes();native_conflict=0;native_phrase_contract && !safe?(vi=0;loop(MAX_ONCE_VOICES,mem[VOICE_ACTIVE_BASE+vi]>.5?native_conflict=1;vi+=1;););
+  safe=instance_poly_routes();native_conflict=native_phrase_contract && mem[PHRASE_GROUP_BASE+requested_layer]>0 && !safe;native_phrase_contract && !safe?(vi=0;loop(MAX_ONCE_VOICES,mem[VOICE_ACTIVE_BASE+vi]>.5?native_conflict=1;vi+=1;););
   phrase_output_policy(requested_layer)==17 && !safe?(instance_error=3;instance_rejected+=1;) : (
   instance_serial>=9007199254740990 ? (instance_error=5;instance_rejected+=1;) : (
   !(instance_independent_request && (!safe || layer_count(requested_layer)<=0 || mem[LEN_BASE+requested_layer]<=0 ||
@@ -2448,6 +2463,7 @@ trigger_request>=0 ? (
   mem[VOICE_POS_BASE+voice_slot]=-max(0,min(samplesblock-1,start_offset));
   mem[VOICE_TIME_BASE+voice_slot]=instance_time;
   mem[VOICE_GAIN_BASE+voice_slot]=instance_gain;
+  phrase_group_admit(requested_layer,start_offset);
   mem[MODE_BASE+requested_layer]>=1.5 ? mem[HOLD_ACTIVE_BASE+requested_layer]=1;
   held && !instance_independent_request?phrase_render_voice(voice_slot,0,1);
   );

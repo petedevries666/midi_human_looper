@@ -18,6 +18,7 @@ if [[ "${RUN_JACK_TESTS:-0}" == 1 ]];then
   CONDUCTOR_JACK_PROBE="$test_dir/conductor-probe" "${TEST_PYTHON:-python3}" tests/test_conductor_execution_jack.py
   c++ -std=c++11 -O2 -DMBMF_TEST_ACYCLIC tests/conductor_jack.cpp "${jack_flags[@]}" -lpthread -o "$test_dir/m0-probe"
   CONDUCTOR_JACK_PROBE="$test_dir/m0-probe" "${TEST_PYTHON:-python3}" tests/test_m0_playback_jack.py
+  M1_GROUP_TEST=1 CONDUCTOR_JACK_PROBE="$test_dir/m0-probe" "${TEST_PYTHON:-python3}" tests/test_m0_playback_jack.py
   if [[ "${RUN_CHAIN_BROWSER:-0}" == 1 ]];then CONDUCTOR_JACK_PROBE="$test_dir/conductor-probe" "${TEST_PYTHON:-python3}" tests/test_conductor_editor_jack.py;fi
   c++ -std=c++11 -O2 tests/zynthian_chain_jack.cpp "${jack_flags[@]}" -lpthread -o "$test_dir/chain-probe"
   CHAIN_JACK_PROBE="$test_dir/chain-probe" "${TEST_PYTHON:-python3}" tests/test_instance_ownership_jack.py

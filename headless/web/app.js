@@ -383,7 +383,8 @@ $('panic').addEventListener('click',()=>command({action:'panic'}));
 $('connect').addEventListener('click',()=>{clearTimeout(reconnect);loadDescriptors();refresh();connectStream();});
 $('clear-patch').onclick=async()=>{if(confirm('Clear the current MBMF patch, including phrases, Controllers, Smart Switch configuration and MBMF snapshots? Saved files and other Zynthian chains stay unchanged.')){if(await command({action:'patch_clear',confirm:true})){renderedModel='';renderedSnapshots='';render(latest);$('patch-status').textContent='CLEARED · SAVE to keep this patch';}}};
 $('save-patch').addEventListener('click',()=>patch('save'));$('load-patch').addEventListener('click',()=>patch('load'));
-loadDescriptors();refresh();connectStream();setInterval(()=>{if(!pending&&(!ws||ws.readyState!==WebSocket.OPEN))refresh();},1000);
+// All deferred editors must exist before the first API/WS observation renders.
+document.addEventListener('DOMContentLoaded',()=>{loadDescriptors();refresh();connectStream();setInterval(()=>{if(!pending&&(!ws||ws.readyState!==WebSocket.OPEN))refresh();},1000);},{once:true});
 window.addEventListener('blur',()=>window.mbmfHeldRelease?.());
 document.addEventListener('visibilitychange',()=>{if(document.hidden)window.mbmfHeldRelease?.();});
 // Browser timers only refresh telemetry; they never schedule MIDI.
@@ -518,6 +519,16 @@ function phraseOptions(phraseId){
   output.value=latest.phrases.find(p=>p.id===phraseId)?.outputChannel??0;
   output.onchange=async()=>{if(committing)return;committing=true;output.disabled=true;try{if(!await command({action:'phrase_output',phraseId,channel:Number(output.value)}))output.value=latest.phrases.find(p=>p.id===phraseId)?.outputChannel??0;}finally{committing=false;output.disabled=false;}};
   outputWrap.append(output);content.append(outputWrap);
+  const groupRow=node('label','MUTE GROUP','inline-control'),group=node('input');group.type='number';group.min=0;group.max=16777215;group.step=1;group.value=0;group.disabled=true;group.setAttribute('aria-label',`MUTE GROUP Phrase ${phraseId}`);group.title='0 = independent; sources in the same group stop one another';
+  let groupLoaded=null;
+  const groupSave=button('SET GROUP',async()=>{
+    if(committing||!groupLoaded)return;
+    const value=Number(group.value);if(!Number.isInteger(value)||value<0||value>16777215){error.textContent='MUTE GROUP: integer 0–16777215';return;}
+    committing=true;groupSave.disabled=group.disabled=true;
+    try{const model=upgradeMovementModel(groupLoaded.model);model.version=3;for(const source of model.sources)source.muteGroup??=0;const source=model.sources.find(s=>s.slot===phraseId);if(!source)throw new Error('Missing source identity; preserved');source.muteGroup=value;groupLoaded=await saveMovementModel(model,groupLoaded);error.textContent='GROUP SAVED';}
+    catch(e){error.textContent=e.message+' · STOP and reopen before saving';}finally{committing=false;groupSave.disabled=group.disabled=false;}
+  });groupSave.disabled=true;groupRow.append(group,groupSave);content.append(groupRow);
+  request('/api/v1/conductor').then(loaded=>{if(!dialog.open)return;groupLoaded=loaded;group.value=loaded.model?.sources.find(s=>s.slot===phraseId)?.muteGroup||0;group.disabled=groupSave.disabled=false;}).catch(e=>{error.textContent=e.message;});
   const file=node('input');file.type='file';file.accept='.mid,.midi,audio/midi';file.setAttribute('aria-label','MIDI file');
   content.append(button('IMPORT MIDI',()=>file.click()),file,button('EXPORT MIDI',async()=>{
     try{

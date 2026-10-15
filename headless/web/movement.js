@@ -2,7 +2,7 @@
 // All authoring is a stopped native CAS transaction; drafts are never telemetry.
 let movementModel=null,movementRevision=-1,movementSession=0,movementLoading=false;
 function movementUUID(){const b=crypto.getRandomValues(new Uint8Array(16));b[6]=(b[6]&15)|64;b[8]=(b[8]&63)|128;const h=[...b].map(x=>x.toString(16).padStart(2,'0')).join('');return `${h.slice(0,8)}-${h.slice(8,12)}-${h.slice(12,16)}-${h.slice(16,20)}-${h.slice(20)}`;}
-function upgradeMovementModel(model){const m=model?structuredClone(model):{version:1,sources:latest.phrases.map(p=>({id:movementUUID(),type:'PHRASE',slot:p.id})),switches:[]};m.version=2;m.movements??=[];m.ccRate??=25;return m;}
+function upgradeMovementModel(model){const m=model?structuredClone(model):{version:1,sources:latest.phrases.map(p=>({id:movementUUID(),type:'PHRASE',slot:p.id})),switches:[]};m.version=Math.max(2,m.version);m.movements??=[];m.ccRate??=25;return m;}
 async function saveMovementModel(model,loaded){
  if(engineSession!==loaded.engineSessionId)throw new Error('Engine changed; reopen');
  render(await request('/api/v1/command',{protocolVersion:1,expectedRevision:loaded.revision,expectedEngineSessionId:loaded.engineSessionId,action:'conductor_commit',conductor:model}));

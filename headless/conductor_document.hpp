@@ -78,14 +78,15 @@ inline void destination(const Value &v){
 inline bool validDocument(const std::vector<unsigned> &bytes){
   try {
     std::string s; s.reserve(bytes.size());for(auto c:bytes)s+=char(c);
-    Parser p(s);auto root=p.value();require(p.pos==s.size());require(integer(root.at("version"),1,2));
-    bool movementVersion=root.at("version").number==2;
+    Parser p(s);auto root=p.value();require(p.pos==s.size());require(integer(root.at("version"),1,3));
+    bool groupVersion=root.at("version").number==3;
+    bool movementVersion=root.at("version").number>=2;
     if(movementVersion)fields(root,{"version","sources","switches","movements","ccRate"});
     else fields(root,{"version","sources","switches"});
     std::set<std::string> ids,sources,movements;std::set<unsigned> slots,switchIds;
     auto unique=[&](const Value &v){require(ids.insert(uuid(v)).second);};
     const auto &src=root.at("sources");require(src.type=='a');
-    for(const auto &v:src.array){fields(v,{"id","type","slot"});unique(v.at("id"));require(choice(v.at("type"),{"PHRASE"})&&integer(v.at("slot"),1,16)&&slots.insert(unsigned(v.at("slot").number)).second);sources.insert(uuid(v.at("id")));}
+    for(const auto &v:src.array){if(groupVersion){fields(v,{"id","type","slot","muteGroup"});require(integer(v.at("muteGroup"),0,16777215));}else fields(v,{"id","type","slot"});unique(v.at("id"));require(choice(v.at("type"),{"PHRASE"})&&integer(v.at("slot"),1,16)&&slots.insert(unsigned(v.at("slot").number)).second);sources.insert(uuid(v.at("id")));}
     if(movementVersion){
       const auto &rate=root.at("ccRate");require(integer(rate,10,100)&&(rate.number==10||rate.number==25||rate.number==50||rate.number==100));
       const auto &library=root.at("movements");require(library.type=='a');

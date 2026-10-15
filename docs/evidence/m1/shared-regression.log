@@ -1,0 +1,11 @@
+CONDUCTOR EEL PRESS trace [[144,48,100],[144,52,100],[144,56,100],[144,60,100],[144,48,100]]
+CONDUCTOR COST {"layers":1,"blocks":100,"frames":128,"medianUs":34.862,"p95Us":51.605,"maxUs":168.196}
+CONDUCTOR COST {"layers":2,"blocks":100,"frames":128,"medianUs":38.428,"p95Us":181.295,"maxUs":279.818}
+CONDUCTOR COST {"layers":12,"blocks":100,"frames":128,"medianUs":59.267,"p95Us":111.054,"maxUs":235.669}
+PASS actual CONDUCTOR shared EEL checks: 125
+OUTPUT CAPACITY attempted=5120 accepted=4369 owned=4369 error=6 panic=1
+PASS instance ownership actual EEL checks: 6824
+concurrent fixed-state frames: 1 distinct hashes
+concurrent fixed-state frames: 1 distinct hashes
+concurrent fixed-state frames: 1 distinct hashes
+PASS: 18508 EEL2/GUI/MIDI checks

@@ -32,7 +32,7 @@ struct Prepared {
 inline Prepared prepare(const std::vector<unsigned>& bytes) {
   Prepared out;if(bytes.empty())return out;
   std::string text;for(auto c:bytes)text+=char(c);conductor::Parser parser(text);auto root=parser.value();
-  if(root.at("version").number!=2)return out;
+  if(root.at("version").number<2)return out;
   out.rate=unsigned(root.at("ccRate").number);
   std::map<std::string,unsigned> sources;
   auto target=[](Definition& d,const conductor::Value& t){

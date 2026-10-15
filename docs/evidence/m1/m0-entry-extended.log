@@ -1,0 +1,7 @@
+M0 learned MIDI ONCE second PRESS=[[144,72,83]]
+M0 learned MIDI HOLD second PRESS=[[128,48,0],[144,48,91]]
+M0 Smart Switch ONCE second PRESS=[[144,72,83]]
+M0 Smart Switch HOLD second PRESS=[[128,48,0],[144,48,91]]
+M0 learned MIDI LOOP second PRESS=[[128,48,0]]
+M0 Smart Switch LOOP second PRESS=[[128,48,0]]
+PASS: 100 M0 entry MIDI checks

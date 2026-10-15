@@ -65,6 +65,17 @@ static void m0_latched_hold_tests(const char *source) {
 }
 
 static void m0_entry_tests(const char *source) {
+  for(bool smart:{false,true})for(int mode:{1,2}) {
+    Host h(source);conductor_fixture(h);ChainMode chain(h.f,true,2);
+    h.run("mem[PHRASE_NOTE_BASE]=111;mem[PHRASE_NOTE_BASE+1]=112;mem[learn_phrase_channel(0)]=1;mem[learn_phrase_channel(1)]=1;mem[MODE_BASE]="+std::to_string(mode)+";mem[MODE_BASE+1]="+std::to_string(mode)+";mem[sw_cfg(0)+11]="+std::to_string(mode==2?1:2)+";");
+    const int firstNote=smart?110:111,secondNote=smart?110:mode==2?111:112;
+    h.midi(144,firstNote,127);check(conductor_count(h.events(),144,48)==1,"M0 learned/switch ONCE or HOLD real first attack");
+    h.midi(128,firstNote,0);auto release=h.events();check(conductor_count(release,128,48)==0,"M0 learned/switch RELEASE never ends ONCE or latched HOLD");
+    h.midi(144,secondNote,127);auto output=h.events();
+    printf("M0 %s %s second PRESS=%s\n",smart?"Smart Switch":"learned MIDI",mode==1?"ONCE":"HOLD",conductor_events(output).c_str());
+    if(mode==1){check(conductor_active(h)==2 && conductor_count(output,144,72)==1 && conductor_count(output,128,48)==0,"M0 native learned/switch ONCE overlaps sources");}
+    else{check(conductor_active(h)==1 && conductor_count(output,128,48)==1 && conductor_count(output,144,48)==1,"M0 native learned/switch HOLD cuts and retriggers");}
+  }
   {
     Host h(source);conductor_fixture(h);ChainMode chain(h.f,true,2);
     h.run("snap_host_enabled=1;snap_parameter_apply(0,0,0,20,0);");h.block();h.events();
@@ -102,5 +113,56 @@ static void m0_entry_tests(const char *source) {
     check(chain.command(1,1),"M0 thirteenth reaches authoritative DSP admission");h.block();auto e=h.events();
     check(e.empty() && conductor_active(h)==12,"M0 thirteenth emits neither attack nor destructive release");
     h.eq("instance_error",2,"M0 native saturation explicitly diagnosed");
+  }
+}
+
+static void m1_group_tests(const char *source) {
+  {
+    Host h(source);conductor_fixture(h);ChainMode chain(h.f,true,2);
+    h.run("mem[PHRASE_GROUP_BASE]=7;mem[PHRASE_GROUP_BASE+1]=7;mem[MODE_BASE]=0;loop_len_samples=8192;");
+    check(chain.command(1,0),"M1 grouped LOOP command queued");h.block();check(conductor_count(h.events(),144,48)==1,"M1 grouped LOOP attack");
+    check(chain.command(1,1),"M1 ONCE replacing LOOP queued");h.block();auto e=h.events();
+    check(conductor_count(e,128,48)==1 && conductor_count(e,144,72)==1,"M1 ONCE releases only old grouped LOOP");h.eq("mem[TRIG_BASE]",0,"M1 old LOOP stays stopped");
+    check(chain.command(1,0),"M1 LOOP replacing ONCE queued");h.block();e=h.events();
+    check(conductor_count(e,128,72)==1 && conductor_count(e,144,48)==1 && conductor_active(h)==0,"M1 LOOP releases old ONCE then attacks");
+  }
+  {
+    Host h(source);conductor_fixture(h);ChainMode chain(h.f,true,2);
+    h.run("mem[PHRASE_GROUP_BASE]=7;mem[INST_TRANSFORM_COUNT_BASE]=1;mem[INST_TRANSFORM_TYPE_BASE]=3;mem[INST_NOTE_MODE_BASE]=1;");
+    check(chain.command(1,0),"M1 unsafe grouped source request queued");h.block();auto e=h.events();
+    check(conductor_active(h)==0 && conductor_count(e,144,48)==0,"M1 grouped mono source cleanly refused before attack");h.eq("instance_error",3,"M1 unsafe group routing diagnosed");
+  }
+  {
+    Host h(source);conductor_fixture(h);ChainMode chain(h.f,true,2);
+    h.run("mem[PHRASE_GROUP_BASE]=7;mem[PHRASE_GROUP_BASE+1]=7;mem[PHRASE_GROUP_BASE+2]=8;clear_layer(2);store_event(2,0,144,80,99,0);store_event(2,4096,128,80,0,0);mem[LEN_BASE+2]=8192;mem[MODE_BASE+2]=1;");
+    h.midi(176,64,127);h.events();h.midi(144,48,110);h.events();
+    check(chain.command(1,0),"M1 first group source accepted");h.block();h.events();
+    check(chain.command(1,2),"M1 unrelated group accepted");h.block();h.events();
+    check(chain.command(1,1),"M1 replacement group source accepted");h.block();auto events=h.events();
+    printf("M1 group replacement actual MIDI=%s active=%d\n",conductor_events(events).c_str(),conductor_active(h));
+    check(conductor_active(h)==2,"M1 same-group old owner stops; unrelated group remains");
+    for(const auto& event:events)check(!((event[0]&240)==176 && (event[1]>=120 || (event[1]==64 && event[2]==0))),"M1 group replacement never clears physical sustain or sends channel panic");
+    check(conductor_count(events,144,72)==1 && conductor_count(events,128,48)==0 && conductor_count(events,128,80)==0,"M1 physical shared pitch and unrelated phrase never released");
+    h.midi(128,48,0);check(conductor_count(h.events(),128,48)==1,"M1 physical owner still has exact release");
+  }
+  {
+    Host h(source);conductor_fixture(h);ChainMode chain(h.f,true,2);
+    h.run("mem[PHRASE_GROUP_BASE]=5;mem[PHRASE_GROUP_BASE+1]=5;");
+    for(int i=0;i<12;++i){check(chain.command(1,0),"M1 same source allows independent occurrences");h.block();h.events();}
+    check(chain.command(1,1),"M1 saturated request reaches native admission");h.block();auto e=h.events();
+    check(conductor_active(h)==12 && e.empty(),"M1 capacity refusal cannot stop old group before reserving new admission");
+    h.eq("instance_error",2,"M1 saturation retains explicit diagnostic");
+  }
+  {
+    auto bytes=conductor_model(2);std::string text(bytes.begin(),bytes.end());
+    text.replace(text.find("\"version\":1"),11,"\"version\":3");
+    for(unsigned i=1;i<=4;++i){const std::string needle="\"slot\":"+std::to_string(i);auto pos=text.find(needle);text.insert(pos+needle.size(),",\"muteGroup\":7");}
+    text.insert(text.size()-1,",\"movements\":[],\"ccRate\":25");bytes.assign(text.begin(),text.end());
+    check(conductor::validDocument(bytes),"M1 real validator accepts explicit version 3");
+    Host h(source);conductor_fixture(h);ChainMode chain(h.f,true,2);h.run("mem[PHRASE_GROUP_BASE]=7;mem[PHRASE_GROUP_BASE+1]=7;");
+    conductor_install(h,bytes);h.midi(144,110,100);auto e=h.events();
+    check(conductor_count(e,144,48)==1 && conductor_count(e,144,72)==0,"M1 intra-STEP smallest PHRASE ID wins");
+    h.midi(128,110,0);h.events();h.midi(144,110,100);e=h.events();
+    check(conductor_count(e,144,72)==1,"M1 next STEP min source is recomputed independently");
   }
 }

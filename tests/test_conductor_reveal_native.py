@@ -14,7 +14,10 @@ class Reveal(Gestures):
         self.reveal['overrides']['entry']=dict(mode='OVERRIDE',value='REVEAL')
         # Separate actual recorded destinations, not an instrument OUT mutation.
         state=self.call()
-        self.c.request(op=35,target=1,arg=1,phrase=dict(lengthSeconds=30,events=[[0,145,72,100],[29,129,72,0]]),revision=state['revision'],session=state['engineSessionId'])
+        result=self.c.request(op=35,target=1,arg=1,phrase=dict(lengthSeconds=30,events=[[0,145,72,100],[29,129,72,0]]),revision=state['revision'],session=state['engineSessionId'])
+        self.assertEqual(result['status'],'ok')
+        # End a physical pedal gesture left held by the preceding test.
+        self.up()
 
     def test_reveal_latch_and_early_release(self):
         self.commit();self.down()
@@ -71,7 +74,7 @@ class Reveal(Gestures):
         self.assertEqual(self.call()['switches'][0]['conductor']['result'],3)
         self.up();self.command('panic')
         missing=self.reveal['sourceId'];self.model['sources']=[s for s in self.model['sources'] if s['id']!=missing]
-        self.commit();self.down();time.sleep(.3)
+        self.commit();self.command('test',switchId=1);time.sleep(.3)
         self.assertEqual([v['phraseId'] for v in self.call()['instances']],[1])
         self.assertFalse(self.call()['reveals'])
         self.assertEqual(self.call()['switches'][0]['conductor']['missing'],1)

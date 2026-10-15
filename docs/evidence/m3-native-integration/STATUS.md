@@ -18,7 +18,9 @@
 6. Added change-of-keyboard-selection restoration to avoid stale native exclusions.
 7. Updated original native firewall tests to isolate their own opt-in mocks, while exclusive opt-in and fail-closed behavior are tested separately.
 8. Extended exclusive policy tests for native matrix note propagation, internal sequencer return, 2 new quarantine/restore behaviors, configuration retarget and idempotent refresh.
-9. Added focused GitHub Actions Python test workflow on PR branch, but **GitHub reports no workflow runs yet**.
+9. Added focused GitHub Actions Python test workflow and expanded it to installer/legacy routing suites. Final green Actions run 38789501210 completed with 67 / 67 tests passing on Ubuntu/Python 3.11 (4 + 7 + 14 + 30 + 7 + 5).
+10. The runner initially detected a genuine fail-closed bug on malformed JSON (`requested` was unbound in the catch path). It was fixed, and tests were re-run green. The failure log is retained in Actions run 38789108763.
+11. Added `scripts/zynthian-m3-safe-smoke.py`, an optional bounded native-output MIDI/XRUN checker with emergency JACK disconnect for hardware acceptance. Python source compilation passed in CI.
 
 ## Risks and current status
 
@@ -28,7 +30,7 @@
 - Previous #83 source guard alone passed idle but REC still ERROR/chopped.
 - With MB output disconnected, REC + FINISH succeeded and PLAY advanced silently; keyboard remained audible due native direct hardware bypass.
 
-A good Python mocked matrix is **not** a real ZynMidiRouter/Oram qualification. Readback setter wrappers may behave differently on hardware; test on user's installed Oram before merge. Precise source of REC loop remains unproven; `zynsmf` internal return is a plausible additional path, NOT a confirmed culprit. Installed `install.json` has not been edited and the Pi is unchanged.
+A successful GitHub CI simulated matrix is **not** a real ZynMidiRouter/Oram qualification. Readback setter wrappers may behave differently on hardware; test on user's installed Oram before merge. Precise source of REC loop remains unproven; `zynsmf` internal return is a plausible additional path, NOT a confirmed culprit. Installed `install.json` has not been edited and the Pi is unchanged.
 
 ## Tests
 
@@ -39,7 +41,7 @@ python3 tests/test_zynthian_feedback_guard.py -v
 python3 tests/test_zynthian_exclusive_input.py -v
 ```
 
-All 3 test modules are Python stdlib-only with mocked native lib API. **Execution in a real Python checkout has not been observed in this session.** A GitHub Actions workflow was committed; no run results available at this checkpoint. Do not mark PASS until a runner log shows 0 failures.
+All 3 router test modules use stdlib-only mocked native lib API. **GitHub Actions run 38789501210 succeeded** at commit `e0a4cd8c5eca4978d259cc28fe69ea4f431e3fbb`: 25 focused native routing tests, 30 managed installer tests, and 12 legacy adapter/routing tests = **67 PASS**. The compile step also covered the hardware smoke monitor. Source tests run on GitHub-hosted x86 Ubuntu, not a Pi.
 
 Musical engine regression suites from #79-#82 were not reexecuted here: the integrated diff does not touch engine source or its tests, but an integrated-HEAD qualification is still required before merge.
 

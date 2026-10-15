@@ -65,6 +65,17 @@ static void m0_latched_hold_tests(const char *source) {
 }
 
 static void m0_entry_tests(const char *source) {
+  for(bool smart:{false,true})for(int mode:{1,2}) {
+    Host h(source);conductor_fixture(h);ChainMode chain(h.f,true,2);
+    h.run("mem[PHRASE_NOTE_BASE]=111;mem[PHRASE_NOTE_BASE+1]=112;mem[learn_phrase_channel(0)]=1;mem[learn_phrase_channel(1)]=1;mem[MODE_BASE]="+std::to_string(mode)+";mem[MODE_BASE+1]="+std::to_string(mode)+";mem[sw_cfg(0)+11]="+std::to_string(mode==2?1:2)+";");
+    const int firstNote=smart?110:111,secondNote=smart?110:mode==2?111:112;
+    h.midi(144,firstNote,127);check(conductor_count(h.events(),144,48)==1,"M0 learned/switch ONCE or HOLD real first attack");
+    h.midi(128,firstNote,0);auto release=h.events();check(conductor_count(release,128,48)==0,"M0 learned/switch RELEASE never ends ONCE or latched HOLD");
+    h.midi(144,secondNote,127);auto output=h.events();
+    printf("M0 %s %s second PRESS=%s\n",smart?"Smart Switch":"learned MIDI",mode==1?"ONCE":"HOLD",conductor_events(output).c_str());
+    if(mode==1){check(conductor_active(h)==2 && conductor_count(output,144,72)==1 && conductor_count(output,128,48)==0,"M0 native learned/switch ONCE overlaps sources");}
+    else{check(conductor_active(h)==1 && conductor_count(output,128,48)==1 && conductor_count(output,144,48)==1,"M0 native learned/switch HOLD cuts and retriggers");}
+  }
   {
     Host h(source);conductor_fixture(h);ChainMode chain(h.f,true,2);
     h.run("snap_host_enabled=1;snap_parameter_apply(0,0,0,20,0);");h.block();h.events();

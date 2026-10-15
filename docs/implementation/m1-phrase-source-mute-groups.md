@@ -49,7 +49,7 @@ convert it to an older document. No automatic installation is provided here.
 - `scripts/m0-playback-test.sh --m1-groups`: 64 real DSP MIDI checks, exit 0;
   targeted group release, physical shared pitch/sustain, unrelated group, LOOP ↔
   ONCE, smallest-ID winner, unsafe route refusal, capacity refusal.
-- M0 focused 114/17/51/56 checks and ownership 6698 pass; full shared regression
+- M0 focused 114/17/51 checks and extended 100 shared-entry checks and ownership 6698 pass; full shared regression
   **18,508 EEL checks**, exit 0. Frozen/default legacy behavior is exercised.
 - Actual private JACK / source / native / sink: `On60, Off60, On62`, then independent
   HOLD/retrigger and LOOP, PANIC, output overflow zero, observed chronology checked
@@ -59,6 +59,7 @@ convert it to an older document. No automatic installation is provided here.
   exit 0, zero diagnostic files with leak detection and abort-on-error enabled.
 - Existing persistence: 23 CONDUCTOR, 5 MOVEMENT, 20 extension-preservation tests;
   native CONDUCTOR 3 tests, all pass.
+- Exact committed engine `f743b9146c3820caba9e2da1716b0a9a106b5d0f` rebuilt successfully; four native group/bank/portable/fresh-engine tests rerun with exit 0. Supplemental tests then verified learned-MIDI and legacy-switch ONCE overlap and HOLD cut/retrigger, bringing shared-entry coverage to 100 checks. No production changes after that engine commit.
 - Actual Chromium: phrase options -> native playback -> save/load; warning refresh;
   stopped-load state. A deterministic delayed-script test also covers the startup
   bug found visually: telemetry previously called `paintConductorRuntime` before

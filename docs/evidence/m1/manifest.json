@@ -15,5 +15,7 @@
   "fullEelChecks": 18508,
   "m1MidiChecks": 64,
   "asanReports": 0,
-  "fullCombinedExecuted": false
+  "fullCombinedExecuted": false,
+  "engineCodeCommit": "f743b9146c3820caba9e2da1716b0a9a106b5d0f",
+  "extendedM0EntryChecks": 100
 }

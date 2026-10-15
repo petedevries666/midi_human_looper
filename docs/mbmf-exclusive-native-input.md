@@ -35,7 +35,10 @@ Optional field:
 ```
 
 The list contains **exact JACK input source port names**, not Zynthian chain
-IDs, MIDI channels, or synth engine names. Empty or missing means **off**.
+IDs, MIDI channels, or synth engine names. Empty or missing means **off**:
+**the MBMF virtual MIDI output is fail-closed (not attached to devN_in)**.
+A malformed JSON document or unrecognized keyboard port also blocks the
+virtual route. Native MIDI routes are not implicitly activated without opt-in.
 The listed source must exist in a native physical input slot. Invalid
 configuration or a missing named source **blocks the MBMF virtual output**,
 rather than connecting an unverified routing matrix.
@@ -94,6 +97,16 @@ Zynthian UI. A failed installation check must cause no writes.
 6. On MIDI storm or choppy audio, disconnect `mbh_1:midi_out` from its
    native `devN_in` and stop testing.
 
-**Current validation:** 10 focused exclusive-route Python mock tests and
-the prior 7 feedback-guard tests pass locally; **no Pi/ZynMidiRouter REC
-acceptance yet**. This remains DRAFT / DO NOT MERGE.
+**Current validation:** GitHub Actions run 38789501210 passed **67/67 tests**
+(14 exclusive-route, 7 feedback-guard, 4 channel-source, 30 installer, 7 adapter,
+5 legacy routing) and successfully compiled the safety smoke monitor.
+**No Pi/ZynMidiRouter REC acceptance yet.** This remains DRAFT / DO NOT MERGE.
+
+For supervised smoke testing after review, run:
+```sh
+python3 scripts/zynthian-m3-safe-smoke.py           # 2 seconds at idle
+python3 scripts/zynthian-m3-safe-smoke.py --seconds 15 # while playing/recording
+```
+The monitor NEVER reconnects a port; on MIDI storm, XRUN burst, chain ERROR,
+or status failure it executes an emergency `jack_disconnect` for the native
+virtual destination. It does not operate Zynthian's instrument/transport UI.

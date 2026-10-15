@@ -34,6 +34,14 @@ with tempfile.TemporaryDirectory(prefix='mbmf-reveal-jack-') as tmp:
    events=[[0,144|ch,pitch,100],[length-.5,128|ch,pitch,0]]
    if p==1:events=[[0,145,72,100],[.75,145,76,90],[10,129,72,0],[20,129,76,0]]
    cmd(op=35,target=p,arg=1,phrase=dict(lengthSeconds=length,events=events))
+  # The source owns sustain as well as notes. Use the validated legacy patch
+  # carrier because SMF import intentionally accepts notes only.
+  state=c.request();source_patch=c.request(op=4,revision=state['revision'],session=state['engineSessionId'])
+  source_events=[[0,177,64,127],[0,145,72,100],[.75,145,76,90],[10,129,72,0],[20,129,76,0],[29,177,64,0]]
+  for j,(seconds,st,n,value) in enumerate(source_events):
+   at=2048*5+j*5;source_patch['memory'][at:at+5]=[seconds*48000,st,n,value,0]
+  source_patch['memory'][16*2048*5+1]=len(source_events)
+  cmd(op=5,target=7,patch=source_patch)
   sw=c.request()['switches'][0]['settings'];sw[:4]=[1,1,0,110];sw[8]=250;cmd(op=41,target=1,settings=sw+[0]*64+[0]*16)
   s=c.request();p=c.request(op=4,revision=s['revision'],session=s['engineSessionId']);model=conductor.migrate(p)
   master=block(model['sources'][0]['id']);pad=block(model['sources'][1]['id']);pad['overrides'].update(trigger=dict(mode='OVERRIDE',value='HOLD'),entry=dict(mode='OVERRIDE',value='REVEAL'))
@@ -112,6 +120,9 @@ with tempfile.TemporaryDirectory(prefix='mbmf-reveal-jack-') as tmp:
    else:
     assert any(e[2:4]==[129,72] and e[0]==on[0] and e[1]==64 for e in trace),'short tap releases real hidden attack at RELEASE'
     assert not any(e[2]&240==128 and e[3]==48 and e[0]==on[0] and e[1]==64 for e in trace),'short RELEASE must leave bass playing'
+    release_cc=next(i for i,e in enumerate(trace) if e[2:]==[177,64,0] and e[0]==on[0] and e[1]==64)
+    restore_cc=next(i for i,e in enumerate(trace) if e[2:]==[177,7,127] and e[0]==on[0] and e[1]==64)
+    assert release_cc<restore_cc,'source-owned sustain must release before hidden volume is restored'
 
   # Gate second note remains at original 0.75 s after PRESS despite remasking.
   gate_pad=pads[2];gate_note=[e for e in notes if e[3]==76][1]

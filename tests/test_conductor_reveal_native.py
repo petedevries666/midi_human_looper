@@ -62,6 +62,23 @@ class Reveal(Gestures):
         self.assertEqual([v['phraseId'] for v in self.call()['instances']],[1])
         self.assertEqual(self.call()['outputOverflow'],0)
 
+    def test_twelve_instances_saturation_preserves_existing_owners(self):
+        self.commit()
+        for _ in range(6):
+            self.down()
+            self.wait_for(lambda:all(not v['requestedHidden'] for v in self.call()['reveals']),'physical HOLD before next gesture')
+            self.up()
+        before=[v['id'] for v in self.call()['instances']]
+        self.assertEqual(len(before),12)
+        self.command('test',switchId=1)
+        self.assertEqual(self.call()['switches'][0]['conductor']['result'],2)
+        self.assertEqual([v['id'] for v in self.call()['instances']],before,'capacity refusal must preserve all admitted owners')
+        self.command('panic')
+        self.assertFalse(self.call()['instances'])
+        self.assertFalse(self.call()['reveals'])
+        self.assertEqual(self.call()['activeNotes'],0)
+        self.assertEqual(self.call()['outputOverflow'],0)
+
     def test_source_cc7_refusal_and_missing_reference(self):
         # SMF import deliberately accepts notes only. Exercise the real legacy
         # patch loader for a source containing CC7; never ignore an import error.
@@ -83,5 +100,5 @@ class Reveal(Gestures):
         self.assertEqual(self.call()['switches'][0]['conductor']['missing'],1)
 
 if __name__=='__main__':
-    suite=unittest.TestSuite(Reveal(n) for n in ('test_reveal_latch_and_early_release','test_gate_remask_keeps_timeline_and_load_stopped','test_natural_end_and_original_all_channel_ownership','test_source_cc7_refusal_and_missing_reference'))
+    suite=unittest.TestSuite(Reveal(n) for n in ('test_reveal_latch_and_early_release','test_gate_remask_keeps_timeline_and_load_stopped','test_natural_end_and_original_all_channel_ownership','test_source_cc7_refusal_and_missing_reference','test_twelve_instances_saturation_preserves_existing_owners'))
     sys.exit(not unittest.TextTestRunner(verbosity=2).run(suite).wasSuccessful())

@@ -1,0 +1,33 @@
+headless/engine.cpp:190:35: warning: ignoring attributes on template argument ‘EEL_F*’ {aka ‘double*’} [-Wignored-attributes]
+  190 |   std::array<std::array<EEL_F*,128>,16> switchFields;
+      |                                   ^
+headless/engine.cpp:191:33: warning: ignoring attributes on template argument ‘EEL_F*’ {aka ‘double*’} [-Wignored-attributes]
+  191 |   std::array<std::array<EEL_F*,8>,16> conductorFields;
+      |                                 ^
+headless/engine.cpp:193:23: warning: ignoring attributes on template argument ‘EEL_F*’ {aka ‘double*’} [-Wignored-attributes]
+  193 |   std::array<EEL_F*,12> voiceActive,voiceLayer;
+      |                       ^
+headless/engine.cpp:194:23: warning: ignoring attributes on template argument ‘EEL_F*’ {aka ‘double*’} [-Wignored-attributes]
+  194 |   std::array<EEL_F*,16> phraseTriggers,phraseFinished;
+      |                       ^
+PASS bounded FIFO
+Built /workspace/mbmf-conductor-a/.build/midi-headless-engine-conductor-asan on x86_64 (64 bits)
+.......................
+----------------------------------------------------------------------
+Ran 23 tests in 27.542s
+
+OK
+test_steps_coexist_wrap_capacity_and_persistence (__main__.Execution.test_steps_coexist_wrap_capacity_and_persistence) ... ok
+test_layers_missing_and_unsupported_no_fallback (__main__.Execution.test_layers_missing_and_unsupported_no_fallback) ... ok
+test_local_hold_release_overrides_and_source_isolation (__main__.Execution.test_local_hold_release_overrides_and_source_isolation) ... ok
+
+----------------------------------------------------------------------
+Ran 3 tests in 7.090s
+
+OK
+.....
+----------------------------------------------------------------------
+Ran 5 tests in 6.776s
+
+OK
+Native sanitizer gate: functional exit=0, diagnostic files=0

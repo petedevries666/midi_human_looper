@@ -155,6 +155,11 @@ def run(output, performance=False):
                 page.get_by_label('TRIGGER inheritance',exact=True).select_option('OVERRIDE')
                 page.get_by_label('TRIGGER override',exact=True).select_option('HOLD')
                 capture('conductor-hold-trigger-editor','[aria-label="TRIGGER override"]')
+                page.get_by_label('ENTRY inheritance',exact=True).select_option('OVERRIDE')
+                page.get_by_label('ENTRY override',exact=True).select_option('REVEAL')
+                page.get_by_label('REL inheritance',exact=True).select_option('OVERRIDE')
+                page.get_by_label('REL override',exact=True).select_option('GATE')
+                capture('conductor-reveal-gate-editor','[aria-label="ENTRY override"]')
                 page.get_by_role('button',name='CANCEL',exact=True).click()
                 # Actual source authoring and native config, not a mock curve.
                 page.locator('#movement-section').evaluate('e=>e.open=true')
@@ -240,7 +245,7 @@ def run(output, performance=False):
             artifacts.extend(recovery['artifacts'])
             for artifact in recovery['artifacts']:artifact['runtimeBuildRevision']=recovery['runtimeBuildRevision'];artifact['data']=recovery['data']
         manifest=dict(browser=browser.version,sourceRevision=subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip(),sourceDirty=bool(subprocess.check_output(['git','status','--porcelain','--untracked-files=no'],cwd=ROOT,text=True).strip()),runtimeBuildRevision=api.call()['buildRevision'],application='MIDI BAD MOTHERFUCKER',data='Native --demo views plus actual native --chain recovery: named CC source, real ARP MIDI, observed recording states and explicitly configured reference chains',artifacts=artifacts,
-                      unsupported={'MOVEMENT advanced execution':'GATED, JOIN/REVEAL/FECK and musical durations are not enabled; PRESS/HOLD admissions use the actual native dispatcher.'})
+                      unsupported={'MOVEMENT advanced execution':'GATED, JOIN/FECK and musical durations are not enabled. Basic PHRASE REVEAL uses native CC7 leases; source phrases containing CC7 are explicitly refused.'})
         (output/'manifest.json').write_text(json.dumps(manifest,indent=2)+'\n')
         failures=[a for a in artifacts if a['checks']]
         if failures:

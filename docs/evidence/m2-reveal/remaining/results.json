@@ -1,0 +1,238 @@
+[
+  {
+    "command": [
+      "/workspace/setup-tools/venv/bin/python",
+      "tests/test_instance_ownership_native.py"
+    ],
+    "exitCode": 0,
+    "log": "00-test_instance_ownership_native.log"
+  },
+  {
+    "command": [
+      "scripts/m0-playback-test.sh"
+    ],
+    "exitCode": 0,
+    "log": "01-m0-playback-test.log"
+  },
+  {
+    "command": [
+      "scripts/m0-playback-test.sh",
+      "--m1-groups"
+    ],
+    "exitCode": 0,
+    "log": "02-m0-playback-test.log"
+  },
+  {
+    "command": [
+      "scripts/m0-playback-test.sh",
+      "--m2-gestures"
+    ],
+    "exitCode": 0,
+    "log": "03-m0-playback-test.log"
+  },
+  {
+    "command": [
+      "tests/run_host_tests.sh"
+    ],
+    "exitCode": 0,
+    "log": "04-run_host_tests.log"
+  },
+  {
+    "command": [
+      "scripts/portable-test.sh"
+    ],
+    "exitCode": 0,
+    "log": "05-portable-test.log"
+  },
+  {
+    "command": [
+      "scripts/conductor-persistence-test.sh"
+    ],
+    "exitCode": 0,
+    "log": "06-conductor-persistence-test.log"
+  },
+  {
+    "command": [
+      "/workspace/setup-tools/venv/bin/python",
+      "tests/test_patch_io.py"
+    ],
+    "exitCode": 0,
+    "log": "07-test_patch_io.log"
+  },
+  {
+    "command": [
+      "/workspace/setup-tools/venv/bin/python",
+      "tests/test_headless_browser.py"
+    ],
+    "exitCode": 1,
+    "log": "08-test_headless_browser.log"
+  },
+  {
+    "command": [
+      "/workspace/setup-tools/venv/bin/python",
+      "tests/test_update_controls_browser.py"
+    ],
+    "exitCode": 0,
+    "log": "09-test_update_controls_browser.log"
+  },
+  {
+    "command": [
+      "/workspace/setup-tools/venv/bin/python",
+      "tests/test_phrase_output_browser.py"
+    ],
+    "exitCode": 0,
+    "log": "10-test_phrase_output_browser.log"
+  },
+  {
+    "command": [
+      "/workspace/setup-tools/venv/bin/python",
+      "tests/test_headless_editor.py"
+    ],
+    "exitCode": 0,
+    "log": "11-test_headless_editor.log"
+  },
+  {
+    "command": [
+      "/workspace/setup-tools/venv/bin/python",
+      "tests/test_conductor_execution_browser.py"
+    ],
+    "exitCode": 0,
+    "log": "12-test_conductor_execution_browser.log"
+  },
+  {
+    "command": [
+      "/workspace/setup-tools/venv/bin/python",
+      "tests/test_conductor_editor_browser.py"
+    ],
+    "exitCode": 0,
+    "log": "13-test_conductor_editor_browser.log"
+  },
+  {
+    "command": [
+      "/workspace/setup-tools/venv/bin/python",
+      "tests/test_movement_browser.py"
+    ],
+    "exitCode": 0,
+    "log": "14-test_movement_browser.log"
+  },
+  {
+    "command": [
+      "/workspace/setup-tools/venv/bin/python",
+      "tests/conductor_diagnostics/pending_edit.py"
+    ],
+    "exitCode": 0,
+    "log": "15-pending_edit.log"
+  },
+  {
+    "command": [
+      "/workspace/setup-tools/venv/bin/python",
+      "tests/conductor_diagnostics/editor_click.py"
+    ],
+    "exitCode": 0,
+    "log": "16-editor_click.log"
+  },
+  {
+    "command": [
+      "/workspace/setup-tools/venv/bin/python",
+      "tests/test_controller_browser.py"
+    ],
+    "exitCode": 0,
+    "log": "17-test_controller_browser.log"
+  },
+  {
+    "command": [
+      "/workspace/setup-tools/venv/bin/python",
+      "tests/test_snapshot_browser.py"
+    ],
+    "exitCode": 0,
+    "log": "18-test_snapshot_browser.log"
+  },
+  {
+    "command": [
+      "/workspace/setup-tools/venv/bin/python",
+      "tests/test_product_browser.py"
+    ],
+    "exitCode": 0,
+    "log": "19-test_product_browser.log"
+  },
+  {
+    "command": [
+      "/workspace/setup-tools/venv/bin/python",
+      "tests/test_web_parity_browser.py"
+    ],
+    "exitCode": 0,
+    "log": "20-test_web_parity_browser.log"
+  },
+  {
+    "command": [
+      "/workspace/setup-tools/venv/bin/python",
+      "tests/test_tactile_browser.py"
+    ],
+    "exitCode": 0,
+    "log": "21-test_tactile_browser.log"
+  },
+  {
+    "command": [
+      "/workspace/setup-tools/venv/bin/python",
+      "tests/test_performance_density.py"
+    ],
+    "exitCode": 0,
+    "log": "22-test_performance_density.log"
+  },
+  {
+    "command": [
+      "/workspace/setup-tools/venv/bin/python",
+      "tests/test_phrase_midi_browser.py"
+    ],
+    "exitCode": 0,
+    "log": "23-test_phrase_midi_browser.log"
+  },
+  {
+    "command": [
+      "/workspace/setup-tools/venv/bin/python",
+      "tests/test_native_hold_browser.py"
+    ],
+    "exitCode": 0,
+    "log": "24-test_native_hold_browser.log"
+  },
+  {
+    "command": [
+      "/workspace/setup-tools/venv/bin/python",
+      "tests/test_phrase_mute_groups_browser.py"
+    ],
+    "exitCode": 0,
+    "log": "25-test_phrase_mute_groups_browser.log"
+  },
+  {
+    "command": [
+      "/workspace/setup-tools/venv/bin/python",
+      "tests/test_recovery_browser.py"
+    ],
+    "exitCode": 0,
+    "log": "26-test_recovery_browser.log"
+  },
+  {
+    "command": [
+      "/workspace/setup-tools/venv/bin/python",
+      "tests/test_hardware_feedback_browser.py"
+    ],
+    "exitCode": 0,
+    "log": "27-test_hardware_feedback_browser.log"
+  },
+  {
+    "command": [
+      "/workspace/setup-tools/venv/bin/python",
+      "tests/test_module_picker_browser.py"
+    ],
+    "exitCode": 0,
+    "log": "28-test_module_picker_browser.log"
+  },
+  {
+    "command": [
+      "/workspace/setup-tools/venv/bin/python",
+      "tests/test_issue53_browser.py"
+    ],
+    "exitCode": 0,
+    "log": "29-test_issue53_browser.log"
+  }
+]

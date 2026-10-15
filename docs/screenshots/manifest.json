@@ -1,8 +1,8 @@
 {
   "browser": "151.0.7922.173",
-  "sourceRevision": "8a131d58922e5a6c31a9887143afc2801467a4ee",
-  "sourceDirty": true,
-  "runtimeBuildRevision": "c956496fca97806e328628838ba82d0877f0908b.dirty",
+  "sourceRevision": "1e6ed931dce4c1e5b42b4299de8c30fbb2515daf",
+  "sourceDirty": false,
+  "runtimeBuildRevision": "5a4a96e50710dbd3ffe516761d48917dc06a5a60.dirty",
   "application": "MIDI BAD MOTHERFUCKER",
   "data": "Native --demo views plus actual native --chain recovery: named CC source, real ARP MIDI, observed recording states and explicitly configured reference chains",
   "artifacts": [
@@ -157,6 +157,24 @@
         240
       ],
       "file": "conductor-hold-trigger-editor-bottom-320x240.png",
+      "checks": []
+    },
+    {
+      "view": "conductor-reveal-gate-editor",
+      "viewport": [
+        320,
+        240
+      ],
+      "file": "conductor-reveal-gate-editor-320x240.png",
+      "checks": []
+    },
+    {
+      "view": "conductor-reveal-gate-editor-bottom",
+      "viewport": [
+        320,
+        240
+      ],
+      "file": "conductor-reveal-gate-editor-bottom-320x240.png",
       "checks": []
     },
     {
@@ -547,6 +565,24 @@
       "checks": []
     },
     {
+      "view": "conductor-reveal-gate-editor",
+      "viewport": [
+        800,
+        480
+      ],
+      "file": "conductor-reveal-gate-editor-800x480.png",
+      "checks": []
+    },
+    {
+      "view": "conductor-reveal-gate-editor-bottom",
+      "viewport": [
+        800,
+        480
+      ],
+      "file": "conductor-reveal-gate-editor-bottom-800x480.png",
+      "checks": []
+    },
+    {
       "view": "movement-curve-editor",
       "viewport": [
         800,
@@ -850,6 +886,24 @@
         768
       ],
       "file": "conductor-hold-trigger-editor-1366x768.png",
+      "checks": []
+    },
+    {
+      "view": "conductor-reveal-gate-editor",
+      "viewport": [
+        1366,
+        768
+      ],
+      "file": "conductor-reveal-gate-editor-1366x768.png",
+      "checks": []
+    },
+    {
+      "view": "conductor-reveal-gate-editor-bottom",
+      "viewport": [
+        1366,
+        768
+      ],
+      "file": "conductor-reveal-gate-editor-bottom-1366x768.png",
       "checks": []
     },
     {
@@ -1159,6 +1213,15 @@
       "checks": []
     },
     {
+      "view": "conductor-reveal-gate-editor",
+      "viewport": [
+        1440,
+        900
+      ],
+      "file": "conductor-reveal-gate-editor-1440x900.png",
+      "checks": []
+    },
+    {
       "view": "movement-curve-editor",
       "viewport": [
         1440,
@@ -1465,6 +1528,15 @@
       "checks": []
     },
     {
+      "view": "conductor-reveal-gate-editor",
+      "viewport": [
+        1904,
+        1032
+      ],
+      "file": "conductor-reveal-gate-editor-1904x1032.png",
+      "checks": []
+    },
+    {
       "view": "movement-curve-editor",
       "viewport": [
         1904,
@@ -1672,7 +1744,7 @@
       "checks": [],
       "nativeClockAdvanced": true,
       "capture": "Actual observed native state; browser telemetry briefly suspended for static capture, engine continues",
-      "runtimeBuildRevision": "c956496fca97806e328628838ba82d0877f0908b.dirty",
+      "runtimeBuildRevision": "5a4a96e50710dbd3ffe516761d48917dc06a5a60.dirty",
       "data": "Actual native --chain; real CC mapping and recording actions"
     },
     {
@@ -1685,7 +1757,7 @@
       "checks": [],
       "nativeClockAdvanced": true,
       "capture": "Actual observed native state; browser telemetry briefly suspended for static capture, engine continues",
-      "runtimeBuildRevision": "c956496fca97806e328628838ba82d0877f0908b.dirty",
+      "runtimeBuildRevision": "5a4a96e50710dbd3ffe516761d48917dc06a5a60.dirty",
       "data": "Actual native --chain; real CC mapping and recording actions"
     },
     {
@@ -1698,7 +1770,7 @@
       "checks": [],
       "nativeClockAdvanced": true,
       "capture": "Actual observed native state; browser telemetry briefly suspended for static capture, engine continues",
-      "runtimeBuildRevision": "c956496fca97806e328628838ba82d0877f0908b.dirty",
+      "runtimeBuildRevision": "5a4a96e50710dbd3ffe516761d48917dc06a5a60.dirty",
       "data": "Actual native --chain; real CC mapping and recording actions"
     },
     {
@@ -1711,7 +1783,7 @@
       "checks": [],
       "nativeClockAdvanced": true,
       "capture": "Actual observed native state; browser telemetry briefly suspended for static capture, engine continues",
-      "runtimeBuildRevision": "c956496fca97806e328628838ba82d0877f0908b.dirty",
+      "runtimeBuildRevision": "5a4a96e50710dbd3ffe516761d48917dc06a5a60.dirty",
       "data": "Actual native --chain; real CC mapping and recording actions"
     },
     {
@@ -1724,7 +1796,7 @@
       "checks": [],
       "nativeClockAdvanced": true,
       "capture": "Actual observed native state; browser telemetry briefly suspended for static capture, engine continues",
-      "runtimeBuildRevision": "c956496fca97806e328628838ba82d0877f0908b.dirty",
+      "runtimeBuildRevision": "5a4a96e50710dbd3ffe516761d48917dc06a5a60.dirty",
       "data": "Actual native --chain; real CC mapping and recording actions"
     },
     {
@@ -1737,7 +1809,7 @@
       "checks": [],
       "nativeClockAdvanced": true,
       "capture": "Actual observed native state; browser telemetry briefly suspended for static capture, engine continues",
-      "runtimeBuildRevision": "c956496fca97806e328628838ba82d0877f0908b.dirty",
+      "runtimeBuildRevision": "5a4a96e50710dbd3ffe516761d48917dc06a5a60.dirty",
       "data": "Actual native --chain; real CC mapping and recording actions"
     },
     {
@@ -1750,7 +1822,7 @@
       "checks": [],
       "nativeClockAdvanced": true,
       "capture": "Actual observed native state; browser telemetry briefly suspended for static capture, engine continues",
-      "runtimeBuildRevision": "c956496fca97806e328628838ba82d0877f0908b.dirty",
+      "runtimeBuildRevision": "5a4a96e50710dbd3ffe516761d48917dc06a5a60.dirty",
       "data": "Actual native --chain; real CC mapping and recording actions"
     },
     {
@@ -1763,11 +1835,11 @@
       "checks": [],
       "nativeClockAdvanced": true,
       "capture": "Actual observed native state; browser telemetry briefly suspended for static capture, engine continues",
-      "runtimeBuildRevision": "c956496fca97806e328628838ba82d0877f0908b.dirty",
+      "runtimeBuildRevision": "5a4a96e50710dbd3ffe516761d48917dc06a5a60.dirty",
       "data": "Actual native --chain; real CC mapping and recording actions"
     }
   ],
   "unsupported": {
-    "MOVEMENT advanced execution": "GATED, JOIN/REVEAL/FECK and musical durations are not enabled; PRESS/HOLD admissions use the actual native dispatcher."
+    "MOVEMENT advanced execution": "GATED, JOIN/FECK and musical durations are not enabled. Basic PHRASE REVEAL uses native CC7 leases; source phrases containing CC7 are explicitly refused."
   }
 }

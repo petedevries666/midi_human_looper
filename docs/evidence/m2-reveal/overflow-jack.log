@@ -1,0 +1,2 @@
+Cannot lock down 107341340 byte memory area (Cannot allocate memory)
+PASS actual JACK shared-buffer overload: bounded partial emission, queued attacks cancelled, stacked-note cleanup, source preserved {"ons": 64, "emergency": 64, "instanceError": 6, "outputOverflow": 1}

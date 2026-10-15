@@ -77,7 +77,7 @@ public:
   Prepared plan; // mutated only while the process thread is paused
   unsigned rejected=0,active=0,emitted=0,cancelled=0;
   explicit Runtime(controller::Host& h,double sr):host(h),sampleRate(sr){last.fill(-1);physicalAt.fill(UINT64_MAX);}
-  void cancel(Voice& v){if(!v.source)return;host.cancelPerformanceTarget(v.target,v.token);if(v.source->cc)host.retirePerformanceTarget(v.target);v=Voice{};--active;++cancelled;}
+  void cancel(Voice& v){if(!v.source)return;bool released=host.cancelPerformanceTarget(v.target,v.token);if(v.source->cc&&released)host.retirePerformanceTarget(v.target);v=Voice{};--active;++cancelled;}
   void panic(){for(auto &v:voices)cancel(v);}
   void stop(unsigned index){if(index>=plan.definitions.size())return;for(auto &v:voices)if(v.source&&v.source->id==plan.definitions[index].id)cancel(v);}
   void install(Prepared next){panic();plan=std::move(next);rate=plan.rate;last.fill(-1);physicalAt.fill(UINT64_MAX);}

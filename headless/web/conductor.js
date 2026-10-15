@@ -77,6 +77,16 @@ async function editConductor(sw){
    const update=()=>{checkpoint();b.overrides.retrigger=policy.value==='INHERIT'?{mode:'INHERIT'}:{mode:'OVERRIDE',value:value.value};paint();properties(s,l);};policy.onchange=value.onchange=update;row.append(policy,value);side.append(row,node('small','ONE_SHOT · source curve edited in MOVEMENTS'));return;
   }
   if(b.type!=='PHRASE'){side.append(node('p','UNSUPPORTED · preserved'));return;}
+  for(const [key,title,choices,fallback] of [['entry','ENTRY',['TRIGGER','REVEAL'],'TRIGGER'],['release','REL',['LATCH','GATE'],'LATCH']]){
+   if(key==='release'&&b.overrides.entry?.value!=='REVEAL'&&b.overrides.release?.mode!=='OVERRIDE')continue;
+   const row=node('label',title,'conductor-option'),policy=node('select'),value=node('select');policy.setAttribute('aria-label',`${title} inheritance`);value.setAttribute('aria-label',`${title} override`);
+   for(const name of ['INHERIT','OVERRIDE']){const o=node('option',name);o.value=name;policy.append(o);}for(const name of choices){const o=node('option',name);o.value=name;value.append(o);}
+   policy.value=b.overrides[key]?.mode||'INHERIT';value.value=b.overrides[key]?.value||fallback;value.disabled=policy.value!=='OVERRIDE';
+   const update=()=>{checkpoint();b.overrides[key]=policy.value==='INHERIT'?{mode:'INHERIT'}:{mode:'OVERRIDE',value:value.value};paint();properties(s,l);};policy.onchange=value.onchange=update;row.append(policy,value);side.append(row);
+  }
+  if(b.overrides.entry?.mode==='OVERRIDE'&&b.overrides.entry.value==='REVEAL'){
+   const warning=node('small',b.overrides.trigger?.mode==='OVERRIDE'&&b.overrides.trigger.value==='HOLD'?'CC7 CHANNEL-WIDE':'REVEAL NEEDS TRIG HOLD','conductor-group-warning');warning.title='REVEAL sends CC7: shared channels affect other layers and instruments. Use independent channels for isolation. Source phrases containing CC7 are not supported.';warning.setAttribute('role','status');side.append(warning);
+  }
   for(const [key,title,kind] of [['playMode','MODE',20],['phrase_base_velocity','VEL',17],['phrase_velocity_decay','V.DEC',15],['phrase_time_decay','T.DEC',14]]){
    const row=node('label',title,'conductor-option'),policy=node('select');policy.setAttribute('aria-label',`${title} inheritance`);
    for(const value of ['INHERIT','OVERRIDE']){const o=node('option',value);o.value=value;policy.append(o);}policy.value=b.overrides[key]?.mode||'INHERIT';
@@ -112,9 +122,12 @@ async function editConductor(sw){
    const groups=new Map();for(const l of s.layers){const src=l.block?.type==='PHRASE'?source(l.block):null;if(src?.muteGroup){const ids=groups.get(src.muteGroup)||new Set();ids.add(src.slot);groups.set(src.muteGroup,ids);}}
    for(const [group,ids] of groups)if(ids.size>1){const warning=node('small',`GROUP ${group} · PHRASE ${Math.min(...ids)} wins`,'conductor-group-warning');warning.setAttribute('role','status');column.append(warning);}
 
+   if(s.layers.some(l=>l.block?.type==='PHRASE'&&l.block.overrides.entry?.mode==='OVERRIDE'&&l.block.overrides.entry.value==='REVEAL')){
+    const warning=node('small','CC7 CHANNEL-WIDE','conductor-group-warning');warning.setAttribute('role','status');warning.title='REVEAL affects every instrument on its MIDI channels. Shared channels are allowed; use independent channels for isolation.';column.append(warning);
+   }
    s.layers.forEach((l,li)=>{
     const cell=node('div',undefined,'conductor-layer');cell.dataset.layerId=l.id;cell.append(node('small',li===0?'01 MASTER':String(li+1).padStart(2,'0')));
-    if(l.block){const b=l.block;cell.dataset.blockId=b.id;cell.classList.toggle('missing-source',!source(b));cell.append(node('strong',label(b)),node('output',b.type==='PHRASE'?`${mode(b)} · ${b.overrides?.trigger?.value||'PRESS'}`:b.type==='MOVEMENT'?`${source(b)?.duration??'—'}s · ${b.overrides?.trigger?.value||'PRESS'}`:'UNSUPPORTED · preserved'));
+    if(l.block){const b=l.block;cell.dataset.blockId=b.id;cell.classList.toggle('missing-source',!source(b));cell.append(node('strong',label(b)),node('output',b.type==='PHRASE'?`${mode(b)} · ${b.overrides?.trigger?.value||'PRESS'}${b.overrides.entry?.mode==='OVERRIDE'&&b.overrides.entry.value==='REVEAL'?' · REVEAL '+(b.overrides.release?.value||'LATCH'):''}`:b.type==='MOVEMENT'?`${source(b)?.duration??'—'}s · ${b.overrides?.trigger?.value||'PRESS'}`:'UNSUPPORTED · preserved'));
      cell.append(action('EDIT BLOCK',()=>properties(s,l)),action('REMOVE BLOCK',()=>change(()=>l.block=null)),action('REPLACE BLOCK',()=>choose(s,l,cell.lastElementChild)));
     }else{const add=action(`Add PHRASE STEP ${index+1} LAYER ${li+1}`,()=>choose(s,l,add));add.textContent='+';add.className='conductor-add';cell.append(add,node('small','EMPTY'));}
     if(sequence.steps.includes(s)){

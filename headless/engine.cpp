@@ -5,6 +5,7 @@
 #include "conductor_wire.hpp"
 #include "conductor_execution.hpp"
 #include "movement_engine.hpp"
+#include "reveal_engine.hpp"
 #include "realtime_trace.hpp"
 #include "parameter_registry.hpp"
 #include "snapshot_wire.hpp"
@@ -121,6 +122,9 @@ struct Snapshot {
   double max_us = 0;
   std::array<std::array<double,14>,28> instances{};
   int instanceError=0;uint64_t instanceRejected=0;
+  unsigned revealCount=0;std::array<uint64_t,12> revealIds{};
+  std::array<bool,12> revealHidden{};std::array<unsigned,12> revealMasks{};
+  std::array<std::array<unsigned,16>,12> revealVolumes{};
   std::array<Switch, 16> switches{};
   std::array<Instrument, 8> instruments{};
   std::array<Phrase, 16> phrases{};
@@ -712,6 +716,8 @@ static std::string json(const Reply &r) {
       << ",\"returning\":" << s.returning[j] << ",\"pickup\":" << s.pickup[j]
       << '}';
   }
+  o << "],\"reveals\":[";
+  for(unsigned j=0;j<s.revealCount;++j){if(j)o<<',';o<<"{\"instanceId\":"<<s.revealIds[j]<<",\"requestedHidden\":"<<s.revealHidden[j]<<",\"ownedChannels\":"<<s.revealMasks[j]<<",\"restoreVolumes\":[";for(unsigned ch=0;ch<16;++ch){if(ch)o<<',';o<<s.revealVolumes[j][ch];}o<<"]}";}
   o << "],\"selectedSnapshotId\":" << s.performanceSelected
     << ",\"snapshotSkippedTargets\":" << s.performanceSkipped
     << ",\"movements\":{\"active\":"<<s.movementActive<<",\"rejected\":"<<s.movementRejected<<",\"emitted\":"<<s.movementEmitted<<",\"cancelled\":"<<s.movementCancelled<<",\"running\":[";
@@ -1564,6 +1570,13 @@ int main(int argc, char **argv) {
     controller::Host controllers;
     std::unique_ptr<movement::Runtime> movementStorage(new movement::Runtime(controllers,sampleRate));
     auto &movements=*movementStorage;
+    reveal::Runtime reveals(controllers);
+    *NSEEL_VM_regvar(fx->vm.get(),"native_control_host")=1;
+    *NSEEL_VM_regvar(fx->vm.get(),"ext_midi_bus")=1;
+    auto revealExisting=NSEEL_VM_regvar(fx->vm.get(),"reveal_existing_mask");
+    auto revealReserved=NSEEL_VM_regvar(fx->vm.get(),"reveal_reserved_mask");
+    auto revealFree=NSEEL_VM_regvar(fx->vm.get(),"reveal_free_targets");
+    auto nativeControlCount=NSEEL_VM_regvar(fx->vm.get(),"native_control_count");
     const double phraseLearnBase = variable(fx, "SW_COUNT") + variable(fx, "CONTROLLERS");
     auto matchesLegacy = [&](int kind, int ch, int num, double skip) {
       *learnSkip = skip;
@@ -1960,7 +1973,7 @@ int main(int argc, char **argv) {
     };
     std::array<bool, 2048> held{};
     struct MidiPacket {
-      unsigned size = 0, offset = 0;
+      unsigned size = 0, offset = 0, order = 0, bus = 0;
       std::array<uint8_t, 256> data{};
     };
     std::unique_ptr<std::array<MidiPacket, 8192>> outputQueue(
@@ -1979,6 +1992,9 @@ int main(int argc, char **argv) {
     std::unique_ptr<std::array<MidiPacket, 8192>> inputQueue(
         new std::array<MidiPacket, 8192>());
     unsigned inputRead = 0, inputWrite = 0;
+    struct NativeControl {unsigned offset=0,order=0,sequence=0,kind=0,slot=0,mask=0;uint64_t id=0;};
+    std::unique_ptr<std::array<NativeControl,8320>> nativeControls(new std::array<NativeControl,8320>());
+
     std::atomic<uint64_t> xruns{0};
     uint64_t tracedNotes=0,tracedNoteOns=0,tracedCCs=0,tracedOrderErrors=0;
     unsigned tracedLastOffset=0;bool tracedHaveOutput=false;
@@ -2043,7 +2059,7 @@ int main(int argc, char **argv) {
       if (outBuffer) {
         jack_midi_clear_buffer(outBuffer);
         if (recovering) {
-          movements.panic();
+          reveals.panic();movements.panic();
           controllers.panic();
           outputRead = outputWrite;
           inputRead = inputWrite;
@@ -2085,10 +2101,12 @@ int main(int argc, char **argv) {
         return 0;
       }
       unsigned movementOutputCount=0,movementPhysicalCount=0;
-      auto emitMovement=[&](uint64_t sample,unsigned ch,unsigned cc,unsigned value){
+      unsigned generatedOrder=0;uint64_t generatedAt=UINT64_MAX;
+      auto emitControlled=[&](uint64_t sample,unsigned ch,unsigned cc,unsigned value){
         if(movementOutputCount>=8192)return false;
-        auto &m=(*outputBatch)[movementOutputCount++];m.size=3;m.offset=unsigned(sample>state.samples?sample-state.samples:0);m.data[0]=176|ch;m.data[1]=cc;m.data[2]=value;return true;
+        auto &m=(*outputBatch)[movementOutputCount++];m.size=3;m.offset=unsigned(sample>state.samples?sample-state.samples:0);m.data[0]=176|ch;m.data[1]=cc;m.data[2]=value;m.order=sample==generatedAt?generatedOrder:0;m.bus=0;return true;
       };
+      auto emitMovement=[&](uint64_t sample,unsigned ch,unsigned cc,unsigned value){reveals.observe(ch,cc,value);return emitControlled(sample,ch,cc,value);};
       auto applyMovement=[&](const controller::Binding &b,double value){if(!model.bindingValue(b))return false;applyBinding(b,value);return true;};
       unsigned inputBudget = 128;
       while (inputRead != inputWrite && inputBudget--) {
@@ -2188,7 +2206,7 @@ int main(int argc, char **argv) {
             performanceSkipped = 0;
             performanceMorphSeconds = 0;
             performanceTargetSnapshot = 0;
-            movementOutputCount=0;movements.panic();
+            movementOutputCount=0;reveals.panic();movements.panic();
           controllers.panic();
             ++state.revision;
             loading.store(true, std::memory_order_release);
@@ -2211,7 +2229,7 @@ int main(int argc, char **argv) {
               *snapHostRead = *snapHostWrite;
               performanceMorphSeconds = 0;
               cancelAB();
-              movementOutputCount=0;movements.panic();
+              movementOutputCount=0;reveals.panic();movements.panic();
           controllers.panic();
               NSEEL_code_execute(panic_bridge);
             }
@@ -2222,7 +2240,7 @@ int main(int argc, char **argv) {
         } else if(request.op==42){
           chain.cancel();chain.error=false;chain.errorPhrase=-1;
           cancelAB();performanceTargetCount=0;performanceSkipped=0;performanceMorphSeconds=0;performanceTargetSnapshot=0;
-          movements.panic();
+          reveals.panic();movements.panic();
           *snapHostRead=*snapHostWrite;controllers.replace(request.controllerConfig,resolveBinding);
           performanceSnapshots->restore(request.snapshotConfig);
           NSEEL_code_execute(panic_bridge);++state.revision;
@@ -2706,7 +2724,7 @@ int main(int argc, char **argv) {
           *snapHostRead = *snapHostWrite;
           performanceMorphSeconds = 0;
           cancelAB();
-          movementOutputCount=0;movements.panic();
+          movementOutputCount=0;reveals.panic();movements.panic();
           controllers.panic();
           ysfx_midi_clear(fx->midi.in.get());
           inputRead = inputWrite;
@@ -2770,7 +2788,7 @@ int main(int argc, char **argv) {
           bpm = 120.;
         if (chain.tick(frame, frames, sampleRate, rolling, bpm,
                        jack ? uint64_t(jack_last_frame_time(jack)) : 0)) {
-          movementOutputCount=0;movements.panic();
+          movementOutputCount=0;reveals.panic();movements.panic();
           controllers.panic();
           if (chain.run && outBuffer) {
             cleanupChain();
@@ -2838,6 +2856,7 @@ int main(int argc, char **argv) {
         cleanupChain();
       chain.finishSwitchStop();
       trace.mark(5);
+      *revealExisting=reveals.existingMask();*revealReserved=0;*revealFree=controllers.freeTargets();*nativeControlCount=0;
       ysfx_process_float(fx, nullptr, nullptr, 0, 0, frames);
       trace.mark(6);
       // The shared output buffer rejected an owned event: cancel queued attacks
@@ -2860,7 +2879,7 @@ int main(int argc, char **argv) {
       }
       if (*snapHostCancel) {
         cancelAB();
-        if(*snapHostCancel==2){movementOutputCount=0;movements.panic();controllers.panic();}
+        if(*snapHostCancel==2){movementOutputCount=0;reveals.panic();movements.panic();controllers.panic();}
         else for(unsigned j=0;j<performanceTargetCount;++j){auto &p=(*performanceTargets)[j];if(p.active)cancelPerformance(p,p.token);}
         for (unsigned j = 0; j < performanceTargetCount; ++j)
           (*performanceTargets)[j].active = false;
@@ -2868,93 +2887,108 @@ int main(int argc, char **argv) {
         *snapHostRead = *snapHostWrite;
         *snapHostCancel = 0;
       }
-      unsigned movementPhysicalRead=0;
+      // Preflight was computed before DSP. Stage its bounded CC7 reservations
+      // before Snapshot/MOVEMENT commands can allocate any additional targets.
+      if(!reveals.reserve(unsigned(*revealReserved))){++state.outputOverflow;overflowRecovery=true;}
+      unsigned controlCount=0;
+      auto addControl=[&](unsigned offset,unsigned order,unsigned kind,unsigned slot,uint64_t id,unsigned mask){
+        if(controlCount>=nativeControls->size()){++state.outputOverflow;overflowRecovery=true;return;}
+        auto &c=(*nativeControls)[controlCount];c.sequence=controlCount++;c.offset=offset;c.order=order;c.kind=kind;c.slot=slot;c.id=id;c.mask=mask;
+      };
       while (*snapHostRead < *snapHostWrite) {
         unsigned at = 96 + (unsigned(*snapHostRead) % 64) * 3;
         unsigned action = unsigned(*snapHostCells[at]);
         uint32_t id = uint32_t(*snapHostCells[at + 1]);
         ++*snapHostRead;
-        if(action==9){
-          unsigned offset=std::min(unsigned(*snapHostCells[at+2]),unsigned(frames-1));
-          while(movementPhysicalRead<movementPhysicalCount && movementPhysical[movementPhysicalRead].offset<offset){auto &p=movementPhysical[movementPhysicalRead++];movements.render(state.samples+p.offset,emitMovement,applyMovement,true);movements.physical(p.ch,p.cc,p.value,state.samples+p.offset);}
-          movements.render(state.samples+offset,emitMovement,applyMovement,true);
-          movements.start(id,state.samples+offset,resolveMovement);continue;
-        }
-        if (action != 3 && action != 4)
-          id = performanceSnapshots->navigate(action);
-        if (id && recallSnapshot(id, action == 4 || action == 6 || action == 7,
-                                 nullptr) == 0)
-          ++state.revision;
+        if(action==213){addControl(0,1,13,unsigned(*snapHostCells[at+2]),uint64_t(*snapHostCells[at+1]),0);continue;}
+        if(action==9){addControl(std::min(unsigned(*snapHostCells[at+2]),unsigned(frames-1)),1,9,0,id,0);continue;}
+        if (action != 3 && action != 4)id = performanceSnapshots->navigate(action);
+        if (id && recallSnapshot(id, action == 4 || action == 6 || action == 7,nullptr) == 0)++state.revision;
       }
       *snapHostRead = *snapHostWrite = 0;
-      while(movementPhysicalRead<movementPhysicalCount){auto &p=movementPhysical[movementPhysicalRead++];movements.render(state.samples+p.offset,emitMovement,applyMovement,true);movements.physical(p.ch,p.cc,p.value,state.samples+p.offset);}
+      for(unsigned j=0;j<movementPhysicalCount;++j){auto &p=movementPhysical[j];addControl(p.offset,0,1,p.ch,p.value,p.cc);}
+      unsigned outputCount=0;
       ysfx_midi_event_t event{};
-      movements.render(state.samples+frames,emitMovement,applyMovement);
-      trace.mark(7);
-      unsigned outputCount = movementOutputCount;
-      for(unsigned j=0;j<outputCount;++j)(*outputOrder)[j]=j;
-      bool outputSorted = movementOutputCount==0;
-      while (ysfx_receive_midi(fx, &event)) {
-        ++state.midi;
-        if (outBuffer) {
-          if (outputCount >= 8192 || event.size > 256) {
-            ++state.outputOverflow;
-            overflowRecovery = true;
-          } else {
-            auto &m = (*outputBatch)[outputCount];
-            m.size = event.size;
-            m.offset = std::min(event.offset, frames - 1);
-            std::memcpy(m.data.data(), event.data, event.size);
-            if (outputCount &&
-                (*outputBatch)[outputCount - 1].offset > m.offset)
-              outputSorted = false;
-            (*outputOrder)[outputCount] = outputCount;
-            ++outputCount;
+      while(ysfx_receive_midi(fx,&event)){
+        if(outputCount>=8192||event.size>256){++state.outputOverflow;overflowRecovery=true;continue;}
+        auto &m=(*outputBatch)[outputCount];m.size=event.size;m.offset=std::min(event.offset,frames-1);m.order=(outputCount+1)*4;m.bus=event.bus;
+        std::memcpy(m.data.data(),event.data,event.size);(*outputOrder)[outputCount]=outputCount;
+        if(event.bus==15){
+          if(m.size!=17||m.data[0]!=240||m.data[1]!=125||m.data[2]!=77||m.data[16]!=247){++state.outputOverflow;overflowRecovery=true;m.size=0;}
+          else{
+            uint64_t id=0;unsigned mask=0;for(int k=7;k>=0;--k)id=id*128+m.data[5+k];for(int k=2;k>=0;--k)mask=mask*128+m.data[13+k];
+            addControl(m.offset,m.order,m.data[3],m.data[4],id,mask);m.size=0;
           }
-        }
-        if (event.size >= 3) {
-          int type = event.data[0] & 240,
-              key = (event.data[0] & 15) * 128 + (event.data[1] & 127);
-          if (type == 144 && event.data[2] > 0) {
-            if (!held[key]) {
-              held[key] = true;
-              ++state.active;
-            }
-          } else if (type == 128 || (type == 144 && event.data[2] == 0)) {
-            if (held[key]) {
-              held[key] = false;
-              --state.active;
-            }
-          }
-          state.last_sample = state.samples + event.offset;
-          state.last_status = event.data[0];
-          state.last_note = event.data[1];
-          state.last_value = event.data[2];
-        }
+        }else if(m.size==3&&(m.data[0]&240)==176&&m.data[1]==7)addControl(m.offset,m.order,2,m.data[0]&15,m.data[2],7);
+        ++outputCount;
       }
-      if (outBuffer) {
+      // Raw EEL packets keep stable order; generated CCs append to the same
+      // preallocated batch. Only the existing producer sorts MIDI timestamps.
+      movementOutputCount=outputCount;
+      reveals.flush(state.samples,emitControlled);
+      std::sort(nativeControls->begin(),nativeControls->begin()+controlCount,[](const NativeControl&a,const NativeControl&b){if(a.offset!=b.offset)return a.offset<b.offset;if(a.order!=b.order)return a.order<b.order;return a.sequence<b.sequence;});
+      for(unsigned j=0;j<controlCount;++j){const auto &c=(*nativeControls)[j];uint64_t sample=state.samples+c.offset;
+        generatedAt=UINT64_MAX;generatedOrder=0;
+        movements.render(sample,emitMovement,applyMovement,true);
+        if(c.kind==1){movements.physical(c.slot,c.mask,unsigned(c.id),sample);reveals.physical(c.slot,c.mask,unsigned(c.id),sample);continue;}
+        // Cadence due exactly here precedes this control; a newly started
+        // MOVEMENT emits its initial CC immediately at its own marker order.
+        // Adjacent PRESS starts at one timestamp retain the established
+        // latest-owner-before-first-emission rule. Do not flush a losing
+        // initial CC between those starts. Other controls remain barriers.
+        bool coalescedStart=c.kind==9&&j>0&&(*nativeControls)[j-1].kind==9&&(*nativeControls)[j-1].offset==c.offset;
+        if(!coalescedStart)movements.render(sample+1,emitMovement,applyMovement,true);
+        generatedAt=sample;generatedOrder=c.order;
+        if(c.kind==2)reveals.observe(c.slot,c.mask,unsigned(c.id));
+        else if(c.kind==9){movements.start(unsigned(c.id),sample,resolveMovement);
+          bool nextStart=j+1<controlCount&&(*nativeControls)[j+1].kind==9&&(*nativeControls)[j+1].offset==c.offset;
+          if(!nextStart)movements.render(sample+1,emitMovement,applyMovement,true);}
+        else if(c.kind==10){if(!reveals.start(c.slot,c.id,c.mask,sample,emitControlled)){++state.outputOverflow;overflowRecovery=true;}}
+        else if(c.kind==11||c.kind==12)reveals.mask(c.slot,c.id,c.kind==12,sample,emitControlled);
+        else if(c.kind==13)reveals.close(c.slot,c.id,sample,emitControlled);
+        else if(c.kind==14){reveals.panic();movements.panic();reveals.flush(sample,emitControlled);}
+        else{++state.outputOverflow;overflowRecovery=true;}
+      }
+      generatedAt=UINT64_MAX;generatedOrder=0;
+      movements.render(state.samples+frames,emitMovement,applyMovement);
+      reveals.collectIdle();
+      outputCount=movementOutputCount;bool outputSorted=true;
+      for(unsigned j=1;j<outputCount;++j){const auto &a=(*outputBatch)[j-1],&b=(*outputBatch)[j];if(a.offset>b.offset||(a.offset==b.offset&&a.order>b.order)){outputSorted=false;break;}}
+      for(unsigned j=0;j<outputCount;++j)(*outputOrder)[j]=j;
+      trace.mark(7);
+      {
         trace.mark(8);
         if (!outputSorted)
           std::sort(outputOrder->begin(), outputOrder->begin() + outputCount,
                     [&](unsigned a, unsigned b) {
                       auto first = (*outputBatch)[a].offset,
                            second = (*outputBatch)[b].offset;
-                      return first == second ? a < b : first < second;
+                      if(first!=second)return first<second;
+                      auto x=(*outputBatch)[a].order,y=(*outputBatch)[b].order;return x==y?a<b:x<y;
                     });
         trace.mark(9);
         for (unsigned j = 0; j < outputCount; ++j) {
+          const auto &source = (*outputBatch)[(*outputOrder)[j]];
+          if(!source.size)continue; // private control marker never leaves host
+          ++state.midi;
+          if(source.size>=3){unsigned type=source.data[0]&240,key=(source.data[0]&15)*128+(source.data[1]&127);
+            if(type==144&&source.data[2]>0){if(!held[key]){held[key]=true;++state.active;}}
+            else if(type==128||(type==144&&!source.data[2])){if(held[key]){held[key]=false;--state.active;}}
+            else if(type==176&&(source.data[1]==120||source.data[1]==123)){for(unsigned note=0;note<128;++note){unsigned k=(source.data[0]&15)*128+note;if(held[k]){held[k]=false;--state.active;}}}
+            state.last_sample=state.samples+source.offset;state.last_status=source.data[0];state.last_note=source.data[1];state.last_value=source.data[2];
+          }
+          if(!outBuffer)continue;
           if (outputWrite - outputRead >= 8192) {
             ++state.outputOverflow;
             overflowRecovery = true;
             continue;
           }
           auto &destination = (*outputQueue)[outputWrite++ % 8192];
-          const auto &source = (*outputBatch)[(*outputOrder)[j]];
           destination.size = source.size;
           destination.offset = source.offset;
           std::memcpy(destination.data.data(), source.data.data(), source.size);
         }
-        flushOutput(outBuffer, frames);
+        if(outBuffer)flushOutput(outBuffer, frames);
         for (unsigned q = outputRead; q != outputWrite; ++q)
           (*outputQueue)[q % 8192].offset = 0;
       }
@@ -2964,6 +2998,7 @@ int main(int argc, char **argv) {
       outputPending.store(state.pendingOutput, std::memory_order_release);
       if (muted)
         finalAcknowledged.store(true, std::memory_order_release);
+      state.revealCount=0;reveals.observeState([&](uint64_t id,bool hidden,unsigned mask,const std::array<unsigned,16>& volume){unsigned j=state.revealCount++;state.revealIds[j]=id;state.revealHidden[j]=hidden;state.revealMasks[j]=mask;state.revealVolumes[j]=volume;});
       state.movementRunningCount=0;movements.observe(state.samples+frames,[&](const char *id,double progress){unsigned j=state.movementRunningCount++;std::memcpy(state.movementIds[j].data(),id,36);state.movementIds[j][36]=0;state.movementProgress[j]=progress;});
       state.movementActive=movements.active;state.movementRejected=movements.rejected;state.movementEmitted=movements.emitted;state.movementCancelled=movements.cancelled;
       state.samples += frames;

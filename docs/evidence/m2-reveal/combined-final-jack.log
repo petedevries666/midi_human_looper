@@ -1,0 +1,67 @@
++ scripts/headless-test.sh
+PASS bounded FIFO
+...............
+----------------------------------------------------------------------
+Ran 15 tests in 8.316s
+
+OK
+.......
+----------------------------------------------------------------------
+Ran 7 tests in 0.697s
+
+OK
+..............................
+----------------------------------------------------------------------
+Ran 30 tests in 10.424s
+
+OK
+.....
+----------------------------------------------------------------------
+Ran 5 tests in 0.001s
+
+OK
+.......
+----------------------------------------------------------------------
+Ran 7 tests in 0.001s
+
+OK
+Cannot lock down 107341340 byte memory area (Cannot allocate memory)
+PASS actual JACK CONDUCTOR: hardware-like PRESS input, four STEPS/wrap, independent layers, missing reference silence, selective STOP, PANIC, silent LOAD and timestamp ordering {"notes": [[434176, 16, 144, 60, 100], [466944, 16, 144, 62, 100], [499712, 16, 144, 64, 100], [532480, 16, 144, 65, 100], [565248, 16, 144, 60, 100], [802816, 16, 144, 60, 100], [802816, 16, 144, 62, 100], [835584, 0, 128, 60, 0], [892928, 0, 128, 62, 0]], "cleanupMessages": 624, "attacks": [60, 62, 64, 65, 60, 60, 62]}
+Cannot lock down 107341340 byte memory area (Cannot allocate memory)
+M0 before LOOP {"id": 4, "events": 2, "name": "", "state": "STOPPED", "outputChannel": 0, "mode": 0, "timeDecay": 1, "velocityDecay": 1, "baseVelocity": 1, "triggerNote": -1, "triggerChannel": 0, "mute": 0, "solo": 0}
+M0 first LOOP {"id": 4, "events": 2, "name": "", "state": "PLAYING", "outputChannel": 0, "mode": 0, "timeDecay": 1, "velocityDecay": 1, "baseVelocity": 1, "triggerNote": -1, "triggerChannel": 0, "mute": 0, "solo": 0}
+M0 second LOOP {"id": 4, "events": 2, "name": "", "state": "STOPPED", "outputChannel": 0, "mode": 0, "timeDecay": 1, "velocityDecay": 1, "baseVelocity": 1, "triggerNote": -1, "triggerChannel": 0, "mute": 0, "solo": 0}
+M0 JACK actual note trace: [[144, 60, 100], [144, 62, 100], [144, 64, 100], [128, 64, 0], [144, 64, 100], [144, 65, 100], [128, 65, 0]]
+M0 source groups OFF PASS actual JACK: ONCE overlap, latched HOLD/retrigger, LOOP toggle, PANIC; 48k/8192 Cloud dummy backend
+jack JACK diagnostic: jackdmp 1.9.22
+Copyright 2001-2005 Paul Davis and others.
+Copyright 2004-2016 Grame.
+Copyright 2016-2023 Filipe Coelho.
+jackdmp comes with ABSOLUTELY NO WARRANTY
+This is free software, and you are welcome to redistribute it
+under certain conditions; see the file COPYING for details
+JACK server starting in non-realtime mode
+self-connect-mode is "Don't restrict self connect requests"
+Cannot lock down 107341340 byte memory area (Cannot allocate memory)
+JackTimedDriver::Process XRun = 6207 usec
+JackEngine::XRun: client = mbmf_d was not finished, state = Running
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+Jack main caught signal 15
+
+Cannot lock down 107341340 byte memory area (Cannot allocate memory)
+M0 before LOOP {"id": 4, "events": 2, "name": "", "state": "STOPPED", "outputChannel": 0, "mode": 0, "timeDecay": 1, "velocityDecay": 1, "baseVelocity": 1, "triggerNote": -1, "triggerChannel": 0, "mute": 0, "solo": 0}
+M0 first LOOP {"id": 4, "events": 2, "name": "", "state": "PLAYING", "outputChannel": 0, "mode": 0, "timeDecay": 1, "velocityDecay": 1, "baseVelocity": 1, "triggerNote": -1, "triggerChannel": 0, "mute": 0, "solo": 0}
+M0 second LOOP {"id": 4, "events": 2, "name": "", "state": "STOPPED", "outputChannel": 0, "mode": 0, "timeDecay": 1, "velocityDecay": 1, "baseVelocity": 1, "triggerNote": -1, "triggerChannel": 0, "mute": 0, "solo": 0}
+M0 JACK actual note trace: [[144, 60, 100], [128, 60, 0], [144, 62, 100], [144, 64, 100], [128, 64, 0], [144, 64, 100], [144, 65, 100], [128, 65, 0]]
+M1 source group ON PASS actual JACK: ONCE overlap, latched HOLD/retrigger, LOOP toggle, PANIC; 48k/8192 Cloud dummy backend
+Cannot lock down 107341340 byte memory area (Cannot allocate memory)
+PASS M2 browser SAVE/LOAD/reconnect -> JACK {"events": [[622592, 16, 144, 48, 100], [671744, 0, 176, 64, 0], [671744, 0, 176, 123, 0], [671744, 0, 176, 120, 0], [671744, 0, 177, 64, 0], [671744, 0, 177, 123, 0], [671744, 0, 177, 120, 0], [671744, 0, 178, 64, 0], [671744, 0, 178, 123, 0], [671744, 0, 178, 120, 0], [671744, 0, 179, 64, 0], [671744, 0, 179, 123, 0], [671744, 0, 179, 120, 0], [671744, 0, 180, 64, 0], [671744, 0, 180, 123, 0], [671744, 0, 180, 120, 0], [671744, 0, 181, 64, 0], [671744, 0, 181, 123, 0], [671744, 0, 181, 120, 0], [671744, 0, 182, 64, 0], [671744, 0, 182, 123, 0], [671744, 0, 182, 120, 0], [671744, 0, 183, 64, 0], [671744, 0, 183, 123, 0], [671744, 0, 183, 120, 0], [671744, 0, 184, 64, 0], [671744, 0, 184, 123, 0], [671744, 0, 184, 120, 0], [671744, 0, 185, 64, 0], [671744, 0, 185, 123, 0], [671744, 0, 185, 120, 0], [671744, 0, 186, 64, 0], [671744, 0, 186, 123, 0], [671744, 0, 186, 120, 0], [671744, 0, 187, 64, 0], [671744, 0, 187, 123, 0], [671744, 0, 187, 120, 0], [671744, 0, 188, 64, 0], [671744, 0, 188, 123, 0], [671744, 0, 188, 120, 0], [671744, 0, 189, 64, 0], [671744, 0, 189, 123, 0], [671744, 0, 189, 120, 0], [671744, 0, 190, 64, 0], [671744, 0, 190, 123, 0], [671744, 0, 190, 120, 0], [671744, 0, 191, 64, 0], [671744, 0, 191, 123, 0], [671744, 0, 191, 120, 0], [696320, 16, 144, 48, 100], [704512, 3824, 144, 72, 100], [770048, 0, 176, 64, 0], [770048, 0, 176, 123, 0], [770048, 0, 176, 120, 0], [770048, 0, 177, 64, 0], [770048, 0, 177, 123, 0], [770048, 0, 177, 120, 0], [770048, 0, 178, 64, 0], [770048, 0, 178, 123, 0], [770048, 0, 178, 120, 0], [770048, 0, 179, 64, 0], [770048, 0, 179, 123, 0], [770048, 0, 179, 120, 0], [770048, 0, 180, 64, 0], [770048, 0, 180, 123, 0], [770048, 0, 180, 120, 0], [770048, 0, 181, 64, 0], [770048, 0, 181, 123, 0], [770048, 0, 181, 120, 0], [770048, 0, 182, 64, 0], [770048, 0, 182, 123, 0], [770048, 0, 182, 120, 0], [770048, 0, 183, 64, 0], [770048, 0, 183, 123, 0], [770048, 0, 183, 120, 0], [770048, 0, 184, 64, 0], [770048, 0, 184, 123, 0], [770048, 0, 184, 120, 0], [770048, 0, 185, 64, 0], [770048, 0, 185, 123, 0], [770048, 0, 185, 120, 0], [770048, 0, 186, 64, 0], [770048, 0, 186, 123, 0], [770048, 0, 186, 120, 0], [770048, 0, 187, 64, 0], [770048, 0, 187, 123, 0], [770048, 0, 187, 120, 0], [770048, 0, 188, 64, 0], [770048, 0, 188, 123, 0], [770048, 0, 188, 120, 0], [770048, 0, 189, 64, 0], [770048, 0, 189, 123, 0], [770048, 0, 189, 120, 0], [770048, 0, 190, 64, 0], [770048, 0, 190, 123, 0], [770048, 0, 190, 120, 0], [770048, 0, 191, 64, 0], [770048, 0, 191, 123, 0], [770048, 0, 191, 120, 0], [794624, 0, 144, 48, 100], [843776, 0, 144, 72, 100], [917504, 0, 176, 64, 0], [917504, 0, 176, 123, 0], [917504, 0, 176, 120, 0], [917504, 0, 177, 64, 0], [917504, 0, 177, 123, 0], [917504, 0, 177, 120, 0], [917504, 0, 178, 64, 0], [917504, 0, 178, 123, 0], [917504, 0, 178, 120, 0], [917504, 0, 179, 64, 0], [917504, 0, 179, 123, 0], [917504, 0, 179, 120, 0], [917504, 0, 180, 64, 0], [917504, 0, 180, 123, 0], [917504, 0, 180, 120, 0], [917504, 0, 181, 64, 0], [917504, 0, 181, 123, 0], [917504, 0, 181, 120, 0], [917504, 0, 182, 64, 0], [917504, 0, 182, 123, 0], [917504, 0, 182, 120, 0], [917504, 0, 183, 64, 0], [917504, 0, 183, 123, 0], [917504, 0, 183, 120, 0], [917504, 0, 184, 64, 0], [917504, 0, 184, 123, 0], [917504, 0, 184, 120, 0], [917504, 0, 185, 64, 0], [917504, 0, 185, 123, 0], [917504, 0, 185, 120, 0], [917504, 0, 186, 64, 0], [917504, 0, 186, 123, 0], [917504, 0, 186, 120, 0], [917504, 0, 187, 64, 0], [917504, 0, 187, 123, 0], [917504, 0, 187, 120, 0], [917504, 0, 188, 64, 0], [917504, 0, 188, 123, 0], [917504, 0, 188, 120, 0], [917504, 0, 189, 64, 0], [917504, 0, 189, 123, 0], [917504, 0, 189, 120, 0], [917504, 0, 190, 64, 0], [917504, 0, 190, 123, 0], [917504, 0, 190, 120, 0], [917504, 0, 191, 64, 0], [917504, 0, 191, 123, 0], [917504, 0, 191, 120, 0]], "attacks": [48, 48, 72, 48, 72], "holdDelaySamples": 12000, "backend": "actual private acyclic JACK + real Chromium/native editor", "sampleRate": 48000, "blockSize": 8192, "physicalHardware": false}
+Cannot lock down 107341340 byte memory area (Cannot allocate memory)
+PASS actual JACK CONDUCTOR: hardware-like PRESS input, four STEPS/wrap, independent layers, missing reference silence, selective STOP, PANIC, silent LOAD and timestamp ordering {"notes": [[745472, 0, 144, 60, 100], [794624, 0, 144, 62, 100], [843776, 0, 144, 64, 100], [892928, 0, 144, 65, 100], [950272, 0, 144, 60, 100], [1441792, 16, 144, 60, 100], [1441792, 16, 144, 62, 100], [1482752, 0, 128, 60, 0], [1564672, 0, 128, 62, 0]], "cleanupMessages": 720, "attacks": [60, 62, 64, 65, 60, 60, 62]}
+Cannot lock down 107341340 byte memory area (Cannot allocate memory)
+Traceback (most recent call last):
+  File "/workspace/mbmf-conductor-a/tests/test_instance_ownership_jack.py", line 55, in <module>
+    assert notes==[[144,60,100],[144,60,91],[144,62,91],[128,60,0],[128,62,0],[144,60,91],[128,60,0],[144,62,91],[128,62,0]],notes
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: [[144, 60, 100], [144, 60, 91], [144, 62, 91], [128, 60, 0], [128, 62, 0], [144, 60, 91], [144, 62, 91], [128, 62, 0]]
+FAILED: exit 1: scripts/headless-test.sh

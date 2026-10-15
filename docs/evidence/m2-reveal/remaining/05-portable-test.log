@@ -1,0 +1,16 @@
+In file included from tests/portable_parity.cpp:4:
+tests/expression_host.cpp: In function ‘int expression_regression_main(int, char**)’:
+tests/expression_host.cpp:757:1: warning: control reaches end of non-void function [-Wreturn-type]
+  757 | }
+      | ^
+PASS portable shared-EEL2 MIDI parity at 44100/48000 Hz (41 checks)
+......
+----------------------------------------------------------------------
+Ran 6 tests in 1.736s
+
+OK
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.919s
+
+OK

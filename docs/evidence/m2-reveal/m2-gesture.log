@@ -1,0 +1,45 @@
+M2 MIDI rate=44100 block=128 release=-1 PRESS=17 HOLD=11042 expected=11042
+M2 MIDI rate=44100 block=128 release=0 PRESS=17 HOLD=-1 expected=11042
+M2 MIDI rate=44100 block=128 release=1 PRESS=17 HOLD=11042 expected=11042
+M2 MIDI rate=44100 block=256 release=-1 PRESS=17 HOLD=11042 expected=11042
+M2 MIDI rate=44100 block=256 release=0 PRESS=17 HOLD=-1 expected=11042
+M2 MIDI rate=44100 block=256 release=1 PRESS=17 HOLD=11042 expected=11042
+M2 MIDI rate=44100 block=512 release=-1 PRESS=17 HOLD=11042 expected=11042
+M2 MIDI rate=44100 block=512 release=0 PRESS=17 HOLD=-1 expected=11042
+M2 MIDI rate=44100 block=512 release=1 PRESS=17 HOLD=11042 expected=11042
+M2 MIDI rate=44100 block=8192 release=-1 PRESS=17 HOLD=11042 expected=11042
+M2 MIDI rate=44100 block=8192 release=0 PRESS=17 HOLD=-1 expected=11042
+M2 MIDI rate=44100 block=8192 release=1 PRESS=17 HOLD=11042 expected=11042
+M2 MIDI rate=48000 block=128 release=-1 PRESS=17 HOLD=12017 expected=12017
+M2 MIDI rate=48000 block=128 release=0 PRESS=17 HOLD=-1 expected=12017
+M2 MIDI rate=48000 block=128 release=1 PRESS=17 HOLD=12017 expected=12017
+M2 MIDI rate=48000 block=256 release=-1 PRESS=17 HOLD=12017 expected=12017
+M2 MIDI rate=48000 block=256 release=0 PRESS=17 HOLD=-1 expected=12017
+M2 MIDI rate=48000 block=256 release=1 PRESS=17 HOLD=12017 expected=12017
+M2 MIDI rate=48000 block=512 release=-1 PRESS=17 HOLD=12017 expected=12017
+M2 MIDI rate=48000 block=512 release=0 PRESS=17 HOLD=-1 expected=12017
+M2 MIDI rate=48000 block=512 release=1 PRESS=17 HOLD=12017 expected=12017
+M2 MIDI rate=48000 block=8192 release=-1 PRESS=17 HOLD=12017 expected=12017
+M2 MIDI rate=48000 block=8192 release=0 PRESS=17 HOLD=-1 expected=12017
+M2 MIDI rate=48000 block=8192 release=1 PRESS=17 HOLD=12017 expected=12017
+M2 MIDI rate=96000 block=128 release=-1 PRESS=17 HOLD=24017 expected=24017
+M2 MIDI rate=96000 block=128 release=0 PRESS=17 HOLD=-1 expected=24017
+M2 MIDI rate=96000 block=128 release=1 PRESS=17 HOLD=24017 expected=24017
+M2 MIDI rate=96000 block=256 release=-1 PRESS=17 HOLD=24017 expected=24017
+M2 MIDI rate=96000 block=256 release=0 PRESS=17 HOLD=-1 expected=24017
+M2 MIDI rate=96000 block=256 release=1 PRESS=17 HOLD=24017 expected=24017
+M2 MIDI rate=96000 block=512 release=-1 PRESS=17 HOLD=24017 expected=24017
+M2 MIDI rate=96000 block=512 release=0 PRESS=17 HOLD=-1 expected=24017
+M2 MIDI rate=96000 block=512 release=1 PRESS=17 HOLD=24017 expected=24017
+M2 MIDI rate=96000 block=8192 release=-1 PRESS=17 HOLD=24017 expected=24017
+M2 MIDI rate=96000 block=8192 release=0 PRESS=17 HOLD=-1 expected=24017
+M2 MIDI rate=96000 block=8192 release=1 PRESS=17 HOLD=24017 expected=24017
+PASS: 692 M2 actual MIDI gesture checks
+test_short_press_long_hold_and_load_stopped (__main__.Gestures.test_short_press_long_hold_and_load_stopped) ... ok
+test_test_hold_same_step_and_movement_one_shot (__main__.Gestures.test_test_hold_same_step_and_movement_one_shot) ... ok
+test_stop_panic_and_patch_replacement_cancel_pending (__main__.Gestures.test_stop_panic_and_patch_replacement_cancel_pending) ... ok
+
+----------------------------------------------------------------------
+Ran 3 tests in 7.080s
+
+OK

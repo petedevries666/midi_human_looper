@@ -1,0 +1,16 @@
+test_activation_holds_native_boundary_through_restart_and_health (__main__.AdmissionTests.test_activation_holds_native_boundary_through_restart_and_health) ... ok
+test_activation_rechecks_activity_after_checkpoint_before_stop (__main__.AdmissionTests.test_activation_rechecks_activity_after_checkpoint_before_stop) ... ok
+test_controller_glide_cannot_mutate_frozen_checkpoint (__main__.AdmissionTests.test_controller_glide_cannot_mutate_frozen_checkpoint) ... ok
+test_empty_switch_held_refuses_update (__main__.AdmissionTests.test_empty_switch_held_refuses_update) ... ok
+test_failed_multi_processor_acquire_releases_only_own_lease (__main__.AdmissionTests.test_failed_multi_processor_acquire_releases_only_own_lease) ... ok
+test_real_leases_reject_held_notes_and_armed_recording (__main__.AdmissionTests.test_real_leases_reject_held_notes_and_armed_recording) ... ok
+test_rollback_failure_retains_fence_until_explicit_recovery (__main__.AdmissionTests.test_rollback_failure_retains_fence_until_explicit_recovery) ... ok
+test_startup_guard_excludes_marker_race (__main__.AdmissionTests.test_startup_guard_excludes_marker_race) ... ok
+test_worker_fence_new_processor_restore_and_checkpoint (__main__.AdmissionTests.test_worker_fence_new_processor_restore_and_checkpoint) ... ok
+
+----------------------------------------------------------------------
+Ran 9 tests in 14.594s
+
+OK
+Cannot lock down 107341340 byte memory area (Cannot allocate memory)
+PASS actual JACK admission: closed MIDI notes/CC/sustain/Smart Switch suppressed, held-note refusal, wrong-owner refusal, no queued attacks, explicit resume, PANIC stays closed; actual notes [62, 66, 67]

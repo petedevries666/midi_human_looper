@@ -1,0 +1,7 @@
+PASS zero callback allocations; ordered bounded ring; 10000 records; mean instrumented scope ns=9350
+PASS zero callback allocations; ordered bounded ring; 10000 records; mean instrumented scope ns=5260
+....
+----------------------------------------------------------------------
+Ran 4 tests in 0.000s
+
+OK

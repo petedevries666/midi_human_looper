@@ -1,0 +1,143 @@
+ERROR:root:MBMF native MIDI source mbh_1:midi_out blocked: unsafe routing
+ERROR:root:MBMF native MIDI source mbh_1:midi_out blocked: unsafe routing
+.ERROR:root:MBMF native MIDI source mbh_1:midi_out blocked: unsafe routing
+.ERROR:root:MBMF virtual input could NOT be quarantined
+Traceback (most recent call last):
+  File "/workspace/mbmf-conductor-a/zynthian/zynthian_engine_mbh_router.py", line 63, in _quarantine_virtual
+    raise RuntimeError('native quarantine readback failed')
+RuntimeError: native quarantine readback failed
+ERROR:root:MBMF leaves physical input isolated: unsafe restore
+ERROR:root:MBMF virtual input could NOT be quarantined
+Traceback (most recent call last):
+  File "/workspace/mbmf-conductor-a/zynthian/zynthian_engine_mbh_router.py", line 63, in _quarantine_virtual
+    raise RuntimeError('native quarantine readback failed')
+RuntimeError: native quarantine readback failed
+ERROR:root:MBMF leaves physical input isolated: unsafe restore
+ERROR:root:MBMF native MIDI source mbh_1:midi_out blocked: unsafe routing
+.ERROR:root:MBMF invalid exclusive MIDI input config; virtual source blocked
+Traceback (most recent call last):
+  File "/workspace/mbmf-conductor-a/zynthian/zynthian_engine_mbh_router.py", line 298, in configure
+    requested = _read_exclusive_ports()
+                ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/mbmf-conductor-a/zynthian/zynthian_engine_mbh_router.py", line 33, in _read_exclusive_ports
+    config = json.loads(CONFIG_PATH.read_text(encoding='utf-8'))
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/json/__init__.py", line 346, in loads
+    return _default_decoder.decode(s)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/json/decoder.py", line 338, in decode
+    obj, end = self.raw_decode(s, idx=_w(s, 0).end())
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/json/decoder.py", line 354, in raw_decode
+    obj, end = self.scan_once(s, idx)
+               ^^^^^^^^^^^^^^^^^^^^^^
+json.decoder.JSONDecodeError: Expecting property name enclosed in double quotes: line 1 column 2 (char 1)
+ERROR:root:MBMF native MIDI source mbh_1:midi_out blocked: unsafe routing
+...ERROR:root:MBMF configured exclusive keyboard port missing or unsafe
+ERROR:root:MBMF native MIDI source mbh_1:midi_out blocked: unsafe routing
+...ERROR:root:MBMF invalid exclusive MIDI input config; virtual source blocked
+Traceback (most recent call last):
+  File "/workspace/mbmf-conductor-a/zynthian/zynthian_engine_mbh_router.py", line 298, in configure
+    requested = _read_exclusive_ports()
+                ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/mbmf-conductor-a/zynthian/zynthian_engine_mbh_router.py", line 33, in _read_exclusive_ports
+    config = json.loads(CONFIG_PATH.read_text(encoding='utf-8'))
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/json/__init__.py", line 346, in loads
+    return _default_decoder.decode(s)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/json/decoder.py", line 338, in decode
+    obj, end = self.raw_decode(s, idx=_w(s, 0).end())
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/json/decoder.py", line 354, in raw_decode
+    obj, end = self.scan_once(s, idx)
+               ^^^^^^^^^^^^^^^^^^^^^^
+json.decoder.JSONDecodeError: Expecting property name enclosed in double quotes: line 1 column 2 (char 1)
+ERROR:root:MBMF native MIDI source mbh_1:midi_out blocked: unsafe routing
+FERROR:root:MBMF configured exclusive keyboard port missing or unsafe
+ERROR:root:MBMF native MIDI source mbh_1:midi_out blocked: unsafe routing
+FERROR:root:MBMF exclusive input failed; restoring prior MIDI matrix
+Traceback (most recent call last):
+  File "/workspace/mbmf-conductor-a/zynthian/zynthian_engine_mbh_router.py", line 215, in _apply_exclusive
+    raise RuntimeError('exclusive route readback failed')
+RuntimeError: exclusive route readback failed
+ERROR:root:MBMF native MIDI source mbh_1:midi_out blocked: unsafe routing
+FERROR:root:MBMF virtual input could NOT be quarantined
+Traceback (most recent call last):
+  File "/workspace/mbmf-conductor-a/zynthian/zynthian_engine_mbh_router.py", line 63, in _quarantine_virtual
+    raise RuntimeError('native quarantine readback failed')
+RuntimeError: native quarantine readback failed
+ERROR:root:MBMF leaves physical input isolated: unsafe restore
+ERROR:root:MBMF native MIDI source mbh_1:midi_out blocked: unsafe routing
+FERROR:root:MBMF native MIDI source mbh_1:midi_out blocked: unsafe routing
+FERROR:root:MBMF native MIDI source mbh_1:midi_out blocked: unsafe routing
+.ERROR:root:MBMF exclusive input failed; restoring prior MIDI matrix
+Traceback (most recent call last):
+  File "/workspace/mbmf-conductor-a/zynthian/zynthian_engine_mbh_router.py", line 215, in _apply_exclusive
+    raise RuntimeError('exclusive route readback failed')
+RuntimeError: exclusive route readback failed
+ERROR:root:MBMF native MIDI source mbh_1:midi_out blocked: unsafe routing
+.E...
+======================================================================
+ERROR: test_refresh_quarantines_before_any_keyboard_change (__main__.ExclusiveInput.test_refresh_quarantines_before_any_keyboard_change)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/mbmf-conductor-a/tests/test_zynthian_exclusive_input.py", line 123, in test_refresh_quarantines_before_any_keyboard_change
+    close = next(i for i,c in enumerate(self.api.calls) if c == ('route', 1, 2, 0))
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+StopIteration
+
+======================================================================
+FAIL: test_no_transient_admission_on_invalid_config (__main__.ExclusiveInput.test_no_transient_admission_on_invalid_config)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/mbmf-conductor-a/tests/test_zynthian_exclusive_input.py", line 107, in test_no_transient_admission_on_invalid_config
+    self.assert_virtual_never_enabled()
+  File "/workspace/mbmf-conductor-a/tests/test_zynthian_exclusive_input.py", line 90, in assert_virtual_never_enabled
+    self.assertFalse([c for c in self.api.calls
+AssertionError: [('route', 1, 2, 1)] is not false : unsafe virtual routes must never be enabled, even transiently
+
+======================================================================
+FAIL: test_no_transient_admission_on_missing_keyboard (__main__.ExclusiveInput.test_no_transient_admission_on_missing_keyboard)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/mbmf-conductor-a/tests/test_zynthian_exclusive_input.py", line 102, in test_no_transient_admission_on_missing_keyboard
+    self.assert_virtual_never_enabled()
+  File "/workspace/mbmf-conductor-a/tests/test_zynthian_exclusive_input.py", line 90, in assert_virtual_never_enabled
+    self.assertFalse([c for c in self.api.calls
+AssertionError: [('route', 1, 2, 1)] is not false : unsafe virtual routes must never be enabled, even transiently
+
+======================================================================
+FAIL: test_no_transient_admission_on_physical_isolation_failure (__main__.ExclusiveInput.test_no_transient_admission_on_physical_isolation_failure)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/mbmf-conductor-a/tests/test_zynthian_exclusive_input.py", line 112, in test_no_transient_admission_on_physical_isolation_failure
+    self.assert_virtual_never_enabled()
+  File "/workspace/mbmf-conductor-a/tests/test_zynthian_exclusive_input.py", line 90, in assert_virtual_never_enabled
+    self.assertFalse([c for c in self.api.calls
+AssertionError: [('route', 1, 2, 1)] is not false : unsafe virtual routes must never be enabled, even transiently
+
+======================================================================
+FAIL: test_no_transient_admission_on_virtual_quarantine_failure (__main__.ExclusiveInput.test_no_transient_admission_on_virtual_quarantine_failure)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/mbmf-conductor-a/tests/test_zynthian_exclusive_input.py", line 117, in test_no_transient_admission_on_virtual_quarantine_failure
+    self.assert_virtual_never_enabled()
+  File "/workspace/mbmf-conductor-a/tests/test_zynthian_exclusive_input.py", line 90, in assert_virtual_never_enabled
+    self.assertFalse([c for c in self.api.calls
+AssertionError: [('route', 1, 2, 1)] is not false : unsafe virtual routes must never be enabled, even transiently
+
+======================================================================
+FAIL: test_no_transient_admission_without_opt_in (__main__.ExclusiveInput.test_no_transient_admission_without_opt_in)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/mbmf-conductor-a/tests/test_zynthian_exclusive_input.py", line 97, in test_no_transient_admission_without_opt_in
+    self.assert_virtual_never_enabled()
+  File "/workspace/mbmf-conductor-a/tests/test_zynthian_exclusive_input.py", line 90, in assert_virtual_never_enabled
+    self.assertFalse([c for c in self.api.calls
+AssertionError: [('route', 1, 2, 1)] is not false : unsafe virtual routes must never be enabled, even transiently
+
+----------------------------------------------------------------------
+Ran 20 tests in 0.017s
+
+FAILED (failures=5, errors=1)

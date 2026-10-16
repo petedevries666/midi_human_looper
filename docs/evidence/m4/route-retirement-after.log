@@ -1,0 +1,130 @@
+ERROR:root:MBMF native MIDI source mbh_1:midi_out blocked: unsafe routing
+ERROR:root:MBMF native MIDI source mbh_1:midi_out blocked: unsafe routing
+.ERROR:root:MBMF native MIDI source mbh_1:midi_out blocked: unsafe routing
+.ERROR:root:MBMF failed restoring exclusive MIDI input mode
+Traceback (most recent call last):
+  File "/workspace/mbmf-conductor-a/zynthian/zynthian_engine_mbh_router.py", line 116, in _restore_exclusive
+    raise RuntimeError('physical mode restore setter failed')
+RuntimeError: physical mode restore setter failed
+ERROR:root:MBMF failed restoring exclusive MIDI input mode
+Traceback (most recent call last):
+  File "/workspace/mbmf-conductor-a/zynthian/zynthian_engine_mbh_router.py", line 116, in _restore_exclusive
+    raise RuntimeError('physical mode restore setter failed')
+RuntimeError: physical mode restore setter failed
+ERROR:root:MBMF native MIDI source mbh_1:midi_out blocked: unsafe routing
+ERROR:root:MBMF native MIDI source mbh_1:midi_out blocked: unsafe routing
+.ERROR:root:MBMF failed restoring exclusive MIDI route
+Traceback (most recent call last):
+  File "/workspace/mbmf-conductor-a/zynthian/zynthian_engine_mbh_router.py", line 103, in _restore_exclusive
+    raise RuntimeError('physical restore setter failed')
+RuntimeError: physical restore setter failed
+ERROR:root:MBMF failed restoring exclusive MIDI route
+Traceback (most recent call last):
+  File "/workspace/mbmf-conductor-a/zynthian/zynthian_engine_mbh_router.py", line 103, in _restore_exclusive
+    raise RuntimeError('physical restore setter failed')
+RuntimeError: physical restore setter failed
+ERROR:root:MBMF native MIDI source mbh_1:midi_out blocked: unsafe routing
+ERROR:root:MBMF native MIDI source mbh_1:midi_out blocked: unsafe routing
+.ERROR:root:MBMF virtual input could NOT be quarantined
+Traceback (most recent call last):
+  File "/workspace/mbmf-conductor-a/zynthian/zynthian_engine_mbh_router.py", line 77, in _quarantine_virtual
+    raise RuntimeError('native quarantine readback failed')
+RuntimeError: native quarantine readback failed
+ERROR:root:MBMF virtual input could NOT be quarantined
+Traceback (most recent call last):
+  File "/workspace/mbmf-conductor-a/zynthian/zynthian_engine_mbh_router.py", line 77, in _quarantine_virtual
+    raise RuntimeError('native quarantine readback failed')
+RuntimeError: native quarantine readback failed
+ERROR:root:MBMF leaves physical input isolated: unsafe restore
+ERROR:root:MBMF native MIDI source mbh_1:midi_out blocked: unsafe routing
+.ERROR:root:MBMF invalid exclusive MIDI input config; virtual source blocked
+Traceback (most recent call last):
+  File "/workspace/mbmf-conductor-a/zynthian/zynthian_engine_mbh_router.py", line 361, in configure
+    requested = _read_exclusive_ports()
+                ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/mbmf-conductor-a/zynthian/zynthian_engine_mbh_router.py", line 33, in _read_exclusive_ports
+    config = json.loads(CONFIG_PATH.read_text(encoding='utf-8'))
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/json/__init__.py", line 346, in loads
+    return _default_decoder.decode(s)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/json/decoder.py", line 338, in decode
+    obj, end = self.raw_decode(s, idx=_w(s, 0).end())
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/json/decoder.py", line 354, in raw_decode
+    obj, end = self.scan_once(s, idx)
+               ^^^^^^^^^^^^^^^^^^^^^^
+json.decoder.JSONDecodeError: Expecting property name enclosed in double quotes: line 1 column 2 (char 1)
+ERROR:root:MBMF native MIDI source mbh_1:midi_out blocked: unsafe routing
+...ERROR:root:MBMF native MIDI source mbh_1:midi_out blocked: unsafe routing
+.ERROR:root:MBMF configured exclusive keyboard port missing or unsafe
+ERROR:root:MBMF native MIDI source mbh_1:midi_out blocked: unsafe routing
+...ERROR:root:MBMF invalid exclusive MIDI input config; virtual source blocked
+Traceback (most recent call last):
+  File "/workspace/mbmf-conductor-a/zynthian/zynthian_engine_mbh_router.py", line 361, in configure
+    requested = _read_exclusive_ports()
+                ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/mbmf-conductor-a/zynthian/zynthian_engine_mbh_router.py", line 33, in _read_exclusive_ports
+    config = json.loads(CONFIG_PATH.read_text(encoding='utf-8'))
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/json/__init__.py", line 346, in loads
+    return _default_decoder.decode(s)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/json/decoder.py", line 338, in decode
+    obj, end = self.raw_decode(s, idx=_w(s, 0).end())
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/json/decoder.py", line 354, in raw_decode
+    obj, end = self.scan_once(s, idx)
+               ^^^^^^^^^^^^^^^^^^^^^^
+json.decoder.JSONDecodeError: Expecting property name enclosed in double quotes: line 1 column 2 (char 1)
+ERROR:root:MBMF native MIDI source mbh_1:midi_out blocked: unsafe routing
+.ERROR:root:MBMF configured exclusive keyboard port missing or unsafe
+ERROR:root:MBMF native MIDI source mbh_1:midi_out blocked: unsafe routing
+.ERROR:root:MBMF exclusive input failed; restoring prior MIDI matrix
+Traceback (most recent call last):
+  File "/workspace/mbmf-conductor-a/zynthian/zynthian_engine_mbh_router.py", line 239, in _apply_exclusive
+    raise RuntimeError('exclusive route readback failed')
+RuntimeError: exclusive route readback failed
+ERROR:root:MBMF native MIDI source mbh_1:midi_out blocked: unsafe routing
+.ERROR:root:MBMF virtual input could NOT be quarantined
+Traceback (most recent call last):
+  File "/workspace/mbmf-conductor-a/zynthian/zynthian_engine_mbh_router.py", line 77, in _quarantine_virtual
+    raise RuntimeError('native quarantine readback failed')
+RuntimeError: native quarantine readback failed
+ERROR:root:MBMF native MIDI source mbh_1:midi_out blocked: unsafe routing
+.ERROR:root:MBMF native MIDI source mbh_1:midi_out blocked: unsafe routing
+.ERROR:root:MBMF virtual input could NOT be quarantined
+Traceback (most recent call last):
+  File "/workspace/mbmf-conductor-a/zynthian/zynthian_engine_mbh_router.py", line 74, in _quarantine_virtual
+    if context.lib_zyncore.zmop_set_route_from(zmop, index, 0) != 1:
+       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/mbmf-conductor-a/tests/test_zynthian_exclusive_input.py", line 154, in failing
+    raise RuntimeError('injected native quarantine failure')
+RuntimeError: injected native quarantine failure
+ERROR:root:MBMF failed to close native route 0
+Traceback (most recent call last):
+  File "/workspace/mbmf-conductor-a/zynthian/zynthian_engine_mbh_router.py", line 441, in configure
+    context.lib_zyncore.zmop_set_route_from(zmop, index, 0)
+  File "/workspace/mbmf-conductor-a/tests/test_zynthian_exclusive_input.py", line 154, in failing
+    raise RuntimeError('injected native quarantine failure')
+RuntimeError: injected native quarantine failure
+ERROR:root:MBMF native MIDI source mbh_1:midi_out blocked: unsafe routing
+.ERROR:root:MBMF native MIDI source mbh_1:midi_out blocked: unsafe routing
+.ERROR:root:MBMF exclusive input failed; restoring prior MIDI matrix
+Traceback (most recent call last):
+  File "/workspace/mbmf-conductor-a/zynthian/zynthian_engine_mbh_router.py", line 239, in _apply_exclusive
+    raise RuntimeError('exclusive route readback failed')
+RuntimeError: exclusive route readback failed
+ERROR:root:MBMF native MIDI source mbh_1:midi_out blocked: unsafe routing
+.ERROR:root:MBMF native slot recycled; restore blocked pending graph reconciliation
+..ERROR:root:MBMF virtual input could NOT be quarantined
+Traceback (most recent call last):
+  File "/workspace/mbmf-conductor-a/zynthian/zynthian_engine_mbh_router.py", line 77, in _quarantine_virtual
+    raise RuntimeError('native quarantine readback failed')
+RuntimeError: native quarantine readback failed
+....ERROR:root:MBMF exclusive input requires exactly one dedicated MB chain
+..
+----------------------------------------------------------------------
+Ran 28 tests in 0.046s
+
+OK

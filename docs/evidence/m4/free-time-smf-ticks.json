@@ -1,0 +1,19 @@
+{
+  "ppq": 24000,
+  "events": [
+    {
+      "tick": 0,
+      "type": "note_on",
+      "channel": 3,
+      "note": 65,
+      "velocity": 97
+    },
+    {
+      "tick": 80060,
+      "type": "note_off",
+      "channel": 3,
+      "note": 65,
+      "velocity": 31
+    }
+  ]
+}

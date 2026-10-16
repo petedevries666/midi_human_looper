@@ -1,0 +1,32 @@
+FFERROR:root:MBMF native MIDI source mbh_1:midi_out blocked: unsafe routing
+F
+======================================================================
+FAIL: test_removed_mb_never_resurrects_its_virtual_input (__main__.ExclusiveInput.test_removed_mb_never_resurrects_its_virtual_input)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/mbmf-conductor-a/tests/test_zynthian_exclusive_input.py", line 165, in test_removed_mb_never_resurrects_its_virtual_input
+    self.assert_virtual_never_enabled()
+  File "/workspace/mbmf-conductor-a/tests/test_zynthian_exclusive_input.py", line 96, in assert_virtual_never_enabled
+    self.assertFalse([c for c in self.api.calls
+AssertionError: [('route', 1, 2, 1), ('route', 2, 2, 1)] is not false : unsafe virtual routes must never be enabled, even transiently
+
+======================================================================
+FAIL: test_removed_mb_failed_quarantine_keeps_keyboard_isolated (__main__.ExclusiveInput.test_removed_mb_failed_quarantine_keeps_keyboard_isolated)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/mbmf-conductor-a/tests/test_zynthian_exclusive_input.py", line 173, in test_removed_mb_failed_quarantine_keeps_keyboard_isolated
+    self.assertEqual(self.route(1,0),0)
+AssertionError: 1 != 0
+
+======================================================================
+FAIL: test_failed_physical_restore_retains_ownership_for_retry (__main__.ExclusiveInput.test_failed_physical_restore_retains_ownership_for_retry)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/mbmf-conductor-a/tests/test_zynthian_exclusive_input.py", line 186, in test_failed_physical_restore_retains_ownership_for_retry
+    self.assertIsNotNone(self.ctx._mbmf_exclusive,'failed restore cannot discard its ownership journal')
+AssertionError: unexpectedly None : failed restore cannot discard its ownership journal
+
+----------------------------------------------------------------------
+Ran 3 tests in 0.006s
+
+FAILED (failures=3)

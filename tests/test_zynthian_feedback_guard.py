@@ -117,12 +117,20 @@ class FeedbackGuard(unittest.TestCase):
         for zmop in (4, 7, 9, 11, 13):
             self.assertEqual(self.api.routes[(zmop, 2)], 0)
 
-    def test_removal_restores_previous_mode_and_routes(self):
+    def test_retired_virtual_port_stays_closed_until_device_disappears(self):
         router.configure(self.ctx, {})
+        self.api.calls.clear()
         del self.chains[1]
         router.discover(self.ctx)
+        self.assertEqual(self.api.modes[2], 0)
+        self.assertEqual(self.api.routes[(7, 2)], 0)
+        self.assertFalse([c for c in self.api.calls if c[0]=='route' and c[2:]==(2,1)])
+        self.assertIn(2,self.ctx._mbmf_source_inputs)
+        self.ctx.devices_in[2]=None
+        router.discover(self.ctx)
         self.assertEqual(self.api.modes[2], 1)
-        self.assertEqual(self.api.routes[(7, 2)], 1)
+        self.assertEqual(self.api.routes[(7, 2)], 0,
+                         'retired virtual routes must never be resurrected')
         self.assertEqual(self.ctx._mbmf_source_inputs, {})
 
     def test_unrelated_jack_routes_untouched(self):

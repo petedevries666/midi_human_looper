@@ -677,6 +677,7 @@ static void stress(Host &h, bool historical, bool cc_instances = false, bool dyn
 #include "chain_mode_cases.hpp"
 #include "native_hold_cases.hpp"
 #include "free_capture_cases.hpp"
+#include "m4_clock_cases.hpp"
 #include "recovery_arp_cases.hpp"
 #include "recovery_recording_cases.hpp"
 #include "conductor_baseline_cases.hpp"
@@ -705,6 +706,8 @@ int main(int argc, char **argv) {
   if(argc>2 && std::string(argv[2])=="--m0-entries"){m0_entry_tests(argv[1]);printf("PASS: %d M0 entry MIDI checks\n",checks);return 0;}
   if(argc>2 && std::string(argv[2])=="--m0-hold"){m0_latched_hold_tests(argv[1]);printf("PASS: %d M0 HOLD MIDI checks\n",checks);return 0;}
   if(argc>2 && std::string(argv[2])=="--m0-playback"){m0_playback_tests(argv[1]);printf("PASS: %d actual native M0 playback checks\n",checks);return 0;}
+  if(argc>2 && std::string(argv[2])=="--chain-grid"){chain_mode_tests(argv[1]);chain_capture_origin_tests(argv[1]);chain_exact_timing_tests(argv[1]);chain_exact_playback_tests(argv[1]);printf("PASS: %d grid capture/timing checks\n",checks);return 0;}
+  if(argc>2 && std::string(argv[2])=="--m4-clock"){m4_clock_tests(argv[1]);return 0;}
   Host h(argv[1]);
   if (argc > 2 && (std::string(argv[2]) == "--historical" ||
                    std::string(argv[2]) == "--isolated")) {

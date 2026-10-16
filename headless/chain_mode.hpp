@@ -24,7 +24,25 @@ struct ChainMode {
   EEL_F *freeReady,*freeActive,*overflow,*freeOldCount,*freeOldLength,*freeOldTrigger;
   NSEEL_CODEHANDLE rollbackCapture;
   bool freeCaptureSession=false;
+  enum class CaptureError { None=0, RecordOverflow=1, ReleaseCapacity=2,
+                            InvalidCapture=3, AudioClockGap=4, GridTempoChanged=5 };
+  CaptureError errorReason=CaptureError::None;
+  uint64_t captureRejected=0, captureOverflows=0;
+  bool haveAudioClock=false;
   int errorPhrase=-1;
+  NSEEL_CODEHANDLE validateCapture;
+  static const char* errorName(CaptureError reason) {
+    switch(reason){
+      case CaptureError::RecordOverflow:return "record_overflow";
+      case CaptureError::ReleaseCapacity:return "release_capacity";
+      case CaptureError::InvalidCapture:return "invalid_capture";
+      case CaptureError::AudioClockGap:return "audio_clock_discontinuity";
+      case CaptureError::GridTempoChanged:return "grid_tempo_changed";
+      default:return "none";
+    }
+  }
+  void clearError(){error=false;errorPhrase=-1;errorReason=CaptureError::None;}
+
   EEL_F* phraseTriggers[16]{};
   EEL_F* holdAccepted;
   EEL_F* phraseModes[16]{};
@@ -70,6 +88,10 @@ struct ChainMode {
     freeReady=NSEEL_VM_regvar(f->vm.get(),"free_record_ready");freeActive=NSEEL_VM_regvar(f->vm.get(),"free_record_active");
     overflow=NSEEL_VM_regvar(f->vm.get(),"record_overflow");
     freeOldCount=NSEEL_VM_regvar(f->vm.get(),"free_old_count");freeOldLength=NSEEL_VM_regvar(f->vm.get(),"free_old_length");freeOldTrigger=NSEEL_VM_regvar(f->vm.get(),"free_old_trigger");
+    validateCapture=compile("chain_bad=0;chain_j=0;loop(layer_count(chain_target),chain_a=layer_base(chain_target,chain_j);"
+        "chain_s=mem[chain_a+1];chain_n=mem[chain_a+2];chain_v=mem[chain_a+3];"
+        "(!(mem[chain_a]>=0 && mem[chain_a]<=chain_duration) || chain_s<128 || chain_s>255 || "
+        "(chain_s<240 && (chain_n<0 || chain_n>127 || chain_v<0 || chain_v>127)))?chain_bad=1;chain_j+=1;);");
     rollbackCapture=compile("set_layer_count(chain_target,free_old_count);mem[LEN_BASE+chain_target]=free_old_length;mem[TRIG_BASE+chain_target]=free_old_trigger;free_record_ready=0;free_record_active=0;overdub_active=0;overdub_armed=0;state=STATE_STOPPED;panic_pending=1;");
     instanceAccepted=NSEEL_VM_regvar(f->vm.get(),"chain_instance_accepted");
     instanceId=NSEEL_VM_regvar(f->vm.get(),"chain_instance_id");instanceGeneration=NSEEL_VM_regvar(f->vm.get(),"chain_instance_generation");
@@ -124,7 +146,7 @@ struct ChainMode {
     NSEEL_code_free(begin);
     NSEEL_code_free(finish);
     NSEEL_code_free(play);NSEEL_code_free(holdPress);NSEEL_code_free(holdRelease);
-    NSEEL_code_free(instanceStop);NSEEL_code_free(independentPlay);NSEEL_code_free(freeArm);NSEEL_code_free(freeFinish);NSEEL_code_free(freePlay);NSEEL_code_free(freeStop);NSEEL_code_free(rollbackCapture);
+    NSEEL_code_free(instanceStop);NSEEL_code_free(independentPlay);NSEEL_code_free(freeArm);NSEEL_code_free(freeFinish);NSEEL_code_free(freePlay);NSEEL_code_free(freeStop);NSEEL_code_free(rollbackCapture);NSEEL_code_free(validateCapture);
   }
   bool stopInstance(uint64_t id,uint64_t generation) {
     *instanceId=double(id);*instanceGeneration=double(generation);NSEEL_code_execute(instanceStop);return *instanceAccepted>.5;
@@ -140,16 +162,30 @@ struct ChainMode {
     if(!run && !recording && !armed && *musicalState==3)*musicalState=4;
     length=uint64_t(std::max(0.,*loopLength));
   }
+  void rejectCapture(CaptureError reason) {
+    error=true;errorPhrase=phrase;errorReason=reason;++captureRejected;
+    if(reason==CaptureError::RecordOverflow)++captureOverflows;
+    NSEEL_code_execute(rollbackCapture);
+    *overflow=0;freeCaptureSession=false;observe();
+  }
   void finishFree() {
-    // Reuse the bounded native pairing check only for a new take. Existing
-    // overdubs keep the shared JSFX lifecycle and their original source data.
-    if(*overflow>.5){NSEEL_code_execute(rollbackCapture);error=true;errorPhrase=phrase;freeCaptureSession=false;observe();return;}
+    // A failed append must leave the original source, duration and trigger intact.
+    if(freeCaptureSession && *overflow>.5){rejectCapture(CaptureError::RecordOverflow);return;}
     if(freeCaptureSession && (*musicalState==2 || *freeActive>.5 || *freeOldCount>0 || *phraseCounts[phrase]>0)) {
+      if(*freeOldCount<=0 && !std::isfinite(*recordPosition)){
+        rejectCapture(CaptureError::InvalidCapture);return;
+      }
       *duration=*freeOldCount>0?*freeOldLength:std::max(1.,*recordPosition);
+      const double count=*phraseCounts[phrase];
+      if(!std::isfinite(count) || count<0 || count>2048 || count!=std::floor(count) ||
+         !std::isfinite(*duration) || *duration<=0) {
+        rejectCapture(CaptureError::InvalidCapture);return;
+      }
+      NSEEL_code_execute(validateCapture);
+      if(*bad>.5){rejectCapture(CaptureError::InvalidCapture);return;}
       *captureNormalize=0;
       NSEEL_code_execute(finish);
-      error=*bad>.5;
-      if(error){errorPhrase=phrase;NSEEL_code_execute(rollbackCapture);freeCaptureSession=false;observe();return;}
+      if(*bad>.5){rejectCapture(CaptureError::ReleaseCapacity);return;}
       *phraseTriggers[phrase]=*freeOldTrigger;
     }
     NSEEL_code_execute(freeFinish);
@@ -191,7 +227,7 @@ struct ChainMode {
       if(action!=4 && action!=0){phrase=selected;*target=selected;}
       if(action==5){if(!freeCaptureSession)return false;NSEEL_code_execute(rollbackCapture);freeCaptureSession=false;observe();return true;}
       if(action==0)cancel();
-      if(action==2){error=false;if(recording || armed)finishFree();else{freeCaptureSession=true;NSEEL_code_execute(freeArm);}}
+      if(action==2){clearError();if(recording || armed)finishFree();else{freeCaptureSession=true;NSEEL_code_execute(freeArm);}}
       if(action==3)finishFree();
       if(action==1){
         if(recording || armed)finishFree();
@@ -238,44 +274,49 @@ struct ChainMode {
     if (action == 2) {
       armed = true;
       run = true;
-      error = false;
+      clearError();
     }
     if (action == 3 && recording) {
       NSEEL_code_execute(finish);
       recording = false;
       error = *bad > .5;
-      if (error)
-        run = false;
+      if (error){
+        run = false;errorPhrase=phrase;errorReason=CaptureError::ReleaseCapacity;
+      }
     }
     if (action == 3 && armed)
       armed = false;
     return true;
   }
   bool tick(uint64_t frame, unsigned frames, unsigned rate, bool rolling,
-            double tempo, uint64_t clock = 0) {
+            double tempo, uint64_t clock = UINT64_MAX) {
     if (!enabled)
       return false;
     if(!gridCapture) {
       observe();
       if(*overflow>.5){finishFree();*overflow=0;return true;}
       if(freeCaptureSession && *freeOldCount>0 && !recording && !armed)finishFree();
-      // Free takes use the shared sample counter, never the transport phase
-      // or BPM. Preserve the interruption guard; do not conceal missing blocks.
-      bpm=tempo; // ARP may follow host tempo; recorded source time never does.
-      const bool gap=previous && frame!=previous;
-      const bool missed=gap && clock && frame-previous==clock-previousClock;
-      const bool interrupted=previous && (!rolling || (gap && (!missed || recording || run)));
-      if(interrupted) {
+      // Source timestamps already come from the shared sample counter. Only
+      // the continuous JACK audio-cycle clock can diagnose missing callbacks;
+      // transport STOP/START/seek is a separate domain, never a capture origin.
+      bpm=tempo;
+      const uint64_t audio=clock==UINT64_MAX?(haveAudioClock?previousClock:0):clock;
+      // jack_nframes_t wraps at 32 bits. Compare modulo that domain so one
+      // ordinary wrap after a long performance is not a false recording error.
+      const bool gap=haveAudioClock && uint32_t(audio)!=uint32_t(previousClock);
+      bool interrupted=false;
+      if(gap) {
         lastFrameGap=int64_t(frame)-int64_t(previous);
-        lastClockGap=int64_t(clock)-int64_t(previousClock);
-        const bool wasRecording=recording;
-        if(missed && wasRecording){NSEEL_code_execute(rollbackCapture);freeCaptureSession=false;armed=recording=run=false;}else cancel();
-        error=missed && wasRecording;if(error)errorPhrase=phrase;
+        lastClockGap=int64_t(int32_t(uint32_t(audio)-uint32_t(previousClock)));
+        if(recording){rejectCapture(CaptureError::AudioClockGap);interrupted=true;}
+        else if(run){cancel();interrupted=true;}
       }
       previous=rolling?frame+frames:0;
-      previousClock=clock?clock+frames:0;
+      previousClock=audio+frames;haveAudioClock=true;
       return interrupted;
     }
+    // Optional grid capture retains its transport-aligned timing V1/V2 policy.
+    if(clock==UINT64_MAX)clock=0;
     bool failed = false;
     uint64_t proposed = timingVersion==1
         ? uint64_t(std::llround(rate * 480.0 / tempo / frames))*frames
@@ -294,6 +335,7 @@ struct ChainMode {
       const bool interruptedRecording = recording;
       cancel();
       error = changed || (missed && interruptedRecording);
+      if(error){errorPhrase=phrase;errorReason=changed?CaptureError::GridTempoChanged:CaptureError::AudioClockGap;}
     }
     if (!length) {
       length = proposed;
@@ -311,6 +353,7 @@ struct ChainMode {
       NSEEL_code_execute(finish);
       recording = false;
       failed = error = *bad > .5;
+      if(error){errorPhrase=phrase;errorReason=CaptureError::ReleaseCapacity;}
     }
     const uint64_t boundaryOffset = uint64_t(*phase)==0?0:length-uint64_t(*phase);
     if (armed && rolling && (timingVersion==1?*phase==0:boundaryOffset<frames)) {

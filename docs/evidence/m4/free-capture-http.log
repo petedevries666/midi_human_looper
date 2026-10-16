@@ -1,0 +1,11 @@
+test_hardware_stop_state_and_record_finalization (__main__.FreeCapture.test_hardware_stop_state_and_record_finalization) ... ok
+test_free_capture (__main__.FreeCapture.test_free_capture) ... ok
+test_overdub_cancel_and_independent_loop (__main__.FreeCapture.test_overdub_cancel_and_independent_loop) ... ok
+test_inactive_clear_and_targeted_loop_stop (__main__.FreeCapture.test_inactive_clear_and_targeted_loop_stop) ... ok
+test_controller_removal_sequence_and_clear_patch (__main__.FreeCapture.test_controller_removal_sequence_and_clear_patch) ... ok
+test_switch_stop_capture_finalization (__main__.FreeCapture.test_switch_stop_capture_finalization) ... ok
+
+----------------------------------------------------------------------
+Ran 6 tests in 12.116s
+
+OK

@@ -94,3 +94,131 @@ read-only. Do **not** install, enable exclusive/native routing, run REC or use t
 smoke tool to justify automatic activation. Hardware testing requires separate
 user approval and an emergency disconnect plan. No code here changes OS/JACK,
 LUMAZ, tokens, installer or updater.
+
+## Increment 2 — continuous capture clock and stable failure reasons
+
+Branch `fix/m4-free-time-clock`, stacked on #86 (`523636a`). Production
+`ChainMode::tick()` compared transport and audio-cycle deltas, disabled gap
+monitoring while stopped, and interpreted rolling-to-stopped as interruption.
+The deterministic before-test fails on transport STOP. FREE TIME now checks the
+continuous audio-cycle clock, including a valid first frame zero and 32-bit JACK
+frame wrap. Transport START/STOP/locate cannot change source timestamps or finish
+a take. Missing audio cycles still reject/rollback an active take. The continuity
+check runs **before** command consumption, so FINISH/STOP cannot commit a partial
+take before a missed cycle is diagnosed. Optional grid V1/V2 keeps its separate
+transport-aligned policy and existing gates.
+
+FREE TIME REC/PLAY also no longer calls `jack_transport_start`; it does not need
+or own the global transport. Optional grid commands retain their transport start.
+This avoids a global side effect, not a claim that this caused the MIDI storm.
+A real private JACK test records through stopped -> rolling -> locate -> stopped
+and plays while the global transport stays stopped. Source Note On is at zero;
+Note Off retains channel, pitch, velocity and relative timing in exported SMF.
+
+Capture finalization validates a bounded count, finite duration and event ranges
+before pairing; failure restores the original count/duration/trigger. Native
+status preserves `chainError` and adds authoritative `chainErrorCode`,
+`chainErrorReason`, `chainErrorPhraseId` (0 = none), `captureRejected` and
+`captureOverflows` (cumulative free-time rejection/input-overflow diagnoses).
+Reason names are defined once by ChainMode, reused by status serialization:
+
+| Code | Reason | Evidence |
+|---|---|---|
+| 0 | `none` | valid capture / fresh REC |
+| 1 | `record_overflow` | real 2048-event source + overdub append rejected |
+| 2 | `release_capacity` | full append has no capacity for required note release |
+| 3 | `invalid_capture` | negative timestamp / nonfinite count before finalization |
+| 4 | `audio_clock_discontinuity` | missed audio block during stopped/rolling capture |
+| 5 | `grid_tempo_changed` | existing optional-grid tempo rejection |
+
+Native API tests reproduce reasons 1 and 2 with `outputOverflow=0`, restore every
+event of the previous valid source, and SAVE/LOAD without starting playback.
+The EEL fixture invokes actual ChainMode/shared DSP for invalid captures, audio
+gaps, REC/CANCEL/STOP, FINISH after gap, 44.1/48/96 kHz and 128/256/512/8192 frames.
+There is no new scheduler, callback JSON/I/O/locks, patch schema, musical feature,
+REAPER source/UI change or routing activation.
+
+One follow-up JACK run genuinely missed audio cycles and correctly returned
+`audio_clock_discontinuity` with XRUNs; `clock-xrun-failure.log` remains a failure,
+not filtered or retried inside the test. An isolated rerun of the exact assertions
+passed with zero observed XRUNs (`final-clock-jack.log`, `clock-progress.json`).
+This demonstrates the guard, not the cause of the physical storm. Host scheduling
+versus engine contribution to Cloud XRUNs remains unqualified.
+
+### Musical reference and scope
+
+The production shared source remains `midi_human_looper.jsfx`, header v1.27.1,
+unchanged from #85. The frozen historical reference is v1.23.0,
+`72b92db091d5aef05d37b45057b62ffca390c867:midi_human_looper.jsfx`. Its historical
+cross-source choke/graphical HOLD-stop is **not** falsely called identical to the
+approved native M0 contract 2: ONCE overlap, LOOP toggle, HOLD cut/retrigger with
+RELEASE ignored. M4 runs actual M0/ownership MIDI assertions and leaves their
+implementation untouched. The legacy expectations/versioned reconciliation and
+external sustain improvement remain on the separate preserved M2 safety branch.
+
+### Reproduce in development only
+
+Use the existing AGENTS.md prepared caches and `YSFX_SOURCE`, `YSFX_BUILD`,
+`JACK_INCLUDE`, `JACKD`, `JACK_DRIVER_DIR`, `HEADLESS_BINARY`, `TEST_PYTHON`.
+No OS/service changes or physical MIDI connections:
+
+```sh
+scripts/headless-build.sh
+scripts/m4-clock-test.sh
+SANITIZE=1 scripts/m4-clock-test.sh
+python tests/test_m4_capture_status.py
+python tests/test_native_free_capture.py
+scripts/m4-jack-test.sh
+```
+
+These gates are also registered in the combined runner. Final proportional
+regression results and exact code/evidence commits follow below. No claim that
+all historical combined or low-buffer LIVE gates passed; no hardware qualification.
+
+### Implementation checkpoint before final native qualification
+
+The focused ASAN/UBSAN EEL host run exits 0: 10,450 assertions across M4 clocks,
+free capture, recording lifecycle, grid timing, M0 and instance ownership. The
+pinned ysfx archive itself is reused; this does not claim every instruction in
+that third-party archive was sanitizer-instrumented. Actual native error API,
+FREE TIME HTTP/overdub (6 tests), Controller policy/host and REVEAL (5 tests)
+gates passed. Final committed-source native build and proportional integration
+results are recorded in the following evidence checkpoint, not inferred here.
+
+### Committed-source regression checkpoint (973cc4f)
+
+`evidence/m4/qualification/results.json` records exact source/binary SHA256 and
+all 21 command exit codes. Eighteen commands passed. Three initial failures are
+retained, not converted into PASS:
+
+1. `test_phrase_midi.py`: two errors from using the system Python without mido.
+   The existing prepared test venv has mido; the identical six tests pass there
+   (`phrase-smf-venv.log`). No package installation or assertion changes.
+2. `test_native_free_capture.py`: one legacy sequence check assumes the global
+   last MIDI event is the new attack. Three fresh runs of the **actual built #85**
+   and three of M4 reproduce one failure each. Logged reply is an old Note Off
+   `[128,48,0]` while selected occurrences remain active. This is pre-existing
+   last-event attribution sensitivity under overlapping short phrases, not proof
+   that the new phrase failed to emit. Original assertions remain unchanged and
+   the global fixture remains failing. `tests/m4_last_event_diagnostic.py` adds
+   only failure context and preserves the original assertions/exit code.
+3. Three optional-grid JACK processors: real 8192-sample gap, 18 XRUN notifications,
+   max callback elapsed ~300 ms, source safety guard rejected the take. The result
+   is NOT PASS. A fair #85 comparison and precise CPU versus scheduling attribution
+   remain pending. An initial comparison was interrupted to avoid mixing it with
+   a still-running sanitizer compile; it is not usable timing evidence.
+
+The same committed-source campaign passes actual JACK M4 counter/transport tests,
+M0 overlap/HOLD-retrigger/LOOP toggle, MOVEMENT cadence/ownership, bounded output
+saturation (64 attacks, 64 emergency CCs, explicit fault, source unchanged), plus
+Controller, Snapshot, Conductor execution/gestures/groups/persistence, native SMF
+interchange and project restart gates. No full combined/Chromium/LIVE matrix was
+rerun or claimed green. Native ASAN build/API verification is still pending at
+this checkpoint; the earlier instrumented ChainMode/EEL host gate passed.
+
+The original 13,801-byte attached M4 clock/forensics specification has now also
+been recovered and read in full, in addition to the later 5,966-byte execution
+mission and #85 comment. Remaining native route retirement/restore paths deserve
+an isolated fail-closed regression: removing a chain while its JACK port still
+exists must not resurrect that retired virtual input. Do this after preserving
+#87 evidence, without modifying its tested musical source. No hardware activation.

@@ -1,0 +1,203 @@
+{
+  "codeCommit": "973cc4f789cb4fb1df40ea04f31f9952128b89f4",
+  "sources": {
+    "headless/engine.cpp": "0bab4af8232bc9f9f4e29365c0402112d6d25bf9336156412df78defb65624c9",
+    "headless/chain_mode.hpp": "cc8119a9b9b1a73f54d1b98f988ca514ba4d5573c86bd7f8eb54161cdd80775e",
+    "zynthian/zynthian_engine_mbh_router.py": "4c0a45370d31c92d1bdb6c43e5d7fbbb981ee0e84cca0a1a44d4e098d45d287c",
+    "midi_human_looper.jsfx": "c73f870b4f1b984d6e2f8f609d307f130eefe8f0970b06f450ccbae6b065ff0f"
+  },
+  "binarySHA256": "ebddadb69e374ec1b8ed0da589f6802ad195af5fe71493d344206e9bd0de7acc",
+  "host": "x86_64",
+  "hardwareTests": "NOT RUN",
+  "results": [
+    {
+      "name": "midi-smoke",
+      "command": [
+        "python",
+        "tests/test_m4_smoke.py"
+      ],
+      "exitCode": 0,
+      "seconds": 0.266
+    },
+    {
+      "name": "exclusive-routing",
+      "command": [
+        "python",
+        "tests/test_zynthian_exclusive_input.py"
+      ],
+      "exitCode": 0,
+      "seconds": 0.366
+    },
+    {
+      "name": "feedback-routing",
+      "command": [
+        "python",
+        "tests/test_zynthian_feedback_guard.py"
+      ],
+      "exitCode": 0,
+      "seconds": 0.215
+    },
+    {
+      "name": "headless-http",
+      "command": [
+        "python",
+        "tests/test_headless_mvp.py"
+      ],
+      "exitCode": 0,
+      "seconds": 7.004
+    },
+    {
+      "name": "capture-errors",
+      "command": [
+        "python",
+        "tests/test_m4_capture_status.py"
+      ],
+      "exitCode": 0,
+      "seconds": 1.37
+    },
+    {
+      "name": "free-capture",
+      "command": [
+        "python",
+        "tests/test_native_free_capture.py"
+      ],
+      "exitCode": 1,
+      "seconds": 12.319
+    },
+    {
+      "name": "controller-integration",
+      "command": [
+        "python",
+        "tests/test_controller_integration.py"
+      ],
+      "exitCode": 0,
+      "seconds": 5.752
+    },
+    {
+      "name": "snapshots",
+      "command": [
+        "python",
+        "tests/test_snapshots.py"
+      ],
+      "exitCode": 0,
+      "seconds": 19.117
+    },
+    {
+      "name": "conductor-native",
+      "command": [
+        "python",
+        "tests/test_conductor_execution_native.py"
+      ],
+      "exitCode": 0,
+      "seconds": 4.088
+    },
+    {
+      "name": "conductor-gestures",
+      "command": [
+        "python",
+        "tests/test_conductor_gestures_native.py"
+      ],
+      "exitCode": 0,
+      "seconds": 6.75
+    },
+    {
+      "name": "phrase-groups",
+      "command": [
+        "python",
+        "tests/test_phrase_mute_groups.py"
+      ],
+      "exitCode": 0,
+      "seconds": 6.121
+    },
+    {
+      "name": "conductor-persistence",
+      "command": [
+        "python",
+        "tests/test_conductor_persistence.py"
+      ],
+      "exitCode": 0,
+      "seconds": 23.574
+    },
+    {
+      "name": "movement-persistence",
+      "command": [
+        "python",
+        "tests/test_movement_persistence.py"
+      ],
+      "exitCode": 0,
+      "seconds": 4.798
+    },
+    {
+      "name": "phrase-smf",
+      "command": [
+        "python",
+        "tests/test_phrase_midi.py"
+      ],
+      "exitCode": 1,
+      "seconds": 0.277
+    },
+    {
+      "name": "phrase-smf-native",
+      "command": [
+        "python",
+        "tests/test_phrase_midi_integration.py"
+      ],
+      "exitCode": 0,
+      "seconds": 3.388
+    },
+    {
+      "name": "project-restart",
+      "command": [
+        "python",
+        "tests/test_project_authority.py"
+      ],
+      "exitCode": 0,
+      "seconds": 8.858
+    },
+    {
+      "name": "new-jack-gates",
+      "command": [
+        "bash",
+        "scripts/m4-jack-test.sh"
+      ],
+      "exitCode": 0,
+      "seconds": 18.374
+    },
+    {
+      "name": "m0-jack",
+      "command": [
+        "python",
+        "tests/test_m0_playback_jack.py"
+      ],
+      "exitCode": 0,
+      "seconds": 17.005
+    },
+    {
+      "name": "movement-jack",
+      "command": [
+        "bash",
+        "scripts/movement-jack-test.sh"
+      ],
+      "exitCode": 0,
+      "seconds": 61.609
+    },
+    {
+      "name": "output-overflow-jack",
+      "command": [
+        "python",
+        "tests/test_instance_output_overflow_jack.py"
+      ],
+      "exitCode": 0,
+      "seconds": 7.24
+    },
+    {
+      "name": "three-grid-chains-jack",
+      "command": [
+        "python",
+        "tests/test_zynthian_chains.py"
+      ],
+      "exitCode": 1,
+      "seconds": 48.586
+    }
+  ]
+}

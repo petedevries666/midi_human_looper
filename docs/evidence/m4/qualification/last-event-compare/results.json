@@ -1,0 +1,32 @@
+[
+  {
+    "build": "base-85",
+    "attempt": 0,
+    "exitCode": 0
+  },
+  {
+    "build": "base-85",
+    "attempt": 1,
+    "exitCode": 1
+  },
+  {
+    "build": "base-85",
+    "attempt": 2,
+    "exitCode": 0
+  },
+  {
+    "build": "m4",
+    "attempt": 0,
+    "exitCode": 1
+  },
+  {
+    "build": "m4",
+    "attempt": 1,
+    "exitCode": 0
+  },
+  {
+    "build": "m4",
+    "attempt": 2,
+    "exitCode": 0
+  }
+]

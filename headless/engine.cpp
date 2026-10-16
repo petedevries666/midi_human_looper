@@ -109,7 +109,8 @@ struct Snapshot {
   uint64_t samples = 0, blocks = 0, midi = 0, late = 0, last_sample = 0;
   int revision = 1;
   unsigned pendingOutput = 0;
-  int chainPhrase=0,chainErrorPhrase=-1;
+  int chainPhrase=0,chainErrorPhrase=-1,chainErrorCode=0;
+  uint64_t captureRejected=0,captureOverflows=0;
   unsigned chainTimingVersion=1;
   bool chain = false, chainGridCapture = false, chainRun = false, chainArmed = false, chainRecord = false,
        chainError = false;
@@ -623,7 +624,13 @@ static std::string json(const Reply &r) {
     << ",\"chainArmed\":" << s.chainArmed
     << ",\"chainPhraseId\":" << s.chainPhrase+1
     << ",\"chainRecording\":" << s.chainRecord
-    << ",\"chainError\":" << s.chainError << ",\"chainFrame\":" << s.chainFrame
+    << ",\"chainError\":" << s.chainError
+    << ",\"chainErrorCode\":" << s.chainErrorCode
+    << ",\"chainErrorReason\":" << quote(ChainMode::errorName(static_cast<ChainMode::CaptureError>(s.chainErrorCode)))
+    << ",\"chainErrorPhraseId\":" << s.chainErrorPhrase+1
+    << ",\"captureRejected\":" << s.captureRejected
+    << ",\"captureOverflows\":" << s.captureOverflows
+    << ",\"chainFrame\":" << s.chainFrame
     << ",\"chainLength\":" << s.chainLength << ",\"chainBpm\":" << s.chainBpm
     << ",\"sampleRate\":" << s.sampleRate << ",\"blockSize\":" << s.blockSize
     << ",\"sampleClock\":" << s.samples << ",\"blocks\":" << s.blocks
@@ -2166,6 +2173,30 @@ int main(int argc, char **argv) {
         (*inputQueue)[q % 8192].offset = 0;
       trace.mark(1);
       auto start = std::chrono::steady_clock::now();
+      jack_position_t position{};
+      bool rolling =
+          chainMode && jack ? jack_transport_query(jack, &position) == JackTransportRolling
+             : true;
+      auto frame = jack ? uint64_t(position.frame) : state.samples;
+      double bpm =
+          position.valid & JackPositionBBT ? position.beats_per_minute : 120.;
+      if (!std::isfinite(bpm) || bpm < 30 || bpm > 240)
+        bpm = 120.;
+      auto tickChain=[&](){
+        if (chain.tick(frame, frames, sampleRate, rolling, bpm,
+                       jack ? uint64_t(jack_last_frame_time(jack)) : state.samples)) {
+          movementOutputCount=0;reveals.panic();movements.panic();
+          controllers.panic();
+          if (chain.run && outBuffer) {
+            cleanupChain();
+          } else
+            NSEEL_code_execute(panic_bridge);
+        }
+      };
+      // Validate the completed take's audio continuity BEFORE FINISH/STOP can
+      // commit it. Otherwise a command arriving on a missed cycle can hide the
+      // gap by clearing recording first. Grid admission remains after commands.
+      if(chainMode && !chain.gridCapture)tickChain();
       auto &pending = *pendingStorage;
       unsigned count = 0;
       bool maintenance = false;
@@ -2265,11 +2296,11 @@ int main(int argc, char **argv) {
               NSEEL_code_execute(panic_bridge);
             }
             if (!chain.command(request.arg, request.target)) reply.status = 3;
-            else if (jack && (request.arg == 1 || request.arg == 2))
+            else if (jack && chain.gridCapture && (request.arg == 1 || request.arg == 2))
               jack_transport_start(jack);
           }
         } else if(request.op==42){
-          chain.cancel();chain.error=false;chain.errorPhrase=-1;
+          chain.cancel();chain.clearError();
           cancelAB();performanceTargetCount=0;performanceSkipped=0;performanceMorphSeconds=0;performanceTargetSnapshot=0;
           reveals.panic();movements.panic();
           *snapHostRead=*snapHostWrite;controllers.replace(request.controllerConfig,resolveBinding);
@@ -2758,6 +2789,7 @@ int main(int argc, char **argv) {
           movementOutputCount=0;reveals.panic();movements.panic();
           controllers.panic();
           ysfx_midi_clear(fx->midi.in.get());
+          state.midiDropped+=inputWrite-inputRead;
           inputRead = inputWrite;
           NSEEL_code_execute(panic_bridge);
           if (request.id == 9007199254740991ULL)
@@ -2808,24 +2840,7 @@ int main(int argc, char **argv) {
                            resolveBinding, applyBinding))
         ++state.revision;
       if (chainMode) {
-        jack_position_t position{};
-        bool rolling =
-            jack ? jack_transport_query(jack, &position) == JackTransportRolling
-                 : true;
-        auto frame = jack ? uint64_t(position.frame) : state.samples;
-        double bpm =
-            position.valid & JackPositionBBT ? position.beats_per_minute : 120.;
-        if (!std::isfinite(bpm) || bpm < 30 || bpm > 240)
-          bpm = 120.;
-        if (chain.tick(frame, frames, sampleRate, rolling, bpm,
-                       jack ? uint64_t(jack_last_frame_time(jack)) : 0)) {
-          movementOutputCount=0;reveals.panic();movements.panic();
-          controllers.panic();
-          if (chain.run && outBuffer) {
-            cleanupChain();
-          } else
-            NSEEL_code_execute(panic_bridge);
-        }
+        if(chain.gridCapture)tickChain();
         state.chain = true;state.chainPhrase=chain.phrase;state.chainErrorPhrase=chain.errorPhrase;
         state.chainGridCapture=chainGridCapture;
         state.chainTimingVersion=chainTimingVersion;
@@ -2833,6 +2848,7 @@ int main(int argc, char **argv) {
         state.chainArmed = chain.armed;
         state.chainRecord = chain.recording;
         state.chainError = chain.error;
+        state.chainErrorCode=int(chain.errorReason);state.captureRejected=chain.captureRejected;state.captureOverflows=chain.captureOverflows;
         state.chainFrame = frame;
         state.chainLength = chain.length;
         state.chainBpm = chain.bpm;
@@ -2898,6 +2914,8 @@ int main(int argc, char **argv) {
         chain.observe();
         state.chainRun=chain.run;state.chainArmed=chain.armed;
         state.chainRecord=chain.recording;state.chainError=chain.error;
+        state.chainErrorPhrase=chain.errorPhrase;state.chainErrorCode=int(chain.errorReason);
+        state.captureRejected=chain.captureRejected;state.captureOverflows=chain.captureOverflows;
         state.chainLength=chain.length;
       }
       for (unsigned j = 0; j < performanceTargetCount; ++j) {

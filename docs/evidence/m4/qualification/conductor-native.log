@@ -1,0 +1,8 @@
+test_steps_coexist_wrap_capacity_and_persistence (__main__.Execution.test_steps_coexist_wrap_capacity_and_persistence) ... ok
+test_layers_missing_and_unsupported_no_fallback (__main__.Execution.test_layers_missing_and_unsupported_no_fallback) ... ok
+test_local_hold_release_overrides_and_source_isolation (__main__.Execution.test_local_hold_release_overrides_and_source_isolation) ... ok
+
+----------------------------------------------------------------------
+Ran 3 tests in 3.830s
+
+OK

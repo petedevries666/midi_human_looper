@@ -35,6 +35,11 @@ try:
     run([sys.executable,'tests/test_zynthian_channel_source.py'])
     run([sys.executable,'tests/test_patch_extension_preservation.py'])
     run([sys.executable,'tests/test_native_free_capture.py'])
+    run([sys.executable,'tests/test_m4_capture_status.py'])
+    run([sys.executable,'tests/test_m4_smoke.py'])
+    run([sys.executable,'tests/test_zynthian_exclusive_input.py'])
+    run([sys.executable,'tests/test_zynthian_feedback_guard.py'])
+    if a.jack:run(['scripts/m4-jack-test.sh'],{'TEST_PYTHON':sys.executable})
     run([sys.executable,'tests/test_observation.py'])
     run([sys.executable,'tests/test_reliability_report.py'])
     run([sys.executable,'tests/test_controller_integration.py'])
@@ -61,6 +66,7 @@ try:
     run(['scripts/controller-test.sh'])
     run(['scripts/controller-test.sh'],{'SANITIZE':'1'})
     if a.native:
+        run(['scripts/m4-clock-test.sh'])
         # PR A baseline: explicit known failures, not functional Conductor support.
         run(['scripts/conductor-baseline.sh'])
         run([sys.executable,'tests/test_conductor_native_baseline.py'])

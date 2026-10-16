@@ -1,0 +1,8 @@
+test_capture_overflow_is_distinct_from_output_overflow (__main__.CaptureStatus.test_capture_overflow_is_distinct_from_output_overflow) ... M4 actual native status record_overflow {'chainErrorCode': 1, 'chainErrorPhraseId': 8, 'captureRejected': 1, 'captureOverflows': 1, 'outputOverflow': 0}
+M4 actual native status release_capacity {'chainErrorCode': 2, 'chainErrorPhraseId': 8, 'captureRejected': 2, 'captureOverflows': 1, 'outputOverflow': 0}
+ok
+
+----------------------------------------------------------------------
+Ran 1 test in 1.809s
+
+OK

@@ -1,0 +1,93 @@
+Cannot lock down 107341340 byte memory area (Cannot allocate memory)
+PASS M4 real JACK boundaries {"backend": "actual private dummy JACK", "rate": 48000, "frames": 8192, "delta": {"midiReceived": 3, "midiInputAccepted": 3, "midiGenerated": 3, "midiQueued": 3, "midiWritten": 3, "midiDropped": 0, "midiWriteFailures": 0, "midiRecoveries": 0, "outputOverflow": 0, "midiCount": 3}, "events": [[196608, 16, 177, 1, 83], [196608, 32, 145, 60, 90], [196608, 64, 129, 60, 0]]}
+Cannot lock down 107341340 byte memory area (Cannot allocate memory)
+Cannot lock down 107341340 byte memory area (Cannot allocate memory)
+jackdmp 1.9.22
+Copyright 2001-2005 Paul Davis and others.
+Copyright 2004-2016 Grame.
+Copyright 2016-2023 Filipe Coelho.
+jackdmp comes with ABSOLUTELY NO WARRANTY
+This is free software, and you are welcome to redistribute it
+under certain conditions; see the file COPYING for details
+JACK server starting in non-realtime mode
+self-connect-mode is "Don't restrict self connect requests"
+Cannot lock down 107341340 byte memory area (Cannot allocate memory)
+Cannot lock down 107341340 byte memory area (Cannot allocate memory)
+READY /tmp/mbmf-m4-clock-q7dko2ud/engine.sock
+JackTimedDriver::Process XRun = 666 usec
+JackEngine::XRun: client = mbmf_d was not finished, state = Triggered
+JackEngine::XRun: client = conductor_probe was not finished, state = Triggered
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackEngine::XRun: client = mbmf_d was not finished, state = Running
+JackEngine::XRun: client = conductor_probe was not finished, state = Triggered
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackEngine::XRun: client = mbmf_d was not finished, state = Triggered
+JackEngine::XRun: client = conductor_send was not finished, state = Triggered
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackEngine::XRun: client = mbmf_d was not finished, state = Triggered
+JackEngine::XRun: client = conductor_send was not finished, state = Triggered
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackTimedDriver::Process XRun = 632 usec
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackTimedDriver::Process XRun = 578 usec
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackTimedDriver::Process XRun = 310976 usec
+JackEngine::XRun: client = mbmf_d was not finished, state = Triggered
+JackEngine::XRun: client = conductor_send was not finished, state = Triggered
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackTimedDriver::Process XRun = 397823 usec
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackEngine::XRun: client = mbmf_d was not finished, state = Triggered
+JackEngine::XRun: client = conductor_send was not finished, state = Triggered
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackEngine::XRun: client = mbmf_d was not finished, state = Triggered
+JackEngine::XRun: client = conductor_send was not finished, state = Triggered
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+Cannot write socket fd = 17 err = Broken pipe
+CheckRes error
+Could not write notification
+ClientNotify fails name = conductor_probe notification = 1 val1 = 0 val2 = 0
+Cannot write socket fd = 23 err = Broken pipe
+CheckRes error
+Could not write notification
+ClientNotify fails name = conductor_probe notification = 1 val1 = 0 val2 = 0
+Cannot write socket fd = 23 err = Broken pipe
+CheckRes error
+Could not write notification
+ClientNotify fails name = conductor_send notification = 18 val1 = 0 val2 = 0
+Cannot write socket fd = 23 err = Broken pipe
+CheckRes error
+Could not write notification
+ClientNotify fails name = conductor_send notification = 18 val1 = 1 val2 = 0
+JackEngine::XRun: client = mbmf_d was not finished, state = Triggered
+JackEngine::XRun: client = conductor_send was not finished, state = Triggered
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackEngine::XRun: client = mbmf_d was not finished, state = Triggered
+JackEngine::XRun: client = conductor_send was not finished, state = Triggered
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackEngine::XRun: client = mbmf_d was not finished, state = Triggered
+JackEngine::XRun: client = conductor_send was not finished, state = Triggered
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+Cannot write socket fd = 23 err = Broken pipe
+CheckRes error
+Could not write notification
+ClientNotify fails name = m4_transport notification = 1 val1 = 0 val2 = 0
+JackEngine::XRun: client = mbmf_d was not finished, state = Triggered
+JackEngine::XRun: client = conductor_send was not finished, state = Triggered
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackEngine::XRun: client = mbmf_d was not finished, state = Triggered
+JackEngine::XRun: client = conductor_send was not finished, state = Triggered
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+Jack main caught signal 15
+
+Traceback (most recent call last):
+  File "/workspace/mbmf-conductor-a/tests/test_m4_free_clock_jack.py", line 48, in <module>
+    assert s['chainRecording'] and not s['chainError'],states
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: [{'command': 'start', 'transport': [1, 16384], 'recording': 0, 'error': 'audio_clock_discontinuity'}]

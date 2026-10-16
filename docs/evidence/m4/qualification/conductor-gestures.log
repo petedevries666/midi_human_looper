@@ -1,0 +1,8 @@
+test_short_press_long_hold_and_load_stopped (__main__.Gestures.test_short_press_long_hold_and_load_stopped) ... ok
+test_test_hold_same_step_and_movement_one_shot (__main__.Gestures.test_test_hold_same_step_and_movement_one_shot) ... ok
+test_stop_panic_and_patch_replacement_cancel_pending (__main__.Gestures.test_stop_panic_and_patch_replacement_cancel_pending) ... ok
+
+----------------------------------------------------------------------
+Ran 3 tests in 6.480s
+
+OK

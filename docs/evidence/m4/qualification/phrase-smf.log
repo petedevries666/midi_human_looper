@@ -1,0 +1,21 @@
+EE....
+======================================================================
+ERROR: test_empty_export_is_valid_smf (__main__.SMFTests.test_empty_export_is_valid_smf)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/mbmf-conductor-a/tests/test_phrase_midi.py", line 44, in test_empty_export_is_valid_smf
+    import mido
+ModuleNotFoundError: No module named 'mido'
+
+======================================================================
+ERROR: test_format1_running_chords_and_roundtrip (__main__.SMFTests.test_format1_running_chords_and_roundtrip)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/mbmf-conductor-a/tests/test_phrase_midi.py", line 20, in test_format1_running_chords_and_roundtrip
+    import mido
+ModuleNotFoundError: No module named 'mido'
+
+----------------------------------------------------------------------
+Ran 6 tests in 0.008s
+
+FAILED (errors=2)

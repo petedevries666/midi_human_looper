@@ -184,3 +184,41 @@ that third-party archive was sanitizer-instrumented. Actual native error API,
 FREE TIME HTTP/overdub (6 tests), Controller policy/host and REVEAL (5 tests)
 gates passed. Final committed-source native build and proportional integration
 results are recorded in the following evidence checkpoint, not inferred here.
+
+### Committed-source regression checkpoint (973cc4f)
+
+`evidence/m4/qualification/results.json` records exact source/binary SHA256 and
+all 21 command exit codes. Eighteen commands passed. Three initial failures are
+retained, not converted into PASS:
+
+1. `test_phrase_midi.py`: two errors from using the system Python without mido.
+   The existing prepared test venv has mido; the identical six tests pass there
+   (`phrase-smf-venv.log`). No package installation or assertion changes.
+2. `test_native_free_capture.py`: one legacy sequence check assumes the global
+   last MIDI event is the new attack. Three fresh runs of the **actual built #85**
+   and three of M4 reproduce one failure each. Logged reply is an old Note Off
+   `[128,48,0]` while selected occurrences remain active. This is pre-existing
+   last-event attribution sensitivity under overlapping short phrases, not proof
+   that the new phrase failed to emit. Original assertions remain unchanged and
+   the global fixture remains failing. `tests/m4_last_event_diagnostic.py` adds
+   only failure context and preserves the original assertions/exit code.
+3. Three optional-grid JACK processors: real 8192-sample gap, 18 XRUN notifications,
+   max callback elapsed ~300 ms, source safety guard rejected the take. The result
+   is NOT PASS. A fair #85 comparison and precise CPU versus scheduling attribution
+   remain pending. An initial comparison was interrupted to avoid mixing it with
+   a still-running sanitizer compile; it is not usable timing evidence.
+
+The same committed-source campaign passes actual JACK M4 counter/transport tests,
+M0 overlap/HOLD-retrigger/LOOP toggle, MOVEMENT cadence/ownership, bounded output
+saturation (64 attacks, 64 emergency CCs, explicit fault, source unchanged), plus
+Controller, Snapshot, Conductor execution/gestures/groups/persistence, native SMF
+interchange and project restart gates. No full combined/Chromium/LIVE matrix was
+rerun or claimed green. Native ASAN build/API verification is still pending at
+this checkpoint; the earlier instrumented ChainMode/EEL host gate passed.
+
+The original 13,801-byte attached M4 clock/forensics specification has now also
+been recovered and read in full, in addition to the later 5,966-byte execution
+mission and #85 comment. Remaining native route retirement/restore paths deserve
+an isolated fail-closed regression: removing a chain while its JACK port still
+exists must not resurrect that retired virtual input. Do this after preserving
+#87 evidence, without modifying its tested musical source. No hardware activation.

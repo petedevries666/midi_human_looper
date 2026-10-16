@@ -1,0 +1,12 @@
+.ERROR:root:MBMF native MIDI source mbh_1:midi_out blocked: unsafe routing
+.ERROR:root:MBMF virtual input could NOT be quarantined
+Traceback (most recent call last):
+  File "/workspace/mbmf-conductor-a/zynthian/zynthian_engine_mbh_router.py", line 77, in _quarantine_virtual
+    raise RuntimeError('native quarantine readback failed')
+RuntimeError: native quarantine readback failed
+ERROR:root:MBMF native MIDI source mbh_1:midi_out blocked: unsafe routing
+.....
+----------------------------------------------------------------------
+Ran 7 tests in 0.015s
+
+OK

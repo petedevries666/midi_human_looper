@@ -48,15 +48,28 @@ def _quarantine_virtual(context):
     virtual source first makes rollback safe even when devN_in JACK remains
     connected until Oram reconciles its desired graph.
     """
-    virtual = sources(context)
-    indices = [i for i, p in enumerate(context.devices_in)
-               if p is not None and p.name in virtual]
+    owned = getattr(context, '_mbmf_source_inputs', {})
+    virtual = set(sources(context)) | {r['name'] for r in owned.values()}
+    indices = {i for i,p in enumerate(context.devices_in)
+               if p is not None and p.name in virtual}
     safe = True
-    for index in indices:
-        for chain in context.chain_manager.chains.values():
-            zmop = chain.zmop_index
-            if not isinstance(zmop, int) or zmop < 0:
-                continue
+    # A removed chain can leave its JACK port and native slot alive for another
+    # autoconnect pass. Do not forget its ownership just because sources() no
+    # longer sees the processor. Never write a recycled unrelated device slot.
+    for index, record in owned.items():
+        if index >= len(context.devices_in):
+            logging.error('MBMF retired native slot unavailable; restore blocked')
+            safe = False
+        elif context.devices_in[index] is None:
+            indices.add(index)
+        elif context.devices_in[index].name != record['name']:
+            logging.error('MBMF native slot recycled; restore blocked pending graph reconciliation')
+            safe = False
+    for index in sorted(indices):
+        destinations = {c.zmop_index for c in context.chain_manager.chains.values()
+                        if type(c.zmop_index) is int and c.zmop_index >= 0}
+        destinations.update(owned.get(index, {}).get('routes', {}))
+        for zmop in sorted(destinations):
             try:
                 if context.lib_zyncore.zmop_set_route_from(zmop, index, 0) != 1:
                     raise RuntimeError('native quarantine setter failed')
@@ -77,6 +90,7 @@ def _restore_exclusive(context):
         logging.error('MBMF leaves physical input isolated: unsafe restore')
         return False
     chains = context.chain_manager.chains
+    restored = True
     for (zmop, index), (chain, port_name, previous) in saved['routes'].items():
         if chains.get(chain.chain_id) is not chain or chain.zmop_index != zmop:
             continue
@@ -85,8 +99,12 @@ def _restore_exclusive(context):
                 context.devices_in[index].name != port_name):
             continue
         try:
-            context.lib_zyncore.zmop_set_route_from(zmop, index, previous)
+            if context.lib_zyncore.zmop_set_route_from(zmop, index, previous) != 1:
+                raise RuntimeError('physical restore setter failed')
+            if context.lib_zyncore.zmop_get_route_from(zmop, index) != previous:
+                raise RuntimeError('physical restore readback failed')
         except Exception:
+            restored = False
             logging.exception('MBMF failed restoring exclusive MIDI route')
     for index, (port_name, previous) in saved['modes'].items():
         if index >= len(context.devices_in) or context.devices_in[index] is None:
@@ -94,12 +112,17 @@ def _restore_exclusive(context):
         if context.devices_in[index].name != port_name:
             continue
         try:
-            context.lib_zyncore.zmip_set_flag_active_chain(index, previous)
+            if context.lib_zyncore.zmip_set_flag_active_chain(index, previous) != 1:
+                raise RuntimeError('physical mode restore setter failed')
+            if context.lib_zyncore.zmip_get_flag_active_chain(index) != previous:
+                raise RuntimeError('physical mode restore readback failed')
             context.devices_in_mode[index] = previous
         except Exception:
+            restored = False
             logging.exception('MBMF failed restoring exclusive MIDI input mode')
-    context._mbmf_exclusive = None
-    return True
+    if restored:
+        context._mbmf_exclusive = None
+    return restored
 
 
 def _apply_exclusive(context, requested, virtual_names):
@@ -223,18 +246,28 @@ def _apply_exclusive(context, requested, virtual_names):
 def discover(context):
     """Extend Oram's input-device discovery, preserving unrelated devices."""
     current = sources(context)
-    if not current:
-        _restore_exclusive(context)
     owned = getattr(context, '_mbmf_source_inputs', {})
+    if any(record['name'] not in current for record in owned.values()):
+        if not _quarantine_virtual(context):
+            return
+    if not current and not _restore_exclusive(context):
+        return
     for index, record in list(owned.items()):
         if record['name'] not in current:
-            context.lib_zyncore.zmip_set_flag_active_chain(index, record['mode'])
-            context.devices_in_mode[index] = record['mode']
-            for chain, enabled in record['routes'].values():
-                if (context.chain_manager.chains.get(chain.chain_id) is chain
-                        and chain.zmop_index is not None):
-                    context.lib_zyncore.zmop_set_route_from(chain.zmop_index, index, enabled)
-            del owned[index]
+            # Do not resurrect a still-live orphan MB port, or overwrite an
+            # unrelated device that reused this slot. Retired virtual routing
+            # stays closed; Oram owns the next device's routing configuration.
+            if index < len(context.devices_in) and context.devices_in[index] is not None:
+                continue
+            try:
+                if context.lib_zyncore.zmip_set_flag_active_chain(index, record['mode']) != 1:
+                    raise RuntimeError('retired input mode restore failed')
+                if context.lib_zyncore.zmip_get_flag_active_chain(index) != record['mode']:
+                    raise RuntimeError('retired input mode readback failed')
+                context.devices_in_mode[index] = record['mode']
+                del owned[index]
+            except Exception:
+                logging.exception('MBMF failed retiring native source; ownership retained')
     known = {p.name for p in context.hw_midi_src_ports}
     context.hw_midi_src_ports.extend(p for name, p in current.items() if name not in known)
 
@@ -292,6 +325,11 @@ def configure(context, required_routes):
     if owned is None:
         context._mbmf_source_inputs = owned = {}
     chains = context.chain_manager.chains
+    # Scrub old virtual sources too: a chain may disappear before its JACK port.
+    # Leave every unrelated source/connection untouched.
+    managed_names = set(names) | {r['name'] for r in owned.values()}
+    for inputs in required_routes.values():
+        inputs.difference_update(managed_names)
     # Preserve the old matrix before quarantine, including refreshes of an
     # already connected source. No native setter may enable virtual destinations
     # until physical/internal isolation AND virtual exclusion readbacks pass.

@@ -159,6 +159,70 @@ class ExclusiveInput(unittest.TestCase):
         self.assertIn(('route', 1, 2, 0), self.api.calls,
                       'failure closing one route must not skip other closures')
 
+    def test_removed_mb_never_resurrects_its_virtual_input(self):
+        self.configure();self.api.calls.clear();del self.chains[1]
+        router.discover(self.ctx)
+        self.assert_virtual_never_enabled()
+        self.assertEqual(self.route(1,2),0)
+        self.assertEqual(self.route(1,0),1,'physical keyboard restored after quarantine')
+
+    def test_removed_mb_failed_quarantine_keeps_keyboard_isolated(self):
+        self.configure();self.api.calls.clear();del self.chains[1]
+        self.api.bad_readback=(1,2)
+        router.discover(self.ctx)
+        self.assertEqual(self.route(1,0),0)
+        self.assertIsNotNone(self.ctx._mbmf_exclusive)
+        self.assert_virtual_never_enabled()
+
+    def test_failed_physical_restore_retains_ownership_for_retry(self):
+        self.configure();self.set_ports([])
+        original=self.api.zmop_set_route_from
+        def failing(zmop,dev,enabled):
+            if (zmop,dev,enabled)==(1,0,1):
+                self.api.calls.append(('route',zmop,dev,enabled));return 0
+            return original(zmop,dev,enabled)
+        self.api.zmop_set_route_from=failing
+        self.configure()
+        self.assertIsNotNone(self.ctx._mbmf_exclusive,'failed restore cannot discard its ownership journal')
+        self.assertEqual(self.route(1,0),0)
+        self.api.zmop_set_route_from=original
+        self.configure()
+        self.assertIsNone(self.ctx._mbmf_exclusive)
+        self.assertEqual(self.route(1,0),1)
+
+    def test_retired_output_is_removed_from_desired_jack_graph(self):
+        self.configure();self.api.calls.clear();del self.chains[1]
+        graph={'synth:in': {'mbh_1:midi_out','other:out'},
+               'ZynMidiRouter:dev2_in': {'mbh_1:midi_out'}}
+        router.configure(self.ctx,graph)
+        self.assertEqual(graph['synth:in'],{'other:out'})
+        self.assertEqual(graph['ZynMidiRouter:dev2_in'],set())
+        self.assert_virtual_never_enabled()
+
+    def test_recycled_device_slot_is_not_overwritten_during_retirement(self):
+        self.configure();self.api.calls.clear();del self.chains[1]
+        self.ctx.devices_in[2]=types.SimpleNamespace(name='unrelated:new_input')
+        router.discover(self.ctx)
+        self.assertFalse([c for c in self.api.calls
+                          if (c[0]=='route' and c[2]==2) or (c[0]=='mode' and c[1]==2)])
+        self.assertEqual(self.route(1,0),0,'unverified recycled graph keeps physical bypass isolated')
+        self.assertIsNotNone(self.ctx._mbmf_exclusive)
+
+    def test_failed_physical_mode_restore_can_retry(self):
+        self.configure();self.set_ports([])
+        original=self.api.zmip_set_flag_active_chain
+        def failing(dev,mode):
+            if (dev,mode)==(0,1):
+                self.api.calls.append(('mode',dev,mode));return 0
+            return original(dev,mode)
+        self.api.zmip_set_flag_active_chain=failing
+        self.configure()
+        self.assertIsNotNone(self.ctx._mbmf_exclusive)
+        self.api.zmip_set_flag_active_chain=original
+        self.configure()
+        self.assertIsNone(self.ctx._mbmf_exclusive)
+        self.assertEqual(self.api.modes[0],1)
+
     def test_keyboard_only_through_mb_and_virtual_to_synth(self):
         graph = self.configure()
         self.assertEqual(graph['ZynMidiRouter:dev2_in'], {'mbh_1:midi_out'})

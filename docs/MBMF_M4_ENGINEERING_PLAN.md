@@ -222,3 +222,86 @@ mission and #85 comment. Remaining native route retirement/restore paths deserve
 an isolated fail-closed regression: removing a chain while its JACK port still
 exists must not resurrect that retired virtual input. Do this after preserving
 #87 evidence, without modifying its tested musical source. No hardware activation.
+
+## Increment 3 — retired virtual source and verified restore transaction
+
+`fix/m4-retired-route-quarantine` is stacked on #87 evidence HEAD `42f364b`.
+Three additional tests fail before the fix: orphan source re-enabled during chain
+removal, physical bypass restored despite orphan quarantine failure, and physical
+restore failures losing the ownership journal. These are production helper paths,
+not speculation about a particular synth.
+
+Quarantine now includes previously owned virtual sources and known destination
+slots after a chain disappears. Discovery waits for an orphan device to disappear,
+never restores its retired virtual receiver matrix, and removes retired outputs
+from the desired JACK graph. Physical routes/modes are restored only after
+quarantine, with setter/readback verification; failed restoration retains its
+journal for retry. An unrelated recycled device slot is never overwritten: if its
+identity cannot be proven, restore remains blocked pending graph reconciliation.
+This can intentionally leave the selected keyboard isolated rather than risk a
+feedback path. No automatic hardware activation or new route destination.
+
+Two old native-source fixture assertions now explicitly model chain removal and
+subsequent JACK-device disappearance separately. Their final retirement/mode
+assertions remain; a retired virtual receiver staying disabled is the corrected
+security contract. All 81 routing/source/installer/adapter/legacy-router tests
+pass. Setter traces and three original failures are retained under
+`evidence/m4/route-retirement-*` and `retirement-final-setters.jsonl`. Native
+lib_zyncore/Oram services themselves are NOT available in Cloud: these are actual
+production Python helper calls against captured API fixtures, not hardware proof.
+The tested C++/EEL musical engine remains identical to `973cc4f`.
+
+## Latest qualification / review decision
+
+- Native ASAN/UBSAN binary built from M4 code ran the real capture-error API
+  test successfully: both overflow/capacity cases, complete rollback and SAVE/LOAD;
+  no sanitizer report files. `native-capture-asan.log` is complete (earlier pending
+  checkpoint superseded). Existing pinned ysfx static archive is not wholly
+  sanitizer-instrumented; no timing qualification from sanitizer runs.
+- Three optional-grid processor test **also fails on independently built #85**:
+  one 8192-frame audio gap, 5 XRUNs, max callback elapsed 4.329 ms. M4 observed
+  an 8192-frame gap, 18 XRUNs and max elapsed 300.379 ms. Both guards reject the
+  take. These are single functional runs, not comparable CPU/latency statistics;
+  the larger M4 elapsed peak's CPU versus preemption cause remains unresolved.
+  See `qualification/followups.json` and `three-grid-base85-isolated.log`.
+- One interrupted baseline run is recorded separately and excluded from this
+  comparison because a sanitizer compiler was still active.
+- `free-time-recorded-source.mid` is produced by the production SMF writer from
+  the actual JACK-captured source. Independent mido decoding confirms CH3 Note On
+  65/V97 at tick **0**, paired CH3 Note Off/V31 at tick 80060, PPQ 24000.
+- No complete combined/LIVE/Chromium success claim. The last-event sequence
+  fixture remains a documented pre-existing failure; SMF's missing system-Python
+  dependency is resolved by using the prepared venv, not weakening assertions.
+- **GO for human review of the focused Drafts; NO-GO for activating native routing
+  or claiming a generally qualified V4 release.** Physical storm root cause and
+  live graph/matrix audit remain open. All hardware tests: **NOT RUN**.
+
+### Safest next Raspberry Pi action (user only, no deployment)
+
+Keep MB output disconnected. Collect the existing graph read-only:
+
+```sh
+jack_lsp -c > /tmp/mbmf-midi-graph-before-review.txt
+```
+
+Do not run REC, install these Drafts, reconnect MB or alter native source checkboxes
+as part of this action. JACK's visible graph alone cannot show native matrix or
+client-internal returns; review DIN/MPK selections, MB/synth input matrices and
+seq/step/CV returns with the existing native UI before authorizing a separate
+supervised test on an immutable reviewed SHA. No activation commands are supplied.
+Projects/schema are unchanged; no deployed rollback is needed for this session.
+Before any later approved hardware update, retain the existing runtime/config and
+snapshot backup and its known rollback procedure.
+
+### Exact next coding checkpoint
+
+1. Preserve these Drafts and evidence; do not merge #85 or deploy any stack.
+2. Diagnose the remaining 3-processor JACK XRUN wall/CPU attribution with existing
+   trace infrastructure on an explicitly documented, controlled workload. Do not
+   increase buffers or bypass the missed-block safety guard to obtain PASS.
+3. Replace the *legacy global last-event attribution* test strategy with real
+   per-action MIDI emission evidence in a separate tested increment, preserving
+   its musical assertions. The original failing tests remain untouched here.
+4. Qualify actual Oram native matrix/JACK reconciliation, including recycled slots,
+   only after explicit hardware permission. A blocked restore must never be
+   bypassed by unconditionally clearing its ownership journal.

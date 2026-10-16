@@ -67,6 +67,10 @@ class NativeSource(unittest.TestCase):
     def test_removal_restores_native_input_slot_before_reuse(self):
         router.configure(self.ctx,{})
         self.chains.clear();router.discover(self.ctx)
+        self.assertIn(1,self.ctx._mbmf_source_inputs,'still-live orphan must remain quarantined')
+        self.assertEqual(self.modes[1],0)
+        self.ctx.devices_in[1]=None
+        router.discover(self.ctx)
         self.assertEqual(self.ctx._mbmf_source_inputs,{})
         self.assertIn(('mode',1,1),self.calls)
 

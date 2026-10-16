@@ -305,3 +305,32 @@ snapshot backup and its known rollback procedure.
 4. Qualify actual Oram native matrix/JACK reconciliation, including recycled slots,
    only after explicit hardware permission. A blocked restore must never be
    bypassed by unconditionally clearing its ownership journal.
+
+## Published review stack / final handoff
+
+- Draft [#86](https://github.com/petedevries666/midi_human_looper/pull/86),
+  `fix/m4-routing-diagnostics`, `523636ad6d3e4694ce3994307553140f70e455c5`.
+- Draft [#87](https://github.com/petedevries666/midi_human_looper/pull/87),
+  `fix/m4-free-time-clock`, code `973cc4f789cb4fb1df40ea04f31f9952128b89f4`,
+  evidence HEAD `42f364b1aebcfb3fbb31548bef64d3b57edd2506`.
+- Draft [#88](https://github.com/petedevries666/midi_human_looper/pull/88),
+  `fix/m4-retired-route-quarantine`, code/evidence
+  `4c23bedbc5320e310a945fe84ea7e7ee48ee172b`; this documentation checkpoint follows.
+
+All are GitHub MERGEABLE against their explicit parents at final inspection,
+**still DRAFT**, and nothing was merged. Routing CI passed for #86 (run
+38855519244) and #88 (run 38858585149); #87 has no applicable check-run in that
+routing-only workflow. Those CI results are not native/global/hardware gates.
+
+During development the old native-source retirement fixture initially failed
+1/4 because it expected ownership deletion before its port disappeared. It was
+expanded to assert quarantine in that intermediate state and retains its final
+mode/retirement assertions after explicit disappearance; this is a deliberate
+safety lifecycle correction, not a hidden relaxation of musical assertions.
+
+Final checks: protected original working files 25/25 SHA256 unchanged from session
+recovery; production JSFX byte-identical to #85; native engine/ChainMode sources
+byte-identical to the qualified `973cc4f` code. No browser screenshots were rerun
+because no Web files changed. No installed service, networking/JACK configuration,
+LUMAZ, token or physical hardware was touched. Continue from the precise unresolved
+checks above, not from a fresh global audit or another M3 implementation.

@@ -1,0 +1,46 @@
+Cannot lock down 107341340 byte memory area (Cannot allocate memory)
+jackdmp 1.9.22
+Copyright 2001-2005 Paul Davis and others.
+Copyright 2004-2016 Grame.
+Copyright 2016-2023 Filipe Coelho.
+jackdmp comes with ABSOLUTELY NO WARRANTY
+This is free software, and you are welcome to redistribute it
+under certain conditions; see the file COPYING for details
+JACK server starting in non-realtime mode
+self-connect-mode is "Don't restrict self connect requests"
+Cannot lock down 107341340 byte memory area (Cannot allocate memory)
+Cannot lock down 107341340 byte memory area (Cannot allocate memory)
+READY /tmp/mbmf-m4-midi-4yl6u1dl/engine.sock
+JackEngine::XRun: client = conductor_probe was not finished, state = Triggered
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackTimedDriver::Process XRun = 265881 usec
+JackEngine::XRun: client = mbmf_d was not finished, state = Running
+JackEngine::XRun: client = conductor_probe was not finished, state = Triggered
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackTimedDriver::Process XRun = 246 usec
+JackEngine::XRun: client = mbmf_d was not finished, state = Triggered
+JackEngine::XRun: client = conductor_probe was not finished, state = Triggered
+JackEngine::XRun: client = conductor_send was not finished, state = Triggered
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackEngine::XRun: client = mbmf_d was not finished, state = Triggered
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackEngine::XRun: client = mbmf_d was not finished, state = Running
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackTimedDriver::Process XRun = 3455 usec
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackTimedDriver::Process XRun = 99715 usec
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackTimedDriver::Process XRun = 237099 usec
+JackTimedDriver::Process XRun = 140 usec
+JackTimedDriver::Process XRun = 133 usec
+Jack main caught signal 15
+
+Traceback (most recent call last):
+  File "/workspace/mbmf-conductor-a/tests/test_m4_diagnostics_jack.py", line 49, in <module>
+    assert len(actual)==delta['midiWritten'],actual
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: []

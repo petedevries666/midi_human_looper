@@ -51,6 +51,7 @@ def _quarantine_virtual(context):
     virtual = sources(context)
     indices = [i for i, p in enumerate(context.devices_in)
                if p is not None and p.name in virtual]
+    safe = True
     for index in indices:
         for chain in context.chain_manager.chains.values():
             zmop = chain.zmop_index
@@ -63,8 +64,8 @@ def _quarantine_virtual(context):
                     raise RuntimeError('native quarantine readback failed')
             except Exception:
                 logging.exception('MBMF virtual input could NOT be quarantined')
-                return False
-    return True
+                safe = False
+    return safe
 
 
 def _restore_exclusive(context):
@@ -291,16 +292,40 @@ def configure(context, required_routes):
     if owned is None:
         context._mbmf_source_inputs = owned = {}
     chains = context.chain_manager.chains
-    # A malformed config must not leave 'requested' undefined in the
-    # mandatory fail-closed virtual-source admission check below.
+    # Preserve the old matrix before quarantine, including refreshes of an
+    # already connected source. No native setter may enable virtual destinations
+    # until physical/internal isolation AND virtual exclusion readbacks pass.
+    for index, port in enumerate(context.devices_in):
+        if port is None or port.name not in names:
+            continue
+        expected = f'ZynMidiRouter:dev{index}_in'
+        for inputs in required_routes.values():
+            inputs.discard(port.name)
+        required_routes.setdefault(expected, set())
+        try:
+            if index not in owned or owned[index]['name'] != port.name:
+                owned[index] = dict(name=port.name,
+                    mode=context.lib_zyncore.zmip_get_flag_active_chain(index), routes={})
+            for chain in chains.values():
+                zmop = chain.zmop_index
+                if type(zmop) is int and zmop >= 0:
+                    record = owned[index]['routes']
+                    if zmop not in record or record[zmop][0] is not chain:
+                        record[zmop] = (chain, context.lib_zyncore.zmop_get_route_from(zmop, index))
+        except Exception:
+            _quarantine_virtual(context)
+            logging.exception('MBMF cannot snapshot native routing; source blocked')
+            return
+    quarantined = _quarantine_virtual(context)
     requested = []
+    exclusive_safe = False
     try:
         requested = _read_exclusive_ports()
-        exclusive_safe = _apply_exclusive(context, requested, names)
+        if quarantined:
+            exclusive_safe = _apply_exclusive(context, requested, names)
     except Exception:
         logging.exception('MBMF invalid exclusive MIDI input config; virtual source blocked')
         _restore_exclusive(context)
-        exclusive_safe = False
     for index, port in enumerate(context.devices_in):
         if port is None or port.name not in names:
             continue
@@ -344,16 +369,27 @@ def configure(context, required_routes):
         # caused a real MIDI storm during REC on Kit V4.
         safe = mb_chain_count > 0 and bool(requested) and exclusive_safe
         try:
-            if context.lib_zyncore.zmip_set_flag_active_chain(index, 0) != 1:
-                safe = False
-            context.devices_in_mode[index] = 0
-            if context.lib_zyncore.zmip_get_flag_active_chain(index) != 0:
-                safe = False
-            for zmop, enabled in sorted(routes, key=lambda pair: pair[1]):
-                if context.lib_zyncore.zmop_set_route_from(zmop, index, enabled) != 1:
+            if safe:
+                if context.lib_zyncore.zmip_set_flag_active_chain(index, 0) != 1:
                     safe = False
-                if context.lib_zyncore.zmop_get_route_from(zmop, index) != enabled:
+                context.devices_in_mode[index] = 0
+                if context.lib_zyncore.zmip_get_flag_active_chain(index) != 0:
                     safe = False
+            # Quarantine already disabled ALL destinations. Verify exclusions
+            # before any enable, and stop immediately on a failed prerequisite.
+            for zmop, _ in routes:
+                if context.lib_zyncore.zmop_get_route_from(zmop, index) != 0:
+                    safe = False
+            if safe:
+                for zmop, enabled in routes:
+                    if not enabled:
+                        continue
+                    if context.lib_zyncore.zmop_set_route_from(zmop, index, 1) != 1:
+                        safe = False
+                        break
+                    if context.lib_zyncore.zmop_get_route_from(zmop, index) != 1:
+                        safe = False
+                        break
         except Exception:
             logging.exception('MBMF native routing failed; source remains disconnected')
             safe = False

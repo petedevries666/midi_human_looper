@@ -74,6 +74,18 @@ class HeadlessTests(unittest.TestCase):
     def setUp(self):
         self.command('panic')
 
+    def test_midi_diagnostics_keep_mock_distinct_from_jack(self):
+        before=self.call()
+        self.command('midi',channel=1,note=60,value=90)
+        self.command('midi',channel=1,note=60,value=0)
+        after=self.call()
+        self.assertGreater(after['midiGenerated'],before['midiGenerated'])
+        self.assertEqual(after['midiWritten'],0)
+        self.assertEqual(after['midiQueued'],0)
+        self.assertEqual(after['midiReceived'],0)
+        self.assertEqual(after['midiInputAccepted'],0)
+        self.assertGreater(after['midiCount'],before['midiCount'])
+
     def test_read_only_release_monitor(self):
         before=self.call()
         result=subprocess.run([sys.executable,str(ROOT/'scripts/monitor-live-engine.py'),

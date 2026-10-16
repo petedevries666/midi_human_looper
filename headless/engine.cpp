@@ -118,6 +118,10 @@ struct Snapshot {
   int64_t chainFrameGap = 0, chainClockGap = 0;
   int backend = 0, sampleRate = 48000, blockSize = 128;
   uint64_t outputOverflow = 0;
+  // Single processing-thread writers, copied through the existing Snapshot queue.
+  // midi/midiCount retains its historical pre-JACK semantics.
+  uint64_t midiReceived=0,midiInputAccepted=0,midiGenerated=0,midiQueued=0,
+           midiWritten=0,midiDropped=0,midiWriteFailures=0,midiRecoveries=0;
   int active = 0, last_status = 0, last_note = 0, last_value = 0;
   double max_us = 0;
   std::array<std::array<double,14>,28> instances{};
@@ -626,6 +630,14 @@ static std::string json(const Reply &r) {
     << ",\"midiCount\":" << s.midi << ",\"activeNotes\":" << s.active
     << ",\"pendingOutput\":" << s.pendingOutput
     << ",\"outputOverflow\":" << s.outputOverflow
+    << ",\"midiReceived\":" << s.midiReceived
+    << ",\"midiInputAccepted\":" << s.midiInputAccepted
+    << ",\"midiGenerated\":" << s.midiGenerated
+    << ",\"midiQueued\":" << s.midiQueued
+    << ",\"midiWritten\":" << s.midiWritten
+    << ",\"midiDropped\":" << s.midiDropped
+    << ",\"midiWriteFailures\":" << s.midiWriteFailures
+    << ",\"midiRecoveries\":" << s.midiRecoveries
     << ",\"lateBlocks\":" << s.late << ",\"maxCallbackUs\":" << s.max_us
     << ",\"lastEvent\":[" << s.last_sample << "," << s.last_status << ","
     << s.last_note << "," << s.last_value << "]"
@@ -2004,8 +2016,11 @@ int main(int argc, char **argv) {
       while (outputRead != outputWrite && budget--) {
         auto &m = (*outputQueue)[outputRead % 8192];
         if (jack_midi_event_write(buffer, std::min(m.offset, frames - 1),
-                                  m.data.data(), m.size))
+                                  m.data.data(), m.size)) {
+          ++state.midiWriteFailures; // Retry later; not a dropped event yet.
           break;
+        }
+        ++state.midiWritten;
         traceWrite(std::min(m.offset,frames-1));
         if(rtTrace && m.size>=3){unsigned type=m.data[0]&240;if(type==128||type==144){++tracedNotes;if(type==144&&m.data[2])++tracedNoteOns;}else if(type==176)++tracedCCs;}
         ++outputRead;
@@ -2032,6 +2047,8 @@ int main(int argc, char **argv) {
       void *outBuffer =
           useJack ? jack_port_get_buffer(midiOut, frames) : nullptr;
       auto cleanupChain = [&]() {
+        ++state.midiRecoveries;
+        state.midiDropped += outputWrite-outputRead;
         outputRead = outputWrite;
         NSEEL_code_execute(chainRecovery);
         ysfx_midi_clear(fx->midi.out.get());
@@ -2039,11 +2056,15 @@ int main(int argc, char **argv) {
         for (unsigned ch = 0; ch < 16; ++ch)
           for (unsigned cc : {64u, 123u, 120u}) {
             uint8_t data[] = {uint8_t(176 | ch), uint8_t(cc), 0};
+            ++state.midiGenerated;
             if (jack_midi_event_write(outBuffer, 0, data, 3)) {
+              ++state.midiWriteFailures;
+              ++state.midiDropped;
               complete = false;
               overflowRecovery = true;
               ++state.outputOverflow;
             } else {
+              ++state.midiWritten;
               traceWrite(0);if(rtTrace)++tracedCCs;
               ++state.midi;
               state.last_sample = state.samples;
@@ -2059,6 +2080,8 @@ int main(int argc, char **argv) {
       if (outBuffer) {
         jack_midi_clear_buffer(outBuffer);
         if (recovering) {
+          ++state.midiRecoveries;
+          state.midiDropped += outputWrite-outputRead + inputWrite-inputRead;
           reveals.panic();movements.panic();
           controllers.panic();
           outputRead = outputWrite;
@@ -2068,25 +2091,32 @@ int main(int argc, char **argv) {
           for (unsigned ch = 0; ch < 16; ++ch)
             for (unsigned cc : {64u, 123u, 120u}) {
               uint8_t data[] = {uint8_t(176 | ch), uint8_t(cc), 0};
-              if (jack_midi_event_write(outBuffer, 0, data, 3))
+              ++state.midiGenerated;
+              if (jack_midi_event_write(outBuffer, 0, data, 3)) {
+                ++state.midiWriteFailures;++state.midiDropped;
                 overflowRecovery = true;
-              else {traceWrite(0);if(rtTrace)++tracedCCs;}
+              } else {++state.midiWritten;traceWrite(0);if(rtTrace)++tracedCCs;}
             }
         } else
           flushOutput(outBuffer, frames);
       }
-      if (useJack && !muted && !recovering) {
+      if (useJack) {
         void *in = jack_port_get_buffer(midiIn, frames);
         unsigned n = jack_midi_get_event_count(in);
         trace.value.inputEvents=n;
+        state.midiReceived+=n;
         for (unsigned i = 0; i < n; ++i) {
           jack_midi_event_t e;
-          if (!jack_midi_event_get(&e, in, i) &&
-              !loading.load(std::memory_order_acquire)) {
+          if (jack_midi_event_get(&e, in, i) || muted || recovering ||
+              loading.load(std::memory_order_acquire)) {
+            ++state.midiDropped;
+          } else {
             if (inputWrite - inputRead >= 8192 || e.size > 256) {
+              ++state.midiDropped;
               ++state.outputOverflow;
               overflowRecovery = true;
             } else {
+              ++state.midiInputAccepted;
               auto &m = (*inputQueue)[inputWrite++ % 8192];
               m.size = e.size;
               m.offset = e.time;
@@ -2103,7 +2133,7 @@ int main(int argc, char **argv) {
       unsigned movementOutputCount=0,movementPhysicalCount=0;
       unsigned generatedOrder=0;uint64_t generatedAt=UINT64_MAX;
       auto emitControlled=[&](uint64_t sample,unsigned ch,unsigned cc,unsigned value){
-        if(movementOutputCount>=8192)return false;
+        if(movementOutputCount>=8192){++state.midiGenerated;++state.midiDropped;return false;}
         auto &m=(*outputBatch)[movementOutputCount++];m.size=3;m.offset=unsigned(sample>state.samples?sample-state.samples:0);m.data[0]=176|ch;m.data[1]=cc;m.data[2]=value;m.order=sample==generatedAt?generatedOrder:0;m.bus=0;return true;
       };
       auto emitMovement=[&](uint64_t sample,unsigned ch,unsigned cc,unsigned value){reveals.observe(ch,cc,value);return emitControlled(sample,ch,cc,value);};
@@ -2127,6 +2157,7 @@ int main(int argc, char **argv) {
         }
         if(e.size==3&&(e.data[0]&240)==176){auto &p=movementPhysical[movementPhysicalCount++];p.offset=e.offset;p.ch=e.data[0]&15;p.cc=e.data[1];p.value=e.data[2];}
         if (!ysfx_send_midi(fx, &e)) {
+          ++state.midiDropped;
           ++state.outputOverflow;
           overflowRecovery = true;
         }
@@ -2910,7 +2941,7 @@ int main(int argc, char **argv) {
       unsigned outputCount=0;
       ysfx_midi_event_t event{};
       while(ysfx_receive_midi(fx,&event)){
-        if(outputCount>=8192||event.size>256){++state.outputOverflow;overflowRecovery=true;continue;}
+        if(outputCount>=8192||event.size>256){if(event.bus!=15){++state.midiGenerated;++state.midiDropped;}++state.outputOverflow;overflowRecovery=true;continue;}
         auto &m=(*outputBatch)[outputCount];m.size=event.size;m.offset=std::min(event.offset,frames-1);m.order=(outputCount+1)*4;m.bus=event.bus;
         std::memcpy(m.data.data(),event.data,event.size);(*outputOrder)[outputCount]=outputCount;
         if(event.bus==15){
@@ -2971,6 +3002,7 @@ int main(int argc, char **argv) {
           const auto &source = (*outputBatch)[(*outputOrder)[j]];
           if(!source.size)continue; // private control marker never leaves host
           ++state.midi;
+          ++state.midiGenerated;
           if(source.size>=3){unsigned type=source.data[0]&240,key=(source.data[0]&15)*128+(source.data[1]&127);
             if(type==144&&source.data[2]>0){if(!held[key]){held[key]=true;++state.active;}}
             else if(type==128||(type==144&&!source.data[2])){if(held[key]){held[key]=false;--state.active;}}
@@ -2979,10 +3011,12 @@ int main(int argc, char **argv) {
           }
           if(!outBuffer)continue;
           if (outputWrite - outputRead >= 8192) {
+            ++state.midiDropped;
             ++state.outputOverflow;
             overflowRecovery = true;
             continue;
           }
+          ++state.midiQueued;
           auto &destination = (*outputQueue)[outputWrite++ % 8192];
           destination.size = source.size;
           destination.offset = source.offset;

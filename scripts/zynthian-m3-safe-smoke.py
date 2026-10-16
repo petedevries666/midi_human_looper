@@ -81,6 +81,13 @@ def main():
             emergency_disconnect(targets)
             return 3
 
+    # Legacy midiCount is an output-generation counter, not proof of delivery.
+    # New runtimes expose the actual JACK boundaries independently.
+    counter = 'midiGenerated' if 'midiGenerated' in previous else 'midiCount'
+    fields = [counter] + [f for f in ('midiReceived', 'midiWritten', 'midiDropped',
+                                      'midiWriteFailures', 'midiRecoveries')
+                          if f in previous]
+    totals = dict.fromkeys(fields, 0)
     midi_total = 0
     late_total = 0
     end = time.monotonic() + args.seconds
@@ -89,23 +96,29 @@ def main():
     while time.monotonic() < end:
         time.sleep(min(0.25, max(0, end - time.monotonic())))
         current = status(args.control)
-        midi = current["midiCount"] - previous["midiCount"]
+        deltas = {f: current[f]-previous[f] for f in fields}
+        for field, delta in deltas.items():
+            totals[field] += delta
+        midi = deltas[counter]
         late = current["lateBlocks"] - previous["lateBlocks"]
         midi_total += midi
         late_total += late
-        # MIDI count measures engine MIDI output, not live input.
-        # The observed hardware feedback exceeded 19k events/second.
-        if (midi < 0 or late < 0 or midi > 500 or late > 5
+        # Keep the existing generation/XRUN guard. Also detect a receive/write
+        # storm; successful JACK writes do not prove a synth received the data.
+        if (any(v < 0 for v in deltas.values()) or late < 0
+                or any(deltas.get(f, 0) > 500 for f in
+                       (counter, 'midiReceived', 'midiWritten')) or late > 5
                 or current.get("chainError")
                 or current.get("outputOverflow", 0)):
-            print("ALERT! MIDI delta=", midi, "lateBlocks delta=", late,
+            print("ALERT! MIDI boundary deltas=", deltas, "lateBlocks delta=", late,
                   "chainError=", current.get("chainError"),
                   "outputOverflow=", current.get("outputOverflow"))
             emergency_disconnect(targets)
             return 1
         previous = current
 
-    print("PASS sampled period: emitted MIDI=", midi_total,
+    print("PASS sampled period: MIDI counters=", totals,
+          "legacy generation counter" if counter == 'midiCount' else 'JACK boundaries measured',
           "lateBlocks=", late_total, "chainError=0")
     return 0
 

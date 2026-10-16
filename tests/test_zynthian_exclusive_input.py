@@ -1,6 +1,7 @@
 """Opt-in exclusive keyboard -> MBMF -> virtual ZynMidiRouter source."""
 import importlib.util
 import json
+import os
 from pathlib import Path
 import tempfile
 import types
@@ -74,6 +75,11 @@ class ExclusiveInput(unittest.TestCase):
         self.addCleanup(self.patch_path.stop)
         self.set_ports(['system:midi_capture_1'])
 
+    def tearDown(self):
+        if os.environ.get('M4_ROUTING_TRACE'):
+            with open(os.environ['M4_ROUTING_TRACE'], 'a') as out:
+                out.write(json.dumps(dict(test=self.id(), calls=self.api.calls))+'\n')
+
     def set_ports(self, ports):
         self.path.write_text(json.dumps({'exclusive_midi_input_ports': ports}))
 
@@ -85,6 +91,73 @@ class ExclusiveInput(unittest.TestCase):
                  'synthv1-01:in': {'ZynMidiRouter:ch1_out'}}
         router.configure(self.ctx, graph)
         return graph
+
+    def assert_virtual_never_enabled(self):
+        self.assertFalse([c for c in self.api.calls
+                          if c[0] == 'route' and c[2] == 2 and c[3] == 1],
+                         'unsafe virtual routes must never be enabled, even transiently')
+
+    def test_no_transient_admission_without_opt_in(self):
+        self.set_ports([])
+        self.configure()
+        self.assert_virtual_never_enabled()
+
+    def test_no_transient_admission_on_missing_keyboard(self):
+        self.set_ports(['missing:out'])
+        self.configure()
+        self.assert_virtual_never_enabled()
+
+    def test_no_transient_admission_on_invalid_config(self):
+        self.path.write_text('{invalid')
+        self.configure()
+        self.assert_virtual_never_enabled()
+
+    def test_no_transient_admission_on_physical_isolation_failure(self):
+        self.api.bad_readback = (1, 0)
+        self.configure()
+        self.assert_virtual_never_enabled()
+
+    def test_no_transient_admission_on_virtual_quarantine_failure(self):
+        self.api.bad_readback = (0, 2)
+        self.configure()
+        self.assert_virtual_never_enabled()
+
+    def test_refresh_quarantines_before_any_keyboard_change(self):
+        self.configure()
+        self.api.calls.clear()
+        self.configure()
+        close = next(i for i,c in enumerate(self.api.calls) if c == ('route', 1, 2, 0))
+        physical = next(i for i,c in enumerate(self.api.calls) if c == ('mode', 0, 0))
+        enable = next(i for i,c in enumerate(self.api.calls) if c == ('route', 1, 2, 1))
+        self.assertLess(close, physical)
+        self.assertLess(physical, enable)
+
+    def test_late_enable_failure_quarantines_before_physical_restore(self):
+        original = self.api.zmop_set_route_from
+        def failing(zmop, dev, enabled):
+            result = original(zmop, dev, enabled)
+            return 0 if (zmop, dev, enabled) == (1, 2, 1) else result
+        self.api.zmop_set_route_from = failing
+        graph = self.configure()
+        self.assertFalse(graph['ZynMidiRouter:dev2_in'])
+        enable = self.api.calls.index(('route', 1, 2, 1))
+        after = self.api.calls[enable+1:]
+        self.assertLess(after.index(('route', 1, 2, 0)), after.index(('route', 1, 0, 1)))
+        self.assertFalse([c for c in after if c[0]=='route' and c[2]==2 and c[3]==1])
+        self.assertEqual(self.route(1, 2), 0)
+
+    def test_quarantine_exception_never_admits_virtual_source(self):
+        original = self.api.zmop_set_route_from
+        def failing(zmop, dev, enabled):
+            result = original(zmop, dev, enabled)
+            if (zmop, dev) == (0, 2):
+                raise RuntimeError('injected native quarantine failure')
+            return result
+        self.api.zmop_set_route_from = failing
+        self.assertFalse(self.configure()['ZynMidiRouter:dev2_in'])
+        self.assert_virtual_never_enabled()
+        self.assertIn(('route', 1, 2, 0), self.api.calls,
+                      'failure closing one route must not skip other closures')
 
     def test_keyboard_only_through_mb_and_virtual_to_synth(self):
         graph = self.configure()

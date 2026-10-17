@@ -333,13 +333,20 @@ INSTANCE_QUEUE_BASE=INSTANCE_BASE+INSTANCE_OWNERS*INSTANCE_HEADER;
 INSTANCE_POOL_BASE=INSTANCE_QUEUE_BASE+INSTANCE_OWNERS*2048*3;
 INSTANCE_END=INSTANCE_POOL_BASE+INSTANCE_OWNERS*INSTANCE_ROWS*INSTANCE_ROW;
 INSTANCE_PEDAL_BASE=INSTANCE_END+16;INSTANCE_PEDAL_STRIDE=16*(INST_CAP+1)*2;
-INSTANCE_STORAGE_END=INSTANCE_PEDAL_BASE+INSTANCE_OWNERS*INSTANCE_PEDAL_STRIDE;
+NATIVE_ARP_HELD_BASE=INSTANCE_PEDAL_BASE+INSTANCE_OWNERS*INSTANCE_PEDAL_STRIDE;
+NATIVE_TRANSFORM_CELLS=INSTANCE_OWNERS*INST_CAP*128;
+NATIVE_ARP_SOURCE_BASE=NATIVE_ARP_HELD_BASE+NATIVE_TRANSFORM_CELLS;
+NATIVE_MONO_SOURCE_BASE=NATIVE_ARP_SOURCE_BASE+NATIVE_TRANSFORM_CELLS;
+NATIVE_MONO_OWNER_BASE=NATIVE_MONO_SOURCE_BASE+NATIVE_TRANSFORM_CELLS;
+INSTANCE_STORAGE_END=NATIVE_MONO_OWNER_BASE+INST_CAP;
+native_transform_voice=-1;native_transform_init=0;loop(INST_CAP,mem[NATIVE_MONO_OWNER_BASE+native_transform_init]=-1;native_transform_init+=1;);
 instance_init_page=INSTANCE_BASE;loop(ceil((INSTANCE_STORAGE_END-INSTANCE_BASE)/65536)+1,
  mem[instance_init_page]=0;instance_init_page+=65536;);
 instance_output_fault=0;instance_output_open=0;instance_serial=0;instance_last_source=-1;instance_repeat=0;instance_rejected=0;instance_error=0;instance_route_record=-1;
 CONDUCTOR_BASE=ceil((INSTANCE_STORAGE_END+65536)/65536)*65536;
 PHRASE_GROUP_BASE=CONDUCTOR_BASE-16; // native source metadata, outside frozen patch payload
 CONDUCTOR_GESTURE_BASE=CONDUCTOR_BASE-1024; // eight runtime cells per existing switch
+REVEAL_TARGET_MASK_BASE=CONDUCTOR_BASE-1536; // 128 existing, 128 reserved, 128 local raw-CC bitmaps
 REVEAL_BASE=CONDUCTOR_BASE-768; // twelve native runtime records, eight cells each
 NATIVE_CONTROL_BUFFER=CONDUCTOR_BASE-512;
 native_control_host=0;native_control_count=0;native_stop_offset=0;reveal_existing_mask=0;reveal_reserved_mask=0;reveal_free_targets=0;
@@ -673,8 +680,10 @@ local(i)
 );
 
 function i_clear_runtime(gi)
-local(j,idx)
-(j=0;loop(2048,idx=gi*2048+j;mem[engine_addr(SW_LIVE_OUT_BASE,idx)]=0;mem[engine_addr(SW_PHRASE_OUT_BASE,idx)]=0;mem[engine_addr(SW_LOOP_INPUT_BASE,idx)]=0;mem[I_ONCE_OUT_BASE+idx]=0;
+local(j,idx,v)
+(native_phrase_contract>=2?(v=0;loop(INSTANCE_OWNERS,j=0;loop(128,
+ idx=(v*INST_CAP+gi)*128+j;mem[NATIVE_ARP_HELD_BASE+idx]=0;mem[NATIVE_ARP_SOURCE_BASE+idx]=0;mem[NATIVE_MONO_SOURCE_BASE+idx]=0;j+=1;);v+=1;);mem[NATIVE_MONO_OWNER_BASE+gi]=-1;);
+ j=0;loop(2048,idx=gi*2048+j;mem[engine_addr(SW_LIVE_OUT_BASE,idx)]=0;mem[engine_addr(SW_PHRASE_OUT_BASE,idx)]=0;mem[engine_addr(SW_LOOP_INPUT_BASE,idx)]=0;mem[I_ONCE_OUT_BASE+idx]=0;
  mem[input_addr(gi*2048+j)]=0;mem[input_addr((INST_CAP+gi)*2048+j)]=0;j+=1;);
  j=0;loop(128,mem[engine_addr(ARP_HELD_COUNT_BASE,gi*128+j)]=0;mem[engine_addr(ARP_SOURCE_COUNT_BASE,gi*128+j)]=0;
  mem[engine_addr(SW_ARP_PHRASE_BASE,gi*128+j)]=0;mem[engine_addr(SW_ARP_PHRASE_SOURCE_BASE,gi*128+j)]=0;
@@ -686,7 +695,7 @@ local(j,idx)
 function reset_note_runtime()
 local(pv_i)
 (
-  native_phrase_contract?(pv_i=0;loop(SW_COUNT,mem[CONDUCTOR_GESTURE_BASE+pv_i*8]=0;pv_i+=1;););
+  native_phrase_contract?(pv_i=0;loop(SW_COUNT,mem[CONDUCTOR_GESTURE_BASE+pv_i*8]=0;mem[CONDUCTOR_GESTURE_BASE+pv_i*8+1]=0;mem[CONDUCTOR_GESTURE_BASE+pv_i*8+3]=0;mem[CONDUCTOR_GESTURE_BASE+pv_i*8+7]=0;cancel_rt=pv_i<4?SW_RT_BASE+pv_i*32:DS_RT_BASE+(pv_i-4)*32;mem[cancel_rt+22]=0;mem[cancel_rt+27]=0;mem[cancel_rt+29]=0;mem[cancel_rt+31]=0;pv_i+=1;););
   instance_discard_all();free_loop_stop_mask=0;native_free_time?(pv_i=0;loop(33024,mem[3008000+pv_i]=0;pv_i+=1;););
   free_record_ready=0;free_record_active=0;free_play_error=0;free_reset=0;loop(16,mem[FREE_FINISHED_BASE+free_reset]=0;mem[FREE_LOOP_ANCHOR_BASE+free_reset]=0;free_reset+=1;);native_hold_read=native_hold_write;native_hold_release_mask=0;conductor_release_mask=0;pv_i=0;loop(MAX_ONCE_VOICES,mem[VOICE_ACTIVE_BASE+pv_i]=0;pv_i+=1;);once_route_voice=-1;last_trigger_layer=-1;trigger_request=-1;hold_stop_request=-1;
  pv_i=0;loop(NOTE_REF_SIZE,mem[NOTE_REF_BASE+pv_i]=0;pv_i+=1;);pv_i=0;loop(16,mem[SUSTAIN_REF_BASE+pv_i]=0;pv_i+=1;);
@@ -798,11 +807,11 @@ function param_addr(gi,kind)
 );
 // Generated bounds: scripts/generate-parameters.py / modules/catalog.json
 function param_min(kind)
-(kind==0 ? 0.2 : kind==5 ? 0.25 : kind==6 ? 0.02 : kind==7 ? -48 : kind==14 ? 0.5 : kind==15 ? 0.2 : kind==17 ? 0.2 : 0;);
+(kind==0 ? 0.2 : kind==5 ? 0.25 : kind==6 ? 0.02 : kind==7 ? -48 : kind==14 ? 0.5 : kind==15 ? 0.2 : kind==17 ? 0.2 : kind==26 ? -1 : 0;);
 function param_max(kind)
-(kind==0 ? 3 : kind==3 ? 1 : kind==4 ? 2 : kind==5 ? 16 : kind==6 ? 1 : kind==7 ? 48 : kind==8 ? 3 : kind==11 ? 3 : kind==12 ? 1 : kind==14 ? 2 : kind==15 ? 1 : kind==16 ? 1 : kind==17 ? 3 : kind==18 ? 1 : kind==19 ? 1 : kind==20 ? 2 : kind==21 ? 1 : kind==22 ? 16 : kind==23 ? 16 : kind==24 ? 1 : 127;);
+(kind==0 ? 3 : kind==3 ? 1 : kind==4 ? 2 : kind==5 ? 16 : kind==6 ? 1 : kind==7 ? 48 : kind==8 ? 3 : kind==11 ? 3 : kind==12 ? 1 : kind==14 ? 2 : kind==15 ? 1 : kind==16 ? 1 : kind==17 ? 3 : kind==18 ? 1 : kind==19 ? 1 : kind==20 ? 2 : kind==21 ? 1 : kind==22 ? 16 : kind==23 ? 16 : kind==24 ? 1 : kind==25 ? 1 : kind==26 ? 1 : 127;);
 function param_step(kind)
-(kind==0 ? 0.01 : kind==5 ? 0.25 : kind==6 ? 0.01 : kind==14 ? 0.01 : kind==15 ? 0.01 : kind==16 ? 0.001 : kind==17 ? 0.01 : 1;);
+(kind==0 ? 0.01 : kind==5 ? 0.25 : kind==6 ? 0.01 : kind==14 ? 0.01 : kind==15 ? 0.01 : kind==16 ? 0.001 : kind==17 ? 0.01 : kind==25 ? 0.001 : kind==26 ? 0.001 : 1;);
 function param_name(kind)
 (kind==EXP_T_VEL ? "VELOCITY" : kind==EXP_T_LEVEL ? "VOLUME" : kind==EXP_T_MOD ? "MOD LEVEL" :
  kind==EXP_T_ARP_ON ? "ARP ENABLED" : kind==EXP_T_ARP_MODE ? "MODE" : kind==EXP_T_ARP_RATE ? "RATE" :
@@ -820,7 +829,7 @@ local(lo,hi,step,v)
 (
   lo=param_min(kind);hi=param_max(kind);step=param_step(kind);pos=max(0,min(1,pos));
   kind==14 ? pow(2,2*pos-1) :
-  kind==16 ? lo+(hi-lo)*pos :
+  kind==16 || kind==25 || kind==26 ? lo+(hi-lo)*pos :
   kind==3 || kind==4 || kind==8 || kind==11 || kind==12 || kind==18 || kind==19 || kind==20 || kind==21 || kind==22 || kind==23 || kind==24 ? min(hi,floor(pos*(hi+1))) : (
     v=lo+(hi-lo)*pos;max(lo,min(hi,floor(v/step+.5)*step));
   );
@@ -873,7 +882,7 @@ local(si,b,j)
 );
 function sw_reset(si)
 local(r)
-(r=sw_rt(si);mem[r+6]=-1;mem[r+7]=-1;mem[r+8]=1;mem[r+9]=0;mem[r+10]=-1;);
+(mem[CONDUCTOR_GESTURE_BASE+si*8+3]=0;mem[CONDUCTOR_GESTURE_BASE+si*8+1]=0;r=sw_rt(si);mem[r+6]=-1;mem[r+7]=-1;mem[r+8]=1;mem[r+9]=0;mem[r+10]=-1;);
 function sw_runtime_reset()
 local(si,r,j,t)
 (
@@ -885,7 +894,7 @@ local(si,r,j,t)
     );
     j=0;loop(SW_RT_STRIDE,mem[r+j]=0;j+=1;);sw_reset(si);si+=1;
   );
-  native_phrase_contract?(si=0;loop(SW_COUNT,mem[CONDUCTOR_GESTURE_BASE+si*8]=0;si+=1;););
+  native_phrase_contract?(si=0;loop(SW_COUNT,mem[CONDUCTOR_GESTURE_BASE+si*8]=0;mem[CONDUCTOR_GESTURE_BASE+si*8+1]=0;mem[CONDUCTOR_GESTURE_BASE+si*8+3]=0;mem[CONDUCTOR_GESTURE_BASE+si*8+7]=0;cancel_rt=si<4?SW_RT_BASE+si*32:DS_RT_BASE+(si-4)*32;mem[cancel_rt+22]=0;mem[cancel_rt+27]=0;mem[cancel_rt+29]=0;mem[cancel_rt+31]=0;si+=1;););
   sw_edit_target=-1;sw_preview_target=-1;sw_edit_new=0;sw_draft_undo_valid=0;ui_sw_editor_open=0;ui_sw_delete_slot=-1;
   learn_candidate=-1;learn_conflict=-1;controller_learn=-1;phrase_note_learn=-1;sw_last_active=-1;sw_learn=-1;sw_learn_request=-1;sw_clock=0;
   sw_queue_read=0;sw_queue_write=0;sw_playback_origin=0;
@@ -1070,8 +1079,15 @@ local(count,base)
 );
 
 function arp_capture_note(gi, outst, note, vel, is_on, offs)
-local(idx,sidx,n,held)
+local(idx,sidx,n,held,owner)
 (
+  native_phrase_contract>=2 && native_transform_voice>=0?(
+    owner=(native_transform_voice*INST_CAP+gi)*128+note;
+    is_on?(mem[NATIVE_ARP_SOURCE_BASE+owner]+=1;mem[NATIVE_ARP_HELD_BASE+owner]+=1;):(
+      mem[NATIVE_ARP_SOURCE_BASE+owner]=max(0,mem[NATIVE_ARP_SOURCE_BASE+owner]-1);
+      mem[engine_addr(INST_ARP_HOLD_BASE,gi)]<.5?mem[NATIVE_ARP_HELD_BASE+owner]=max(0,mem[NATIVE_ARP_HELD_BASE+owner]-1);
+    );
+  );
   idx=engine_addr(ARP_HELD_COUNT_BASE,gi*128+note);
   sidx=engine_addr(ARP_SOURCE_COUNT_BASE,gi*128+note);
   is_on ? (
@@ -1089,7 +1105,7 @@ local(idx,sidx,n,held)
 );
 
 function arp_clear_latch(gi)
-local(n,sidx,hidx)
+local(n,sidx,hidx,v,owner)
 (
   n=0;
   loop(128,
@@ -1097,6 +1113,7 @@ local(n,sidx,hidx)
     hidx=engine_addr(ARP_HELD_COUNT_BASE,gi*128+n);
     // When leaving HOLD, retain only notes that are physically/source-held now.
     mem[hidx]=mem[sidx];
+    native_phrase_contract>=2?(v=0;loop(INSTANCE_OWNERS,owner=(v*INST_CAP+gi)*128+n;mem[NATIVE_ARP_HELD_BASE+owner]=mem[NATIVE_ARP_SOURCE_BASE+owner];v+=1;););
     mem[engine_addr(SW_ARP_PHRASE_BASE,gi*128+n)]=mem[engine_addr(SW_ARP_PHRASE_SOURCE_BASE,gi*128+n)];
     n+=1;
   );
@@ -1309,11 +1326,17 @@ local(b,mask,bit)
  !(mask&bit)?mem[instance_header(once_route_voice)+13]+=1;
  mem[b]=((mask|bit)*128)+(key%128);mem[b+1]=gi<INST_CAP?mem[I_IDS_BASE+gi]:0;
 ););
-function instance_poly_routes() local(j,ok)
+function instance_legacy_poly_routes() local(j,ok)
 (ok=1;j=0;loop(INST_CAP,
  mem[I_EXISTS_BASE+j] && mem[engine_addr(INST_ENABLED_BASE,j)]>.5 &&
  ((transformer_on(j,3) && mem[engine_addr(INST_NOTE_MODE_BASE,j)]>.5) ||
  (transformer_on(j,5) && mem[engine_addr(INST_ARP_ENABLED_BASE,j)]>.5))?ok=0;j+=1;);ok;);
+
+function instance_poly_routes() (native_phrase_contract>=2 || instance_legacy_poly_routes(););
+function native_mono_source(gi,note) local(v,result)
+(result=-1;v=0;loop(INSTANCE_OWNERS,result<0 && mem[NATIVE_MONO_SOURCE_BASE+(v*INST_CAP+gi)*128+note]>0?result=v;v+=1;);result;);
+function instance_capture_feed(gi,key) local(b)
+(b=instance_row(once_route_voice,instance_route_record)+4+gi*3;mem[b]=-2-key;mem[b+1]=mem[I_IDS_BASE+gi];mem[instance_header(once_route_voice)+13]+=1;);
 
 function route_emit_note(gi, offs, outst, note, vel, is_on, owned, origin_override)
 local(ch,key,origin,idx)
@@ -1333,7 +1356,7 @@ local(ch,key,origin,idx)
     key=NOTE_REF_BASE+ch*128+note;
     is_on ? (
       mem[key]+=1;mem[I_ONCE_OUT_BASE+idx]+=1;
-      (instance_route_record>=0?instance_emit(offs,outst,note,vel):midisend(offs,outst,note|(vel*256)))>0 ? instance_capture_output(gi,ch*128+note) : instance_route_record>=0 ? (
+      (native_phrase_contract>=2 && instrument_output_owners(ch,note,-1)>1 ? 1 : (instance_route_record>=0?instance_emit(offs,outst,note,vel):midisend(offs,outst,note|(vel*256))))>0 ? instance_capture_output(gi,ch*128+note) : instance_route_record>=0 ? (
         mem[key]=max(0,mem[key]-1);mem[I_ONCE_OUT_BASE+idx]-=1;mem[engine_addr(SW_PHRASE_OUT_BASE,idx)]-=1;
       );
     ) : (
@@ -1341,7 +1364,7 @@ local(ch,key,origin,idx)
       mem[key]<=0 && instrument_output_owners(ch,note,-1)<=0 ? midisend(offs,128|ch,note);
     );
   ) : (
-    is_on ? midisend(offs,outst,note|(vel*256)) : instrument_output_owners(ch,note,-1)<=0?midisend(offs,128|ch,note);
+    is_on ? (native_phrase_contract<2 || instrument_output_owners(ch,note,-1)<=1?midisend(offs,outst,note|(vel*256));) : instrument_output_owners(ch,note,-1)<=0?midisend(offs,128|ch,note);
   );
 );
 
@@ -1369,8 +1392,13 @@ local(n,best,best_order,ord)
 );
 
 function route_mono_note(gi, offs, outst, note, vel, is_on, owned)
-local(mode,idx,desired,active,active_ch,newst,newvel,old_owner,new_owner,key)
+local(mode,idx,desired,active,active_ch,newst,newvel,old_owner,new_owner,key,source_voice,old_source,new_source)
 (
+  source_voice=native_transform_voice;
+  native_phrase_contract>=2 && source_voice>=0?(
+    key=NATIVE_MONO_SOURCE_BASE+(source_voice*INST_CAP+gi)*128+note;
+    is_on?mem[key]+=1:mem[key]=max(0,mem[key]-1);
+  );
   mode=floor(mem[engine_addr(INST_NOTE_MODE_BASE,gi)]+0.5);
   idx=engine_addr(MONO_HELD_COUNT_BASE,gi*128+note);
   owned || sw_playback_origin ? (is_on?mem[engine_addr(SW_MONO_PHRASE_BASE,gi*128+note)]+=1:mem[engine_addr(SW_MONO_PHRASE_BASE,gi*128+note)]=max(0,mem[engine_addr(SW_MONO_PHRASE_BASE,gi*128+note)]-1););
@@ -1389,23 +1417,25 @@ local(mode,idx,desired,active,active_ch,newst,newvel,old_owner,new_owner,key)
   old_owner=mem[engine_addr(SW_MONO_OWNER_BASE,gi)];
   new_owner=desired>=0 && mem[engine_addr(SW_MONO_PHRASE_BASE,gi*128+desired)]>=mem[engine_addr(MONO_HELD_COUNT_BASE,gi*128+desired)]?1:-1;
 
+  old_source=mem[NATIVE_MONO_OWNER_BASE+gi];
+  new_source=native_phrase_contract>=2 && new_owner>0 && desired>=0?native_mono_source(gi,desired):-1;
   desired!=active ? (
     desired>=0 ? (
       newst=144|(outst&15);
       newvel=max(1,min(127,mem[engine_addr(MONO_HELD_VEL_BASE,gi*128+desired)]));
       mode==3 ? (
         // LEGATO: overlap the transition so mono synths can engage their own legato/glide behavior.
-        route_emit_note(gi,offs,newst,desired,newvel,1,owned,new_owner);
-        active>=0 ? route_emit_note(gi,offs,128|active_ch,active,0,0,owned,old_owner);
+        native_transform_voice=new_source;route_emit_note(gi,offs,newst,desired,newvel,1,owned,new_owner);
+        active>=0 ? (native_transform_voice=old_source;route_emit_note(gi,offs,128|active_ch,active,0,0,owned,old_owner););
       ) : (
-        active>=0 ? route_emit_note(gi,offs,128|active_ch,active,0,0,owned,old_owner);
-        route_emit_note(gi,offs,newst,desired,newvel,1,owned,new_owner);
+        active>=0 ? (native_transform_voice=old_source;route_emit_note(gi,offs,128|active_ch,active,0,0,owned,old_owner););
+        native_transform_voice=new_source;route_emit_note(gi,offs,newst,desired,newvel,1,owned,new_owner);
       );
       mem[engine_addr(SW_MONO_OWNER_BASE,gi)]=new_owner;mem[engine_addr(MONO_ACTIVE_NOTE_BASE,gi)]=desired;
-      mem[engine_addr(MONO_ACTIVE_CH_BASE,gi)]=outst&15;
+      mem[engine_addr(MONO_ACTIVE_CH_BASE,gi)]=outst&15;mem[NATIVE_MONO_OWNER_BASE+gi]=new_source;
     ) : (
-      active>=0 ? route_emit_note(gi,offs,128|active_ch,active,0,0,owned,old_owner);
-      mem[engine_addr(MONO_ACTIVE_NOTE_BASE,gi)]=-1;
+      active>=0 ? (native_transform_voice=old_source;route_emit_note(gi,offs,128|active_ch,active,0,0,owned,old_owner););
+      mem[engine_addr(MONO_ACTIVE_NOTE_BASE,gi)]=-1;mem[NATIVE_MONO_OWNER_BASE+gi]=-1;
     );
   );
   // A mono transition may be caused by the other source owner. Track the
@@ -1420,6 +1450,7 @@ local(mode,idx,desired,active,active_ch,newst,newvel,old_owner,new_owner,key)
       mem[engine_addr(SW_PHRASE_OUT_BASE,key)]=mem[engine_addr(SW_MONO_PHRASE_BASE,gi*128+desired)]>0;
     );
   );
+  native_transform_voice=source_voice;
 );
 
 function param_track_input(gi,ch,note,is_on,owned)
@@ -1444,12 +1475,19 @@ local(gi,j,idx)
 function instance_inst_id(v,i) (v<MAX_ONCE_VOICES?mem[VOICE_INST_IDS_BASE+v*INST_CAP+i]:mem[instance_header(v)+32+i];);
 function instance_inst_input(v,i) (v<MAX_ONCE_VOICES?mem[VOICE_INST_IN_BASE+v*INST_CAP+i]:mem[instance_header(v)+40+i];);
 function instance_clear_record(v,r,offs)
-local(h,b,j,k,id,tracked,idx,mask,ch,note)
+local(h,b,j,k,id,tracked,idx,mask,ch,note,source_voice,source_origin,nmode)
 (
  h=instance_header(v);b=instance_row(v,r);j=0;loop(INST_CAP+1,
   k=mem[b+4+j*3];id=mem[b+5+j*3];tracked=mem[b+6+j*3];
   (j==INST_CAP || (mem[I_EXISTS_BASE+j] && mem[I_IDS_BASE+j]==id))?(
    tracked>=0 && j<INST_CAP?param_track_input(j,floor(tracked/128),tracked%128,0,1);
+   k<=-2 && j<INST_CAP?(
+    idx=-2-k;ch=floor(idx/128);note=idx%128;
+    source_voice=native_transform_voice;source_origin=sw_playback_origin;native_transform_voice=v;sw_playback_origin=1;
+    nmode=transformer_on(j,3)?floor(mem[engine_addr(INST_NOTE_MODE_BASE,j)]+.5):0;
+    nmode>0?route_mono_note(j,offs,128|ch,note,0,0,0):route_emit_note(j,offs,128|ch,note,0,0,0,1);
+    native_transform_voice=source_voice;sw_playback_origin=source_origin;mem[h+13]=max(0,mem[h+13]-1);
+   );
    k>=0?(
     mask=floor(k/128);note=k%128;ch=0;loop(16,mask&(1<<ch)?(
      mem[h+13]=max(0,mem[h+13]-1);idx=ch*128+note;
@@ -1474,7 +1512,9 @@ local(h,b,prev,next)
  mem[b]=mem[h+3];mem[h+3]=r;mem[h+5]-=1;
 );
 function instance_channel_clear(v,sourcech,offs) local(h,r,next,ch)
-(h=instance_header(v);r=mem[h+2];loop(min(INSTANCE_ROWS,max(0,mem[h+5])),r>=0?(
+(h=instance_header(v);cs=0;loop(SW_COUNT,cg=CONDUCTOR_GESTURE_BASE+cs*8;
+ mem[cg+1]==v+1 && mem[cg+2]==mem[h]?(mem[cg+1]=0;mem[cg+3]=0;);cs+=1;);
+ r=mem[h+2];loop(min(INSTANCE_ROWS,max(0,mem[h+5])),r>=0?(
  next=mem[instance_row(v,r)+1];floor(mem[instance_row(v,r)+3]/128)==sourcech?instance_clear_record(v,r,offs);r=next;););
 );
 function instance_release_input(v,key,offs) local(h,q,r)
@@ -1487,7 +1527,7 @@ function instance_remove_destination(gi,id) local(v,h,r,b,next,ch,p,out,j,remain
 (v=0;loop(INSTANCE_OWNERS,h=instance_header(v);r=mem[h+2];
  loop(min(INSTANCE_ROWS,max(0,mem[h+5])),r>=0?(
   next=mem[instance_row(v,r)+1];b=instance_row(v,r)+4+gi*3;
-  mem[b+1]==id?(mem[b]>=0?(mask=floor(mem[b]/128);k=0;loop(16,mask&(1<<k)?mem[h+13]=max(0,mem[h+13]-1);k+=1;););mem[b]=-1;mem[b+1]=-1;mem[b+2]=-1;);
+  mem[b+1]==id?(mem[b]<=-2?mem[h+13]=max(0,mem[h+13]-1);mem[b]>=0?(mask=floor(mem[b]/128);k=0;loop(16,mask&(1<<k)?mem[h+13]=max(0,mem[h+13]-1);k+=1;););mem[b]=-1;mem[b+1]=-1;mem[b+2]=-1;);
   r=next;
  ););
  ch=0;loop(16,
@@ -1535,9 +1575,27 @@ function native_control_emit(action,slot,id,mask,offs) local(bus,j,value,ok,k)
 );
 function reveal_end(v,offs) local(a)
 (a=REVEAL_BASE+v*8;v<MAX_ONCE_VOICES && mem[a]>0?(native_control_emit(13,v,mem[instance_header(v)],mem[a+3],offs);mem[a]=0;););
-function instance_stop_voice(v,offs) local(h,r,ch)
+function native_transform_stop(v,offs) local(gi,n,owner,count,source,idx,ch,active)
+(gi=0;loop(INST_CAP,n=0;loop(128,
+ owner=(v*INST_CAP+gi)*128+n;count=mem[NATIVE_ARP_HELD_BASE+owner];source=mem[NATIVE_ARP_SOURCE_BASE+owner];
+ count>0 || source>0?(
+  idx=gi*128+n;
+  mem[engine_addr(ARP_HELD_COUNT_BASE,idx)]=max(0,mem[engine_addr(ARP_HELD_COUNT_BASE,idx)]-count);
+  mem[engine_addr(ARP_SOURCE_COUNT_BASE,idx)]=max(0,mem[engine_addr(ARP_SOURCE_COUNT_BASE,idx)]-source);
+  mem[engine_addr(SW_ARP_PHRASE_BASE,idx)]=max(0,mem[engine_addr(SW_ARP_PHRASE_BASE,idx)]-count);
+  mem[engine_addr(SW_ARP_PHRASE_SOURCE_BASE,idx)]=max(0,mem[engine_addr(SW_ARP_PHRASE_SOURCE_BASE,idx)]-source);
+  active=mem[engine_addr(ARP_ACTIVE_NOTE_BASE,gi)];ch=mem[engine_addr(ARP_ACTIVE_CH_BASE,gi)]&15;
+  active==n && mem[engine_addr(ARP_HELD_COUNT_BASE,idx)]<=0?(
+   instrument_output_owners(ch,n,gi)<=0?instance_emit(offs,128|ch,n,0);
+   mem[engine_addr(ARP_ACTIVE_NOTE_BASE,gi)]=-1;mem[engine_addr(ARP_GATE_REMAIN_BASE,gi)]=0;
+  );
+ );
+ mem[NATIVE_ARP_HELD_BASE+owner]=0;mem[NATIVE_ARP_SOURCE_BASE+owner]=0;mem[NATIVE_MONO_SOURCE_BASE+owner]=0;n+=1;
+ );gi+=1;););
+function instance_stop_voice(v,offs) local(h,r,ch,cs,cg)
 (h=instance_header(v);r=mem[h+2];loop(min(INSTANCE_ROWS,max(0,mem[h+5])),r>=0?(
  instance_release_record(v,r,offs);r=mem[h+2];););
+ native_phrase_contract>=2?native_transform_stop(v,offs);
  ch=0;loop(16,instance_release_pedal(v,ch,offs);ch+=1;);
  reveal_end(v,offs);mem[h+1]+=1;mem[h+11]=0;v<MAX_ONCE_VOICES?mem[VOICE_ACTIVE_BASE+v]=0:mem[TRIG_BASE+v-MAX_ONCE_VOICES]=0;mem[h+2]=-1;mem[h+3]=-1;mem[h+4]=0;mem[h+5]=0;
 );
@@ -1585,7 +1643,7 @@ local(srcch,typ,ii,in_ch,out_ch,outst,outd2,matched,velmul,nmode,tn,input_ok)
       in_ch=mem[engine_addr(INST_IN_BASE,ii)];
       (in_ch==0 || in_ch==srcch) ? (
         matched=1;
-        out_ch=sw_playback_origin && phrase_route_policy>=0?phrase_route_policy:mem[engine_addr(INST_OUT_BASE,ii)];
+        out_ch=sw_playback_origin && phrase_route_policy>=0 && !(native_phrase_contract>=2 && phrase_route_policy==0)?phrase_route_policy:mem[engine_addr(INST_OUT_BASE,ii)];
         outst=st;
         out_ch>0 ? outst=(st&240)|(max(1,min(16,out_ch))-1);
         outd2=d2;
@@ -1620,7 +1678,8 @@ local(srcch,typ,ii,in_ch,out_ch,outst,outd2,matched,velmul,nmode,tn,input_ok)
     );
     ii+=1;
   );
-  matched==0 ? (
+  // Native chain routing is closed: unmatched inputs never bypass instruments.
+  matched==0 && native_phrase_contract<2 ? (
     typ==144 || typ==128 ? (
       nmode=(st&15)*128+d1;tn=I_FALLBACK_BASE+nmode;sw_playback_origin?tn=I_FALLBACK_BASE+2048+nmode;
       typ==144 && d2>0 ? mem[tn]+=1 : mem[tn]=max(0,mem[tn]-1);
@@ -1650,7 +1709,7 @@ local(ii,out_ch,ch,lev,mod)
 );
 
 function send_once_to_instruments(offs, st, d1, d2, phrase_gain)
-local(srcch,typ,ii,in_ch,out_ch,outst,outd2,matched,velmul,msg_chan,note_key,nmode,tn,original_match,j,policy,channel_index,channels)
+local(srcch,typ,ii,in_ch,out_ch,outst,outd2,matched,velmul,msg_chan,note_key,nmode,tn,original_match,j,policy,channel_index,channels,source_voice,source_origin,stateful)
 (
   srcch=(st&15)+1;
   typ=st&240;policy=once_route_voice>=0?mem[instance_header(once_route_voice)+15]:0;channels=policy==17 && typ>=128 && typ<240?16:1;
@@ -1675,7 +1734,7 @@ local(srcch,typ,ii,in_ch,out_ch,outst,outd2,matched,velmul,msg_chan,note_key,nmo
       (in_ch==0 || in_ch==srcch) ? (
         matched=1;
         channel_index=0;loop(channels,
-        out_ch=policy==17?channel_index+1:policy;
+        out_ch=policy==17?channel_index+1:(native_phrase_contract>=2 && policy==0?mem[engine_addr(INST_OUT_BASE,ii)]:policy);
         outst=st;
         out_ch>0 && typ>=128 && typ<240 ? outst=(st&240)|(max(1,min(16,out_ch))-1);
         msg_chan=outst&15;
@@ -1691,8 +1750,13 @@ local(srcch,typ,ii,in_ch,out_ch,outst,outd2,matched,velmul,msg_chan,note_key,nmo
           tn=tf_pitch(ii,d1);
           tn>=0 && tn<=127 ? (
             outd2=tf_velocity(ii,d2,phrase_gain);
-            nmode>0 ? route_mono_note(ii,offs,outst,tn,outd2,1,1) :
-                      route_emit_note(ii,offs,outst,tn,outd2,1,1,0);
+            stateful=native_phrase_contract>=2 && instance_route_record>=0 && (nmode>0 || (transformer_on(ii,5) && mem[engine_addr(INST_ARP_ENABLED_BASE,ii)]>.5));
+            stateful?(
+              instance_capture_feed(ii,msg_chan*128+tn);
+              source_voice=native_transform_voice;source_origin=sw_playback_origin;native_transform_voice=once_route_voice;sw_playback_origin=1;
+              nmode>0?route_mono_note(ii,offs,outst,tn,outd2,1,0):route_emit_note(ii,offs,outst,tn,outd2,1,0,1);
+              native_transform_voice=source_voice;sw_playback_origin=source_origin;
+            ):(nmode>0 ? route_mono_note(ii,offs,outst,tn,outd2,1,1) : route_emit_note(ii,offs,outst,tn,outd2,1,1,0););
           );
         ) :
         ((typ==128) || (typ==144 && d2==0)) ? (
@@ -1718,7 +1782,7 @@ local(srcch,typ,ii,in_ch,out_ch,outst,outd2,matched,velmul,msg_chan,note_key,nmo
     );
     ii+=1;
   );
-  matched==0 && !original_match ? (
+  matched==0 && !original_match && native_phrase_contract<2 ? (
     channel_index=0;loop(channels,
     msg_chan=policy==17?channel_index:policy>0?policy-1:st&15;outst=typ>=128 && typ<240?typ|msg_chan:st;
     typ==144 || typ==128 ? (
@@ -2406,7 +2470,7 @@ local(j,unsupported)
   unsupported=layer_count(layer)<=0 || mem[LEN_BASE+layer]*phrase_time_factor(layer)<max(128,samplesblock/8);
   j=0;loop(INST_CAP,
     mem[I_EXISTS_BASE+j] && mem[engine_addr(INST_ENABLED_BASE,j)]>.5 &&
-      ((transformer_on(j,3) && mem[engine_addr(INST_NOTE_MODE_BASE,j)]>0) ||
+      native_phrase_contract<2 && ((transformer_on(j,3) && mem[engine_addr(INST_NOTE_MODE_BASE,j)]>0) ||
        (transformer_on(j,5) && mem[engine_addr(INST_ARP_ENABLED_BASE,j)]>.5))?unsupported=1;
     j+=1;
   );!unsupported;
@@ -2432,7 +2496,7 @@ trigger_request>=0 ? (
   trigger_request=-1;
   held=native_hold_enabled && mem[MODE_BASE+requested_layer]==2;
   safe=instance_poly_routes();native_conflict=native_phrase_contract && mem[PHRASE_GROUP_BASE+requested_layer]>0 && !safe;native_phrase_contract && !safe?(vi=0;loop(MAX_ONCE_VOICES,mem[VOICE_ACTIVE_BASE+vi]>.5?native_conflict=1;vi+=1;););
-  phrase_output_policy(requested_layer)==17 && !safe?(instance_error=3;instance_rejected+=1;) : (
+  phrase_output_policy(requested_layer)==17 && !instance_legacy_poly_routes()?(instance_error=3;instance_rejected+=1;) : (
   instance_serial>=9007199254740990 ? (instance_error=5;instance_rejected+=1;) : (
   !(instance_independent_request && (!safe || layer_count(requested_layer)<=0 || mem[LEN_BASE+requested_layer]<=0 ||
     (mem[MODE_BASE+requested_layer]!=1 && mem[LEN_BASE+requested_layer]*phrase_time_factor(requested_layer)<max(128,samplesblock/8)))) &&
@@ -2509,62 +2573,68 @@ function phrase_admit_independent(layer,offs) local(result)
 // Native C configuration is installed by the paused worker, never parsed here.
 // Existing voice budget bounds each STEP and preflights all attacks before admission.
 function conductor_header(si) (CONDUCTOR_BASE+si*8;);
+function conductor_waits_for(v) local(si,g,waiting)
+(si=0;waiting=0;loop(SW_COUNT,g=CONDUCTOR_GESTURE_BASE+si*8;mem[g+3]>0 && mem[g+1]==v+1 && mem[g+2]==mem[instance_header(v)]?waiting=1;si+=1;);waiting;);
 function conductor_has(si) (conductor_host_enabled && mem[conductor_header(si)]>0 && mem[conductor_header(si)]==mem[sw_cfg(si)+21];);
-function conductor_release(si,offs,all)
+function conductor_release_owned(si,offs,all)
 local(v,h,id,a,current)
-(mem[CONDUCTOR_GESTURE_BASE+si*8]=0;id=mem[sw_cfg(si)+21];v=0;loop(MAX_ONCE_VOICES,h=instance_header(v);
+(mem[CONDUCTOR_GESTURE_BASE+si*8+3]>0?mem[CONDUCTOR_GESTURE_BASE+si*8+6]=1;native_control_emit(15,si,mem[sw_rt(si)+12]%2097152,all,offs);mem[CONDUCTOR_GESTURE_BASE+si*8]=0;id=mem[sw_cfg(si)+21];v=0;loop(MAX_ONCE_VOICES,h=instance_header(v);
  a=REVEAL_BASE+v*8;current=mem[a]>0 && mem[a+1]==si && mem[a+2]==mem[sw_rt(si)+12];
  mem[h+12]==id && mem[VOICE_ACTIVE_BASE+v]>.5 ? (
-  all || (!native_phrase_contract && mem[h+8]==2) || (current && mem[sw_rt(si)+2]==0)?(
+  all || (!native_phrase_contract && mem[h+8]==2) || (current && mem[a+6]==0)?(
    native_phrase_contract && offs>0?phrase_render_voice(v,mem[VOICE_POS_BASE+v]+offs,0);instance_stop_voice(v,offs);
   ):
   current && mem[a+4]>0 && mem[a]==2?(native_control_emit(12,v,mem[h],mem[a+3],offs);mem[a]=1;);
  );v+=1;););
+function conductor_charge_value(si,b,row,kind,fallback) local(a,n,i,v,q)
+(a=mem[b+78];v=fallback;mem[sw_rt(si)+27]>0 && a>0?(n=mem[a+2];i=0;loop(n,a+=3*(i==0);mem[a]==row && mem[a+1]==kind?(q=min(1,max(0,mem[sw_rt(si)+26]*mem[a+4]));v=max(mem[a+5],min(mem[a+6],mem[a+2]+(mem[a+3]-mem[a+2])*q)););a+=7;i+=1;););v;);
 function conductor_reject_gesture(si) local(h)
 (h=conductor_header(si);mem[h+4]=4;mem[h+5]=0;mem[h+6]=0;mem[sw_rt(si)+17]=4;);
 function conductor_apply(si,offs,phase)
-local(h,step,b,n,j,v,free,valid,p,mode,ratio,repeats,last,t,oldmode,oldhold,olddecay,oldtime,id,owner,k,mov,mask,rv,rvMask,need,scan,addr,st,policy,dest,jmask,added,a)
+local(h,step,b,n,j,v,free,valid,p,mode,ratio,repeats,last,t,oldmode,oldhold,olddecay,oldtime,id,owner,k,mov,mask,rv,rvMask,need,scan,addr,st,policy,dest,jmask,added,a,rvCC,rvFade,longMask,extra,releaseMask,chargeMask)
 (
  h=conductor_header(si);mem[h+4]=0;mem[h+5]=0;mem[h+6]=0;mem[sw_rt(si)+11]=SW_NEXT;!phase?(mem[sw_rt(si)+12]+=1;mem[CONDUCTOR_GESTURE_BASE+si*8]=0;);
  !mem[h+7] || mem[h+1]<=0 ? mem[h+4]=4 : (
-  step=phase?mem[h+3]:(mem[h+3]+1)%mem[h+1];b=phase?mem[CONDUCTOR_GESTURE_BASE+si*8]:mem[h+2]+step*72;
+  step=phase?mem[h+3]:(mem[h+3]+1)%mem[h+1];b=phase?mem[CONDUCTOR_GESTURE_BASE+si*8+7]:mem[h+2]+step*80;
   b<=0 || !mem[b] ? mem[h+4]=b>0 && mem[b+3]>0?mem[b+3]:4 : (
-   n=0;j=0;mov=phase?mem[b+67]:mem[b+64];mask=mem[b+66];rvMask=mem[b+68];need=0;valid=instance_poly_routes();repeats=instance_repeat;last=instance_last_source;
+   extra=mem[b+65]+mem[b+64]+mem[b+67]+mem[b+2]*2;longMask=mem[extra];releaseMask=mem[b+72];chargeMask=mem[b+73];n=0;j=0;mov=phase==4?mem[b+75]:phase==3?mem[b+74]:phase==2?mem[extra+1]:phase?mem[b+67]:mem[b+64];mask=mem[b+66];rvMask=mem[b+68];need=0;cc=0;loop(128,mem[REVEAL_TARGET_MASK_BASE+256+cc]=0;cc+=1;);valid=instance_poly_routes();repeats=instance_repeat;last=instance_last_source;
    loop(min(MAX_ONCE_VOICES,mem[b+2]),p=mem[b+4+j*5];
-    layer_audible(p) && (((mask&(1<<j))>0)==phase && !(rvMask&(1<<j)) || (!phase && (rvMask&(1<<j))))?(
-     rv=rvMask&(1<<j);rv?(
+    layer_audible(p) && (((!phase && !((mask|longMask|releaseMask|chargeMask)&(1<<j))) || (phase==1 && (mask&(1<<j))) || (phase==2 && (longMask&(1<<j))) || (phase==3 && (releaseMask&(1<<j))) || (phase==4 && (chargeMask&(1<<j)))) && !(rvMask&(1<<j)) || (!phase && (rvMask&(1<<j))))?(
+     rv=rvMask&(1<<j);rvCC=mem[mem[b+65]+mem[b+64]+mem[b+67]+j*2];rv?(
       !native_control_host?valid=0;dest=0;scan=0;policy=phrase_output_policy(p);
       loop(layer_count(p),addr=layer_base(p,scan);st=mem[addr+1]&240;
-       st==176 && mem[addr+2]==7?valid=0;
+       st==176 && mem[addr+2]==rvCC?valid=0;
        st==144 && mem[addr+3]>0?dest|=policy==17?65535:1<<(policy>0?policy-1:(mem[addr+1]&15));scan+=1;);
-      need|=dest;
+      mem[REVEAL_TARGET_MASK_BASE+256+rvCC]|=dest;
      );
      mode=mem[b+5+j*5]>=0?mem[b+5+j*5]:mem[MODE_BASE+p];
      p==last?repeats+=1:repeats=0;last=p;
-     ratio=mem[b+8+j*5]>=0?mem[b+8+j*5]:phrase_time_ratio(p);
+     ratio=conductor_charge_value(si,b,j,14,mem[b+8+j*5]>=0?mem[b+8+j*5]:phrase_time_ratio(p));
      t=exp(max(-log(64),min(log(64),log(ratio)*repeats)));
      layer_count(p)<=0 || mem[LEN_BASE+p]<=0 || (mode!=1 && mem[LEN_BASE+p]*t<max(128,samplesblock/8))?valid=0;n+=1;
     );j+=1;
    );
-   added=need&(65535-(reveal_existing_mask|reveal_reserved_mask));k=0;scan=0;loop(16,added&(1<<scan)?k+=1;scan+=1;);k>reveal_free_targets?valid=0;
+   k=0;cc=0;loop(128,ccNeed=mem[REVEAL_TARGET_MASK_BASE+256+cc];added=ccNeed&(65535-(mem[REVEAL_TARGET_MASK_BASE+cc]|mem[REVEAL_TARGET_MASK_BASE+128+cc]));scan=0;loop(16,added&(1<<scan)?k+=1;scan+=1;);cc+=1;);k>reveal_free_targets?valid=0;
    free=0;v=0;loop(MAX_ONCE_VOICES,mem[VOICE_ACTIVE_BASE+v]<.5 && mem[instance_header(v)+5]==0 && mem[instance_header(v)+9]==0?free+=1;v+=1;);
-   mov>64-(snap_host_write-snap_host_read+native_control_count) ? (mem[h+4]=6;) : n>0 && instance_serial+n>9007199254740990 ? (mem[h+4]=5;instance_error=5;instance_rejected+=1;) : n>free ? (mem[h+4]=2;instance_error=2;instance_rejected+=1;) : !valid && n>0 ? (mem[h+4]=3;instance_error=3;instance_rejected+=1;) : (
-    reveal_reserved_mask|=need;reveal_free_targets-=k;
-    j=0;loop(mov,k=I_RUNTIME_END+96+(snap_host_write%64)*3;mem[k]=9;mem[k+1]=mem[mem[b+65]+(phase?mem[b+64]:0)+j];mem[k+2]=offs;native_control_host?(native_control_emit(9,0,mem[k+1],0,offs);native_control_count+=1;):snap_host_write+=1;j+=1;);
-    !phase?mem[CONDUCTOR_GESTURE_BASE+si*8]=b;mem[h+3]=step;mem[sw_rt(si)+7]=step;mem[h+5]=mem[b+1];mem[h+4]=mem[b+1]>0?1:0;
+   mov+1>64-(snap_host_write-snap_host_read+native_control_count) ? (mem[h+4]=6;) : n>0 && instance_serial+n>9007199254740990 ? (mem[h+4]=5;instance_error=5;instance_rejected+=1;) : n>free ? (mem[h+4]=2;instance_error=2;instance_rejected+=1;) : !valid && n>0 ? (mem[h+4]=3;instance_error=3;instance_rejected+=1;) : (
+    cc=0;loop(128,mem[REVEAL_TARGET_MASK_BASE+128+cc]|=mem[REVEAL_TARGET_MASK_BASE+256+cc];cc+=1;);reveal_reserved_mask=mem[REVEAL_TARGET_MASK_BASE+128+7];reveal_free_targets-=k;
+    native_control_emit(17,si,floor(max(0,mem[sw_rt(si)+26])*1000000+.5),mem[sw_rt(si)+27]>0,offs);
+    j=0;loop(mov,k=I_RUNTIME_END+96+(snap_host_write%64)*3;mem[k]=9;mem[k+1]=mem[phase==4?mem[b+77]+j:phase==3?mem[b+76]+j:phase==2?extra+2+j:mem[b+65]+(phase?mem[b+64]:0)+j];mem[k+2]=offs;native_control_host?(native_control_emit(9,si,mem[k+1],mem[sw_rt(si)+12]%2097152,offs);native_control_count+=1;):snap_host_write+=1;j+=1;);
+    !phase?(mem[CONDUCTOR_GESTURE_BASE+si*8]=b;mem[CONDUCTOR_GESTURE_BASE+si*8+7]=b;mem[CONDUCTOR_GESTURE_BASE+si*8+1]=0;mem[CONDUCTOR_GESTURE_BASE+si*8+3]=0;);mem[h+3]=step;mem[sw_rt(si)+7]=step;mem[h+5]=mem[b+1];mem[h+4]=mem[b+1]>0?1:0;
     j=0;loop(min(MAX_ONCE_VOICES,mem[b+2]),p=mem[b+4+j*5];
-     layer_audible(p) && (((mask&(1<<j))>0)==phase && !(rvMask&(1<<j)) || (!phase && (rvMask&(1<<j))))?(
+     layer_audible(p) && (((!phase && !((mask|longMask|releaseMask|chargeMask)&(1<<j))) || (phase==1 && (mask&(1<<j))) || (phase==2 && (longMask&(1<<j))) || (phase==3 && (releaseMask&(1<<j))) || (phase==4 && (chargeMask&(1<<j)))) && !(rvMask&(1<<j)) || (!phase && (rvMask&(1<<j))))?(
       oldmode=mem[MODE_BASE+p];oldhold=mem[HOLD_ACTIVE_BASE+p];olddecay=mem[DECAY_BASE+p];oldtime=mem[phrase_time_addr(p)];
       mem[b+5+j*5]>=0?mem[MODE_BASE+p]=mem[b+5+j*5];
-      mem[b+7+j*5]>=0?mem[DECAY_BASE+p]=mem[b+7+j*5];
-      mem[b+8+j*5]>=0?mem[phrase_time_addr(p)]=mem[b+8+j*5];
+      mem[DECAY_BASE+p]=conductor_charge_value(si,b,j,15,mem[b+7+j*5]>=0?mem[b+7+j*5]:olddecay);
+      mem[phrase_time_addr(p)]=conductor_charge_value(si,b,j,14,mem[b+8+j*5]>=0?mem[b+8+j*5]:oldtime);
       id=phrase_admit_independent(p,offs);
       mem[MODE_BASE+p]=oldmode;mem[HOLD_ACTIVE_BASE+p]=oldhold;mem[DECAY_BASE+p]=olddecay;mem[phrase_time_addr(p)]=oldtime;
-      id>0?(v=0;loop(MAX_ONCE_VOICES,owner=instance_header(v);mem[owner]==id?(mem[owner+12]=mem[h];mem[owner+14]=mem[b+6+j*5];
+      id>0?(v=0;loop(MAX_ONCE_VOICES,owner=instance_header(v);mem[owner]==id?(mem[owner+12]=mem[h];mem[owner+14]=conductor_charge_value(si,b,j,17,mem[b+6+j*5]);
+        j+1==mem[b+70]?(mem[CONDUCTOR_GESTURE_BASE+si*8+1]=v+1;mem[CONDUCTOR_GESTURE_BASE+si*8+2]=id;);
         a=REVEAL_BASE+v*8;mem[a]=0;rvMask&(1<<j)?(
-         mem[a]=1;mem[a+1]=si;mem[a+2]=mem[sw_rt(si)+12];mem[a+4]=(mem[b+69]&(1<<j))>0;
+         mem[a]=1;mem[a+1]=si;mem[a+2]=mem[sw_rt(si)+12];mem[a+4]=(mem[b+69]&(1<<j))>0;mem[a+5]=(chargeMask&(1<<j))?4:(releaseMask&(1<<j))?3:(longMask&(1<<j))?2:1;mem[a+6]=0;
          dest=0;scan=0;policy=mem[owner+15];loop(layer_count(p),addr=layer_base(p,scan);(mem[addr+1]&240)==144 && mem[addr+3]>0?dest|=policy==17?65535:1<<(policy>0?policy-1:(mem[addr+1]&15));scan+=1;);
-         mem[a+3]=dest;!native_control_emit(10,v,id,dest,offs)?(mem[a]=0;instance_stop_voice(v,offs);mem[h+4]=6;);
+         mem[a+3]=dest;rvCC=mem[mem[b+65]+mem[b+64]+mem[b+67]+j*2];rvFade=mem[mem[b+65]+mem[b+64]+mem[b+67]+j*2+1];native_control_emit(16,v,rvCC,floor(rvFade*1000+.5),offs);!native_control_emit(10,v,id,dest,offs)?(mem[a]=0;instance_stop_voice(v,offs);mem[h+4]=6;);
         );
         // Preserve immediate layer order even if a later edge stops this voice
         // in the same block. A hidden layer emits only AFTER its CC7 marker.
@@ -2578,14 +2648,53 @@ local(h,step,b,n,j,v,free,valid,p,mode,ratio,repeats,last,t,oldmode,oldhold,oldd
  mem[sw_rt(si)+17]=mem[h+4];
 );
 
-function conductor_press(si,offs) (mem[CONDUCTOR_GESTURE_BASE+si*8]>0 && mem[sw_rt(si)+2]==0?conductor_release(si,offs,0);mem[sw_rt(si)+1]=sw_clock+offs;mem[sw_rt(si)+2]=0;conductor_apply(si,offs,0););
+function conductor_press(si,offs) local(g,h,b,v,period,pos,wait)
+(g=CONDUCTOR_GESTURE_BASE+si*8;h=conductor_header(si);mem[g+3]<=0?mem[sw_rt(si)+31]=1;
+ mem[h+7]==2 && mem[sw_rt(si)+28]==0?(mem[sw_rt(si)+22]=1;mem[sw_rt(si)+1]=sw_clock+offs;mem[sw_rt(si)+27]=0;mem[sw_rt(si)+23]=(mem[h+3]+1)%max(1,mem[h+1])+1;):(
+ mem[sw_rt(si)+28]==0?(mem[sw_rt(si)+27]=0;mem[sw_rt(si)+29]=0;);
+ mem[g+3]<=0?(
+  b=mem[h+2]+mem[h+3]*80;v=mem[g+1]-1;wait=0;
+  mem[h+3]>=0 && mem[b+71]>0 && v>=0 && mem[VOICE_ACTIVE_BASE+v]>.5 && mem[instance_header(v)]==mem[g+2] && mem[instance_header(v)+9]==0?(
+   period=max(1,mem[LEN_BASE+mem[VOICE_LAYER_BASE+v]]*mem[VOICE_TIME_BASE+v]);pos=mem[VOICE_POS_BASE+v]+offs;
+   phrase_voice_repeats(v)?(mem[g+4]=(floor(max(0,pos)/period)+1)*period;wait=1;):pos<period?(mem[g+4]=period;wait=1;);
+  );
+  wait?(mem[g+3]=(mem[h+3]+1)%mem[h+1]+1;mem[g+5]=0;mem[g+6]=0;mem[sw_rt(si)+20]=0;mem[sw_rt(si)+1]=sw_clock+offs;mem[sw_rt(si)+2]=0;):(
+   mem[g]>0 && mem[sw_rt(si)+2]==0?conductor_release_owned(si,offs,0);mem[sw_rt(si)+20]=0;mem[sw_rt(si)+1]=sw_clock+offs;mem[sw_rt(si)+2]=0;conductor_apply(si,offs,0);
+  );
+ );););
 function conductor_hold(si,offs) local(v,a)
-(mem[CONDUCTOR_GESTURE_BASE+si*8]>0 && mem[sw_rt(si)+2]==0?(
- mem[sw_rt(si)+2]=1;mem[sw_cfg(si)]>0?(
-  v=0;loop(MAX_ONCE_VOICES,a=REVEAL_BASE+v*8;mem[a]==1 && mem[a+1]==si && mem[a+2]==mem[sw_rt(si)+12] && mem[VOICE_ACTIVE_BASE+v]>.5?(native_control_emit(11,v,mem[instance_header(v)],mem[a+3],offs);mem[a]=2;);v+=1;);
+(mem[sw_rt(si)+22]>0?0:mem[CONDUCTOR_GESTURE_BASE+si*8+3]>0?(mem[CONDUCTOR_GESTURE_BASE+si*8+5]=1;mem[sw_rt(si)+2]=1;):mem[CONDUCTOR_GESTURE_BASE+si*8]>0 && mem[sw_rt(si)+2]==0?(
+ mem[sw_rt(si)+2]=1;(mem[sw_cfg(si)]>0 || conductor_test_preview || mem[sw_rt(si)+21]>0)?(
+  v=0;loop(MAX_ONCE_VOICES,a=REVEAL_BASE+v*8;mem[a]==1 && mem[a+5]==1 && mem[a+1]==si && mem[a+2]==mem[sw_rt(si)+12] && mem[VOICE_ACTIVE_BASE+v]>.5?(native_control_emit(11,v,mem[instance_header(v)],mem[a+3],offs);mem[a]=2;mem[a+6]=1;);v+=1;);
   conductor_apply(si,offs,1);
- );mem[CONDUCTOR_GESTURE_BASE+si*8]=0;
+  );mem[CONDUCTOR_GESTURE_BASE+si*8]=0;
 ););
+
+function conductor_long_hold(si,offs) local(v,a)
+(mem[sw_rt(si)+22]>0?0:mem[CONDUCTOR_GESTURE_BASE+si*8+3]>0?mem[CONDUCTOR_GESTURE_BASE+si*8+5]=2:(
+ (mem[sw_cfg(si)]>0 || conductor_test_preview || mem[sw_rt(si)+21]>0) && mem[CONDUCTOR_GESTURE_BASE+si*8+7]>0?(
+  v=0;loop(MAX_ONCE_VOICES,a=REVEAL_BASE+v*8;mem[a]==1 && mem[a+5]==2 && mem[a+1]==si && mem[a+2]==mem[sw_rt(si)+12] && mem[VOICE_ACTIVE_BASE+v]>.5?(native_control_emit(11,v,mem[instance_header(v)],mem[a+3],offs);mem[a]=2;mem[a+6]=1;);v+=1;);
+  conductor_apply(si,offs,2);
+ );
+););
+
+function conductor_finish_release(si,offs,phase) local(v,a)
+(mem[CONDUCTOR_GESTURE_BASE+si*8+7]>0?(
+ v=0;loop(MAX_ONCE_VOICES,a=REVEAL_BASE+v*8;mem[a]==1 && mem[a+5]==phase && mem[a+1]==si && mem[a+2]==mem[sw_rt(si)+12] && mem[VOICE_ACTIVE_BASE+v]>.5?(native_control_emit(11,v,mem[instance_header(v)],mem[a+3],offs);mem[a]=2;mem[a+6]=1;);v+=1;);
+ conductor_apply(si,offs,phase);
+););
+function conductor_release(si,offs,all) local(r,h,g,b,a,elapsed,phase)
+(r=sw_rt(si);h=conductor_header(si);g=CONDUCTOR_GESTURE_BASE+si*8;
+ all?(mem[r+22]=0;mem[r+27]=0;mem[r+29]=0;mem[r+31]=0;conductor_release_owned(si,offs,all);):mem[r+31]>0?(
+  b=(mem[r+22]>0||mem[g+3]>0)?mem[h+2]+((mem[h+3]+1)%max(1,mem[h+1]))*80:mem[g+7];
+  a=b>0?mem[b+78]:0;elapsed=max(0,(sw_clock+offs-mem[r+1])*1000/srate);
+  mem[r+26]=a>0?min(1,elapsed/max(1,mem[a+1])):0;mem[r+27]=a>0 && mem[a]>=0 && elapsed>=mem[a];phase=mem[r+27]>0?4:3;
+  mem[r+22]>0?(
+   conductor_release_owned(si,offs,0);mem[r+22]=0;mem[r+28]=1;conductor_press(si,offs);mem[r+28]=0;
+   mem[g+3]>0?(mem[r+29]=phase;mem[g+6]=1;):(conductor_finish_release(si,offs,phase);conductor_release_owned(si,offs,0););
+  ):(mem[g+3]>0?(mem[r+29]=phase;mem[g+6]=1;conductor_release_owned(si,offs,0);):(conductor_finish_release(si,offs,phase);conductor_release_owned(si,offs,0);););
+  mem[r+31]=0;
+ ););
 
 function sw_assign(si,kind,ch,num,press,release)
 local(b,j,other,ok)
@@ -2643,7 +2752,7 @@ local(b,r,n,step,k,j,tmp,last,choice,restart)
 function sw_stop_phrases()
 local(gi,ch,n,key,live,mi,idx,remain,old,desired,mode,src)
 (
-  native_phrase_contract?(gi=0;loop(SW_COUNT,mem[CONDUCTOR_GESTURE_BASE+gi*8]=0;gi+=1;););
+  native_phrase_contract?(gi=0;loop(SW_COUNT,mem[CONDUCTOR_GESTURE_BASE+gi*8]=0;mem[CONDUCTOR_GESTURE_BASE+gi*8+1]=0;mem[CONDUCTOR_GESTURE_BASE+gi*8+3]=0;mem[CONDUCTOR_GESTURE_BASE+gi*8+7]=0;cancel_rt=gi<4?SW_RT_BASE+gi*32:DS_RT_BASE+(gi-4)*32;mem[cancel_rt+22]=0;mem[cancel_rt+27]=0;mem[cancel_rt+29]=0;mem[cancel_rt+31]=0;gi+=1;););
   instance_stop_i=0;loop(INSTANCE_OWNERS,mem[instance_header(instance_stop_i)+6]>=0?(
    native_phrase_contract && native_stop_offset>0 && instance_stop_i<MAX_ONCE_VOICES && mem[instance_header(instance_stop_i)+7]>0?phrase_render_voice(instance_stop_i,mem[VOICE_POS_BASE+instance_stop_i]+native_stop_offset,0);
    instance_stop_voice(instance_stop_i,native_phrase_contract?native_stop_offset:0);
@@ -2695,9 +2804,9 @@ local(gi,ch,n,key,live,mi,idx,remain,old,desired,mode,src)
 // no GUI scratch variables or second gesture detector. Headless owns and drains it.
 function sw_gesture_action(si,gesture)
 local(a)
-(a=snap_host_enabled?mem[I_RUNTIME_END+si*6+gesture*2]:0;a>0?100+a:mem[sw_cfg(si)+14+gesture];);
+(gesture==3?mem[sw_cfg(si)+121]:(a=snap_host_enabled?mem[I_RUNTIME_END+si*6+gesture*2]:0;a>0?100+a:mem[sw_cfg(si)+14+gesture];););
 function sw_gesture_target(si,gesture)
-(snap_host_enabled && mem[I_RUNTIME_END+si*6+gesture*2]>0?mem[I_RUNTIME_END+si*6+gesture*2+1]:mem[sw_cfg(si)+17+gesture];);
+(gesture==3?mem[sw_cfg(si)+122]:snap_host_enabled && mem[I_RUNTIME_END+si*6+gesture*2]>0?mem[I_RUNTIME_END+si*6+gesture*2+1]:mem[sw_cfg(si)+17+gesture];);
 function snap_parameter_cancel_target(gi,row,kind)
 local(slot)
 (slot=kind>=18 && kind<=20?24+gi*3+kind-18:kind==24?72+gi*6+row:gi*3+kind-21;
@@ -2758,17 +2867,25 @@ local(b,r,step,phrase,gi,kind,k,c,found)
 );
 function sw_fire(si,gesture,offs)
 local(b)
-(b=sw_cfg(si);conductor_has(si)?(gesture==0?(mem[b]>0?conductor_press(si,offs);):gesture==2?conductor_hold(si,offs):conductor_reject_gesture(si);):mem[b]>0 && sw_gesture_action(si,gesture)>0 ? sw_action(si,sw_gesture_action(si,gesture),sw_gesture_target(si,gesture),offs););
+(b=sw_cfg(si);conductor_has(si)?(gesture==0?(mem[b]>0?conductor_press(si,offs);):gesture==2?conductor_hold(si,offs):gesture==3?conductor_long_hold(si,offs):conductor_reject_gesture(si);):(mem[b]>0 || mem[sw_rt(si)+21]>0) && sw_gesture_action(si,gesture)>0 ? sw_action(si,sw_gesture_action(si,gesture),sw_gesture_target(si,gesture),offs););
 function sw_poll(now,offs)
-local(si,b,r,holdms,holdoffset)
+local(si,b,r,holdms,holdoffset,charge_b,charge_a)
 (
   si=0;loop(SW_COUNT,b=sw_cfg(si);r=sw_rt(si);
+    conductor_has(si) && mem[r]>0 && mem[r+31]>0?(
+      mem[r+23]=mem[conductor_header(si)+7]==2?(mem[conductor_header(si)+3]+1)%max(1,mem[conductor_header(si)+1])+1:mem[conductor_header(si)+3]+1;
+      charge_b=mem[conductor_header(si)+2]+max(0,mem[r+23]-1)*80;charge_a=mem[charge_b+78];mem[r+25]=mem[charge_a]>=0;mem[r+24]=mem[charge_a+1];mem[r+30]=min(1,max(0,(now-mem[r+1])*1000/srate/max(1,mem[r+24])));
+    );
     mem[r]>0 && mem[r+2]==0 && (conductor_has(si)?mem[CONDUCTOR_GESTURE_BASE+si*8]>0:sw_gesture_action(si,2)>0) && now-mem[r+1]>=max(100,mem[b+8])*srate/1000 ? (
       holdoffset=max(0,min(offs,ceil(mem[r+1]+max(100,mem[b+8])*srate/1000-sw_clock)));
       conductor_has(si)?conductor_hold(si,holdoffset):(mem[r+2]=1;mem[r+3]=0;mem[r+5]=0;sw_fire(si,2,offs););
     );
+    mem[r]>0 && mem[r+20]==0 && mem[b+120]>mem[b+8] && now-mem[r+1]>=mem[b+120]*srate/1000 ? (
+      holdoffset=max(0,min(offs,ceil(mem[r+1]+mem[b+120]*srate/1000-sw_clock)));mem[r+20]=1;mem[r+2]=1;mem[r+3]=0;mem[r+5]=0;
+      conductor_has(si)?conductor_long_hold(si,holdoffset):sw_fire(si,3,holdoffset);
+    );
     !conductor_has(si) && mem[r+3]>0 && mem[r]==0 && now>=mem[r+4] ? (mem[r+3]==1 ? sw_fire(si,0,offs);mem[r+3]=0;);
-    !conductor_has(si) && mem[r]>0 && now-mem[r+1]>10*srate ? (conductor_has(si)?conductor_release(si,offs,0);mem[r]=0;mem[r+3]=0;mem[r+5]=0;mem[r+17]=3;);
+    !conductor_has(si) && mem[r]>0 && now-mem[r+1]>max(10,mem[b+120]/1000+2)*srate ? (conductor_has(si)?conductor_release(si,offs,0);mem[r]=0;mem[r+3]=0;mem[r+5]=0;mem[r+17]=3;);
     si+=1;
   );
 );
@@ -2777,20 +2894,20 @@ local(b,r)
 (
   b=sw_cfg(si);r=sw_rt(si);
   conductor_has(si) ? (
-    is_press ? (mem[r]==0?(mem[r]=1;mem[r+1]=now;mem[r+13]=mem[b+2];mem[r+14]=mem[b+3];mem[r+15]=mem[b+4];mem[r+19]=mem[b+13];mem[b]>0?conductor_press(si,offs););) : (mem[r]=0;conductor_release(si,offs,0););
+    is_press ? (mem[r]==0?(mem[r]=1;mem[r+20]=0;mem[r+1]=now;mem[r+13]=mem[b+2];mem[r+14]=mem[b+3];mem[r+15]=mem[b+4];mem[r+19]=mem[b+13];mem[b]>0?conductor_press(si,offs););) : (mem[r]=0;conductor_release(si,offs,0););
   ) : is_press ? (
     mem[r]==0 ? (
-      mem[r]=1;mem[r+1]=now;mem[r+2]=0;
+      mem[r]=1;mem[r+20]=0;mem[r+1]=now;mem[r+2]=0;
       mem[r+13]=mem[b+2];mem[r+14]=mem[b+3];mem[r+15]=mem[b+4];mem[r+16]=mem[b+5];mem[r+19]=mem[b+13];
       mem[r+5]=mem[r+3]>0 && now<=mem[r+4] && sw_gesture_action(si,1)>0;
       mem[r+5]>0 ? mem[r+3]=0 : mem[r+3]=0;
-      mem[b+6]==0 || (sw_gesture_action(si,1)==0 && sw_gesture_action(si,2)==0) ? sw_fire(si,0,offs);
+      mem[b+6]==0 || (sw_gesture_action(si,1)==0 && sw_gesture_action(si,2)==0 && sw_gesture_action(si,3)==0) ? sw_fire(si,0,offs);
     );
   ) : mem[r]>0 ? (
     mem[r]=0;
     mem[r+2]==0 ? (
       mem[r+5]>0 ? sw_fire(si,1,offs) : mem[b+6]>0 ? (
-        sw_gesture_action(si,1)>0 ? (mem[r+3]=1;mem[r+4]=now+max(50,mem[b+7])*srate/1000;) : sw_gesture_action(si,2)>0 ? sw_fire(si,0,offs);
+        sw_gesture_action(si,1)>0 ? (mem[r+3]=1;mem[r+4]=now+max(50,mem[b+7])*srate/1000;) : (sw_gesture_action(si,2)>0 || sw_gesture_action(si,3)>0) ? sw_fire(si,0,offs);
       );
       // Instant still tracks a second tap, without emitting another delayed TAP.
       mem[b+6]==0 && mem[r+5]==0 && sw_gesture_action(si,1)>0 ? (mem[r+3]=2;mem[r+4]=now+max(50,mem[b+7])*srate/1000;);
@@ -2959,7 +3076,7 @@ local(q,si,op,arg,value,b,r,j,k,n,tmp,target,gi,kind,c,undo,editing)
       op==11 ? sw_begin_edit(si,0) : op==12 ? sw_commit_edit() : op==13 ? sw_end_edit() :
       op==14 ? (j=0;target=-1;loop(SW_COUNT,mem[sw_cfg(j)+20]==0 && target<0?target=j;j+=1;);target>=0?sw_begin_edit(target,1);) :
       op==15 ? sw_delete(si,value) : op==8 ? learn_forget(arg) : op==9 ? learn_confirm() : op==10 ? learn_cancel() :
-      op==0 ? (conductor_has(si)?(arg==0?conductor_press(si,0):arg==2?conductor_hold(si,0):conductor_reject_gesture(si);):arg>=0 && arg<3 && (mem[b+14+arg]>0 || (snap_host_enabled && mem[I_RUNTIME_END+si*6+arg*2]>0)) ? (sw_preview_target=editing?si:-1;sw_action(si,sw_gesture_action(si,arg),sw_gesture_target(si,arg),0);sw_preview_target=-1;);) : op==1 ? (
+      op==0 ? (arg==3?(mem[r+21]=1;conductor_has(si)?(mem[r]=1;mem[r+20]=0;conductor_press(si,0);):sw_edge(si,1,sw_clock,0);):arg==4?(conductor_has(si)?(mem[r]=0;conductor_release(si,0,0);):sw_edge(si,0,sw_clock,0);mem[r+21]=0;):arg==5?(conductor_test_preview=1;conductor_has(si)?(conductor_press(si,0);conductor_hold(si,0);conductor_long_hold(si,0);):sw_action(si,sw_gesture_action(si,3),sw_gesture_target(si,3),0);conductor_test_preview=0;):conductor_has(si)?(arg==0?(conductor_press(si,0);mem[conductor_header(si)+7]==2?conductor_release(si,0,0);):arg==2?(conductor_test_preview=1;conductor_press(si,0);conductor_hold(si,0);conductor_test_preview=0;):conductor_reject_gesture(si);):arg>=0 && arg<3 && (mem[b+14+arg]>0 || (snap_host_enabled && mem[I_RUNTIME_END+si*6+arg*2]>0)) ? (sw_preview_target=editing?si:-1;sw_action(si,sw_gesture_action(si,arg),sw_gesture_target(si,arg),0);sw_preview_target=-1;);) : op==1 ? (
         // Assign message fields atomically; conflicting assignments remain unchanged.
         sw_assign(si,arg,mem[b+3],value,mem[b+12],mem[b+13]);
       ) : op==2 ? (
@@ -3539,11 +3656,35 @@ native_free_time && state==STATE_PLAYING?free_loop_render();
 
 
 
+// Execute due boundaries in sample order, including simultaneous switches.
+loop(SW_COUNT,
+ conductor_qsi=-1;conductor_qoffs=samplesblock;conductor_qscan=0;
+ loop(SW_COUNT,conductor_qg=CONDUCTOR_GESTURE_BASE+conductor_qscan*8;
+  mem[conductor_qg+3]>0?(
+   conductor_qv=mem[conductor_qg+1]-1;
+   conductor_qv<0 || mem[VOICE_ACTIVE_BASE+conductor_qv]<.5 || mem[instance_header(conductor_qv)]!=mem[conductor_qg+2]?(mem[conductor_qg+3]=0;):(
+    conductor_qcandidate=ceil(mem[conductor_qg+4]-mem[VOICE_POS_BASE+conductor_qv]);
+    conductor_qcandidate>=0 && conductor_qcandidate<conductor_qoffs?(conductor_qoffs=conductor_qcandidate;conductor_qsi=conductor_qscan;);
+   );
+  );conductor_qscan+=1;
+ );
+ conductor_qsi>=0?(
+  conductor_qg=CONDUCTOR_GESTURE_BASE+conductor_qsi*8;conductor_qv=mem[conductor_qg+1]-1;
+  conductor_qheld=mem[conductor_qg+5];conductor_qreleased=mem[conductor_qg+6];mem[conductor_qg+3]=0;
+  conductor_qj=0;loop(MAX_ONCE_VOICES,mem[VOICE_ACTIVE_BASE+conductor_qj]>.5?phrase_render_voice(conductor_qj,mem[VOICE_POS_BASE+conductor_qj]+conductor_qoffs,0);conductor_qj+=1;);
+  !phrase_voice_repeats(conductor_qv)?instance_stop_voice(conductor_qv,conductor_qoffs);
+  conductor_apply(conductor_qsi,conductor_qoffs,0);
+  conductor_qheld?(mem[sw_rt(conductor_qsi)+2]=0;conductor_test_preview=1;conductor_hold(conductor_qsi,conductor_qoffs);conductor_test_preview=0;);
+  conductor_qheld==2?(conductor_test_preview=1;conductor_long_hold(conductor_qsi,conductor_qoffs);conductor_test_preview=0;);
+  conductor_qreleased?(mem[sw_rt(conductor_qsi)+29]>0?conductor_finish_release(conductor_qsi,conductor_qoffs,mem[sw_rt(conductor_qsi)+29]);mem[sw_rt(conductor_qsi)+29]=0;mem[sw_rt(conductor_qsi)+31]=0;conductor_release_owned(conductor_qsi,conductor_qoffs,0););
+ );
+);
+
 // Shared PR #45 bounded voice renderer: native HOLD repeats; legacy modes retain their lifecycle.
 vi=0;loop(MAX_ONCE_VOICES,mem[VOICE_ACTIVE_BASE+vi]>.5?(
   phrase_render_voice(vi,mem[VOICE_POS_BASE+vi]+samplesblock,0);
   mem[VOICE_POS_BASE+vi]+=samplesblock;mem[VOICE_CURSOR_BASE+vi]=mem[VOICE_POS_BASE+vi];
-  !phrase_voice_repeats(vi) && !(native_phrase_contract && phrase_voice_mode(vi)==2) && mem[VOICE_POS_BASE+vi]>=max(1,mem[LEN_BASE+mem[VOICE_LAYER_BASE+vi]]*mem[VOICE_TIME_BASE+vi])?(
+  !phrase_voice_repeats(vi) && !(native_phrase_contract && phrase_voice_mode(vi)==2) && mem[VOICE_POS_BASE+vi]>=max(1,mem[LEN_BASE+mem[VOICE_LAYER_BASE+vi]]*mem[VOICE_TIME_BASE+vi]) && !conductor_waits_for(vi)?(
     mem[instance_header(vi)+6]>=0 && (mem[instance_header(vi)+7]>0 || mem[MODE_BASE+mem[VOICE_LAYER_BASE+vi]]!=2)?instance_stop_voice(vi,samplesblock-1);
     native_free_time?mem[FREE_FINISHED_BASE+mem[VOICE_LAYER_BASE+vi]]=1;mem[VOICE_ACTIVE_BASE+vi]=0;mem[VOICE_POS_BASE+vi]=0;
   );

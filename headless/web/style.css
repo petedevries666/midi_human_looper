@@ -198,3 +198,28 @@ dialog[data-contextual][open]{position:relative;inset:auto;width:100%;max-width:
 /* Maintenance stays collapsed, with wrap-safe pinned revision/change text. */
 #runtime-update pre{white-space:pre-wrap;overflow-wrap:anywhere;font:inherit;color:#aaa}
 #update-version,#update-progress{overflow-wrap:anywhere;white-space:pre-line;font-size:11px}
+
+/* Source mute groups stay beside the phrase playback mode. */
+.phrase-group{width:100%;min-width:0;padding:3px;box-sizing:border-box;font-size:10px;text-align:center}
+@media(min-width:701px){
+ #phrases,.phrase-columns{width:910px;max-width:100%}
+ .phrase-columns,.phrase{grid-template-columns:24px minmax(90px,150px) 22px 22px 18px 18px 48px 42px repeat(3,minmax(52px,1fr)) 22px 25px 22px}
+}
+@media(max-width:700px){.phrase>.phrase-group-cell{grid-column:span 2!important;grid-row:auto!important}}
+
+.phrase-group-cell{min-width:0}.group-caption{display:none}
+@media(max-width:700px){.group-caption{display:block;font-size:8px;color:#aaa}.phrase-group-cell{align-self:stretch}}
+
+.conductor-step.queued-step{outline:2px dashed #dedb40;outline-offset:-2px}.queued-badge{color:#dedb40;font-weight:bold;animation:queued-pulse 1s ease-in-out infinite}@keyframes queued-pulse{50%{opacity:.4}}@media(prefers-reduced-motion:reduce){.queued-badge{animation:none}}
+
+.conductor-option{grid-template-columns:95px 100px minmax(60px,1fr) auto}
+.conductor-option select{min-width:0;width:100%}
+.conductor-step>.conductor-option{grid-template-columns:1fr;gap:2px}
+.conductor-toolbar>.conductor-option{grid-template-columns:minmax(130px,1fr) minmax(180px,1fr)}
+@media(max-width:500px){.conductor-properties .conductor-option{grid-template-columns:80px 90px minmax(55px,1fr)}.conductor-toolbar>.conductor-option{grid-template-columns:1fr}}
+
+.preset-preview{border:1px solid #777;padding:8px;margin:8px 0}.preset-preview:empty{display:none}.preset-warning{color:#fff020}.preset-error{color:#ff9970}.preset-actions{display:flex;flex-wrap:wrap;gap:5px}.preset-preview p{overflow-wrap:anywhere}fieldset{min-width:0}
+
+#editor .parameter[hidden]{display:none}
+
+.charge-binding{border:1px solid #666;padding:8px;margin:8px 0;display:grid;gap:6px}.charge-binding>select{max-width:100%;min-width:0}.charge-meter{color:#fff020;grid-column:1/-1}.charge-meter[hidden]{display:none}.curve-point input[type=checkbox]{width:auto;min-width:16px}

@@ -276,10 +276,15 @@ class NativeChannelInstallation(Installation):
     return update
 
 def midi_autoconnect():
+    if not acquire_lock():
+        return
+    global deferred_midi_connect
+    deferred_midi_connect = False
     required_routes={}
     # Connect and disconnect routes
     for dst, sources in required_routes.items():
         pass
+    release_lock()
 
 def audio_autoconnect():
     required_routes={}
@@ -299,7 +304,7 @@ def audio_autoconnect():
         self.run_install('--native-channel-routing','--upgrade-adapter')
         self.assertEqual(self.snapshot_files(),first)
         for path,data in retained.items():self.assertEqual(path.read_bytes(),data)
-        self.assertIn(installer.ROUTER_CONFIGURE,self.autoconnect.read_text())
+        self.assertIn(installer.ROUTER_CONFIGURE,installer.autoconnect_startup_guard(self.autoconnect.read_text(),remove=True))
         self.assertEqual(self.autoconnect.read_text().split('def audio_autoconnect():')[1],self.autoconnect_original.split('def audio_autoconnect():')[1])
         self.run_install('--rollback')
         self.assertEqual(self.autoconnect.read_text(),self.autoconnect_original)

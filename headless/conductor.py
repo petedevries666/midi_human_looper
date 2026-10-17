@@ -15,17 +15,18 @@ GROUP_VERSION = 3
 MAX_BYTES = 16000000
 OPTIONS = {
     'playMode': ('LOOP', 'ONCE', 'HOLD'),
-    'trigger': ('PRESS', 'HOLD'),
+    'trigger': ('PRESS', 'HOLD', 'LONG_HOLD', 'RELEASE', 'SUPERCHARGE_RELEASE'),
     'instancePolicy': ('JOIN_EXISTING', 'RESTART', 'NEW_INSTANCE'),
     'join': ('TRIGGER', 'JOIN_NOW', 'JOIN_AT_LOOP_START'),
     'referenceTime': ('CYCLE', 'ELAPSED'),
     'entry': ('TRIGGER', 'REVEAL'),
     'release': ('LATCH', 'GATE'),
     'movementPlayMode': ('ONE_SHOT', 'GATED'),
+    'movementCycle': ('ONCE', 'LOOP', 'PING_PONG'),
     'retrigger': ('SOFT_RESTART', 'DIRECT'),
 }
-PHRASE_OPTIONS = {'playMode', 'trigger', 'instancePolicy', 'join', 'referenceTime', 'entry', 'release', 'phrase_time_decay', 'phrase_velocity_decay', 'phrase_base_velocity'}
-MOVEMENT_OPTIONS = {'trigger', 'join', 'referenceTime', 'movementPlayMode', 'retrigger', 'destination'}
+PHRASE_OPTIONS = {'playMode', 'trigger', 'instancePolicy', 'join', 'referenceTime', 'entry', 'release', 'phrase_time_decay', 'phrase_velocity_decay', 'phrase_base_velocity', 'revealCC', 'revealFadeSeconds'}
+MOVEMENT_OPTIONS = {'trigger', 'join', 'referenceTime', 'movementPlayMode', 'retrigger', 'destination', 'releaseSeconds', 'restValue', 'movementDuration', 'movementCycle'}
 
 
 def fields(value, required):
@@ -66,10 +67,50 @@ def destination(value):
         raise ValueError('CONDUCTOR unknown destination')
 
 
+def charge_range(parameter):
+    if parameter=='movementDuration':return .001,86400.
+    if parameter=='movementAmplitude':return 0.,1.
+    from registry import REGISTRY
+    if parameter not in ('phrase_time_decay','phrase_velocity_decay','phrase_base_velocity'):raise ValueError('Unsupported charge parameter')
+    d=REGISTRY.parameters[parameter];return d['min'],d['max']
+
+def validate_charge(step,defaults):
+    charge=step['supercharge'];fields(charge,('bindings',)+tuple(k for k in ('thresholdMs','fullMs') if k in charge))
+    threshold=charge.get('thresholdMs',defaults['thresholdMs']);full=charge.get('fullMs',defaults['fullMs'])
+    integer(threshold,0,30000);integer(full,1,120000)
+    if full<threshold:raise ValueError('Full charge must follow its threshold')
+    if not isinstance(charge['bindings'],list):raise ValueError('Charge bindings required')
+    blocks={l['block']['id']:l['block'] for l in step['layers'] if l.get('block') and l['block'].get('type') in ('PHRASE','MOVEMENT')};seen=set()
+    for b in charge['bindings']:
+        if 'target' in b:
+            fields(b,('target','parameter','from','to','factor'));destination(b['target'])
+            if b['target']['type']!='PARAMETER' or b['target']['kind']==16 or b['parameter']!='parameter':raise ValueError('Unsupported charge target')
+            from registry import REGISTRY
+            descriptor=next((d for d in REGISTRY.parameters.values() if d.get('engineKind')==b['target']['kind']),None)
+            if descriptor is None:raise ValueError('Unknown charge target')
+            key=('target',tuple(sorted(b['target'].items())))
+            if key in seen:raise ValueError('Duplicate charge destination')
+            seen.add(key)
+            for field in ('from','to','factor'):
+                v=b[field];lo,hi=(0,16) if field=='factor' else (descriptor['min'],descriptor['max'])
+                if type(v) not in (int,float) or not math.isfinite(v) or not lo<=v<=hi:raise ValueError('Charge value outside parameter range')
+            continue
+        fields(b,('blockId','parameter','from','to','factor'));identity(b['blockId'])
+        block=blocks.get(b['blockId']);key=(b['blockId'],b['parameter'])
+        if not block or key in seen:raise ValueError('Missing or duplicate charge destination')
+        seen.add(key);lo,hi=charge_range(b['parameter'])
+        if (block['type']=='MOVEMENT') != b['parameter'].startswith('movement'):raise ValueError('Charge parameter does not belong to this block')
+        for field in ('from','to','factor'):
+            v=b[field];a,z=(0,16) if field=='factor' else (lo,hi)
+            if type(v) not in (int,float) or not math.isfinite(v) or not a<=v<=z:raise ValueError('Charge value outside parameter range')
+
+
 def validate(data):
     if not isinstance(data, dict):
         raise ValueError('CONDUCTOR document required')
-    fields(data, ('version', 'sources', 'switches', 'movements', 'ccRate') if data.get('version') in (DOCUMENT_VERSION, GROUP_VERSION) else ('version', 'sources', 'switches'))
+    fields(data, (('version', 'sources', 'switches', 'movements', 'ccRate') if data.get('version') in (DOCUMENT_VERSION, GROUP_VERSION) else ('version', 'sources', 'switches')) + (('supercharge',) if 'supercharge' in data else ()))
+    defaults=data.get('supercharge',dict(thresholdMs=600,fullMs=2000));fields(defaults,('thresholdMs','fullMs'));integer(defaults['thresholdMs'],0,30000);integer(defaults['fullMs'],1,120000)
+    if defaults['fullMs']<defaults['thresholdMs']:raise ValueError('Full patch charge must follow its threshold')
     if type(data['version']) is not int or data['version'] not in (VERSION, DOCUMENT_VERSION, GROUP_VERSION):
         raise ValueError('CONDUCTOR unsupported version')
     used = set()
@@ -100,7 +141,14 @@ def validate(data):
         if not isinstance(data['movements'], list):
             raise ValueError('MOVEMENT library required')
         for movement in data['movements']:
-            fields(movement, ('id', 'name', 'target', 'points', 'duration', 'interpolation', 'retrigger', 'glideSeconds'))
+            extended=any(k in movement for k in ('playMode','releaseSeconds','restValue'))
+            fields(movement, ('id', 'name', 'target', 'points', 'duration', 'interpolation', 'retrigger', 'glideSeconds') + (('playMode','releaseSeconds','restValue') if extended else ()) + (('cycleMode',) if 'cycleMode' in movement else ()))
+            if movement.get('cycleMode','ONCE') not in OPTIONS['movementCycle']:raise ValueError('MOVEMENT invalid cycle mode')
+            if extended:
+                if movement['playMode'] not in OPTIONS['movementPlayMode']:raise ValueError('MOVEMENT invalid play mode')
+                for k,hi in [('releaseSeconds',60),('restValue',1)]:
+                    v=movement[k]
+                    if type(v) not in (int,float) or not math.isfinite(v) or not 0<=v<=hi:raise ValueError('MOVEMENT invalid release')
             unique(movement['id'])
             name = movement['name']
             if not isinstance(name, str) or not name or any(not 32 <= ord(c) <= 126 or c in '\\"' for c in name):
@@ -119,7 +167,7 @@ def validate(data):
                 raise ValueError('MOVEMENT at least two curve points required')
             previous = -1
             for point in points:
-                if not isinstance(point, list) or len(point) != 2 or any(type(v) not in (int, float) or not math.isfinite(v) or not 0 <= v <= 1 for v in point) or point[0] <= previous:
+                if not isinstance(point, list) or len(point) not in (2, 3) or any(type(v) not in (int, float) or not math.isfinite(v) for v in point) or any(not 0 <= v <= 1 for v in point[:2]) or (len(point) == 3 and abs(point[2]) > .98) or point[0] <= previous:
                     raise ValueError('MOVEMENT ordered normalized curve points required')
                 previous = point[0]
             if points[0][0] != 0 or points[-1][0] != 1:
@@ -127,7 +175,8 @@ def validate(data):
             sources[movement['id']] = dict(type='MOVEMENT')
     switches = set()
     for switch in data['switches']:
-        fields(switch, ('switchId', 'traversal', 'transition', 'gesture', 'steps'))
+        fields(switch, ('switchId', 'traversal', 'transition', 'gesture', 'steps') + (('advance',) if 'advance' in switch else ()))
+        if switch.get('advance','PRESS') not in ('PRESS','RELEASE'):raise ValueError('CONDUCTOR invalid advance gesture')
         integer(switch['switchId'], 1, 16777215)
         if switch['switchId'] in switches:
             raise ValueError('CONDUCTOR duplicate Smart Switch owner')
@@ -137,7 +186,8 @@ def validate(data):
         if not isinstance(switch['steps'], list) or not switch['steps']:
             raise ValueError('CONDUCTOR at least one STEP required')
         for step in switch['steps']:
-            fields(step, ('id', 'transition', 'layers'))
+            fields(step, ('id', 'transition', 'layers') + (('supercharge',) if 'supercharge' in step else ()))
+            if 'supercharge' in step:validate_charge(step,defaults)
             unique(step['id'])
             if step['transition'] not in ('INHERIT', 'IMMEDIATE', 'END_OF_PHRASE') or not isinstance(step['layers'], list) or not step['layers']:
                 raise ValueError('CONDUCTOR invalid STEP')
@@ -182,6 +232,15 @@ def validate(data):
                     if local['mode'] == 'OVERRIDE':
                         if name == 'destination':
                             destination(local['value'])
+                        elif name in ('revealCC','revealFadeSeconds'):
+                            v=local['value']
+                            if name=='revealCC':
+                                integer(v,0,119)
+                                if v==64:raise ValueError('Sustain is reserved')
+                            elif type(v) not in (int,float) or not math.isfinite(v) or not 0<=v<=60:raise ValueError('Invalid REVEAL fade')
+                        elif name in ('releaseSeconds','restValue','movementDuration'):
+                            v=local['value']
+                            if type(v) not in (int,float) or not math.isfinite(v) or not (0<v<=86400 if name=='movementDuration' else 0<=v<=(60 if name=='releaseSeconds' else 1)):raise ValueError('MOVEMENT invalid release override')
                         elif name.startswith('phrase_'):
                             from registry import REGISTRY
                             descriptor=REGISTRY.parameters[name];v=local['value']

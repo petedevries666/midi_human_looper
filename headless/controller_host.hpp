@@ -23,10 +23,10 @@ struct Binding {
   double base = 0; // normalized committed value; runtime never serialized
   bool valid() const {
     return policy.valid() && instrument && instrument <= 16777215 &&
-           module <= 16777215 && kind >= 0 && kind <= 24 &&
+           module <= 16777215 && kind >= 0 && kind <= 26 &&
            (performance::phraseKind(kind) ? instrument <= 16 && !module
             : kind == 16                  ? instrument == 1 && !module
-            : kind >= 21 && kind <= 23    ? !module
+            : ((kind >= 21 && kind <= 23) || kind==25 || kind==26)    ? !module
             : kind == 24                  ? module != 0
                                           : true) &&
            std::isfinite(base) && base >= 0 && base <= 1;
@@ -98,6 +98,7 @@ public:
   double time = 0;
   const Configuration &configuration() const { return config; }
   const Target *target(uint32_t id) const { return core.target(id); }
+  void rawCCMasks(std::array<unsigned,128>& masks) const {core.rawCCMasks(masks);}
   uint32_t learnTarget() const { return learning; }
   bool learnsCommand() const { return commandLearning; }
   bool learnCommand(uint32_t id) {

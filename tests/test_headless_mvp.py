@@ -22,7 +22,7 @@ class HeadlessTests(unittest.TestCase):
     def setUpClass(cls):
         cls.temp = tempfile.TemporaryDirectory(prefix='midi-m0-')
         cls.sock = str(Path(cls.temp.name)/'engine.sock')
-        cls.engine = subprocess.Popen([BINARY, str(ROOT/'midi_human_looper.jsfx'), cls.sock,'--demo'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        cls.engine = subprocess.Popen([BINARY, os.environ.get('HEADLESS_SOURCE',str(ROOT/'midi_human_looper.jsfx')), cls.sock,'--demo'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         cls.wait_for(lambda: Path(cls.sock).exists(), 'engine socket')
         with socket.socket() as s:
             s.bind(('127.0.0.1', 0))

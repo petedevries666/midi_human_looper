@@ -5,6 +5,21 @@
 #include <iostream>
 struct Event {uint64_t sample;unsigned channel,value;};
 int main(){
+ for(unsigned sr:{44100u,48000u,96000u}){
+  controller::Host h;reveal::Runtime fade(h,sr);unsigned last=999;unsigned count=0;
+  auto emitCC=[&](uint64_t,unsigned ch,unsigned cc,unsigned v){assert(ch==2&&cc==5);last=v;++count;return true;};
+  fade.configure(0,5,.4);assert(fade.start(0,1,4,0,emitCC)&&last==0);
+  fade.mask(0,1,false,1,emitCC);fade.render(1+sr/5+1,emitCC);assert(last==64);
+  fade.render(1+sr*2/5+1,emitCC);assert(last==127);
+  fade.mask(0,1,true,sr,emitCC);fade.render(sr+sr/5+1,emitCC);assert(last==64);
+  fade.physical(2,5,31,sr+sr/5+1);unsigned old=count;fade.render(sr*2,emitCC);fade.close(0,1,sr*2,emitCC);assert(count==old);
+ }
+ {
+  controller::Host full;full.stagePerformanceTarget(reveal::target(2,5),.4);
+  for(unsigned i=1;i<controller::Engine::TargetCapacity;++i)assert(full.stagePerformanceTarget(i,.5));
+  std::array<unsigned,128> masks{};full.rawCCMasks(masks);assert(masks[5]==4&&masks[7]==0&&full.freeTargets()==0);
+  reveal::Runtime custom(full);assert(custom.reserve(4,5));assert(!custom.reserve(8,5));
+ }
  controller::Host host;reveal::Runtime r(host);std::vector<Event> out;
  auto emit=[&](uint64_t t,unsigned ch,unsigned cc,unsigned value){assert(cc==7);out.push_back({t,ch,value});return true;};
  assert(r.reserve(2));assert(r.start(0,1,2,10,emit));assert(out.back().value==0);

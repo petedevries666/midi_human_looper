@@ -3,6 +3,37 @@ let revision=1, engineSession=null, pending=false, renderedModel='', latest=null
 // Next insertion type is an editor choice, not a musical parameter. Preserve it
 // by stable instrument ID when a pending native response rebuilds the rows.
 const transformerChoices=new Map();
+let hostChains=null,hostChainsBusy=false;
+async function refreshHostChains(){
+ if(hostChainsBusy)return;hostChainsBusy=true;
+ try{const value=await request('/api/v1/zynthian/chains');
+ const model=JSON.stringify([value.engineSessionId,value.inventoryRevision,Object.fromEntries(Object.entries(value.bindings).map(([k,v])=>[k,{identity:v.identity,status:v.status,destination:v.destination}]))]);
+ const changed=model!==hostChains?.model;hostChains={...value,model};if(changed){renderedModel='';if(latest)render(latest);}paintHostVolumes();
+ }catch(e){if(hostChains){hostChains=null;renderedModel='';if(latest)render(latest);}}
+ finally{hostChainsBusy=false;}
+}
+function hostMixerValue(id,field){
+ const link=hostChains?.bindings[String(id)],instrument=latest?.instruments.find(i=>i.id===Number(id));
+ return latest?.engineSessionId===hostChains?.engineSessionId&&latest.revision>=hostChains.engineRevision&&instrument?.hostMixer?instrument.hostMixer[field]:link?.[field];
+}
+function paintHostVolumes(){
+ for(const input of document.querySelectorAll('[data-host-pan]')){const link=hostChains?.bindings[input.dataset.hostPan];if(link?.pan!=null)input.setEffective?.(Math.round(hostMixerValue(input.dataset.hostPan,'pan')*100));}
+ for(const input of document.querySelectorAll('[data-host-volume]')){const link=hostChains?.bindings[input.dataset.hostVolume];if(link?.volume!=null)input.setEffective?.(Math.round(hostMixerValue(input.dataset.hostVolume,'volume')*127));}
+}
+async function setHostVolume(id,value){return setHostMixer(id,value/127,'volume');}
+async function setHostPan(id,value){return setHostMixer(id,value/100,'pan');}
+async function setHostMixer(id,value,field){
+ const link=hostChains?.bindings[String(id)];if(!link||link[field]==null)return false;
+ try{const result=await request('/api/v1/zynthian/chains',{action:field,instrumentId:id,identity:link.identity,value,[field==='volume'?'expectedVolume':'expectedPan']:link[field],inventoryRevision:hostChains.inventoryRevision,expectedEngineSessionId:engineSession});hostChains={...result,model:hostChains.model};$('error').textContent='';paintHostVolumes();return true;}
+ catch(error){$('error').textContent=error.message;await refreshHostChains();return false;}
+}
+async function unlinkHostInstrument(id){
+ try{const current=await request('/api/v1/zynthian/chains');
+ await request('/api/v1/zynthian/chains',{action:'bind',instrumentId:id,identity:null,inventoryRevision:current.inventoryRevision,expectedRevision:current.engineRevision,expectedEngineSessionId:current.engineSessionId});
+ await refreshHostChains();await refresh();
+ }catch(e){$('error').textContent=e.message;}
+}
+
 let selectedModule=null;
 let catalog=null, ws=null, reconnect=null, renderedSnapshots='', renderedSnapshotSession=null;
 const $=id=>document.getElementById(id);
@@ -134,13 +165,15 @@ function edit(module,instrument,values,instance){
   content.append(button('×',dismiss));
   for(const draft of drafts){
     const p=draft.descriptor;if(!p)continue;
+    if(!instance&&p.engineField==='level'&&hostChains?.engineSessionId===engineSession&&hostChains.bindings[String(instrument.id)]){content.append(node('small','Volume audio lié à Zynthian · réglable depuis le slider de la liste INSTRUMENTS'));continue;}
+    const linkedOutput=!instance&&p.engineField==='output'&&hostChains?.engineSessionId===engineSession&&hostChains.bindings[String(instrument.id)];
     const label=node('label',shortParameter(p.label),'parameter');
     if(p.valueType==='toggle'||p.valueType==='enum'){
       const control=p.valueType==='toggle'?button(draft.value?'ON':'OFF',()=>{draft.dirty=true;draft.value=draft.value?0:1;control.textContent=draft.value?'ON':'OFF';control.setAttribute('aria-pressed',String(!!draft.value));}):node('select');
-      control.setAttribute('aria-label',p.label);control.title=p.label;control.disabled=!!draft.assignment;
+      control.setAttribute('aria-label',p.label);control.title=p.label;control.disabled=!!draft.assignment||!!linkedOutput;
       if(p.valueType==='toggle')control.setAttribute('aria-pressed',String(!!draft.value));
       else{const names=p.choices;for(let v=p.min;v<=p.max;v+=p.step){const o=node('option',names?.[v]||String(v));o.value=v;control.append(o);}control.value=draft.value;control.onchange=()=>{draft.dirty=true;draft.value=Number(control.value);};}
-      label.append(control);if(draft.assignment)label.append(node('small',`EXP ${draft.assignment}`));content.append(label);bindModulation(control,{instrumentId:instrument.id,moduleId:instance?.id||0,kind:p.engineKind});continue;
+      label.append(control);if(linkedOutput)label.append(node('small','Sortie liée à Zynthian · Délier depuis la liste pour la modifier'));if(draft.assignment)label.append(node('small',`EXP ${draft.assignment}`));content.append(label);if(!linkedOutput)bindModulation(control,{instrumentId:instrument.id,moduleId:instance?.id||0,kind:p.engineKind});continue;
     }
     const number=node('input');number.type='number';number.min=p.min;number.max=p.max;number.step=p.step;number.value=draft.value;
     const rail=node('input');rail.type='range';rail.min=p.min;rail.max=p.max;rail.step=p.step;rail.value=draft.value;
@@ -204,7 +237,7 @@ async function editSnapshot(record){
 }
 function editSwitchSequence(sw){
  const dialog=$('editor');if(dialog.open)return;const content=$('editor-content');content.replaceChildren(node('h2','SMART SWITCH / SEQUENCE'));
- const settings=[...sw.settings],sequence=[...sw.sequence],session=engineSession,rev=revision;
+ const longHold={milliseconds:0,action:0,target:sw.slot??0,...sw.longHold};const settings=[...sw.settings],sequence=[...sw.sequence],session=engineSession,rev=revision;
  const name=node('input');name.value=sw.name;name.maxLength=16;name.setAttribute('aria-label','Smart Switch name');content.append(name);
  const choice=(label,index,options)=>{const row=node('label',label,'parameter'),select=node('select');select.setAttribute('aria-label',label);for(const [value,text] of options){const o=node('option',text);o.value=value;select.append(o);}select.value=settings[index];select.onchange=()=>settings[index]=Number(select.value);row.append(select);content.append(row);return select;};
  choice('ENABLED',0,[[0,'OFF'],[1,'ON']]);choice('TRAVERSAL',9,[[0,'FORWARD'],[1,'REVERSE'],[2,'PING-PONG'],[3,'RANDOM']]);choice('RESET ON RE-ENTRY',10,[[0,'CONTINUE'],[1,'RESTART']]);
@@ -218,13 +251,19 @@ function editSwitchSequence(sw){
    const select=choice(label,index,override?[[settings[index],'SNAPSHOT ACTION · SNAP EDIT']]:settings[index]>6?[...actions,[settings[index],'EXISTING MODULE ACTION']]:actions);
    if(override){select.disabled=true;select.title='Configured Snapshot action takes precedence. Use SNAP to change or remove it.';}
  }
- choice('ADVANCE',6,[[0,'ON PRESS'],[1,'GESTURE CLASSIFIED']]);
+ const longRow=node('label','LONG HOLD ACTION','parameter'),longAction=node('select');longAction.setAttribute('aria-label','LONG HOLD ACTION');for(const [value,text] of actions){const o=node('option',text);o.value=value;longAction.append(o);}if(longHold.action>6){const o=node('option','EXISTING MODULE ACTION');o.value=longHold.action;longAction.append(o);}longAction.value=longHold.action;longAction.onchange=()=>{longHold.action=Number(longAction.value);if([3,5].includes(longHold.action)&&![3,5].includes(sw.longHold?.action)&&!longTarget.dataset.edited){longHold.target=sw.slot??0;longTarget.value=String(longHold.target);}longTargetRow.hidden=![3,5].includes(longHold.action);};longRow.append(longAction);content.append(longRow);
+ choice('ADVANCE',6,[[0,'INSTANT · TAP puis gestes longs'],[1,'CLASSIFIED · TAP / DOUBLE séparés']]);
  const input=node('details');input.append(node('summary','MIDI / GESTURE TIMING'));content.append(input);
  const midiType=choice('MIDI TYPE',1,[[0,'UNASSIGNED'],[1,'NOTE'],[2,'CC']]);input.append(midiType.parentElement);
  for(const [label,index,min,max] of [['MIDI CHANNEL (1–16)',2,1,16],['NOTE / CC',3,0,127],['CC PRESS',4,0,127],['CC RELEASE',5,0,127],['DOUBLE MS',7,50,2000],['HOLD MS',8,100,5000]]){const row=node('label',label,'parameter'),n=node('input');n.type='number';n.min=min;n.max=max;n.value=settings[index]+(index===2?1:0);n.setAttribute('aria-label',label);n.onchange=()=>settings[index]=Number(n.value)-(index===2?1:0);row.append(n);input.append(row);}
+ const longTargetRow=node('label','LONG HOLD RESET TARGET','parameter'),longTarget=node('select');longTarget.setAttribute('aria-label','LONG HOLD RESET TARGET');for(const [value,title] of [...latest.switches.map(s=>[s.slot??s.id-1,s.name||`SWITCH ${s.id}`]),[16,'ALL SWITCHES']]){const o=node('option',title);o.value=String(value);longTarget.append(o);}longTarget.value=String(longHold.target);longTarget.onchange=()=>{longHold.target=Number(longTarget.value);longTarget.dataset.edited='1';};longTargetRow.hidden=![3,5].includes(longHold.action);longTargetRow.append(longTarget);input.append(longTargetRow);
+ const longMsRow=node('label','LONG HOLD MS · 0 = OFF','parameter'),longMs=node('input');longMs.type='number';longMs.min=0;longMs.max=30000;longMs.step=50;longMs.value=longHold.milliseconds;longMs.setAttribute('aria-label','LONG HOLD MS');longMs.onchange=()=>longHold.milliseconds=Number(longMs.value);longMsRow.append(longMs);input.append(longMsRow);
+ input.append(button('MIDI LEARN',async()=>{if(!await command({action:'switch_commit',switchId:sw.id,settings,sequence,longHold,name:name.value}))return;if(await command({action:'switch_learn',switchId:sw.id}))dialog.close();else error.textContent=$('error').textContent;}));
+ content.append(node('small','LONG HOLD ajoute son action après HOLD. Son seuil doit être supérieur à HOLD. La source MIDI et les seuils font partie du preset.'));
  content.append(contextualHelp('Each NEXT gesture advances one step. Authored MIDI channels route the phrase to matching Instruments. LOOP layers continue until STOP; ONCE/HOLD retain their established lifecycle. RANDOM uses the existing shuffle bag. Empty steps remain valid and generate no notes.'));
  const error=node('p');error.setAttribute('role','alert');content.append(error);
- content.append(button('DONE',async()=>{if(session!==engineSession){error.textContent='Engine restarted; reopen editor.';return;}if(await command({action:'switch_commit',switchId:sw.id,settings,sequence,name:name.value,expectedRevision:rev})){dialog.close();renderedModel='';render(latest);}else error.textContent=$('error').textContent;}),button('CANCEL',()=>dialog.close()));showEditor(dialog);
+ content.append(button('PRESETS / PROPAGATE',()=>editSwitchPresets(sw,{name:name.value,settings:[...settings],sequence:[...sequence],longHold:{...longHold}})));
+ content.append(button('DONE',async()=>{if(session!==engineSession){error.textContent='Engine restarted; reopen editor.';return;}if(await command({action:'switch_commit',switchId:sw.id,settings,sequence,longHold,name:name.value,expectedRevision:rev})){dialog.close();renderedModel='';render(latest);}else error.textContent=$('error').textContent;}),button('CANCEL',()=>dialog.close()));showEditor(dialog);
 }
 function editSwitchSnapshots(sw){
   const dialog=$('editor'),content=$('editor-content');if(dialog.open)return;
@@ -296,8 +335,9 @@ function renderAB(s){
     if(mapping&&learn.target===mapping.sourceId){feedback.append(node('span',learn.conflict<0?' · Assigned to a legacy controller: cancel and choose another input.':learn.conflict>0?' · Already assigned: deliberate reassignment required.':' · Waiting for MIDI…'),button('CANCEL LEARN',()=>command({action:'controller_cancel',sourceId:mapping.sourceId})));if(learn.conflict>0)feedback.append(button('REASSIGN',()=>command({action:'controller_confirm',sourceId:mapping.sourceId})));}
   }
 }
-function paintEffectiveRails(s){for(const rail of document.querySelectorAll('.tactile-slider input[type=range]')){const b=rail.mbmfBinding;if(!b||!rail.setEffective)continue;const p=[14,15,17].includes(b.kind)?s.phrases.find(p=>p.id===b.instrumentId):s.instruments.find(i=>i.id===b.instrumentId);if(!p)continue;const field={1:'level',14:'timeDecay',15:'velocityDecay',17:'baseVelocity'}[b.kind];if(field)rail.setEffective(p[field]);}}
+function paintEffectiveRails(s){paintHostVolumes();for(const rail of document.querySelectorAll('.tactile-slider input[type=range]')){const b=rail.mbmfBinding;if(!b||!rail.setEffective)continue;const p=[14,15,17].includes(b.kind)?s.phrases.find(p=>p.id===b.instrumentId):s.instruments.find(i=>i.id===b.instrumentId);if(!p)continue;const field={1:'level',14:'timeDecay',15:'velocityDecay',17:'baseVelocity'}[b.kind];if(field)rail.setEffective(p[field]);}}
 function render(s){
+  if(s.status==='ok'&&['token required','invalid token'].includes($('error').textContent))$('error').textContent='';
   if(engineSession===s.engineSessionId&&s.revision<revision)return;
   if(engineSession!==s.engineSessionId)transformerChoices.clear();
   for(const id of transformerChoices.keys())if(!s.instruments.some(i=>i.id===id))transformerChoices.delete(id);
@@ -308,7 +348,9 @@ function render(s){
   $('metrics').replaceChildren(...[`Build ${s.buildRevision||'unknown'}`,`Backend ${s.backend} · ${s.sampleRate} Hz / ${s.blockSize}`,`Sample clock ${s.sampleClock}`,`MIDI messages ${s.midiCount}`,`Active notes ${s.activeNotes}`,`Maximum callback ${s.maxCallbackUs.toFixed(1)} µs`,`JACK XRUN notifications ${s.lateBlocks}`,`Output overflow ${s.outputOverflow}`].map(v=>node('span',v)));
   if(s.chainMode)$('metrics').append(node('span',`Zynthian · ${s.chainCaptureMode==='free-time'?'FREE TIME':'TWO BARS'} · ${s.chainBpm} BPM · ${s.chainError?'CLOCK / CAPACITY ERROR — stopped':s.chainRecording?'RECORDING':s.chainArmed?(s.chainCaptureMode==='free-time'?'WAITING FOR FIRST NOTE':'WAITING FOR NEXT LOOP'):s.chainRunning?'PLAYING':'STOPPED'}`));
   $('last-midi').textContent=`Last MIDI · sample ${s.lastEvent[0]} · status ${s.lastEvent[1]} · number ${s.lastEvent[2]} · value ${s.lastEvent[3]}`;
-  for(const sw of s.switches){const el=document.querySelector(`[data-switch-id="${sw.id}"] .step`);if(el)el.textContent=`STEP ${sw.conductor?.steps?sw.conductor.step:sw.step} / ${sw.conductor?.steps||sw.length}`;}
+  for(const sw of s.switches){const el=document.querySelector(`[data-switch-id="${sw.id}"] .step`);if(el)el.textContent=sw.conductor?.queuedStep?`STEP ${sw.conductor.step} → ${sw.conductor.queuedStep} EN ATTENTE`:`STEP ${sw.conductor?.steps?sw.conductor.step:sw.step} / ${sw.conductor?.steps||sw.length}`;}
+  for(const sw of s.switches){const meter=document.querySelector(`[data-switch-id="${sw.id}"] .charge-meter`);if(meter){meter.hidden=!sw.supercharge?.active;meter.textContent=`CHARGE → STEP ${sw.supercharge?.step||'—'} · ${Math.round((sw.supercharge?.progress||0)*100)}%`;}}
+
   $('capture-snapshot').onclick=()=>command({action:'snapshot_capture'});
   const snapshotKey=JSON.stringify([s.engineSessionId,(s.snapshots||[]).map(r=>[r.id,r.name,r.seconds,r.ease,r.switching])]);
   if(renderedSnapshotSession!==s.engineSessionId || (snapshotKey!==renderedSnapshots && !document.activeElement?.hasAttribute('data-snapshot-name') && !document.querySelector('.snapshot-actions[open]'))) {
@@ -334,17 +376,31 @@ function render(s){
   renderAB(s);
   if(!document.activeElement?.closest('#controllers .name-input'))renderControllers(s);
   if(uiPointerHeld||document.activeElement?.tagName==='SELECT'||document.activeElement?.classList.contains('name-input')||document.activeElement?.type==='range'||document.querySelector('[data-live-release=held]'))return;
-  const model=JSON.stringify([s.controllerEngine,s.controllerLearn,s.phrases.map(p=>({...p,state:undefined,events:0})),s.instruments,s.switches.map(v=>({...v,step:0,actionCount:0,lastAction:0,result:0,conductor:undefined})),s.snapshotActions]);if(model===renderedModel)return;renderedModel=model;
+  const model=JSON.stringify([s.controllerEngine,s.controllerLearn,s.phrases.map(p=>({...p,state:undefined,events:0})),s.instruments.map(i=>({...i,hostMixer:undefined})),s.switches.map(v=>({...v,step:0,actionCount:0,lastAction:0,result:0,conductor:undefined,supercharge:undefined})),s.snapshotActions,s.switchLearn]);if(model===renderedModel)return;renderedModel=model;
   compactPhrases(s);
   paintPhraseStates(s);
   $('instruments').replaceChildren(...s.instruments.map(compactInstrument));
   const openSwitchTests=new Set([...document.querySelectorAll('.switch-test[open]')].map(e=>e.closest('[data-switch-id]').dataset.switchId));
   $('switches').replaceChildren(...s.switches.map(sw=>{
     const n=node('article',undefined,'switch');n.dataset.switchId=sw.id;n.append(node('strong',sw.name||`SWITCH ${sw.id}`),node('small',`${sw.kind===1?'NOTE':sw.kind===2?'CC':'UNASSIGNED'} ${sw.number} · CH ${sw.channel}`),node('small',`STEP ${sw.conductor?.steps?sw.conductor.step:sw.step} / ${sw.conductor?.steps||sw.length}`,'step'),button('OPTIONS',()=>editSwitchSequence(sw)),button('CONDUCTOR',()=>editConductor(sw)),button('SNAPSHOTS',()=>editSwitchSnapshots(sw)));
-    const tests=node('div',undefined,'tests');for(const gesture of ['tap','double','hold']){const b=button(`TEST ${gesture.toUpperCase()}`,()=>testSwitch(sw.id,gesture));b.dataset.valid='1';b.title=`${gesture.toUpperCase()} preview · no MIDI assignment required`;tests.append(b);}
-    const hardware=button('SIMULATE FOOTSWITCH',async()=>{if(await command({action:'midi',channel:sw.channel,note:sw.number,value:100}))await command({action:'midi',channel:sw.channel,note:sw.number,value:0});});hardware.className='hardware';hardware.dataset.valid=sw.kind===1?'1':'0';hardware.disabled=sw.kind!==1;const tools=node('details',undefined,'switch-test');tools.open=openSwitchTests.has(String(sw.id));tools.append(node('summary','TEST'),tests,hardware);n.append(tools,node('output',switchTestFeedback.get(sw.id)||'','switch-test-feedback'));return n;
+    const meter=node('output','','charge-meter');meter.hidden=true;n.append(meter);
+    const tests=node('div',undefined,'tests');for(const gesture of ['tap','double','hold','long_hold','charge']){const b=button(`TEST ${gesture.toUpperCase().replace('_',' ')}`,()=>testSwitch(sw.id,gesture));b.dataset.valid='1';b.title=gesture==='hold'?'Nouvel appui long : STEP suivant, PRESS puis HOLD sur ce STEP. Sans affectation MIDI.':`${gesture.toUpperCase()} preview · no MIDI assignment required`;if(gesture==='long_hold'&&!sw.longHold?.milliseconds){b.disabled=true;b.title='Activer LONG HOLD MS dans OPTIONS';}if(gesture==='hold'||gesture==='long_hold'||gesture==='charge'){b.title='Maintenir : PRESS, puis HOLD au seuil du switch. Relâcher : RELEASE.';bindHeldTest(b,{action:'switch_test_edge',switchId:sw.id,edge:'press'},{action:'switch_test_edge',switchId:sw.id,edge:'release'});}tests.append(b);}
+    const hardware=button('SIMULATE FOOTSWITCH',async()=>{if(await command({action:'midi',channel:sw.channel,note:sw.number,value:100}))await command({action:'midi',channel:sw.channel,note:sw.number,value:0});});hardware.className='hardware';hardware.dataset.valid=sw.kind===1?'1':'0';hardware.disabled=sw.kind!==1;const tools=node('details',undefined,'switch-test');tools.open=openSwitchTests.has(String(sw.id));tools.append(node('summary','TEST'),tests,hardware);if(s.switchLearn?.target===sw.id)n.append(node('output',s.switchLearn.conflict?'SOURCE DÉJÀ UTILISÉE · choisir une autre entrée':'MIDI LEARN · appuyer sur la source'),button('CANCEL MIDI LEARN',()=>command({action:'switch_learn_cancel',switchId:sw.id})));n.append(tools,node('output',switchTestFeedback.get(sw.id)||'','switch-test-feedback'));return n;
   }));
 }
+const heldTests=new Set();
+function bindHeldTest(button,pressAction,releaseAction){
+ let held=false;
+ const press=()=>{if(held)return;held=true;heldTests.add(release);button.dataset.liveRelease='held';button.setAttribute('aria-pressed','true');command(pressAction);};
+ const release=()=>{if(!held)return;held=false;heldTests.delete(release);delete button.dataset.liveRelease;button.setAttribute('aria-pressed','false');command(releaseAction);};
+ button.onclick=e=>e.preventDefault();button.onpointerdown=e=>{if(e.button!==0)return;e.preventDefault();button.setPointerCapture(e.pointerId);press();};
+ for(const edge of ['pointerup','pointercancel','lostpointercapture'])button.addEventListener(edge,release);
+ button.onkeydown=e=>{if([' ','Enter'].includes(e.key)){e.preventDefault();if(!e.repeat)press();}};
+ button.onkeyup=e=>{if([' ','Enter'].includes(e.key)){e.preventDefault();release();}};
+ button.addEventListener('blur',release);return button;
+}
+function releaseHeldTests(){for(const release of [...heldTests])release();}
+window.addEventListener('blur',releaseHeldTests);document.addEventListener('visibilitychange',()=>{if(document.hidden)releaseHeldTests();});
 const switchTestFeedback=new Map();
 async function testSwitch(id,gesture){
  const before=latest.switches.find(v=>v.id===id)?.actionCount;
@@ -451,15 +507,27 @@ function curveEditor(points,options={}){
   const root=node('div'),canvas=node('canvas');canvas.width=400;canvas.height=120;canvas.className='curve-preview';root.append(canvas);
   const precision=node('details');precision.className='curve-precision';precision.append(node('summary','POINTS / PRECISION'));const controls=node('div');precision.append(controls);root.append(precision);
   function draw(){const c=canvas.getContext('2d');c.clearRect(0,0,400,120);c.strokeStyle='#ffe34d';c.beginPath();for(let pixel=0;pixel<=400;pixel++){const x=pixel/400;let y=points[points.length-1][1];for(let i=1;i<points.length;i++)if(x<points[i][0]||(!options.hold?.()&&x===points[i][0])){const a=points[i-1],b=points[i];let t=options.hold?.()?0:(x-a[0])/(b[0]-a[0]),power=1+5*Math.abs(a[2]||0);t=a[2]>0?Math.pow(t,power):a[2]<0?1-Math.pow(1-t,power):t;y=a[1]+(b[1]-a[1])*t;break;}const sy=120*(1-y);if(pixel)c.lineTo(pixel,sy);else c.moveTo(pixel,sy);}c.stroke();c.fillStyle='#ffe34d';for(const p of points){c.beginPath();c.arc(p[0]*400,(1-p[1])*120,4,0,Math.PI*2);c.fill();}}
-  function rows(){controls.replaceChildren();points.forEach((p,index)=>{const row=node('div',undefined,'curve-point');(options.linearOnly?['X','Y']:['X','Y','BEND']).forEach((name,k)=>{const label=node('label',name),input=node('input');input.type='number';input.min=k===2?-.98:0;input.max=k===2?.98:1;input.step=.01;input.value=p[k];input.disabled=k===0&&(index===0||index===points.length-1);input.setAttribute('aria-label',`${name} point ${index+1}`);input.addEventListener('input',()=>{p[k]=Number(input.value);draw();});label.append(input);row.append(label);});if(index&&index<points.length-1)row.append(button('REMOVE POINT',()=>{points.splice(index,1);rows();draw();}));controls.append(row);});draw();}
+  const selectedPoints=new Set();let groupOrigin=null;
+  function shiftSelected(point,y){
+    const group=selectedPoints.has(point)&&selectedPoints.size>1?[...selectedPoints].filter(p=>points.includes(p)):[point];
+    const delta=Math.max(-Math.min(...group.map(p=>p[1])),Math.min(1-Math.max(...group.map(p=>p[1])),y-point[1]));
+    for(const p of group)p[1]+=delta;
+  }
+  const selection=node('div',undefined,'curve-presets');selection.append(
+    button('SELECT IN + OUT',()=>{selectedPoints.clear();selectedPoints.add(points[0]);selectedPoints.add(points.at(-1));rows();}),
+    button('ALIGN SELECTED',()=>{const group=[...selectedPoints].filter(p=>points.includes(p));if(group.length<2)return;const y=group.reduce((v,p)=>v+p[1],0)/group.length;for(const p of group)p[1]=y;rows();}),
+    button('CLEAR SELECTION',()=>{selectedPoints.clear();rows();}));root.append(selection,node('small','Sélectionner des points puis ALIGN : même hauteur. Glisser un point sélectionné déplace tout le groupe verticalement. IN et OUT gardent leur position dans le temps.'));
+  function rows(){controls.replaceChildren();points.forEach((p,index)=>{const row=node('div',undefined,'curve-point');
+    const pick=node('input');pick.type='checkbox';pick.checked=selectedPoints.has(p);pick.setAttribute('aria-label',`Select ${index===0?'IN':index===points.length-1?'OUT':'point '+(index+1)}`);pick.onchange=()=>{pick.checked?selectedPoints.add(p):selectedPoints.delete(p);};const pickLabel=node('label',index===0?'IN':index===points.length-1?'OUT':String(index+1));pickLabel.append(pick);row.append(pickLabel);
+(options.linearOnly?['X','Y']:['X','Y','BEND']).forEach((name,k)=>{const label=node('label',name),input=node('input');input.type='number';input.min=k===2?-.98:0;input.max=k===2?.98:1;input.step=.01;input.value=p[k];input.disabled=k===0&&(index===0||index===points.length-1);input.setAttribute('aria-label',`${name} point ${index+1}`);input.addEventListener('input',()=>{k===1?shiftSelected(p,Number(input.value)):p[k]=Number(input.value);if(k===1)controls.querySelectorAll('input[aria-label^="Y point "]').forEach((el,i)=>{if(el!==input)el.value=points[i][1];});draw();});label.append(input);row.append(label);});if(index&&index<points.length-1)row.append(button('REMOVE POINT',()=>{selectedPoints.delete(p);points.splice(index,1);rows();draw();}));controls.append(row);});draw();}
   let dragged=-1;canvas.setAttribute('aria-label','Drag curve points; numeric controls below provide keyboard editing');canvas.style.touchAction='none';
   canvas.onpointerdown=e=>{const r=canvas.getBoundingClientRect(),x=(e.clientX-r.left)/r.width,y=1-(e.clientY-r.top)/r.height;dragged=points.reduce((best,p,i)=>Math.hypot(p[0]-x,p[1]-y)<Math.hypot(points[best][0]-x,points[best][1]-y)?i:best,0);canvas.setPointerCapture(e.pointerId);};
   canvas.onpointermove=e=>{if(dragged<0)return;const r=canvas.getBoundingClientRect(),p=points[dragged];p[1]=Math.max(0,Math.min(1,1-(e.clientY-r.top)/r.height));if(dragged>0&&dragged<points.length-1)p[0]=Math.max(points[dragged-1][0]+.001,Math.min(points[dragged+1][0]-.001,(e.clientX-r.left)/r.width));rows();};canvas.onpointerup=canvas.onpointercancel=()=>dragged=-1;
   root.append(button('ADD POINT',()=>{if(points.length>=maximum)return;let at=1;for(let i=2;i<points.length;i++)if(points[i][0]-points[i-1][0]>points[at][0]-points[at-1][0])at=i;points.splice(at,0,[(points[at-1][0]+points[at][0])/2,(points[at-1][1]+points[at][1])/2,0]);rows();}));rows();
   const presets=node('div',undefined,'curve-presets');root.append(presets);
-  const choose=shape=>{points.splice(0,points.length,...structuredClone(shape));rows();};
+  const choose=shape=>{selectedPoints.clear();points.splice(0,points.length,...structuredClone(shape));rows();};
   for(const preset of (catalog?.curvePresets||[]).filter(p=>!options.linearOnly||p.points.every(p=>!p[2]))){const b=button(preset.name,()=>choose(preset.points));b.prepend(previewCurve(preset.points));presets.append(b);}
-  for(let slot=0;!options.linearOnly&&slot<4;slot++){
+  for(let slot=0;!options.linearOnly&&!options.movement&&slot<4;slot++){
     const shape=controllerConfiguration().presets[slot];const load=button(`CUSTOM ${slot+1}`,()=>choose(controllerConfiguration().presets[slot]));load.disabled=!shape?.length;presets.append(load);
     presets.append(button(`STORE CUSTOM ${slot+1}`,async()=>{if(await command({action:'curve_preset_store',slot,points:structuredClone(points)})){load.disabled=false;}}));
   }
@@ -468,13 +536,14 @@ function curveEditor(points,options={}){
     const r=canvas.getBoundingClientRect(),x=(e.clientX-r.left)/r.width,y=1-(e.clientY-r.top)/r.height;
     let closest=0;for(let i=1;i<points.length;i++)if(Math.hypot((points[i][0]-x)*r.width,(points[i][1]-y)*r.height)<Math.hypot((points[closest][0]-x)*r.width,(points[closest][1]-y)*r.height))closest=i;
     const distance=Math.hypot((points[closest][0]-x)*r.width,(points[closest][1]-y)*r.height);
-    if(e.button===2){e.preventDefault();if(distance<14&&closest>0&&closest<points.length-1){points.splice(closest,1);rows();}return;}
+    if(e.button===2){e.preventDefault();if(distance<14&&closest>0&&closest<points.length-1){selectedPoints.delete(points[closest]);points.splice(closest,1);rows();}return;}
     if((e.altKey||e.shiftKey)&&!options.linearOnly){segment=Math.max(0,points.findIndex(p=>p[0]>x)-1);origin={y:e.clientY,bend:points[segment][2],a:points[segment][1],b:points[segment+1][1],shift:e.shiftKey};dragged=-1;}
     else{segment=-1;if(distance>14&&points.length<maximum&&x>.001&&x<.999){closest=points.findIndex(p=>p[0]>x);points.splice(closest,0,[x,Math.max(0,Math.min(1,y)),0]);}dragged=closest;}
+    groupOrigin=dragged>=0&&selectedPoints.has(points[dragged])&&selectedPoints.size>1?{y:e.clientY,points:[...selectedPoints].filter(p=>points.includes(p)).map(p=>({p,y:p[1]}))}:null;
     canvas.setPointerCapture(e.pointerId);rows();
   };
-  canvas.onpointermove=e=>{const r=canvas.getBoundingClientRect();if(segment>=0&&origin){const delta=(origin.y-e.clientY)/r.height;if(origin.shift){const offset=Math.max(-Math.min(origin.a,origin.b),Math.min(1-Math.max(origin.a,origin.b),delta));points[segment][1]=origin.a+offset;points[segment+1][1]=origin.b+offset;}else points[segment][2]=Math.max(-.98,Math.min(.98,origin.bend+delta*1.96));rows();}else if(dragged>=0){const p=points[dragged];p[1]=Math.max(0,Math.min(1,1-(e.clientY-r.top)/r.height));if(dragged>0&&dragged<points.length-1)p[0]=Math.max(points[dragged-1][0]+.001,Math.min(points[dragged+1][0]-.001,(e.clientX-r.left)/r.width));rows();}};
-  canvas.onpointerup=canvas.onpointercancel=()=>{dragged=-1;segment=-1;origin=null;};
+  canvas.onpointermove=e=>{const r=canvas.getBoundingClientRect();if(segment>=0&&origin){const delta=(origin.y-e.clientY)/r.height;if(origin.shift){const offset=Math.max(-Math.min(origin.a,origin.b),Math.min(1-Math.max(origin.a,origin.b),delta));points[segment][1]=origin.a+offset;points[segment+1][1]=origin.b+offset;}else points[segment][2]=Math.max(-.98,Math.min(.98,origin.bend+delta*1.96));rows();}else if(groupOrigin){const group=groupOrigin.points,delta=Math.max(-Math.min(...group.map(v=>v.y)),Math.min(1-Math.max(...group.map(v=>v.y)),(groupOrigin.y-e.clientY)/r.height));for(const v of group)v.p[1]=v.y+delta;rows();}else if(dragged>=0){const p=points[dragged];p[1]=Math.max(0,Math.min(1,1-(e.clientY-r.top)/r.height));if(dragged>0&&dragged<points.length-1)p[0]=Math.max(points[dragged-1][0]+.001,Math.min(points[dragged+1][0]-.001,(e.clientX-r.left)/r.width));rows();}};
+  canvas.onpointerup=canvas.onpointercancel=()=>{dragged=-1;segment=-1;origin=null;groupOrigin=null;};
   root.refreshCurve=draw;
   if(!options.linearOnly)root.append(contextualHelp('Click to add · drag points · right-click a point to remove · ALT drag bends a segment · SHIFT drag moves a segment. Numeric point controls support keyboard editing.'));
 
@@ -488,7 +557,7 @@ function editMapping(existing){
   const dismiss=()=>{if(!committing)dialog.close();};content.replaceChildren(node('h2',`${parameter(draft.kind)?.label||'MODULATION'} / ${sources.find(s=>s.id===draft.sourceId)?.name||'CONTROLLER'}`),button('×',dismiss));
   const source=node('select');source.setAttribute('aria-label','Controller source');for(const s of sources){const o=node('option',s.name||`SOURCE ${s.id}`);o.value=s.id;source.append(o);}source.value=draft.sourceId;content.append(source);
   const target=node('select');target.setAttribute('aria-label','Controller target');
-  const targets=[{instrumentId:1,moduleId:0,kind:16,label:'GLOBAL SNAPSHOT A/B'}];for(const p of latest.phrases)for(const kind of [14,15,17,18,19,20])targets.push({instrumentId:p.id,moduleId:0,kind,label:`PHRASE ${p.id} / ${parameter(kind).label}`});for(const i of latest.instruments){for(const kind of [1,21,22,23])targets.push({instrumentId:i.id,moduleId:0,kind,label:`I${i.id} / ${parameter(kind).label}`});for(const tf of i.transformers){targets.push({instrumentId:i.id,moduleId:tf.id,kind:24,label:`I${i.id} / ${tf.id} ON/OFF`});for(const p of tf.parameters)if(!p.assignment && parameter(p.kind)?.assignmentEligible)targets.push({instrumentId:i.id,moduleId:tf.id,kind:p.kind,label:`I${i.id} / ${tf.id} / ${parameter(p.kind).label}`});}}
+  const targets=[{instrumentId:1,moduleId:0,kind:16,label:'GLOBAL SNAPSHOT A/B'}];for(const p of latest.phrases)for(const kind of [14,15,17,18,19,20])targets.push({instrumentId:p.id,moduleId:0,kind,label:`PHRASE ${p.id} / ${parameter(kind).label}`});for(const i of latest.instruments){for(const kind of [1,21,22,23,...(hostChains?.bindings[String(i.id)]?[25,26]:[])])targets.push({instrumentId:i.id,moduleId:0,kind,label:`I${i.id} / ${parameter(kind).label}`});for(const tf of i.transformers){targets.push({instrumentId:i.id,moduleId:tf.id,kind:24,label:`I${i.id} / ${tf.id} ON/OFF`});for(const p of tf.parameters)if(!p.assignment && parameter(p.kind)?.assignmentEligible)targets.push({instrumentId:i.id,moduleId:tf.id,kind:p.kind,label:`I${i.id} / ${tf.id} / ${parameter(p.kind).label}`});}}
   targets.forEach((t,j)=>{const o=node('option',t.label);o.value=j;target.append(o);});let selection=targets.findIndex(t=>t.instrumentId===draft.instrumentId&&t.moduleId===draft.moduleId&&t.kind===draft.kind);target.value=selection<0?targets.findIndex(t=>t.kind===1):selection;content.append(target);
   const advanced=node('details');advanced.append(node('summary','ADVANCED OPTIONS'));
   const descriptor=descriptorForMapping();for(const id of descriptor.parameters){const p=catalog.parameters.find(p=>p.id===id),label=node('label',shortParameter(p.label),'parameter'),input=node(p.choices?'select':'input');if(p.choices){p.choices.forEach((text,value)=>{const option=node('option',text);option.value=value;input.append(option);});}else{input.type='number';input.min=p.min;input.max=p.max;input.step=p.step;}input.setAttribute('aria-label',p.label);input.value=draft[p.policyField]??p.default;draft[p.policyField]=Number(input.value);input.addEventListener('input',()=>draft[p.policyField]=Number(input.value));label.append(input,node('span',p.unit));(p.choices?content:advanced).append(label);}
@@ -565,7 +634,13 @@ function phraseOptions(phraseId){
   dialog.oncancel=e=>{if(committing)e.preventDefault();};dialog.onclick=e=>{const r=dialog.getBoundingClientRect();if(e.target===dialog&&(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom))dismiss();};showEditor(dialog);
 }
 let phrasePage=0;
-function liveParameter(targetId,kind,value,moduleId=0){return command({action:'parameter_set',targetId,moduleId,kind,value});}
+async function liveParameter(targetId,kind,value,moduleId=0){
+ const ok=await command({action:'parameter_set',targetId,moduleId,kind,value});
+ if(kind===22||kind===23){const instrument=latest?.instruments.find(i=>i.id===targetId);
+ const select=document.querySelector(`[data-instrument-id="${targetId}"] select[aria-label="MIDI ${kind===22?'IN':'OUT'} Instrument ${targetId}"]`);
+ if(select&&instrument)select.value=kind===22?instrument.input:instrument.output;}
+ return ok;
+}
 function editableName(domain,id,value,fallback){
   const control=button(value||fallback,()=>{
     if(pending)return;
@@ -608,15 +683,33 @@ document.addEventListener('keydown',event=>{
  recordingShortcutBusy=true;const session=engineSession;
  (async()=>{try{while(pending)await new Promise(r=>setTimeout(r,10));if(session===engineSession&&['RECORDING','OVERDUB ACTIVE'].includes(latest.phrases.find(p=>p.id===active.id)?.state))await finishRecording(active.id);}finally{recordingShortcutBusy=false;}})();
 });
-function paintPhraseStates(s){for(const p of s.phrases||[]){const row=document.querySelector(`[data-phrase-id="${p.id}"]`);if(!row)continue;row.dataset.state=p.state||'IDLE';const play=row.querySelector('[data-phrase-play]');if(play){const stop=p.state==='PLAYING' && p.mode===0;play.dataset.running=String(stop);const scoped=s.chainMode&&(p.mode===2||s.chainCaptureMode==='free-time');play.setAttribute('aria-label',stop?(scoped?'STOP PHRASE':'GLOBAL STOP'):'TRIGGER');play.title=stop?(scoped?'Stop this phrase':'Legacy grid: stop this processor'):p.mode===2?(s.nativePhraseContract>=2?'HOLD: sustain notes; press again to cut and restart; release ignored':'Hold to repeat; release stops'):'Play phrase';const path=play.querySelector('path');if(path)path.setAttribute('d',iconPaths[stop?'stop':'play']);}const state=row.querySelector('.phrase-state');if(state)state.textContent=p.state||'IDLE';const rec=row.querySelector('[aria-label="REC / OVERDUB"]');if(rec){rec.dataset.state=p.state;rec.title=`REC / OVERDUB · ${p.state||'IDLE'}`;rec.setAttribute('aria-pressed',String(['ARMED','RECORDING','OVERDUB ARMED','OVERDUB ACTIVE'].includes(p.state)));}}}
+let phraseGroupSaving=false;
+function paintPhraseGroups(){
+ const ready=typeof movementSession!=='undefined'&&movementSession===engineSession;
+ for(const input of document.querySelectorAll('[data-phrase-group]')){
+  input.disabled=!ready||phraseGroupSaving;
+  if(document.activeElement!==input&&!input.dataset.dirty&&!phraseGroupSaving)input.value=ready?(movementModel?.sources?.find(v=>v.type==='PHRASE'&&v.slot===Number(input.dataset.phraseGroup))?.muteGroup||0):0;
+ }
+}
+async function setPhraseMuteGroup(id,raw){
+ const value=Number(raw);if(phraseGroupSaving)return;
+ if(!Number.isInteger(value)||value<0||value>16777215){$('error').textContent='Mute group: enter an integer from 0 to 16777215';paintPhraseGroups();return;}
+ phraseGroupSaving=true;paintPhraseGroups();
+ try{const loaded=await request('/api/v1/conductor'),model=upgradeMovementModel(loaded.model);model.version=3;
+ for(const source of model.sources)source.muteGroup??=0;
+ const source=model.sources.find(v=>v.type==='PHRASE'&&v.slot===id);if(!source)throw new Error('Phrase source missing');source.muteGroup=value;
+ await saveMovementModel(model,loaded);$('error').textContent='';
+ }catch(error){$('error').textContent=error.message;}finally{phraseGroupSaving=false;paintPhraseGroups();}
+}
+function paintPhraseStates(s){paintPhraseGroups();for(const p of s.phrases||[]){const row=document.querySelector(`[data-phrase-id="${p.id}"]`);if(!row)continue;row.dataset.state=p.state||'IDLE';const play=row.querySelector('[data-phrase-play]');if(play){const stop=p.state==='PLAYING' && (p.mode===0||(p.mode===2&&s.nativePhraseContract>=2));play.dataset.running=String(stop);const scoped=s.chainMode&&(p.mode===2||s.chainCaptureMode==='free-time');play.setAttribute('aria-label',stop?(scoped?'STOP PHRASE':'GLOBAL STOP'):'TRIGGER');play.title=stop?(scoped?'Stop this phrase':'Legacy grid: stop this processor'):p.mode===2?(s.nativePhraseContract>=2?'HOLD: sustain notes; click STOP to release this phrase':'Hold to repeat; release stops'):'Play phrase';const path=play.querySelector('path');if(path)path.setAttribute('d',iconPaths[stop?'stop':'play']);}const state=row.querySelector('.phrase-state');if(state)state.textContent=p.state||'IDLE';const rec=row.querySelector('[aria-label="REC / OVERDUB"]');if(rec){rec.dataset.state=p.state;rec.title=`REC / OVERDUB · ${p.state||'IDLE'}`;rec.setAttribute('aria-pressed',String(['ARMED','RECORDING','OVERDUB ARMED','OVERDUB ACTIVE'].includes(p.state)));}}}
 function compactPhrases(s){
   const pages=Math.ceil(s.phrases.length/6);phrasePage=Math.min(phrasePage,pages-1);
   $('phrase-pagination').replaceChildren(button('←',()=>{phrasePage=Math.max(0,phrasePage-1);renderedModel='';render(latest);}),node('span',`${phrasePage+1} / ${pages}`),button('→',()=>{phrasePage=Math.min(pages-1,phrasePage+1);renderedModel='';render(latest);}));
-  if(!$('phrase-columns')){const head=node('div',undefined,'phrase-columns');head.id='phrase-columns';for(const text of ['#','NAME','PLAY','REC','M','S','MODE','VEL','V.DEC','T.DEC','MIDI','END','EDIT'])head.append(node('span',text));$('phrases').before(head);}
+  if(!$('phrase-columns')){const head=node('div',undefined,'phrase-columns');head.id='phrase-columns';for(const text of ['#','NAME','PLAY','REC','M','S','MODE','GROUP','VEL','V.DEC','T.DEC','MIDI','END','EDIT'])head.append(node('span',text));$('phrases').before(head);}
   $('phrases').replaceChildren(...s.phrases.slice(phrasePage*6,phrasePage*6+6).map(p=>{
     const row=node('div',undefined,'phrase');row.dataset.phraseId=p.id;row.dataset.state=p.state||'IDLE';row.classList.toggle('empty',!p.events);row.classList.toggle('muted',!!p.mute);row.classList.toggle('soloed',!!p.solo);row.append(node('span',String(p.id).padStart(2,'0'),'phrase-number'));
-    const heldMode=!!s.chainMode&&!!s.nativeHeldRelease&&p.mode===2;
-    const trigger=button('TRIGGER',()=>{if(!heldMode)command({action:latest.phrases.find(v=>v.id===p.id)?.state==='PLAYING'&&p.mode===0?(latest.chainMode&&latest.chainCaptureMode==='free-time'?'phrase_stop':latest.chainMode?'chain_stop':'panic'):'phrase_play',phraseId:p.id});});trigger.dataset.phrasePlay='true';
+    const heldMode=!!s.chainMode&&!!s.nativeHeldRelease&&!(s.nativePhraseContract>=2)&&p.mode===2;
+    const trigger=button('TRIGGER',()=>{if(!heldMode)command({action:latest.phrases.find(v=>v.id===p.id)?.state==='PLAYING'&&(p.mode===0||(p.mode===2&&latest.nativePhraseContract>=2))?(latest.chainMode&&(p.mode===2||latest.chainCaptureMode==='free-time')?'phrase_stop':latest.chainMode?'chain_stop':'panic'):'phrase_play',phraseId:p.id});});trigger.dataset.phrasePlay='true';
     if(heldMode){
       let held=false,edge=Promise.resolve();
       const send=action=>{edge=edge.then(async()=>{while(pending)await new Promise(resolve=>setTimeout(resolve,10));return command({action,phraseId:p.id});});};
@@ -638,16 +731,17 @@ function compactPhrases(s){
       if(s.controllerLearn.conflict>0)row.append(button('REASSIGN',()=>command({action:'phrase_learn_confirm',phraseId:p.id})));}
     row.append(button(p.solo?'SOLO ON':'SOLO',()=>liveParameter(p.id,19,p.solo?0:1)),button(p.mute?'MUTE ON':'MUTE',()=>liveParameter(p.id,18,p.mute?0:1)));
     const mode=node('select');mode.setAttribute('aria-label',`Play mode Phrase ${p.id}`);
-    for(const [value,label] of [[1,'ONCE'],[0,'LOOP'],[2,'HOLD']]){const option=node('option',label);option.value=value;option.disabled=!!s.chainMode&&!s.nativeHeldRelease&&!(s.nativePhraseContract>=2)&&value===2;if(option.disabled)option.textContent='HOLD (UNAVAILABLE)';if(option.disabled)option.title='Native held-trigger release is not supported yet';mode.append(option);}mode.value=p.mode;mode.title=s.chainMode?'LOOP: press to play / stop · ONCE: independent one-shot · HOLD: sustain; press again cuts and restarts; release ignored (polyphonic, no ARP)':'REAPER legacy HOLD sustains notes until STOP / next phrase';bindModulation(mode,{instrumentId:p.id,moduleId:0,kind:20});mode.onchange=async()=>{if(await liveParameter(p.id,20,Number(mode.value))&&latest.chainMode&&latest.chainRunning)$('error').textContent='Mode change queued. STOP this processor to apply safely.';};row.append(mode);
+    for(const [value,label] of [[1,'ONCE'],[0,'LOOP'],[2,'HOLD']]){const option=node('option',label);option.value=value;option.disabled=!!s.chainMode&&!s.nativeHeldRelease&&!(s.nativePhraseContract>=2)&&value===2;if(option.disabled)option.textContent='HOLD (UNAVAILABLE)';if(option.disabled)option.title='Native held-trigger release is not supported yet';mode.append(option);}mode.value=p.mode;mode.title=s.chainMode?'LOOP: press to play / stop · ONCE: independent one-shot · HOLD: sustain notes until STOP; Transformers supported':'REAPER legacy HOLD sustains notes until STOP / next phrase';bindModulation(mode,{instrumentId:p.id,moduleId:0,kind:20});mode.onchange=async()=>{if(await liveParameter(p.id,20,Number(mode.value))&&latest.chainMode&&latest.chainRunning)$('error').textContent='Mode change queued. STOP this processor to apply safely.';};row.append(mode);
+    const group=node('input',undefined,'phrase-group');group.type='number';group.min=0;group.max=16777215;group.step=1;group.dataset.phraseGroup=p.id;group.setAttribute('aria-label',`Mute group Phrase ${p.id}`);group.title='Mute group · 0 = independent';group.oninput=()=>{group.dataset.dirty='true';};group.onchange=()=>{const value=group.value;delete group.dataset.dirty;setPhraseMuteGroup(p.id,value);};group.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();group.blur();}};const groupCell=node('label',undefined,'phrase-group-cell');groupCell.append(node('span','GROUP','group-caption'),group);row.append(groupCell);
     row.append(tactileSlider(`BASE VEL Phrase ${p.id}`,p.baseVelocity,.2,3,.01,value=>liveParameter(p.id,17,value),1,false,{instrumentId:p.id,moduleId:0,kind:17}));
     if(p.mode===1)row.append(tactileSlider(`VEL DECAY Phrase ${p.id}`,p.velocityDecay,.2,1,.01,value=>liveParameter(p.id,15,value),.8,false,{instrumentId:p.id,moduleId:0,kind:15}),tactileSlider(`TIME DECAY Phrase ${p.id}`,p.timeDecay,.5,2,.01,value=>liveParameter(p.id,14,value),1,true,{instrumentId:p.id,moduleId:0,kind:14}));
     const finish=button('FINISH REC',()=>finishRecording(p.id));finish.title='Finish record / overdub without discarding the take';row.append(finish,node('small',`${p.events} events`),button('PHRASE OPTIONS',()=>phraseOptions(p.id)));
     const buttons=[...row.querySelectorAll('button')],find=label=>buttons.find(b=>b.getAttribute('aria-label')===label),rails=[...row.querySelectorAll('.tactile-slider')];
     for(const rail of rails){rail.dataset.shortLabel=rail.querySelector('.slider-caption').textContent;rail.querySelector('.slider-caption').remove();}
     const empty=()=>{const n=node('span','—','decay-empty');n.title='Decay controls are available in ONCE mode';return n;};
-    const cells=[row.querySelector('.phrase-number'),row.querySelector('.editable-name'),trigger,find('REC / OVERDUB'),buttons.find(b=>/^MUTE/.test(b.getAttribute('aria-label'))),buttons.find(b=>/^SOLO/.test(b.getAttribute('aria-label'))),mode,rails[0],rails[1]||empty(),rails[2]||empty(),learn,finish,find('PHRASE OPTIONS')];
+    const cells=[row.querySelector('.phrase-number'),row.querySelector('.editable-name'),trigger,find('REC / OVERDUB'),buttons.find(b=>/^MUTE/.test(b.getAttribute('aria-label'))),buttons.find(b=>/^SOLO/.test(b.getAttribute('aria-label'))),mode,groupCell,rails[0],rails[1]||empty(),rails[2]||empty(),learn,finish,find('PHRASE OPTIONS')];
     const notices=[...row.children].filter(n=>!cells.includes(n)&&n.tagName==='SMALL'&&!n.textContent.endsWith(' events'));
-    const grouped=node('div',undefined,'phrase-rails');grouped.append(...cells.slice(7,10));row.replaceChildren(...cells.slice(0,7),grouped,...cells.slice(10));row.querySelector('.phrase-number').title=`Phrase ${p.id} · ${p.events} source events`;row.querySelector('.phrase-number').setAttribute('aria-label',row.querySelector('.phrase-number').title);for(const notice of notices){notice.classList.add('phrase-alert');row.append(notice);}const reassign=find('REASSIGN');if(reassign){reassign.classList.add('phrase-alert');row.append(reassign);}
+    const grouped=node('div',undefined,'phrase-rails');grouped.append(...cells.slice(8,11));row.replaceChildren(...cells.slice(0,8),grouped,...cells.slice(11));row.querySelector('.phrase-number').title=`Phrase ${p.id} · ${p.events} source events`;row.querySelector('.phrase-number').setAttribute('aria-label',row.querySelector('.phrase-number').title);for(const notice of notices){notice.classList.add('phrase-alert');row.append(notice);}const reassign=find('REASSIGN');if(reassign){reassign.classList.add('phrase-alert');row.append(reassign);}
     const state=node('small',p.state||'IDLE','phrase-state');row.querySelector('.editable-name').append(state);
     return row;
   }));
@@ -669,13 +763,20 @@ function addEmptyTransformer(i){
 }
 function compactInstrument(i){
   const n=node('article',undefined,'instrument');n.dataset.instrumentId=i.id;
+  const link=hostChains?.engineSessionId===engineSession?hostChains.bindings[String(i.id)]:null;
   const main=node('div',undefined,'instrument-main');
   const enable=button(i.enabled?'ON':'OFF',()=>liveParameter(i.id,21,i.enabled?0:1));enable.setAttribute('aria-pressed',String(!!i.enabled));bindModulation(enable,{instrumentId:i.id,moduleId:0,kind:21});main.append(enable,editableName('Instrument',i.id,i.name,`INSTRUMENT ${i.id}`));
   for(const [label,kind,current,zero] of [['MIDI IN',22,i.input,'ALL'],['MIDI OUT',23,i.output,'ORIGINAL']]){
     const wrap=node('label',label==='MIDI IN'?'IN':'OUT','inline-control'),select=node('select');select.setAttribute('aria-label',`${label} Instrument ${i.id}`);
-    for(let channel=0;channel<=16;channel++){const option=node('option',channel?String(channel):zero);option.value=channel;select.append(option);}select.value=current;select.onchange=()=>liveParameter(i.id,kind,Number(select.value));wrap.append(select);main.append(wrap);bindModulation(select,{instrumentId:i.id,moduleId:0,kind});
+    for(let channel=0;channel<=16;channel++){const option=node('option',channel?String(channel):zero);option.value=channel;select.append(option);}select.value=current;select.onchange=()=>liveParameter(i.id,kind,Number(select.value));if(kind===23&&link){select.disabled=true;select.title='Sortie liée à Zynthian. Délier pour choisir un canal manuellement.';}
+    wrap.append(select);main.append(wrap);if(!(kind===23&&link))bindModulation(select,{instrumentId:i.id,moduleId:0,kind});
   }
-  main.append(tactileSlider(`VOLUME Instrument ${i.id}`,i.level,0,127,1,value=>liveParameter(i.id,1,value),parameter(1)?.default??127,false,{instrumentId:i.id,moduleId:0,kind:1}),button('×',()=>{if(confirm(`Delete Instrument ${i.id} and its complete Transformer chain?`))command({action:'instrument_delete',instrumentId:i.id});}));n.append(main);
+  const volume=tactileSlider(`VOLUME Instrument ${i.id}`,link?.volume!=null?Math.round(link.volume*127):i.level,0,127,1,value=>link?setHostVolume(i.id,value):liveParameter(i.id,1,value),parameter(1)?.default??127,false,{instrumentId:i.id,moduleId:0,kind:link?25:1});
+  if(link){const input=volume.querySelector('input');input.dataset.hostVolume=String(i.id);input.disabled=link.volume==null||link.status!=='synchronized';volume.title='Volume audio de la chaîne Zynthian · synchronisé dans les deux sens';}
+  let pan=null;if(link){pan=tactileSlider(`PAN Instrument ${i.id}`,Math.round((link.pan||0)*100),-100,100,1,value=>setHostPan(i.id,value),0,false,{instrumentId:i.id,moduleId:0,kind:26});const input=pan.querySelector('input');input.dataset.hostPan=String(i.id);input.disabled=link.pan==null||link.status!=='synchronized';pan.title='Panoramique de la chaîne Zynthian · gauche −100 · centre 0 · droite +100 · double-clic = centre';}
+  main.append(volume,...(pan?[pan]:[]),button('×',()=>{if(confirm(`Delete Instrument ${i.id} and its complete Transformer chain?`))command({action:'instrument_delete',instrumentId:i.id});}));n.append(main);
+  if(link){const row=node('div',undefined,'host-chain-link');row.style.cssText='display:flex;align-items:center;gap:8px;flex-wrap:wrap';row.append(node('small',link.destination?`ZYNTHIAN · ${link.destination.name} · CH ${link.destination.channel}`:'ZYNTHIAN · DESTINATION MANQUANTE'),button('DÉLIER',()=>unlinkHostInstrument(i.id)));n.append(row);}
+  if(latest?.nativePhraseContract>=2)n.append(node('small','OFF = silence · Canal d’entrée sans correspondance = silence'));
   const chain=node('div',undefined,'transformers');
   for(const tf of i.transformers||[]){
     const card=node('article',undefined,'module');card.dataset.moduleId=tf.id;card.classList.toggle('bypassed',!tf.enabled);card.classList.toggle('selected',selectedModule?.instrumentId===i.id&&selectedModule.moduleId===tf.id);
@@ -726,3 +827,5 @@ $('stop-native').onclick=()=>command({action:'chain_stop'});
 for(const id of ['stop-native','save-patch','load-patch','add-instrument','add-controller','add-mapping'])decorateButton($(id),$(id).textContent);
 
 for(const id of ['stop-native','save-patch','load-patch','add-instrument','add-controller','add-mapping']){const b=$(id);compactAction(b,b.getAttribute('aria-label')||b.textContent);}
+
+setInterval(refreshHostChains,1500);

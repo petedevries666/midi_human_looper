@@ -16,12 +16,31 @@ spec.loader.exec_module(router)
 
 class NativeAPI:
     def __init__(self):
+        self.cc_routes = {}
+        self.flags = {}
         self.routes = {}
         self.modes = {}
         self.bad_readback = None
         self.calls = []
 
+    def zmop_get_cc_route(self, index, buffer):
+        for i, value in enumerate(self.cc_routes.get(index, [0]*128)): buffer[i] = value
+        return 1
+
+    def zmop_set_cc_route(self, index, buffer):
+        self.cc_routes[index] = list(buffer)
+        return 1
+
+    def zmip_get_flags(self, index):
+        return self.flags.get(index, 0xff)
+
+    def zmip_set_flags(self, index, flags):
+        self.flags[index] = flags
+        self.calls.append(('flags', index, flags))
+        return 1
+
     def zmop_get_route_from(self, zmop, dev):
+        if zmop >= 43: return -1
         if self.bad_readback == (zmop, dev):
             return 1
         return self.routes.get((zmop, dev), 1)
@@ -62,6 +81,7 @@ class ExclusiveInput(unittest.TestCase):
             hw_midi_src_ports=[],
             chain_manager=types.SimpleNamespace(chains=self.chains),
             state_manager=types.SimpleNamespace(
+                get_max_num_zmops=lambda: 16,
                 get_zmip_seq_index=lambda: 24,
                 get_zmip_step_index=lambda: 25,
                 get_zmip_int_index=lambda: 26),

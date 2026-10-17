@@ -4,8 +4,11 @@ Open a PHRASE's pencil / PHRASE OPTIONS. **OUTPUT CHANNEL** offers ORIGINAL,
 ALL and CH1–CH16. Changes commit immediately through the existing session/revision
 checked API and are stored by PATCH SAVE.
 
-- ORIGINAL preserves each source event's MIDI channel, bypassing Instrument OUT
-  and the old global playback channel override.
+- In the native phrase contract (version 2), ORIGINAL preserves each source
+  event's channel for Instrument IN matching, then applies each matching
+  Instrument OUT. This is the same routing as live MIDI input.
+- In the historical REAPER path, ORIGINAL retains its previous behavior:
+  source channels bypass Instrument OUT and the old global playback override.
 - CH1–CH16 force playback channel-voice messages onto that channel.
 - ALL emits each channel-voice message on all sixteen channels.
 

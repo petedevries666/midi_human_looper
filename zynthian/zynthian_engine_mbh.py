@@ -10,6 +10,23 @@ import sys
 import time
 from zyngine.zynthian_engine import zynthian_engine
 
+
+def mbh_snapshot_config(engine_config, processor_id):
+    """Oram saves multiple MB engines as MB/N, while slots retain code MB."""
+    if not isinstance(engine_config, dict):return None
+    matches = [value for key, value in engine_config.items()
+               if isinstance(key, str) and key.startswith('MB/') and isinstance(value, dict)
+               and isinstance(value.get('processors'), dict)
+               and str(processor_id) in value['processors']]
+    # Legacy adapters aggregate all processors into every MB/N entry. Accept
+    # duplicate copies only when this processor and host identities agree.
+    if matches and any(value['processors'][str(processor_id)] != matches[0]['processors'][str(processor_id)]
+                       or value.get('hostChainIdentities', {}) != matches[0].get('hostChainIdentities', {})
+                       for value in matches[1:]):
+        raise ValueError('Ambiguous MBMF processor snapshot; refusing reassignment')
+    return matches[0] if matches else None
+
+
 class zynthian_engine_mbh(zynthian_engine):
     _live_entries = {}  # Control-thread snapshot aggregation for the MB engine nickname.
     _ctrls = [
@@ -77,7 +94,17 @@ class zynthian_engine_mbh(zynthian_engine):
             else:
                 from project_sync import ProjectStore
                 ProjectStore(data,entry['control']).restore()
+            manager = getattr(self.state_manager, 'chain_manager', None)
+            if manager is not None:
+                from zynthian_chains import ChainLinks, Bridge
+                links = ChainLinks(manager, processor.chain_id, entry['control'],
+                    entry.get('host_chain_snapshot'), getattr(self, 'host_chain_identities', {}),
+                    mixer=getattr(self.state_manager, 'zynmixer', None))
+                entry['host_chains'] = Bridge(data/'host-chains.sock', links,
+                    on_refresh=lambda: self._refresh_host_chain_selectors(processor))
             web=[sys.executable,str(self.root/'headless/server.py'),'--socket',socket_path,'--patch-dir',str(data),'--port',str(self.config.get('web_port_base',8765)+pid),'--bind',self.config.get('web_bind','127.0.0.1')]
+            if entry.get('host_chains'):
+                web += ['--host-chain-socket', str(data/'host-chains.sock')]
             if self.config.get('token_file'):web+=['--token-file',self.config['token_file']]
             entry['web']=subprocess.Popen(web,stdout=log,stderr=log)
             processor.jackname=self.jackname
@@ -90,6 +117,7 @@ class zynthian_engine_mbh(zynthian_engine):
         entry=self.instances.pop(int(processor.id),None)
         if entry:self._live_entries.pop(int(processor.id),None)
         if entry:
+            if entry.get('host_chains'):entry['host_chains'].close()
             # Native SIGTERM runs owned-note PANIC and drains output before JACK deactivation.
             for child in (entry['web'],entry['engine']):
                 if child and child.poll() is None:
@@ -139,7 +167,29 @@ class zynthian_engine_mbh(zynthian_engine):
                 routes.append(symbol)
             for start in range(0, len(routes), 4):
                 self._ctrl_screens.append(['MIDI OUT %s' % (start//4+1), routes[start:start+4]])
+        host_controls = []
+        bridge = self.instances.get(int(processor.id), {}).get('host_chains')
+        if bridge:
+            status = bridge.links.status()
+            state = bridge.links.control.request()
+            for instrument in state.get('instruments', []):
+                key = str(instrument['id'])
+                selected = status['bindings'].get(key, {}).get('identity')
+                choices = [None] + [c['identity'] for c in status['chains']]
+                labels = ['UNLINKED'] + [f"C{c['chainId']} {c['name']} CH{c['channel'] or 'ALL'}" for c in status['chains']]
+                if selected and selected not in choices:
+                    choices.append(selected);labels.append('DESTINATION MISSING')
+                symbol = 'host_chain_%s' % instrument['id']
+                self._ctrls.append([symbol, dict(name='I%s Zynthian' % key,
+                    value=choices.index(selected), labels=labels, ticks=list(range(len(choices))),
+                    value_min=0, value_max=len(choices)-1, is_integer=True, midi_autolearn=False,
+                    graph_path=('host_chain', instrument['id'], choices, status['inventoryRevision']))])
+                host_controls.append(symbol)
+            for start in range(0, len(host_controls), 4):
+                self._ctrl_screens.append(['Instrument links %s' % (start//4+1), host_controls[start:start+4]])
         controllers = super().get_controllers_dict(processor)
+        for symbol in host_controls:
+            controllers[symbol].get_state = lambda full=True: {}
         for symbol in routes:
             # Oram ZS3 already saves chain.midi_out. Do not replay a second,
             # possibly stale knob value over restored authoritative routing.
@@ -147,6 +197,36 @@ class zynthian_engine_mbh(zynthian_engine):
         for symbol in ('update_check','update_install','update_rollback','update_status'):
             controllers[symbol].get_state = lambda full=True: {}
         return controllers
+
+    def _refresh_host_chain_selectors(self, processor):
+        """Refresh controller data in place, without rebuilding widgets or routes.
+
+        MB controls are built before following synth chains finish restoring.
+        Keep existing controller objects so the open native page sees new labels.
+        """
+        bridge = self.instances.get(int(processor.id), {}).get('host_chains')
+        if not bridge:return
+        status = bridge.links.status()
+        choices = [None] + [c['identity'] for c in status['chains']]
+        labels = ['UNLINKED'] + [f"C{c['chainId']} {c['name']} CH{c['channel'] or 'ALL'}" for c in status['chains']]
+        diagnostics = {}
+        for symbol, controller in list(getattr(processor, 'controllers_dict', {}).items()):
+            if not symbol.startswith('host_chain_'):continue
+            instrument = int(symbol.removeprefix('host_chain_'))
+            selected = status['bindings'].get(str(instrument), {}).get('identity')
+            options, names = list(choices), list(labels)
+            if selected and selected not in options:
+                options.append(selected);names.append('DESTINATION MISSING')
+            value = options.index(selected)
+            graph = ('host_chain', instrument, options, status['inventoryRevision'])
+            if controller.labels != names or controller.value != value or controller.graph_path != graph:
+                # set_options reconfigures the controller model, never emits MIDI.
+                controller.set_options(dict(labels=names,ticks=list(range(len(options))),
+                    value_min=0,value_max=len(options)-1,value=value,is_trigger=False,
+                    graph_path=graph))
+                controller.is_dirty = True
+            diagnostics[str(instrument)] = names[value]
+        bridge.links.native_selectors = diagnostics
 
     def _set_destination(self, zctrl):
         manager, source = self._routing_context(zctrl.processor)
@@ -175,6 +255,15 @@ class zynthian_engine_mbh(zynthian_engine):
         source.toggle_midi_out(chain_id)
 
     def send_controller_value(self, zctrl):
+        if isinstance(zctrl.graph_path, tuple) and zctrl.graph_path[0] == 'host_chain':
+            _, instrument, choices, inventory_revision = zctrl.graph_path
+            bridge = self.instances[int(zctrl.processor.id)]['host_chains']
+            state = bridge.links.control.request()
+            index = int(zctrl.value)
+            if index < 0 or index >= len(choices):raise ValueError('Invalid chain selection')
+            bridge.links.bind(instrument, choices[index], inventory_revision,
+                              state['revision'], state['engineSessionId'])
+            return
         if isinstance(zctrl.graph_path,str) and zctrl.graph_path.startswith('update_'):
             if zctrl.value:self.update_control(zctrl.graph_path[7:])
             zctrl.value=0
@@ -245,6 +334,9 @@ class zynthian_engine_mbh(zynthian_engine):
         patch=state['patch']
         result=entry['control'].request(op=5,target=patch['schema'],patch=patch,revision=now['revision'],session=now['engineSessionId'])
         if result.get('status')!='ok':raise RuntimeError('MBH snapshot load rejected')
+        entry['host_chain_snapshot'] = state.get('hostChainBindings', {})
+        if entry.get('host_chains'):
+            entry['host_chains'].links.restore(entry['host_chain_snapshot'])
     def get_extended_config(self):
         result={}
         for pid,entry in self._live_entries.items():
@@ -252,9 +344,18 @@ class zynthian_engine_mbh(zynthian_engine):
             patch=entry['control'].request(op=4,revision=now['revision'],session=now['engineSessionId'])
             if patch.get('format')!='MIDI_HUMAN_LOOPER_PATCH':raise RuntimeError('MBH snapshot save rejected')
             result[str(pid)]=dict(version=1,phrase=entry['phrase'],patch=patch)
-        return dict(version=1,processors=result)
+            if entry.get('host_chains'):
+                result[str(pid)]['hostChainBindings'] = entry['host_chains'].links.snapshot()
+        identities = {}
+        for entry in self._live_entries.values():
+            if entry.get('host_chains'):identities.update(entry['host_chains'].links.identities())
+        return dict(version=1,processors=result,hostChainIdentities=identities)
     def set_extended_config(self, config):
         if config.get('version')!=1:raise ValueError('unsupported MBH engine snapshot')
+        self.host_chain_identities = config.get('hostChainIdentities', {})
+        for entry in self.instances.values():
+            if entry.get('host_chains'):
+                entry['host_chains'].links.pending_identities = dict(self.host_chain_identities)
         self.restored=config['processors']
         for pid,entry in self.instances.items():
             if str(pid) in self.restored:self._restore(entry,self.restored[str(pid)])

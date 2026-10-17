@@ -14,6 +14,9 @@ inline bool onHold(const Value& b) {
   auto it=b.at("overrides").object.find("trigger");
   return it!=b.at("overrides").object.end() && choice(it->second.at("mode"),{"OVERRIDE"}) && choice(it->second.at("value"),{"HOLD"});
 }
+inline bool onLongHold(const Value& b){auto it=b.at("overrides").object.find("trigger");return it!=b.at("overrides").object.end()&&choice(it->second.at("mode"),{"OVERRIDE"})&&choice(it->second.at("value"),{"LONG_HOLD"});}
+inline bool releaseBlock(const Value& b){auto it=b.at("overrides").object.find("trigger");return it!=b.at("overrides").object.end()&&choice(it->second.at("mode"),{"OVERRIDE"})&&choice(it->second.at("value"),{"RELEASE"});}
+inline bool chargeBlock(const Value& b){auto it=b.at("overrides").object.find("trigger");return it!=b.at("overrides").object.end()&&choice(it->second.at("mode"),{"OVERRIDE"})&&choice(it->second.at("value"),{"SUPERCHARGE_RELEASE"});}
 inline bool revealBlock(const Value& b) {
   auto it=b.at("overrides").object.find("entry");
   return it!=b.at("overrides").object.end() && choice(it->second.at("mode"),{"OVERRIDE"}) && choice(it->second.at("value"),{"REVEAL"});
@@ -23,14 +26,15 @@ inline bool gatedBlock(const Value& b) {
   return it!=b.at("overrides").object.end() && choice(it->second.at("mode"),{"OVERRIDE"}) && choice(it->second.at("value"),{"GATE"});
 }
 inline bool supportedBlock(const Value& b) {
-  if(!choice(b.at("type"),{"PHRASE"}) || (revealBlock(b)&&!onHold(b)) || (gatedBlock(b)&&!revealBlock(b)))return false;
+  if(!choice(b.at("type"),{"PHRASE"}) || (revealBlock(b)&&!onHold(b)&&!onLongHold(b)&&!releaseBlock(b)&&!chargeBlock(b)) || (gatedBlock(b)&&(!revealBlock(b)||releaseBlock(b)||chargeBlock(b))))return false;
   for(const auto& item:b.at("overrides").object) {
     if(choice(item.second.at("mode"),{"INHERIT"}))continue;
     const auto& k=item.first;const auto& v=item.second.at("value");
     if(k=="playMode" || k=="phrase_base_velocity" || k=="phrase_velocity_decay" || k=="phrase_time_decay")continue;
+    if(k=="revealCC" || k=="revealFadeSeconds")continue;
     if(k=="entry" && choice(v,{"TRIGGER","REVEAL"}))continue;
     if(k=="release" && choice(v,{"LATCH","GATE"}))continue;
-    if(k=="trigger" && choice(v,{"PRESS","HOLD"}))continue;
+    if(k=="trigger" && choice(v,{"PRESS","HOLD","LONG_HOLD","RELEASE","SUPERCHARGE_RELEASE"}))continue;
     if(k=="instancePolicy" && choice(v,{"NEW_INSTANCE"}))continue;
     if(k=="join" && choice(v,{"TRIGGER"}))continue;
     return false;
@@ -50,11 +54,13 @@ inline std::vector<double> compile(const std::vector<unsigned>& bytes,double bas
     unsigned si=16;for(unsigned j=0;j<16;++j)if(owners[j]==sw.at("switchId").number)si=j;
     if(si==16)continue;unsigned h=si*8;
     out[h]=owners[si];out[h+1]=sw.at("steps").array.size();out[h+2]=base+out.size();out[h+3]=-1;
-    out[h+7]=choice(sw.at("traversal"),{"SEQUENTIAL"})&&choice(sw.at("transition"),{"IMMEDIATE"})&&choice(sw.at("gesture"),{"INSTANT"});
-    unsigned stepStart=out.size();out.resize(out.size()+sw.at("steps").array.size()*72,0);unsigned stepIndex=0;
+    out[h+7]=choice(sw.at("traversal"),{"SEQUENTIAL"})&&choice(sw.at("transition"),{"IMMEDIATE","END_OF_PHRASE"})&&choice(sw.at("gesture"),{"INSTANT"});
+    if(out[h+7]&&sw.object.count("advance")&&choice(sw.at("advance"),{"RELEASE"}))out[h+7]=2;
+    unsigned stepStart=out.size();out.resize(out.size()+sw.at("steps").array.size()*80,0);unsigned stepIndex=0;
     for(const auto& step:sw.at("steps").array) {
-      std::array<double,72> record{};std::vector<double> admissions,heldAdmissions;
-      record[0]=choice(step.at("transition"),{"INHERIT","IMMEDIATE"});
+      std::array<double,80> record{};std::vector<double> admissions,heldAdmissions,longAdmissions,releaseAdmissions,chargeAdmissions,revealOptions;unsigned longMask=0;
+      record[0]=choice(step.at("transition"),{"INHERIT","IMMEDIATE","END_OF_PHRASE"});
+      record[71]=choice(step.at("transition"),{"END_OF_PHRASE"})||(choice(step.at("transition"),{"INHERIT"})&&choice(sw.at("transition"),{"END_OF_PHRASE"}));
       unsigned n=0;
       std::map<unsigned,unsigned> winners;
       for(const auto& layer:step.at("layers").array){
@@ -69,7 +75,7 @@ inline std::vector<double> compile(const std::vector<unsigned>& bytes,double bas
           if(it==movements.end()){
             bool exists=false;if(root.object.count("movements"))for(const auto &m:root.at("movements").array)exists|=m.at("id").text==b.at("sourceId").text;
             if(exists)record[0]=0;else ++record[1];
-          }else (onHold(b)?heldAdmissions:admissions).push_back(it->second);
+          }else (chargeBlock(b)?chargeAdmissions:releaseBlock(b)?releaseAdmissions:onLongHold(b)?longAdmissions:onHold(b)?heldAdmissions:admissions).push_back(it->second);
           continue;
         }
         if(!supportedBlock(b)){record[0]=0;continue;}
@@ -77,9 +83,12 @@ inline std::vector<double> compile(const std::vector<unsigned>& bytes,double bas
         if(it==slots.end()){++record[1];continue;}
         if(groups[it->second] && winners[groups[it->second]]!=it->second)continue;
         if(n>=12){record[0]=0;record[3]=2;continue;}
-        if(onHold(b))record[66]+=1u<<n;
+        if(releaseBlock(b))record[72]+=1u<<n;if(chargeBlock(b))record[73]+=1u<<n;
+        if(onHold(b))record[66]+=1u<<n;if(onLongHold(b))longMask+=1u<<n;
         if(revealBlock(b))record[68]+=1u<<n;
         if(gatedBlock(b))record[69]+=1u<<n;
+        if(&layer==&step.at("layers").array.front())record[70]=n+1;
+        double cc=localNumber(b,"revealCC"),fade=localNumber(b,"revealFadeSeconds");revealOptions.push_back(cc<0?7:cc);revealOptions.push_back(fade<0?0:fade);
         unsigned row=4+n*5;record[row]=it->second;record[row+1]=-1;
         auto mode=b.at("overrides").object.find("playMode");
         if(mode!=b.at("overrides").object.end() && choice(mode->second.at("mode"),{"OVERRIDE"}))
@@ -88,7 +97,21 @@ inline std::vector<double> compile(const std::vector<unsigned>& bytes,double bas
       }
       record[2]=n;record[64]=admissions.size();record[65]=base+out.size();record[67]=heldAdmissions.size();
       admissions.insert(admissions.end(),heldAdmissions.begin(),heldAdmissions.end());
-      std::copy(record.begin(),record.end(),out.begin()+stepStart+stepIndex++*72);out.insert(out.end(),admissions.begin(),admissions.end());
+      std::copy(record.begin(),record.end(),out.begin()+stepStart+stepIndex++*80);out.insert(out.end(),admissions.begin(),admissions.end());out.insert(out.end(),revealOptions.begin(),revealOptions.end());out.push_back(longMask);out.push_back(longAdmissions.size());out.insert(out.end(),longAdmissions.begin(),longAdmissions.end());
+      record[74]=releaseAdmissions.size();record[75]=chargeAdmissions.size();record[76]=base+out.size();out.insert(out.end(),releaseAdmissions.begin(),releaseAdmissions.end());record[77]=base+out.size();out.insert(out.end(),chargeAdmissions.begin(),chargeAdmissions.end());
+      record[78]=base+out.size();std::vector<double> binding;
+      double patchThreshold=root.object.count("supercharge")?root.at("supercharge").at("thresholdMs").number:600,patchFull=root.object.count("supercharge")?root.at("supercharge").at("fullMs").number:2000;
+      double threshold=record[73]>0?patchThreshold:-1,full=patchFull;
+      if(step.object.count("supercharge")){
+        const auto &c=step.at("supercharge");threshold=c.object.count("thresholdMs")?c.at("thresholdMs").number:patchThreshold;full=c.object.count("fullMs")?c.at("fullMs").number:patchFull;
+        unsigned chargeIndex=0;for(const auto &a:c.at("bindings").array){if(a.object.count("target")){auto it=movements.find("charge:"+step.at("id").text+":"+std::to_string(chargeIndex));if(it!=movements.end())chargeAdmissions.push_back(it->second);++chargeIndex;continue;}++chargeIndex;unsigned row=0;for(const auto &l:step.at("layers").array){const auto &b=l.at("block");if(b.type=='z'||!choice(b.at("type"),{"PHRASE"})||!supportedBlock(b))continue;auto it=slots.find(b.at("sourceId").text);if(it==slots.end()||(groups[it->second]&&winners[groups[it->second]]!=it->second))continue;
+          if(b.at("id").text==a.at("blockId").text){auto key=a.at("parameter").text;unsigned kind=key=="phrase_time_decay"?14:key=="phrase_velocity_decay"?15:17;const auto &d=performance::parameters[kind];binding.insert(binding.end(),{double(row),double(kind),a.at("from").number,a.at("to").number,a.at("factor").number,d.low,d.high});}++row;
+        }}
+      }
+      record[75]=chargeAdmissions.size();record[77]=base+out.size();out.insert(out.end(),chargeAdmissions.begin(),chargeAdmissions.end());record[78]=base+out.size();
+      out.insert(out.end(),{threshold,full,double(binding.size()/7)});out.insert(out.end(),binding.begin(),binding.end());
+      std::copy(record.begin(),record.end(),out.begin()+stepStart+(stepIndex-1)*80);
+
     }
   }
   return out;

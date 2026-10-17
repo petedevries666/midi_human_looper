@@ -14,6 +14,13 @@ IMPORT='from zyngine.zynthian_engine_mbh import zynthian_engine_mbh  # MBH issue
 MULTI='elif eng_code in ("SF", "PD", "MB"):  # MBH issue26 multi'
 ORIGINAL_MULTI='elif eng_code in ("SF", "PD"):'
 CLASS='    "MB": zynthian_engine_mbh,  # MBH issue26\n'
+SNAPSHOT_ANCHOR='                        # Use index to identify first proc in slot (add in series) - others are added in parallel\n'
+SNAPSHOT_CONFIG='''                        # BEGIN MBH snapshot config
+                        if eng_code == "MB" and eng_config is None:
+                            from zyngine.zynthian_engine_mbh import mbh_snapshot_config
+                            eng_config = mbh_snapshot_config(engine_config, proc_id)
+                        # END MBH snapshot config
+'''
 INFO='''        # BEGIN MBH issue26
         cls.engine_info["MB"] = {"NAME":"MIDI Bad Mother Fucker", "TITLE":"MIDI Bad Mother Fucker",
             "TYPE":"MIDI Tool", "CAT":"Other", "ENABLED":True, "INDEX":999,
@@ -35,7 +42,11 @@ CATALOG_INDEX = """    # BEGIN MBH Oram index
 """
 
 
-def registration(text, remove=False):
+def registration(text, remove=False, host_chain_links=False):
+    had_snapshot_hook = 'MBH snapshot config' in text
+    if had_snapshot_hook:
+        if text.count(SNAPSHOT_CONFIG) != 1:raise ValueError('MB snapshot hook changed; refusing overwrite')
+        text = text.replace(SNAPSHOT_CONFIG, '')
     if '# MBH issue26' in text or '# BEGIN MBH issue26' in text:
         for part in (IMPORT, CLASS, MULTI):
             if text.count(part) != 1:
@@ -54,6 +65,9 @@ def registration(text, remove=False):
         if text.count(anchor) != 1:
             raise ValueError('unsupported Zynthian chain manager; registration anchor missing/ambiguous')
     text = text.replace(anchors[0], anchors[0] + IMPORT).replace(anchors[1], anchors[1] + CLASS).replace(ORIGINAL_MULTI, MULTI)
+    if host_chain_links or had_snapshot_hook:
+        if text.count(SNAPSHOT_ANCHOR) != 1:raise ValueError('Unsupported Oram snapshot restoration anchor')
+        text = text.replace(SNAPSHOT_ANCHOR, SNAPSHOT_CONFIG + SNAPSHOT_ANCHOR)
     ast.parse(text)
     return text
 
@@ -105,7 +119,37 @@ def catalog_registration(text, remove=False):
 ROUTER_DISCOVER = "    # BEGIN MBH channel source discover\n    from zyngine.zynthian_engine_mbh_router import discover\n    import sys\n    discover(sys.modules[__name__])\n    # END MBH channel source discover\n"
 ROUTER_CONFIGURE = "    # BEGIN MBH channel source configure\n    from zyngine.zynthian_engine_mbh_router import configure\n    import sys\n    configure(sys.modules[__name__], required_routes)\n    # END MBH channel source configure\n"
 
+def autoconnect_startup_guard(text, remove=False):
+    """Defer partial chains and always release Oram's MIDI graph mutex."""
+    begin='    # BEGIN MBH startup mutex guard\n'
+    end='    # END MBH startup mutex guard\n'
+    if begin in text:
+        start=text.index(begin);finish=text.index(end,start)+len(end)
+        guarded=text[start:finish];lines=guarded.splitlines(keepends=True)
+        first=lines.index('    try:\n')+1;last=lines.index('    finally:\n')
+        original=''.join(line[4:] if line.startswith('    ') else line for line in lines[first:last])
+        guard_start=original.index('    # BEGIN MBH pending processors\n')
+        guard_end=original.index('    # END MBH pending processors\n')+len('    # END MBH pending processors\n')
+        original=original[:guard_start]+original[guard_end:]
+        if '    global deferred_midi_connect\n' not in original:original='    global deferred_midi_connect\n'+original
+        original+='    release_lock()\n'
+        text=text[:start]+original+text[finish:]
+    if remove:return text
+    function=next(n for n in ast.parse(text).body if isinstance(n,ast.FunctionDef) and n.name=='midi_autoconnect')
+    lines=text.splitlines(keepends=True);segment=''.join(lines[function.lineno-1:function.end_lineno])
+    anchor='    if not acquire_lock():\n        return\n'
+    if segment.count(anchor)!=1 or not segment.rstrip().endswith('release_lock()'):raise ValueError('unsupported MIDI mutex anchors')
+    pos=segment.index(anchor)+len(anchor);body=segment[pos:];body=body[:body.rfind('    release_lock()')]
+    guard="    # BEGIN MBH pending processors\n    if any(getattr(p, 'engine', None) is None for p in list(getattr(chain_manager, 'processors', {}).values())):\n        deferred_midi_connect = True\n        return\n    # END MBH pending processors\n"
+    if '    global deferred_midi_connect\n' not in body:raise ValueError('MIDI deferred declaration missing')
+    body=body.replace('    global deferred_midi_connect\n','    global deferred_midi_connect\n'+guard,1)
+    wrapped=begin+'    try:\n'+''.join('    '+line if line.strip() else line for line in body.splitlines(keepends=True))+'    finally:\n        release_lock()\n'+end
+    segment=segment[:pos]+wrapped
+    result=''.join(lines[:function.lineno-1])+segment+''.join(lines[function.end_lineno:]);ast.parse(result);return result
+
+
 def router_registration(text, remove=False):
+    text=autoconnect_startup_guard(text, remove=True)
     if 'MBH channel source' in text:
         if text.count(ROUTER_DISCOVER)!=1 or text.count(ROUTER_CONFIGURE)!=1:
             raise ValueError('MB router hooks changed; refusing overwrite')
@@ -121,6 +165,7 @@ def router_registration(text, remove=False):
         segment=segment.replace(anchors[1],ROUTER_CONFIGURE+anchors[1])
         text=''.join(lines[:function.lineno-1])+segment+''.join(lines[function.end_lineno:])
         text=text.replace(anchors[0],ROUTER_DISCOVER+anchors[0])
+    if not remove:text=autoconnect_startup_guard(text)
     ast.parse(text)
     return text
 
@@ -204,6 +249,7 @@ def main(argv=None):
     parser.add_argument('--binary',type=Path)
     parser.add_argument('--lan',action='store_true')
     parser.add_argument('--native-channel-routing',action='store_true',help='register dedicated MB output as a filtered ZynMidiRouter input')
+    parser.add_argument('--host-chain-links',action='store_true',help='restore per-processor host instrument links from native snapshots; no routing changes')
     actions=parser.add_mutually_exclusive_group()
     actions.add_argument('--rollback',action='store_true')
     actions.add_argument('--rollback-channel-routing',action='store_true',help='remove only the owned native input hooks; retain MB registration/runtime/config')
@@ -287,7 +333,7 @@ def main(argv=None):
         raise ValueError('unmanaged registration/files without manifest; inspect before adopting')
     if metadata and metadata['version']==1 and (paths['helper'].exists() or 'MBH Oram' in before['catalog']):
         raise ValueError('unmanaged catalog hooks/helper on legacy installation')
-    after={'manager':registration(before['manager']), 'catalog':catalog_registration(before['catalog']),
+    after={'manager':registration(before['manager'],host_chain_links=args.host_chain_links), 'catalog':catalog_registration(before['catalog']),
            'helper':read(root/'zynthian/zynthian_engine_mbh_catalog.py'),
            # A catalog-only upgrade must not change the existing adapter's runtime ABI.
            'adapter':before['adapter'] if metadata and not args.upgrade_adapter else read(root/'zynthian/zynthian_engine_mbh.py')}

@@ -77,19 +77,22 @@ struct Request {
   double snapshotSeconds = 2;
   int snapshotEase = 1, snapshotSwitch = 2;
   std::array<ParameterChange, 5> parameters{};
-  std::array<int,98> switchSettings{};
+  std::array<int,101> switchSettings{};bool hasLongHold=false;
   controller::Binding binding;
   controller::Configuration controllerConfig;
   performance::Configuration snapshotConfig;
 };
 struct Switch {
-  int conductorStep=0,conductorSteps=0,conductorResult=0,conductorMissing=0,conductorAdmitted=0;
-  int id = 0, on = 0, type = 0, kind = 0, ch = 0, num = 0, length = 0, step = 0, actionCount = 0, lastAction = 0, result = 0;
-  char name[17]{};
+  int conductorQueued=0,conductorStep=0,conductorSteps=0,conductorResult=0,conductorMissing=0,conductorAdmitted=0;
+  int slot=0,id = 0, on = 0, type = 0, kind = 0, ch = 0, num = 0, length = 0, step = 0, actionCount = 0, lastAction = 0, result = 0;
+  bool charging=false;double charge=0;int chargeStep=0;
+  char name[17]{};int longHoldMs=0,longHoldAction=0,longHoldTarget=0;
   std::array<int,18> settings{};std::array<int,64> sequence{};
 };
 struct Instrument {
   int id = 0, on = 0, input = 0, output = 0, level = 0;
+  std::array<double,2> hostMixer{};
+  std::array<uint64_t,2> hostMixerSequence{};
   char name[17]{};
   std::array<int, 6> transformerIds{}, transformerTypes{}, transformerOn{};
   std::array<std::array<double, 5>, 6> transformerValues{},transformerPending{};
@@ -106,6 +109,7 @@ struct Phrase {
   int mute = 0, solo = 0, triggerNote = -1, triggerChannel = 0, outputChannel = 0;
 };
 struct Snapshot {
+  unsigned switchLearnTarget=0;bool switchLearnConflict=false;
   uint64_t samples = 0, blocks = 0, midi = 0, late = 0, last_sample = 0;
   int revision = 1;
   unsigned pendingOutput = 0;
@@ -194,12 +198,15 @@ static void execute(ysfx_t *fx, const char *text) {
 struct Model {
   std::array<std::array<EEL_F*,128>,16> switchFields;
   std::array<std::array<EEL_F*,8>,16> conductorFields;
+  std::array<std::array<EEL_F*,5>,16> chargeFields;std::array<EEL_F*,16> conductorQueued;std::array<double*,16> switchPressed;
   EEL_F *musicalState,*recordLayer,*odLayer,*odActive,*odArmed,*freeActive,*freeReady,*freeError;
   std::array<EEL_F*,12> voiceActive,voiceLayer;
   std::array<EEL_F*,16> phraseTriggers,phraseFinished;
   struct CurvePointers{double *count=nullptr;std::array<std::array<double*,3>,16> points{};};
   std::array<std::array<std::array<CurvePointers,5>,12>,8> legacyCurves;
   std::array<CurvePointers,8> levelCurves;
+  mutable std::array<std::array<double,2>,8> hostMixer{};
+  mutable std::array<std::array<uint64_t,2>,8> hostMixerSequence{};
   mutable double abPosition = 0;
   mutable std::atomic<bool> abRestorePending{false};
   std::array<std::array<double*,14>,28> instances;
@@ -335,7 +342,9 @@ struct Model {
         sw[i][8 + j] = cell(fx, b + 32 + j);
       unsigned rt = i < 4 ? unsigned(variable(fx, "SW_RT_BASE")) + i * 32
                           : unsigned(variable(fx, "DS_RT_BASE")) + (i - 4) * 32;
+      switchPressed[i]=cell(fx,rt);chargeFields[i]={{cell(fx,rt+31),cell(fx,rt+30),cell(fx,rt+23),cell(fx,rt),cell(fx,rt+25)}};
       for(unsigned j=0;j<128;++j)switchFields[i][j]=cell(fx,b+j);
+      conductorQueued[i]=cell(fx,unsigned(variable(fx,"CONDUCTOR_GESTURE_BASE"))+i*8+3);
       for(unsigned k=0;k<8;++k)conductorFields[i][k]=cell(fx,unsigned(variable(fx,"CONDUCTOR_BASE"))+i*8+k);
       sw[i][24] = cell(fx, rt + 7);
       sw[i][25] = cell(fx, rt + 12);
@@ -449,7 +458,7 @@ struct Model {
     if (!b.module) {
       code = 0;
       row = 0;
-      return (b.kind >= 21 && b.kind <= 23) ||
+      return b.kind==25 || b.kind==26 || (b.kind >= 21 && b.kind <= 23) ||
              (b.kind == 1 && (legacy || !*levelAssignment[i]));
     }
     if (!std::isfinite(*tfCount[i]) || *tfCount[i] < 0 || *tfCount[i] > 6)
@@ -484,6 +493,7 @@ struct Model {
     int c, r;
     if (!resolve(b, i, c, r, legacy))
       return nullptr;
+    if(b.kind==25 || b.kind==26)return &hostMixer[i][b.kind-25];
     return c == -1   ? phrase[i][r]
            : c == -2 ? tfCodes[i][r]
            : c       ? values[i][c][r]
@@ -521,17 +531,19 @@ struct Model {
     for (unsigned i = 0; i < 16; ++i) {
       auto &v = s.switches[i];
       v.id = *sw[i][0] ? int(*sw[i][1]) : 0;
-      v.conductorStep=v.conductorSteps=v.conductorResult=v.conductorMissing=v.conductorAdmitted=0;
-      if(v.id && *conductorFields[i][0]==v.id){v.conductorStep=int(*conductorFields[i][3])+1;v.conductorSteps=int(*conductorFields[i][1]);v.conductorResult=int(*conductorFields[i][4]);v.conductorMissing=int(*conductorFields[i][5]);v.conductorAdmitted=int(*conductorFields[i][6]);}
+      v.conductorQueued=0;v.conductorStep=v.conductorSteps=v.conductorResult=v.conductorMissing=v.conductorAdmitted=0;
+      if(v.id && *conductorFields[i][0]==v.id){v.conductorQueued=int(*conductorQueued[i]);v.conductorStep=int(*conductorFields[i][3])+1;v.conductorSteps=int(*conductorFields[i][1]);v.conductorResult=int(*conductorFields[i][4]);v.conductorMissing=int(*conductorFields[i][5]);v.conductorAdmitted=int(*conductorFields[i][6]);}
       v.on = int(*sw[i][2]);
       v.type = int(*sw[i][3]);
       v.kind = int(*sw[i][4]);
       v.ch = int(*sw[i][5]) + 1;
-      v.num = int(*sw[i][6]);
+      v.slot=i;v.num = int(*sw[i][6]);
       v.length = int(*sw[i][7]);
       v.step = int(*sw[i][24]) + 1;
       v.actionCount=int(*sw[i][25]);v.lastAction=int(*sw[i][26]);v.result=int(*sw[i][27]);
       const unsigned fields[]={0,2,3,4,12,13,6,7,8,9,10,11,14,15,16,17,18,19};
+      v.charging=*chargeFields[i][0]>0&&*chargeFields[i][3]>0&&*chargeFields[i][4]>0;v.charge=controller::clamp(*chargeFields[i][1]);v.chargeStep=int(*chargeFields[i][2]);
+      v.longHoldMs=int(*switchFields[i][120]);v.longHoldAction=int(*switchFields[i][121]);v.longHoldTarget=int(*switchFields[i][122]);
       for(unsigned j=0;j<18;++j)v.settings[j]=int(*switchFields[i][fields[j]]);
       for(unsigned j=0;j<64;++j)v.sequence[j]=int(*switchFields[i][48+j])+1;
       for (unsigned j = 0; j < 16; ++j)
@@ -564,6 +576,7 @@ struct Model {
       v.input = int(*inst[i][3]);
       v.output = int(*inst[i][4]);
       v.level = int(*inst[i][5]);
+      v.hostMixer=hostMixer[i];v.hostMixerSequence=hostMixerSequence[i];
       v.transformerCount = std::max(0, std::min(6, int(*tfCount[i])));
       v.serialPitch = false;
       for (int j = 0; j < v.transformerCount; ++j) {
@@ -663,13 +676,14 @@ static std::string json(const Reply &r) {
       if (comma)
         o << ',';
       comma = true;
-      o << "{\"id\":" << v.id << ",\"name\":" << quote(v.name)
+      o << "{\"id\":" << v.id << ",\"slot\":"<<v.slot<<",\"name\":" << quote(v.name)
         << ",\"enabled\":" << v.on << ",\"type\":" << v.type
         << ",\"kind\":" << v.kind << ",\"channel\":" << v.ch
         << ",\"number\":" << v.num << ",\"length\":" << v.length
         << ",\"step\":" << v.step << ",\"actionCount\":" << v.actionCount
-        << ",\"conductor\":{\"step\":"<<v.conductorStep<<",\"steps\":"<<v.conductorSteps<<",\"result\":"<<v.conductorResult<<",\"missing\":"<<v.conductorMissing<<",\"admitted\":"<<v.conductorAdmitted<<"}"
-        << ",\"lastAction\":" << v.lastAction << ",\"result\":" << v.result << ",\"settings\":[";
+        << ",\"conductor\":{\"step\":"<<v.conductorStep<<",\"queuedStep\":"<<v.conductorQueued<<",\"steps\":"<<v.conductorSteps<<",\"result\":"<<v.conductorResult<<",\"missing\":"<<v.conductorMissing<<",\"admitted\":"<<v.conductorAdmitted<<"}"
+        << ",\"supercharge\":{\"active\":"<<(v.charging?"true":"false")<<",\"progress\":"<<v.charge<<",\"step\":"<<v.chargeStep<<"}"
+        << ",\"lastAction\":" << v.lastAction << ",\"result\":" << v.result << ",\"longHold\":{\"milliseconds\":"<<v.longHoldMs<<",\"action\":"<<v.longHoldAction<<",\"target\":"<<v.longHoldTarget<<"},\"settings\":[";
       for(unsigned j=0;j<18;++j){if(j)o<<',';o<<v.settings[j];}
       o<<"],\"sequence\":[";for(int j=0;j<v.length;++j){if(j)o<<',';o<<v.sequence[j];}o<<"]}";
     }
@@ -683,6 +697,7 @@ static std::string json(const Reply &r) {
       o << "{\"id\":" << v.id << ",\"name\":" << quote(v.name)
         << ",\"enabled\":" << v.on << ",\"input\":" << v.input
         << ",\"output\":" << v.output << ",\"level\":" << v.level
+        << ",\"hostMixer\":{\"volume\":"<<v.hostMixer[0]<<",\"pan\":"<<v.hostMixer[1]<<",\"volumeSequence\":"<<v.hostMixerSequence[0]<<",\"panSequence\":"<<v.hostMixerSequence[1]<<'}'
         << ",\"serialPitchOrder\":" << (v.serialPitch ? "true" : "false")
         << ",\"transformers\":[";
       for (int j = 0; j < v.transformerCount; ++j) {
@@ -723,6 +738,7 @@ static std::string json(const Reply &r) {
   o << "],\"legacyCurve\":{\"source\":"<<r.legacySource<<",\"points\":[";for(int j=0;j<r.legacyCount;++j){if(j)o<<',';o<<'['<<r.legacyPoints[j][0]<<','<<r.legacyPoints[j][1]<<','<<r.legacyPoints[j][2]<<']';}o<<"]}";
   o << ",\"controllerEngine\":"
     << controller::configurationJson(s.controllerConfig)
+    << ",\"switchLearn\":{\"target\":"<<s.switchLearnTarget<<",\"conflict\":"<<(s.switchLearnConflict?"true":"false")<<"}"
     << ",\"controllerLearn\":{\"domain\":" << quote(s.learnCommand ? "phrase" : "source") << ",\"target\":" << s.learnTarget
     << ",\"conflict\":" << s.learnConflict
     << ",\"kind\":" << s.learnCandidate.kind
@@ -1008,11 +1024,11 @@ static void control(int listener, Queue<Request, 64> &commands,
                       request.arg >> request.revision >> request.ch >>
                       request.note >> request.value) &&
                  request.id > 0 && request.id <= 9007199254740991ULL &&
-                 request.op >= 0 && (request.op <= 49) && request.arg >= 0 &&
-                 request.arg <= (request.op == 13   ? 5
+                 request.op >= 0 && (request.op <= 50) && request.arg >= 0 &&
+                 request.arg <= (request.op == 1 ? 5 : request.op == 13   ? 5
                                  : request.op == 40 ? 7
                                  : request.op == 15 || request.op == 34 ? 3
-                                 : request.op == 32 || request.op == 38 ? 24
+                                 : request.op == 32 || request.op == 38 ? 26
                                                     : 2) &&
                  request.ch >= 0 &&
                  (request.op == 11 ? request.ch <= 16 : request.ch < 16) &&
@@ -1046,6 +1062,8 @@ static void control(int listener, Queue<Request, 64> &commands,
       for(unsigned j=15;j<18;++j)valid=valid && v[j]>=0 && v[j]<48;
       for(unsigned j=18;j<82;++j)valid=valid && v[j]>=0 && v[j]<16;
       for(unsigned j=82;j<98;++j)valid=valid && (v[j]==0 || (v[j]>=32 && v[j]<127));
+      input>>std::ws;
+      if(!input.eof()){request.hasLongHold=true;valid=valid&&bool(input>>request.switchSettings[98]>>request.switchSettings[99]>>request.switchSettings[100]);valid=valid&&(v[98]==0||(v[98]>v[8]&&v[98]<=30000))&&v[99]>=0&&v[99]<=9&&v[100]>=0&&v[100]<48;}
       if(input>>extra)valid=false;
     } else if (valid && request.op == 35) {
       valid = request.target >= 0 && request.target < 16 && request.arg >= 0 && request.arg <= 2;
@@ -1589,9 +1607,11 @@ int main(int argc, char **argv) {
     controller::Host controllers;
     std::unique_ptr<movement::Runtime> movementStorage(new movement::Runtime(controllers,sampleRate));
     auto &movements=*movementStorage;
-    reveal::Runtime reveals(controllers);
+    reveal::Runtime reveals(controllers,sampleRate);
     *NSEEL_VM_regvar(fx->vm.get(),"native_control_host")=1;
     *NSEEL_VM_regvar(fx->vm.get(),"ext_midi_bus")=1;
+    std::array<unsigned,128> revealMasks{};std::array<double*,256> revealMaskCells{};
+    for(unsigned j=0;j<256;++j)revealMaskCells[j]=cell(fx,unsigned(variable(fx,"REVEAL_TARGET_MASK_BASE"))+j);
     auto revealExisting=NSEEL_VM_regvar(fx->vm.get(),"reveal_existing_mask");
     auto revealReserved=NSEEL_VM_regvar(fx->vm.get(),"reveal_reserved_mask");
     auto revealFree=NSEEL_VM_regvar(fx->vm.get(),"reveal_free_targets");
@@ -1635,6 +1655,11 @@ int main(int argc, char **argv) {
       int code, row;
       if (!model.resolve(b, i, code, row, true))
         return;
+      if(b.kind==25 || b.kind==26){
+        const unsigned field=b.kind-25;const double physical=performance::physical(b.kind,value);
+        if(std::abs(model.hostMixer[i][field]-physical)>1e-9){model.hostMixer[i][field]=physical;++model.hostMixerSequence[i][field];}
+        return;
+      }
       if (b.kind >= 17) {
         *editI = i;
         *editCode = code;
@@ -1701,6 +1726,24 @@ int main(int argc, char **argv) {
     state.backend = useJack;
     state.sampleRate = sampleRate;
     state.blockSize = blockSize;
+    auto learnedRelease=NSEEL_VM_regvar(fx->vm.get(),"remote_learn_release");
+    auto smartQuarantine=NSEEL_code_compile(fx->vm.get(),"learn_quarantine(remote_learn_kind,remote_learn_ch,remote_learn_num,remote_learn_release);",0);
+    if(!smartQuarantine)throw std::runtime_error("switch learn bridge");
+    auto captureSwitch=[&](const uint8_t* data,unsigned size){
+      if(!state.switchLearnTarget||size!=3)return false;
+      int kind=(data[0]&240)==144&&data[2]>0?1:(data[0]&240)==176&&data[1]<128?2:0;
+      if(!kind)return false;
+      int si=-1;for(unsigned j=0;j<16;++j)if(*model.sw[j][0]&&*model.sw[j][1]==state.switchLearnTarget)si=j;
+      if(si<0){state.switchLearnTarget=0;return false;}
+      unsigned ch=data[0]&15,num=data[1];bool conflict=matchesLegacy(kind,ch,num,si);
+      for(const auto &source:controllers.configuration().sources)conflict|=source.id&&source.kind==kind&&source.channel==ch&&source.number==num;
+      state.switchLearnConflict=conflict;if(conflict)return true;
+      int press=kind==1?127:data[2],release=kind==2&&press==0?127:0;
+      *model.switchFields[si][0]=1;*model.switchFields[si][2]=kind;*model.switchFields[si][3]=ch;*model.switchFields[si][4]=num;*model.switchFields[si][12]=press;*model.switchFields[si][13]=release;
+      *learnKind=kind;*learnCh=ch;*learnNum=num;*learnedRelease=release;NSEEL_code_execute(smartQuarantine);
+      state.switchLearnTarget=0;++state.revision;return true;
+    };
+
     int lastRecallStatus = 0;
     bool abActive = false;
     struct ABTarget {
@@ -1724,7 +1767,7 @@ int main(int argc, char **argv) {
       controllers.cancelPerformanceTarget(p.id, token);
       unsigned i;
       int c, r;
-      if (owned && p.binding.kind >= 18 &&
+      if (owned && p.binding.kind >= 18 && p.binding.kind<=24 &&
           model.resolve(p.binding, i, c, r, true)) {
         *editI = i;
         *editRow = r;
@@ -2012,7 +2055,7 @@ int main(int argc, char **argv) {
         new std::array<MidiPacket, 8192>());
     unsigned inputRead = 0, inputWrite = 0;
     struct NativeControl {unsigned offset=0,order=0,sequence=0,kind=0,slot=0,mask=0;uint64_t id=0;};
-    std::unique_ptr<std::array<NativeControl,8320>> nativeControls(new std::array<NativeControl,8320>());
+    std::unique_ptr<std::array<NativeControl,8328>> nativeControls(new std::array<NativeControl,8328>());
 
     std::atomic<uint64_t> xruns{0};
     uint64_t tracedNotes=0,tracedNoteOns=0,tracedCCs=0,tracedOrderErrors=0;
@@ -2044,7 +2087,7 @@ int main(int argc, char **argv) {
         new std::array<Reply, 8>());
     std::unique_ptr<Request> processingRequest(new Request());
     struct MovementPhysical {unsigned offset=0,ch=0,cc=0,value=0;};
-    std::array<MovementPhysical,128> movementPhysical{};
+    std::array<MovementPhysical,136> movementPhysical{};
     std::function<int(jack_nframes_t)> process = [&](jack_nframes_t frames) {
       realtime_trace::Trace::Scope trace(rtTrace.get(),state.samples,frames);
       if(rtTrace)trace.value.jackFrame=useJack?jack_last_frame_time(jack):state.samples;
@@ -2153,7 +2196,7 @@ int main(int argc, char **argv) {
         e.size = m.size;
         e.data = m.data.data();
         auto before = controllers.learnTarget();
-        if (controllers.midi(e.data, e.size,
+        if (captureSwitch(e.data,e.size) || controllers.midi(e.data, e.size,
                              (state.samples + e.offset) / double(sampleRate),
                              conflicts)) {
           if (before && !controllers.learnTarget()) {
@@ -2206,6 +2249,7 @@ int main(int argc, char **argv) {
         reply.status = 0;
         reply.detailRevision = 0;
         reply.id = request.id;
+        if(request.op==5||request.op==42){state.switchLearnTarget=0;state.switchLearnConflict=false;}
         if (request.op != 0 &&
             ((request.session && request.session != engineSession) ||
              (request.revision != state.revision && request.revision != -1)))
@@ -2223,6 +2267,16 @@ int main(int argc, char **argv) {
                [&](){for(unsigned j=0;j<12;++j)if(*model.voiceActive[j]>.5 && *model.voiceLayer[j]==request.target)return true;return false;}()))) reply.status=3;
           else if(request.arg==2){*phraseTarget=request.target;NSEEL_code_execute(phraseClear);++state.revision;}
           else { maintenance=true; if(request.arg!=0) ++state.revision; }
+        }
+        else if(request.op==50){
+          if(request.arg==1){state.switchLearnTarget=0;state.switchLearnConflict=false;}
+          else{
+            bool busy=state.active||chain.run||chain.recording||chain.armed||movements.active;
+            for(unsigned j=0;j<12;++j)busy|=*model.voiceActive[j]>.5;
+            for(unsigned j=0;j<16;++j)busy|=*model.switchPressed[j]>.5;
+            bool found=false;for(unsigned j=0;j<16;++j)found|=*model.sw[j][0]&&*model.sw[j][1]==request.target;
+            if(busy||!found)reply.status=3;else{controllers.cancel();NSEEL_code_execute(cancelLearn);state.switchLearnTarget=request.target;state.switchLearnConflict=false;}
+          }
         }
         else if(request.op==49){
           // Safe instances latch the policy. Legacy mono/ARP LOOP has no
@@ -2278,6 +2332,7 @@ int main(int argc, char **argv) {
         } else if (request.op == 46 || request.op == 47) {
           if(request.target<0 || unsigned(request.target)>=movements.plan.definitions.size())reply.status=3;
           else if(request.op==46){if(!movements.start(unsigned(request.target),state.samples,resolveMovement))reply.status=3;}
+          else if(request.arg==1)movements.releasePreview(unsigned(request.target),state.samples);
           else movements.stop(unsigned(request.target));
         } else if (request.op == 44) {
           if(!chain.stopInstance(request.instanceId,request.instanceGeneration))reply.status=3;
@@ -2312,11 +2367,16 @@ int main(int argc, char **argv) {
           const auto &v=request.switchSettings;bool collision=false;
           for(const auto &source:controllers.configuration().sources)collision|=v[1] && source.id && source.kind==v[1] && source.channel==v[2] && source.number==v[3];
           if(si>=0 && v[1])collision|=matchesLegacy(v[1],v[2],v[3],si);
+          bool sourceChanged=si>=0&&(v[0]!=*model.switchFields[si][0]||v[1]!=*model.switchFields[si][2]||v[2]!=*model.switchFields[si][3]||v[3]!=*model.switchFields[si][4]||v[4]!=*model.switchFields[si][12]||v[5]!=*model.switchFields[si][13]);
+          bool sourceBusy=state.active||chain.run||chain.recording||chain.armed;bool pressed=false;
+          for(unsigned j=0;j<16;++j)pressed|=*model.switchPressed[j]>.5;sourceBusy|=pressed;
+          for(unsigned j=0;j<12;++j)sourceBusy|=*model.voiceActive[j]>.5;
           if(si<0)reply.status=2;
-          else if(collision)reply.status=3;
+          else if(collision||pressed||(sourceChanged&&sourceBusy))reply.status=3;
           else{
             const unsigned fields[]={0,2,3,4,12,13,6,7,8,9,10,11,14,15,16,17,18,19};
             for(unsigned j=0;j<18;++j)*model.switchFields[si][fields[j]]=v[j];
+            if(request.hasLongHold)for(unsigned j=0;j<3;++j)*model.switchFields[si][120+j]=v[98+j];
             for(unsigned j=0;j<64;++j)*model.switchFields[si][48+j]=v[18+j];
             for(unsigned j=0;j<16;++j)*model.switchFields[si][32+j]=v[82+j];
             *target=si;NSEEL_code_execute(switchReset);++state.revision;
@@ -2408,7 +2468,8 @@ int main(int argc, char **argv) {
                 auto &p = (*performanceTargets)[j];
                 if (p.key.instrument == b.instrument &&
                     p.key.module == b.module && p.key.kind == b.kind) {
-                  cancelPerformance(p, p.token);
+                  auto current = controllers.target(p.id);
+                  cancelPerformance(p, b.kind >= 25 && current ? current->token : p.token);
                   p.active = false;
                 }
               }
@@ -2612,9 +2673,10 @@ int main(int argc, char **argv) {
             uint8_t data[] = {uint8_t(176 | request.ch), uint8_t(request.note),
                               uint8_t(request.value)};
             auto before = controllers.learnTarget();
-            if (!controllers.midi(data, 3,
+            if (!captureSwitch(data,3) && !controllers.midi(data, 3,
                                   (state.samples + frames) / double(sampleRate),
                                   conflicts)) {
+              auto &physical=movementPhysical[movementPhysicalCount++];physical.offset=0;physical.ch=request.ch;physical.cc=request.note;physical.value=request.value;
               *snapHostRead = *snapHostWrite = 0;
               ysfx_midi_event_t event{};
               event.size = 3;
@@ -2782,7 +2844,7 @@ int main(int argc, char **argv) {
           if (*ok != 1)
             reply.status = 2;
         } else if (request.op == 2) {
-          chain.cancel();
+          state.switchLearnTarget=0;state.switchLearnConflict=false;chain.cancel();
           *snapHostRead = *snapHostWrite;
           performanceMorphSeconds = 0;
           cancelAB();
@@ -2802,7 +2864,7 @@ int main(int argc, char **argv) {
           event.size = 3;
           event.data = data;
           auto before = controllers.learnTarget();
-          if (controllers.midi(data, 3,
+          if (captureSwitch(data,3) || controllers.midi(data, 3,
                                (state.samples + frames) / double(sampleRate),
                                conflicts)) {
             if (before && !controllers.learnTarget()) {
@@ -2903,7 +2965,7 @@ int main(int argc, char **argv) {
         cleanupChain();
       chain.finishSwitchStop();
       trace.mark(5);
-      *revealExisting=reveals.existingMask();*revealReserved=0;*revealFree=controllers.freeTargets();*nativeControlCount=0;
+      controllers.rawCCMasks(revealMasks);for(unsigned cc=0;cc<128;++cc){*revealMaskCells[cc]=revealMasks[cc];*revealMaskCells[128+cc]=0;}*revealExisting=revealMasks[7];*revealReserved=0;*revealFree=controllers.freeTargets();*nativeControlCount=0;
       ysfx_process_float(fx, nullptr, nullptr, 0, 0, frames);
       trace.mark(6);
       // The shared output buffer rejected an owned event: cancel queued attacks
@@ -2938,7 +3000,7 @@ int main(int argc, char **argv) {
       }
       // Preflight was computed before DSP. Stage its bounded CC7 reservations
       // before Snapshot/MOVEMENT commands can allocate any additional targets.
-      if(!reveals.reserve(unsigned(*revealReserved))){++state.outputOverflow;overflowRecovery=true;}
+      for(unsigned cc=0;cc<128;++cc)if(*revealMaskCells[128+cc]>0&&!reveals.reserve(unsigned(*revealMaskCells[128+cc]),cc)){++state.outputOverflow;overflowRecovery=true;}
       unsigned controlCount=0;
       auto addControl=[&](unsigned offset,unsigned order,unsigned kind,unsigned slot,uint64_t id,unsigned mask){
         if(controlCount>=nativeControls->size()){++state.outputOverflow;overflowRecovery=true;return;}
@@ -2968,7 +3030,7 @@ int main(int argc, char **argv) {
             uint64_t id=0;unsigned mask=0;for(int k=7;k>=0;--k)id=id*128+m.data[5+k];for(int k=2;k>=0;--k)mask=mask*128+m.data[13+k];
             addControl(m.offset,m.order,m.data[3],m.data[4],id,mask);m.size=0;
           }
-        }else if(m.size==3&&(m.data[0]&240)==176&&m.data[1]==7)addControl(m.offset,m.order,2,m.data[0]&15,m.data[2],7);
+        }else if(m.size==3&&(m.data[0]&240)==176)addControl(m.offset,m.order,2,m.data[0]&15,m.data[2],m.data[1]);
         ++outputCount;
       }
       // Raw EEL packets keep stable order; generated CCs append to the same
@@ -2976,9 +3038,10 @@ int main(int argc, char **argv) {
       movementOutputCount=outputCount;
       reveals.flush(state.samples,emitControlled);
       std::sort(nativeControls->begin(),nativeControls->begin()+controlCount,[](const NativeControl&a,const NativeControl&b){if(a.offset!=b.offset)return a.offset<b.offset;if(a.order!=b.order)return a.order<b.order;return a.sequence<b.sequence;});
+      std::array<double,16> movementCharge;movementCharge.fill(-1);
       for(unsigned j=0;j<controlCount;++j){const auto &c=(*nativeControls)[j];uint64_t sample=state.samples+c.offset;
         generatedAt=UINT64_MAX;generatedOrder=0;
-        movements.render(sample,emitMovement,applyMovement,true);
+        movements.render(sample,emitMovement,applyMovement,true);reveals.render(sample,emitControlled);
         if(c.kind==1){movements.physical(c.slot,c.mask,unsigned(c.id),sample);reveals.physical(c.slot,c.mask,unsigned(c.id),sample);continue;}
         // Cadence due exactly here precedes this control; a newly started
         // MOVEMENT emits its initial CC immediately at its own marker order.
@@ -2989,18 +3052,21 @@ int main(int argc, char **argv) {
         if(!coalescedStart)movements.render(sample+1,emitMovement,applyMovement,true);
         generatedAt=sample;generatedOrder=c.order;
         if(c.kind==2)reveals.observe(c.slot,c.mask,unsigned(c.id));
-        else if(c.kind==9){movements.start(unsigned(c.id),sample,resolveMovement);
+        else if(c.kind==9){movements.start(unsigned(c.id),sample,resolveMovement,c.slot,c.mask,c.slot<16?movementCharge[c.slot]:-1);
           bool nextStart=j+1<controlCount&&(*nativeControls)[j+1].kind==9&&(*nativeControls)[j+1].offset==c.offset;
           if(!nextStart)movements.render(sample+1,emitMovement,applyMovement,true);}
+        else if(c.kind==17){if(c.slot<16)movementCharge[c.slot]=c.mask?controller::clamp(c.id/1000000.):-1;}
+        else if(c.kind==16){reveals.configure(c.slot,unsigned(c.id),c.mask/1000.);}
         else if(c.kind==10){if(!reveals.start(c.slot,c.id,c.mask,sample,emitControlled)){++state.outputOverflow;overflowRecovery=true;}}
         else if(c.kind==11||c.kind==12)reveals.mask(c.slot,c.id,c.kind==12,sample,emitControlled);
         else if(c.kind==13)reveals.close(c.slot,c.id,sample,emitControlled);
+        else if(c.kind==15){movements.release(c.slot,c.id,sample,c.mask!=0);}
         else if(c.kind==14){reveals.panic();movements.panic();reveals.flush(sample,emitControlled);}
         else{++state.outputOverflow;overflowRecovery=true;}
       }
       generatedAt=UINT64_MAX;generatedOrder=0;
       movements.render(state.samples+frames,emitMovement,applyMovement);
-      reveals.collectIdle();
+      reveals.render(state.samples+frames,emitControlled);reveals.collectIdle();
       outputCount=movementOutputCount;bool outputSorted=true;
       for(unsigned j=1;j<outputCount;++j){const auto &a=(*outputBatch)[j-1],&b=(*outputBatch)[j];if(a.offset>b.offset||(a.offset==b.offset&&a.order>b.order)){outputSorted=false;break;}}
       for(unsigned j=0;j<outputCount;++j)(*outputOrder)[j]=j;

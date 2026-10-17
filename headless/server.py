@@ -231,6 +231,10 @@ class Handler(BaseHTTPRequestHandler):
         path = urlsplit(self.path).path
         if not self.allowed(api=path.startswith('/api/') and path!='/api/v1/ws'):
             return
+        if path == '/api/v1/zynthian/chains':
+            self.host_chain_command(read_only=True);return
+        if path == '/api/v1/switch-presets':
+            self.preset_command('status');return
         if path == '/api/v1/update':
             self.update_command('status');return
         if path=='/api/v1/ws' and self.headers.get('Upgrade','').lower()=='websocket':
@@ -248,7 +252,7 @@ class Handler(BaseHTTPRequestHandler):
                     state=self.server.control.request()
                     patch=self.server.control.request(op=48)
                 model=decode_conductor(patch['conductor']) if patch.get('conductor') else None
-                self.respond(200,{'engineSessionId':state['engineSessionId'],'revision':state['revision'],'executionSupported':True,'supportedExecution':['SEQUENTIAL','IMMEDIATE','PRESS_INSTANT','PHRASE_POLY','MOVEMENT_CC','MOVEMENT_PARAMETER','LINEAR','HOLD_CURVE','ONE_SHOT'],'runtime':{str(v['id']):v.get('conductor',{}) for v in state['switches']},'model':model,'missingReferences':resolve(model,{v['id'] for v in state['switches']}) if model else [],'muteGroupWarnings':mute_group_warnings(model) if model else []})
+                self.respond(200,{'engineSessionId':state['engineSessionId'],'revision':state['revision'],'executionSupported':True,'supportedExecution':['SEQUENTIAL','IMMEDIATE','PRESS_INSTANT','PHRASE_POLY','MOVEMENT_CC','MOVEMENT_PARAMETER','LINEAR','HOLD_CURVE','ONE_SHOT','END_OF_PHRASE','GATED','LONG_HOLD','REVEAL_FADE','RELEASE','SUPERCHARGE_RELEASE','MOVEMENT_LOOP','MOVEMENT_PING_PONG','CURVE_BEND'],'runtime':{str(v['id']):v.get('conductor',{}) for v in state['switches']},'model':model,'missingReferences':resolve(model,{v['id'] for v in state['switches']}) if model else [],'muteGroupWarnings':mute_group_warnings(model) if model else []})
             except (ValueError,OSError):self.respond(503,{'error':'CONDUCTOR unavailable'})
             return
         if path == '/api/v1/descriptors':
@@ -256,7 +260,7 @@ class Handler(BaseHTTPRequestHandler):
             import re
             match=re.search(r'^desc:.* v(\d+\.\d+\.\d+)',(Path(__file__).resolve().parents[1]/'midi_human_looper.jsfx').read_text(),re.M)
             document['applicationVersion']=match.group(1) if match else 'unknown'
-            document['runtimeCapabilities']={'transformerTypes':[1,2,3,4,5,6], 'humanizer':False, 'echocity':False, 'nativePhrasePlayModes':[0,1,2], 'nativeHeldRelease':True, 'phraseTransformers':False, 'snapshots':True, 'reaperSnapshots':False, 'ordering':'legacy-stages-or-serial-pitch'}
+            document['runtimeCapabilities']={'transformerTypes':[1,2,3,4,5,6], 'humanizer':False, 'echocity':False, 'nativePhrasePlayModes':[0,1,2], 'nativeHeldRelease':True,'nativeMovementPlayModes':['ONE_SHOT','GATED'],'nativeMovementCycleModes':['ONCE','LOOP','PING_PONG'],'conductorRelease':True,'supercharge':True,'nativeSmartSwitchGestures':['TAP','DOUBLE','HOLD','LONG_HOLD'],'configurableRevealCC':True,'switchPresetLibrary':True, 'phraseTransformers':False, 'snapshots':True, 'reaperSnapshots':False, 'ordering':'legacy-stages-or-serial-pitch'}
             self.respond(200,document);return
         if path.startswith('/api/v1/snapshot/'):
             try:
@@ -275,6 +279,7 @@ class Handler(BaseHTTPRequestHandler):
                  '/conductor.js': ('conductor.js', 'text/javascript; charset=utf-8'),
                  '/movement.js': ('movement.js', 'text/javascript; charset=utf-8'),
                  '/update.js': ('update.js', 'text/javascript; charset=utf-8'),
+                 '/switch-presets.js': ('switch-presets.js','text/javascript; charset=utf-8'),
                  '/style.css': ('style.css', 'text/css; charset=utf-8'),
                  '/fonts/mbmf-block.woff2': ('fonts/mbmf-block.woff2', 'font/woff2')}
         if path not in files:
@@ -295,6 +300,7 @@ class Handler(BaseHTTPRequestHandler):
                 data=json.loads(self.rfile.read(length))
                 if not isinstance(data,dict):raise ValueError('Invalid project command')
                 result=getattr(self.server.projects,operation)(data)
+                if operation=='activate':self.server.switch_presets.on_patch(0)
             self.respond(200,result)
         except Conflict as error:self.respond(409,{'error':str(error)})
         except (ValueError,KeyError,TypeError) as error:self.respond(422,{'error':str(error)})
@@ -341,6 +347,10 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         if not self.allowed(api=True):
             return
+        if self.path == '/api/v1/zynthian/chains':
+            self.host_chain_command();return
+        if self.path == '/api/v1/switch-presets':
+            self.preset_command();return
         if self.path == '/api/v1/update':
             self.update_command();return
         if self.path in ('/api/v1/project/stage','/api/v1/project/activate','/api/v1/project/checkpoint'):
@@ -402,7 +412,7 @@ class Handler(BaseHTTPRequestHandler):
                         for a in masks:
                             if not isinstance(a,dict) or any(type(a.get(k)) is not int for k in ('instrumentId','moduleId','kind')) or not 1<=a['instrumentId']<=16777215 or not 0<=a['moduleId']<=16777215 or (not 0<=a['kind']<=24 or a['kind']==16) or type(a.get('included')) is not bool:raise ValueError()
                         args['inclusions']=masks
-            elif action in ('movement_preview','movement_stop'):
+            elif action in ('movement_preview','movement_stop','movement_release'):
                 from conductor import identity, decode as decode_conductor
                 ident=identity(data.get('movementId'))
                 with self.server.control.lock:
@@ -411,7 +421,7 @@ class Handler(BaseHTTPRequestHandler):
                     items=model.get('movements',[])
                     index=next((i for i,m in enumerate(items) if m['id']==ident),None)
                     if index is None:raise ValueError('Missing MOVEMENT source')
-                    result=self.server.control.request(op=46 if action=='movement_preview' else 47,target=index,revision=revision,session=session)
+                    result=self.server.control.request(op=46 if action=='movement_preview' else 47,target=index,arg=int(action=='movement_release'),revision=revision,session=session)
                 self.respond(200 if result.get('status')=='ok' else 409,result);return
             elif action=='conductor_release':
                 target=data.get('switchId')
@@ -436,11 +446,24 @@ class Handler(BaseHTTPRequestHandler):
                 if type(target) is not int or not 1<=target<=16777215 or not isinstance(settings,list) or len(settings)!=18 or any(type(v) is not int for v in settings) or not isinstance(sequence,list) or len(sequence)>64 or any(type(v) is not int or not 1<=v<=16 for v in sequence) or not isinstance(name,str) or len(name)>16 or any(not 32<=ord(c)<127 for c in name):raise ValueError()
                 settings=list(settings);settings[11]=len(sequence)
                 args=dict(op=41,target=target,settings=settings+[p-1 for p in sequence]+[0]*(64-len(sequence))+[ord(c) for c in name]+[0]*(16-len(name)))
+                if 'longHold' in data:
+                    lh=data['longHold']
+                    if not isinstance(lh,dict) or set(lh)!={'milliseconds','action','target'} or any(type(v) is not int for v in lh.values()) or not (lh['milliseconds']==0 or settings[8]<lh['milliseconds']<=30000) or not 0<=lh['action']<=9 or not 0<=lh['target']<48:raise ValueError('LONG HOLD must exceed HOLD')
+                    args['settings'] += [lh['milliseconds'],lh['action'],lh['target']]
+
+            elif action in ('switch_learn','switch_learn_cancel'):
+                target=data.get('switchId')
+                if type(target) is not int or not 1<=target<=16777215:raise ValueError('Invalid switch')
+                args=dict(op=50,target=target,arg=int(action=='switch_learn_cancel'))
+            elif action=='switch_test_edge':
+                target,edge=data.get('switchId'),data.get('edge')
+                if type(target) is not int or not 1<=target<=16777215 or edge not in ('press','release'):raise ValueError('invalid test edge')
+                args=dict(op=1,target=target,arg=3 if edge=='press' else 4)
             elif action == 'test':
                 target, gesture = data.get('switchId'), data.get('gesture', 'tap')
-                if type(target) is not int or not 1 <= target <= 16777215 or gesture not in ('tap', 'double', 'hold'):
+                if type(target) is not int or not 1 <= target <= 16777215 or gesture not in ('tap', 'double', 'hold','long_hold'):
                     raise ValueError('invalid switch or gesture')
-                args = dict(op=1, target=target, arg=('tap', 'double', 'hold').index(gesture))
+                args = dict(op=1, target=target, arg=5 if gesture=='long_hold' else ('tap', 'double', 'hold').index(gesture))
             elif action in ('controller_source','controller_learn','controller_forget','controller_cancel','controller_confirm','mapping_delete','controller_return','controller_capture'):
                 target=data.get('sourceId') if action.startswith('controller_') and action not in ('controller_return','controller_capture') else data.get('mappingId') if action=='mapping_delete' else data.get('targetId')
                 if type(target) is not int or not 1<=target<=16777215:raise ValueError()
@@ -564,9 +587,46 @@ class Handler(BaseHTTPRequestHandler):
         except (ValueError, TypeError, json.JSONDecodeError):
             self.respond(400, {'error': 'invalid command'})
             return
+        # Host-linked output channels have one authority. Reject competing
+        # manual edits instead of accepting them and silently overwriting later.
+        output_edit = (action == 'instrument_commit' or
+                       action == 'parameter_set' and data.get('kind') == 23 or
+                       action == 'instrument_route' and data.get('field') == 'output')
+        if output_edit and getattr(self.server, 'host_chain_socket', None):
+            try:
+                from zynthian_chains import bridge_request
+                host = bridge_request(self.server.host_chain_socket, {'action': 'status'})
+                target = data.get('targetId') if action == 'parameter_set' else data.get('instrumentId')
+                binding = host.get('bindings', {}).get(str(target))
+                desired = data.get('output') if action == 'instrument_commit' else data.get('value')
+                if binding:
+                    destination = binding.get('destination')
+                    if not destination or desired != destination.get('channel'):
+                        self.respond(409, {'error': 'Output follows the linked Zynthian chain. Unlink this instrument before choosing a manual MIDI output.'})
+                        return
+            except (OSError, ValueError, KeyError, TypeError):
+                self.respond(503, {'error': 'Cannot verify Zynthian output link; retry when the host connection is available.'})
+                return
         self.engine(revision=revision, session=session, **args)
 
+    def preset_command(self,operation=None):
+        try:
+            if operation=='status':
+                result=self.server.switch_presets.inventory();state=self.server.control.request();result.update(expectedRevision=state['revision'],expectedEngineSessionId=state['engineSessionId']);self.respond(200,result);return
+            if self.headers.get('Content-Type','').split(';')[0]!='application/json':raise ValueError('JSON required')
+            size=int(self.headers.get('Content-Length','0'))
+            if not 0<size<=32768:raise ValueError('Bounded preset command required')
+            data=json.loads(self.rfile.read(size))
+            result=self.server.switch_presets.execute(data.get('previewId')) if data.get('action')=='execute' else self.server.switch_presets.preview(data) if data.get('action')=='preview' else None
+            if result is None:raise ValueError('Preview or execute required')
+            self.respond(200,result)
+        except (ValueError,KeyError,TypeError) as error:self.respond(409,{'error':str(error)})
+        except OSError as error:self.respond(503,{'error':str(error)})
+
     def patch_command(self):
+        with self.server.patch_lock,self.server.control.lock:self._patch_command_locked()
+
+    def _patch_command_locked(self):
         try:
             n=int(self.headers.get('Content-Length','0'))
             if not 0<n<=2048:raise ValueError()
@@ -597,6 +657,7 @@ class Handler(BaseHTTPRequestHandler):
                 with self.server.patch_lock:
                     from project_sync import atomic_json
                     atomic_json(path,patch)
+                if self.path.endswith('/save'):self.server.switch_presets.on_patch(slot)
                 self.respond(200,{'status':'saved','slot':slot,'file':path.name})
             else:
                 if path.stat().st_size>16000000:raise ValueError()
@@ -604,11 +665,13 @@ class Handler(BaseHTTPRequestHandler):
                 try:validate_patch_extensions(patch)
                 except ValueError as error:
                     self.respond(422,{'error':str(error)});return
+                patch=self.server.switch_presets.materialize(patch,slot)
                 schema=patch.get('schema');memory=patch.get('memory');globals_=patch.get('globals')
                 if patch.get('format')!='MIDI_HUMAN_LOOPER_PATCH' or type(schema) is not int or not 1<=schema<=7 or not isinstance(memory,list) or patch.get('work_mem_size')!=len(memory) or not 0<len(memory)<=200000 or not isinstance(globals_,list) or len(globals_)!=9:raise ValueError()
                 if any(type(x) not in (int,float) or not math.isfinite(x) for x in globals_+memory):raise ValueError()
                 result=self.server.control.request(op=5,target=schema,revision=rev,session=session,patch=patch)
                 if result.get('status')!='ok':self.respond(409 if result.get('status')=='conflict' else 400,result);return
+                self.server.switch_presets.on_patch(slot)
                 self.engine()
         except FileNotFoundError:
             self.respond(404,{'error':'patch not saved'})
@@ -618,15 +681,37 @@ class Handler(BaseHTTPRequestHandler):
             self.respond(503,{'error':'patch I/O or engine unavailable'})
 
 
-def make_server(bind, port, path, token='',patch_dir=None):
+    def host_chain_command(self, read_only=False):
+        path = getattr(self.server, 'host_chain_socket', None)
+        if path is None:
+            self.respond(503, {'error': 'Zynthian chain links unavailable'});return
+        try:
+            from zynthian_chains import bridge_request
+            request = {'action': 'status'}
+            if not read_only:
+                length = int(self.headers.get('Content-Length', '0'))
+                if not 0 < length <= 4096 or self.headers.get('Content-Type', '').split(';')[0] != 'application/json':
+                    raise ValueError('Bounded JSON request required')
+                request = json.loads(self.rfile.read(length))
+                if not isinstance(request, dict):raise ValueError('JSON object required')
+            result = bridge_request(path, request)
+            self.respond(409 if 'error' in result else 200, result)
+        except (ValueError, TypeError, KeyError) as error:self.respond(422, {'error': str(error)})
+        except OSError:self.respond(503, {'error': 'Zynthian chain links unavailable'})
+
+
+def make_server(bind, port, path, token='',patch_dir=None,host_chain_socket=None):
     if bind not in ('127.0.0.1', 'localhost') and not token:
         raise ValueError('explicit token required for LAN binding')
     server = ThreadingHTTPServer((bind, port), Handler)
     server.bind_address, server.token, server.control = bind, token, Control(path)
     server.patch_dir=Path(patch_dir) if patch_dir else Path.home()/'.local/share/midi-human-looper'
-    server.patch_lock=threading.Lock()
+    server.patch_lock=threading.RLock()
+    server.host_chain_socket=host_chain_socket
     from project_sync import ProjectStore
     server.projects=ProjectStore(server.patch_dir,server.control)
+    from switch_presets import Store
+    server.switch_presets=Store(server.patch_dir,server.control,server.patch_lock);server.switch_presets.recover()
     server.daemon_threads=True
     return server
 
@@ -637,10 +722,11 @@ if __name__ == '__main__':
     parser.add_argument('--port', type=int, default=8765)
     parser.add_argument('--token-file', type=Path)
     parser.add_argument('--patch-dir',type=Path)
+    parser.add_argument('--host-chain-socket',type=Path)
     parser.add_argument('--restore-active-project',action='store_true',help='Restore committed portable project on fresh engine startup')
     args = parser.parse_args()
     token = args.token_file.read_text().strip() if args.token_file else ''
-    server = make_server(args.bind, args.port, args.socket, token,args.patch_dir)
+    server = make_server(args.bind, args.port, args.socket, token,args.patch_dir,args.host_chain_socket)
     if args.restore_active_project:server.projects.restore()
     print(f'EDITOR http://{args.bind}:{server.server_port}', flush=True)
     try:

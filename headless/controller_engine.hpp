@@ -164,6 +164,9 @@ public:
         return &t;
     return nullptr;
   }
+  void rawCCMasks(std::array<unsigned,128>& masks) const {
+    masks.fill(0);for(const auto &t:targets)if(t.id>=0x80000000u&&t.id<0x80000800u){unsigned key=t.id-0x80000000u;masks[key%128]|=1u<<(key/128);}
+  }
   unsigned freeTargets() const {
     unsigned count = 0;
     for (const auto &t : targets)

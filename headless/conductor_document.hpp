@@ -60,6 +60,10 @@ inline void require(bool ok){if(!ok)throw std::runtime_error("invalid CONDUCTOR 
 inline void fields(const Value &v,std::initializer_list<const char*> names){
   require(v.type=='o' && v.object.size()==names.size());for(auto key:names)require(v.object.count(key));
 }
+inline void fieldsOptional(const Value &v,std::initializer_list<const char*> required,std::initializer_list<const char*> optional){
+  require(v.type=='o');for(auto key:required)require(v.object.count(key));
+  for(const auto &item:v.object){bool known=false;for(auto key:required)known|=item.first==key;for(auto key:optional)known|=item.first==key;require(known);}
+}
 inline bool choice(const Value &v,std::initializer_list<const char*> names){
   if(v.type!='s')return false;for(auto n:names)if(v.text==n)return true;return false;
 }
@@ -72,7 +76,7 @@ inline std::string uuid(const Value &v){
 inline void destination(const Value &v){
   if(choice(v.at("type"),{"CC"})) {fields(v,{"type","channel","number"});require(integer(v.at("channel"),1,16)&&integer(v.at("number"),0,127));}
   else {
-    fields(v,{"type","instrumentId","moduleId","kind"});require(choice(v.at("type"),{"PARAMETER"})&&integer(v.at("instrumentId"),1,16777215)&&integer(v.at("moduleId"),0,16777215)&&integer(v.at("kind"),0,24));
+    fields(v,{"type","instrumentId","moduleId","kind"});require(choice(v.at("type"),{"PARAMETER"})&&integer(v.at("instrumentId"),1,16777215)&&integer(v.at("moduleId"),0,16777215)&&integer(v.at("kind"),0,26));
   }
 }
 inline bool validDocument(const std::vector<unsigned> &bytes){
@@ -81,8 +85,10 @@ inline bool validDocument(const std::vector<unsigned> &bytes){
     Parser p(s);auto root=p.value();require(p.pos==s.size());require(integer(root.at("version"),1,3));
     bool groupVersion=root.at("version").number==3;
     bool movementVersion=root.at("version").number>=2;
-    if(movementVersion)fields(root,{"version","sources","switches","movements","ccRate"});
-    else fields(root,{"version","sources","switches"});
+    if(movementVersion)fieldsOptional(root,{"version","sources","switches","movements","ccRate"},{"supercharge"});
+    else fieldsOptional(root,{"version","sources","switches"},{"supercharge"});
+    double chargeThreshold=600,chargeFull=2000;
+    if(root.object.count("supercharge")){const auto &c=root.at("supercharge");fields(c,{"thresholdMs","fullMs"});require(integer(c.at("thresholdMs"),0,30000)&&integer(c.at("fullMs"),1,120000)&&c.at("fullMs").number>=c.at("thresholdMs").number);chargeThreshold=c.at("thresholdMs").number;chargeFull=c.at("fullMs").number;}
     std::set<std::string> ids,sources,movements;std::set<unsigned> slots,switchIds;
     auto unique=[&](const Value &v){require(ids.insert(uuid(v)).second);};
     const auto &src=root.at("sources");require(src.type=='a');
@@ -91,23 +97,42 @@ inline bool validDocument(const std::vector<unsigned> &bytes){
       const auto &rate=root.at("ccRate");require(integer(rate,10,100)&&(rate.number==10||rate.number==25||rate.number==50||rate.number==100));
       const auto &library=root.at("movements");require(library.type=='a');
       for(const auto &m:library.array){
-        fields(m,{"id","name","target","points","duration","interpolation","retrigger","glideSeconds"});unique(m.at("id"));movements.insert(uuid(m.at("id")));
+        if(m.object.count("playMode")||m.object.count("releaseSeconds")||m.object.count("restValue")){
+          fieldsOptional(m,{"id","name","target","points","duration","interpolation","retrigger","glideSeconds","playMode","releaseSeconds","restValue"},{"cycleMode"});
+          require(choice(m.at("playMode"),{"ONE_SHOT","GATED"}));
+          require(m.at("releaseSeconds").type=='n'&&m.at("releaseSeconds").number>=0&&m.at("releaseSeconds").number<=60&&m.at("restValue").type=='n'&&m.at("restValue").number>=0&&m.at("restValue").number<=1);
+        }else fieldsOptional(m,{"id","name","target","points","duration","interpolation","retrigger","glideSeconds"},{"cycleMode"});if(m.object.count("cycleMode"))require(choice(m.at("cycleMode"),{"ONCE","LOOP","PING_PONG"}));unique(m.at("id"));movements.insert(uuid(m.at("id")));
         require(m.at("name").type=='s'&&!m.at("name").text.empty());destination(m.at("target"));
         require(m.at("duration").type=='n'&&m.at("duration").number>0&&m.at("glideSeconds").type=='n'&&m.at("glideSeconds").number>0&&m.at("glideSeconds").number<=60);
         require(choice(m.at("interpolation"),{"LINEAR","HOLD"})&&choice(m.at("retrigger"),{"SOFT_RESTART","DIRECT"}));
         const auto &points=m.at("points");require(points.type=='a'&&points.array.size()>=2);double previous=-1;
-        for(const auto &point:points.array){require(point.type=='a'&&point.array.size()==2);const auto &x=point.array[0],&y=point.array[1];require(x.type=='n'&&y.type=='n'&&x.number>previous&&x.number>=0&&x.number<=1&&y.number>=0&&y.number<=1);previous=x.number;}
+        for(const auto &point:points.array){require(point.type=='a'&&(point.array.size()==2||point.array.size()==3));const auto &x=point.array[0],&y=point.array[1];require(x.type=='n'&&y.type=='n'&&x.number>previous&&x.number>=0&&x.number<=1&&y.number>=0&&y.number<=1);if(point.array.size()==3){const auto &bend=point.array[2];require(bend.type=='n'&&bend.number>=-.98&&bend.number<=.98);}previous=x.number;}
         require(points.array.front().array[0].number==0&&points.array.back().array[0].number==1);
       }
     }
     const auto &switches=root.at("switches");require(switches.type=='a');
     for(const auto &sw:switches.array){
-      fields(sw,{"switchId","traversal","transition","gesture","steps"});require(integer(sw.at("switchId"),1,16777215)&&switchIds.insert(unsigned(sw.at("switchId").number)).second);
+      fieldsOptional(sw,{"switchId","traversal","transition","gesture","steps"},{"advance"});if(sw.object.count("advance"))require(choice(sw.at("advance"),{"PRESS","RELEASE"}));require(integer(sw.at("switchId"),1,16777215)&&switchIds.insert(unsigned(sw.at("switchId").number)).second);
       require(choice(sw.at("traversal"),{"SEQUENTIAL","BACKWARD","PING_PONG","RANDOM","SHUFFLE_BAG"})&&choice(sw.at("transition"),{"IMMEDIATE","END_OF_PHRASE"})&&choice(sw.at("gesture"),{"INSTANT","EXCLUSIVE"}));
       const auto &steps=sw.at("steps");require(steps.type=='a'&&!steps.array.empty());
       for(const auto &step:steps.array){
-        fields(step,{"id","transition","layers"});unique(step.at("id"));require(choice(step.at("transition"),{"INHERIT","IMMEDIATE","END_OF_PHRASE"}));
+        fieldsOptional(step,{"id","transition","layers"},{"supercharge"});unique(step.at("id"));require(choice(step.at("transition"),{"INHERIT","IMMEDIATE","END_OF_PHRASE"}));
         const auto &layers=step.at("layers");require(layers.type=='a'&&!layers.array.empty());
+        if(step.object.count("supercharge")){
+          const auto &c=step.at("supercharge");fieldsOptional(c,{"bindings"},{"thresholdMs","fullMs"});double threshold=c.object.count("thresholdMs")?c.at("thresholdMs").number:chargeThreshold,full=c.object.count("fullMs")?c.at("fullMs").number:chargeFull;require((!c.object.count("thresholdMs")||integer(c.at("thresholdMs"),0,30000))&&(!c.object.count("fullMs")||integer(c.at("fullMs"),1,120000))&&full>=threshold&&c.at("bindings").type=='a');
+          std::set<std::pair<std::string,std::string>> seen;
+          for(const auto &v:c.at("bindings").array){
+            if(v.object.count("target")){
+              fields(v,{"target","parameter","from","to","factor"});destination(v.at("target"));require(choice(v.at("target").at("type"),{"PARAMETER"})&&choice(v.at("parameter"),{"parameter"}));unsigned kind=v.at("target").at("kind").number;require(kind!=16&&kind<27);require(seen.insert({"target",std::to_string(unsigned(v.at("target").at("instrumentId").number))+":"+std::to_string(unsigned(v.at("target").at("moduleId").number))+":"+std::to_string(kind)}).second);const auto &d=performance::parameters[kind];require(v.at("from").type=='n'&&v.at("from").number>=d.low&&v.at("from").number<=d.high&&v.at("to").type=='n'&&v.at("to").number>=d.low&&v.at("to").number<=d.high&&v.at("factor").type=='n'&&v.at("factor").number>=0&&v.at("factor").number<=16);continue;
+            }
+            fields(v,{"blockId","parameter","from","to","factor"});auto id=uuid(v.at("blockId"));require(v.at("parameter").type=='s');auto key=v.at("parameter").text;
+            const Value *b=nullptr;for(const auto &l:layers.array)if(l.at("block").type=='o'&&l.at("block").at("id").text==id)b=&l.at("block");require(b&&seen.insert({id,key}).second);
+            bool mov=choice(b->at("type"),{"MOVEMENT"});unsigned kind=key=="phrase_time_decay"?14:key=="phrase_velocity_decay"?15:key=="phrase_base_velocity"?17:0;
+            require(mov?(key=="movementDuration"||key=="movementAmplitude"):kind>0);
+            double low=mov?(key=="movementDuration"?.001:0):performance::parameters[kind].low,high=mov?(key=="movementDuration"?86400:1):performance::parameters[kind].high;
+            require(v.at("from").type=='n'&&v.at("to").type=='n'&&v.at("from").number>=low&&v.at("from").number<=high&&v.at("to").number>=low&&v.at("to").number<=high&&v.at("factor").type=='n'&&v.at("factor").number>=0&&v.at("factor").number<=16);
+          }
+        }
         for(unsigned i=0;i<layers.array.size();++i){
           const auto &layer=layers.array[i];fields(layer,{"id","block"});unique(layer.at("id"));const auto &b=layer.at("block");if(b.type=='z')continue;
           if(choice(b.at("type"),{"ACTION"})){
@@ -127,19 +152,23 @@ inline bool validDocument(const std::vector<unsigned> &bytes){
           for(const auto &entry:overrides.object){
             const auto &key=entry.first;const auto &local=entry.second;
             std::map<std::string,std::vector<std::string>> opts={
-              {"playMode",{"LOOP","ONCE","HOLD"}},{"trigger",{"PRESS","HOLD"}},
+              {"playMode",{"LOOP","ONCE","HOLD"}},{"trigger",{"PRESS","HOLD","LONG_HOLD","RELEASE","SUPERCHARGE_RELEASE"}},
               {"instancePolicy",{"JOIN_EXISTING","RESTART","NEW_INSTANCE"}},
               {"join",{"TRIGGER","JOIN_NOW","JOIN_AT_LOOP_START"}},{"referenceTime",{"CYCLE","ELAPSED"}},
               {"entry",{"TRIGGER","REVEAL"}},{"release",{"LATCH","GATE"}},
-              {"movementPlayMode",{"ONE_SHOT","GATED"}},{"retrigger",{"SOFT_RESTART","DIRECT"}}};
+              {"movementCycle",{"ONCE","LOOP","PING_PONG"}},{"movementPlayMode",{"ONE_SHOT","GATED"}},{"retrigger",{"SOFT_RESTART","DIRECT"}}};
             bool parameter=key=="phrase_time_decay"||key=="phrase_velocity_decay"||key=="phrase_base_velocity";
-            require(opts.count(key)||key=="destination"||parameter);
-            bool onlyPhrase=key=="playMode"||key=="instancePolicy"||key=="entry"||key=="release"||parameter;
-            bool onlyMovement=key=="movementPlayMode"||key=="retrigger"||key=="destination";
+            bool revealNumber=key=="revealCC"||key=="revealFadeSeconds";
+            bool movementNumber=key=="releaseSeconds"||key=="restValue"||key=="movementDuration";
+            require(opts.count(key)||key=="destination"||parameter||movementNumber||revealNumber);
+            bool onlyPhrase=key=="playMode"||key=="instancePolicy"||key=="entry"||key=="release"||parameter||revealNumber;
+            bool onlyMovement=key=="movementCycle"||key=="movementPlayMode"||key=="retrigger"||key=="destination"||movementNumber;
             require(!(onlyPhrase&&!phrase)&&!(onlyMovement&&phrase));
             if(choice(local.at("mode"),{"INHERIT"})){fields(local,{"mode"});continue;}
             fields(local,{"mode","value"});require(choice(local.at("mode"),{"OVERRIDE"}));auto &v=local.at("value");
-            if(key=="destination")destination(v);
+            if(revealNumber)require(key=="revealCC"?(integer(v,0,119)&&v.number!=64):(v.type=='n'&&v.number>=0&&v.number<=60));
+            else if(movementNumber)require(v.type=='n'&&v.number>=(key=="movementDuration"?.001:0)&&v.number<=(key=="movementDuration"?86400:key=="releaseSeconds"?60:1));
+            else if(key=="destination")destination(v);
             else if(parameter){unsigned kind=key=="phrase_time_decay"?14:key=="phrase_velocity_decay"?15:17;const auto &descriptor=performance::parameters[kind];require(v.type=='n'&&v.number>=descriptor.low&&v.number<=descriptor.high);}
             else {require(v.type=='s');auto &allowed=opts.at(key);require(std::find(allowed.begin(),allowed.end(),v.text)!=allowed.end());}
           }

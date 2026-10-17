@@ -86,6 +86,27 @@ button:hover { background: #292929; }
 #panic { color: var(--yellow); border-color: var(--yellow); }
 input { width: 145px; font-family: "IBM Plex Mono", monospace; font-size: 12px; }
 .header-separator { display: block; width: 100%; height: auto; margin: -12px 0 0; padding: 0; border: 0; position: relative; z-index: 2; }
+
+/* PATCH toolbar: native headless action IDs, static preview only. */
+.patch-toolbar {
+  display:flex; align-items:center; flex-wrap:wrap; gap:8px;
+  padding:12px 12px 10px; background:#0b0b0b;
+  border-bottom:1px solid #252525; color:#e8e8e8;
+}
+.patch-toolbar .patch-label { font-size:13px; font-weight:600; letter-spacing:.09em; margin-right:4px; }
+.patch-toolbar button, .patch-toolbar select {
+  border:1px solid #646464; border-radius:0; background:#0b0b0b;
+  color:#ddd; font:500 15px "Barlow Condensed",Impact,sans-serif;
+  padding:5px 11px; min-height:31px; letter-spacing:.025em;
+}
+.patch-toolbar button:disabled { opacity:.8; cursor:not-allowed; }
+.patch-toolbar .patch-nav { display:flex; align-items:stretch; }
+.patch-toolbar .patch-nav > * + * { border-left:0; }
+.patch-toolbar #patch-slot { width:43px; padding:5px 3px; text-align:center; appearance:none; }
+.patch-toolbar .patch-spacer { flex:1; }
+.patch-toolbar .patch-extra { display:flex; gap:8px; }
+.patch-toolbar .patch-preview-note { flex-basis:100%; font-size:10px; color:#777; letter-spacing:.02em; }
+@media(max-width:650px) { .patch-toolbar { gap:6px; } .patch-toolbar .patch-extra { flex-wrap:wrap; } }
 footer { color: #888; font-size: 11px; margin-top: 12px; }
 @media(max-width:650px) {
   header { grid-template-columns: 1fr; }
@@ -123,6 +144,35 @@ footer { color: #888; font-size: 11px; margin-top: 12px; }
     </div>
   </header>
   <img class="header-separator" src="./design/assets/images/hori_separator_01.png" alt="" aria-hidden="true">
+
+  <nav class="patch-toolbar" aria-label="Patch controls">
+    <span class="patch-label">PATCH</span>
+    <div class="patch-nav">
+      <button id="patch-prev" type="button" aria-label="Previous patch">‹</button>
+      <select id="patch-slot" aria-label="Patch slot"><option value="1">1</option><option value="2">2</option></select>
+      <button id="patch-next" type="button" aria-label="Next patch">›</button>
+    </div>
+    <button id="save-patch" type="button" disabled title="Native: POST /api/v1/patch/save">▣</button>
+    <button id="load-patch" type="button" disabled title="Native: POST /api/v1/patch/load">⇩</button>
+    <button type="button" disabled title="No corresponding headless command verified">↻</button>
+    <button type="button" disabled title="No corresponding headless command verified">CLEAR</button>
+    <button id="export-patch" type="button" disabled title="Native: POST /api/v1/patch/export">JSFX BASE</button>
+    <span class="patch-spacer"></span>
+    <div class="patch-extra">
+      <button type="button" disabled title="No separate SAVE action in the current headless UI">▱ SAVE</button>
+      <button type="button" disabled title="No PROJECT handler in the current headless UI">PROJECT</button>
+    </div>
+    <span id="patch-status" class="patch-preview-note" role="status">DESIGN PREVIEW · PATCH NAVIGATION ONLY · ENGINE ACTIONS AVAILABLE IN HEADLESS APP</span>
+  </nav>
+  <script>
+    (() => {
+      const slot = document.getElementById('patch-slot');
+      const slots = [...slot.options].map(o => o.value);
+      function shift(by) { slot.value = slots[(slots.indexOf(slot.value) + by + slots.length) % slots.length]; }
+      document.getElementById('patch-prev').addEventListener('click', () => shift(-1));
+      document.getElementById('patch-next').addEventListener('click', () => shift(1));
+    })();
+  </script>
   <footer>MBMF DESIGN LAB · STATIC PREVIEW · NO MIDI ENGINE</footer>
 </main>
 </body>

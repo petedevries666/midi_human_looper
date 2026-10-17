@@ -25,12 +25,12 @@ main { max-width: 1100px; margin: 45px auto; padding: 16px; }
 header {
   display: grid;
   grid-template-columns: 58% 42%;
-  min-height: 165px;
+  min-height: 0;
   background: #101010;
 }
 .art {
   position: relative;
-  min-height: 165px;
+  min-height: 0;
   background: #080808;
   overflow: hidden;
   display: flex;
@@ -89,7 +89,6 @@ input { width: 145px; font-family: "IBM Plex Mono", monospace; font-size: 12px; 
 footer { color: #888; font-size: 11px; margin-top: 12px; }
 @media(max-width:650px) {
   header { grid-template-columns: 1fr; }
-  .panel { border: 0; }
   .panel { border: 0; }
 }
 </style>

@@ -28,25 +28,31 @@ Inspect the real headless UI (`headless/web/index.html`, `headless/web/app.js`, 
 Preserve all event handlers, routes, controller learn, patch state, active note status, command payloads and MIDI scheduling. CSS/presentation only except minimal stable tile-selection helper.
 
 
-## Collapsible hierarchy: all modules
-Every module/card must be **collapsible/expandable**, including PHRASE, INSTRUMENT, TRANSFORMER, SMART SWITCH, CONTROLLER and MOVEMENT, with nested sub-sections where relevant. The desired interaction hierarchy is:
+## Collapsible and reorderable TOP-LEVEL sections (corrected specification)
+**Correction to earlier instructions:** The disclosure hierarchy is **NOT** nested inside MOVEMENT. The user wants **independent, top-level sections**, each collapsible as a whole, in a user-configurable order.
+
+Illustrative layout (the user listed SNAPSHOTS twice; render **one SNAPSHOTS section** unless the real UI has two distinct, named features):
 
 ```text
-▸ MOVEMENT
-    ▸ CONTROLLERS
-    ▸ EDITOR
-    ▸ TEST
-    ▸ ETC.
+▸ SNAPSHOTS
+▸ SMART SWITCHES
+▸ MOVEMENTS
+▸ PHRASES
+▸ INSTRUMENTS / TRANSFORMER CHAINS
+▸ CONTROLLERS / EDITOR / TEST
+▸ ... other real top-level sections
 ```
 
-- Clicking/tapping the section header or disclosure chevron expands/collapses its content; provide clear open/closed states.
-- Support nested independent disclosure (e.g. collapse MOVEMENT entirely or expand MOVEMENT while CONTROLLERS and EDITOR stay closed).
-- **Collapsed tiles retain the thumbnail**, the module name and useful concise status indicators; expanded tiles expose the **existing real controls and editors**, not duplicate or fake buttons.
-- Preserve per-module and nested section expansion state across UI rerenders and, if practical, page refresh. Use stable module IDs; do not let telemetry updates unexpectedly close an editor.
-- Collapsing is purely a presentation change: never stop playback, alter MIDI output, change engine state, clear selections or discard uncommitted edits without an explicit user action.
-- Use semantic buttons / `aria-expanded` / `aria-controls`, accessible focus and keyboard activation. Prefer a reusable component/style for consistency.
-- In the collapsed state, allow denser responsive grids; expanding a tile must remain usable without overlapping neighboring tiles.
-- Inspect the actual implementation of MOVEMENT/CONTROLLERS/EDITOR/TEST before wiring the hierarchy; do not invent controls missing from the current codebase.
+- Each row is a **top-level module group**, not a MOVEMENT child. Use a disclosure chevron on the group header to collapse/expand its **entire section content**. For example, `CONTROLLERS / EDITOR / TEST` is one top-level group label in this layout, **not** three nested disclosure sections.
+- All actual top-level groups in the app should participate, including SNAPSHOTS where implemented. Do not fabricate missing modules. Keep existing card-level editors and controls functioning as they do today.
+- **Drag and drop to reorder the top-level sections** using a visible drag handle distinct from the disclosure toggle. Preserve ordering across refresh/restarts via UI preferences/local storage or existing app persistence as appropriate. Do **not** rewrite the underlying engine module ordering or MIDI execution order.
+- Provide an accessible keyboard alternative for reordering (e.g. Move up / Move down controls), and avoid drag interfering with buttons, sliders, text selection or module editing.
+- Remember each group's collapsed/expanded state across telemetry rerenders and preferably page reload. Do not reset open editors or unsaved drafts.
+- Collapsed group header retains title, useful count/status, and (if appropriate) a themed thumbnail. All controls and subcards remain in their real existing group when expanded.
+- Group expansion/collapse/reordering must be presentation-only: **no changes to MIDI engine, scheduling, patch structure, playback or controller assignments**.
+- Keep responsive grid layout **inside** the expanded groups for compact controller tiles and MOVEMENT tiles. This grid is not a nested disclosure hierarchy.
+- Reuse actual existing DOM/action handlers and inspect current branches to find SNAPSHOTS/MOVEMENTS features before implementing. If a feature is absent on the PR base, record the limitation rather than introducing placeholder UI.
+- Verify: every group can be toggled independently; reordered sequence survives refresh; all existing controls still work; keyboard reordering works; no duplicate SNAPSHOTS group.
 
 ## Acceptance / verification
 - All supported card types have appropriately themed thumbnails with requested opacity; 90% ADD SMART SWITCH stands out.
@@ -54,7 +60,7 @@ Every module/card must be **collapsible/expandable**, including PHRASE, INSTRUME
 - Cards remain readable and clickable; controller and movement grids adapt to desktop/tablet/mobile.
 - Deterministic selection persists across refresh and model rerenders.
 - No new fake buttons or broken existing actions.
-- All module cards can collapse/expand, including nested MOVEMENT sections; state persists through UI rerenders without affecting MIDI or unsaved edits.
+- Every **top-level group** can collapse/expand independently and can be reordered by drag and drop (with keyboard alternative); order and disclosure states persist without affecting MIDI or unsaved edits.
 - Existing tests pass, plus tests for hash stability, image pool mapping and DOM class coverage where applicable.
 - Before/after screenshots and short note identifying any unsupported targets or source-asset dependency.
 

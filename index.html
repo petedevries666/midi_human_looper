@@ -27,7 +27,6 @@ header {
   grid-template-columns: 58% 42%;
   min-height: 165px;
   background: #101010;
-  margin-bottom: -12px;
 }
 .art {
   position: relative;
@@ -86,10 +85,10 @@ button {
 button:hover { background: #292929; }
 #panic { color: var(--yellow); border-color: var(--yellow); }
 input { width: 145px; font-family: "IBM Plex Mono", monospace; font-size: 12px; }
-.header-separator { display: block; width: 100%; height: auto; margin: 0; padding: 0; border: 0; }
+.header-separator { display: block; width: 100%; height: auto; margin: -12px 0 0; padding: 0; border: 0; position: relative; z-index: 2; }
 footer { color: #888; font-size: 11px; margin-top: 12px; }
 @media(max-width:650px) {
-  header { grid-template-columns: 1fr; margin-bottom: -12px; }
+  header { grid-template-columns: 1fr; }
   .panel { border: 0; }
   .panel { border: 0; }
 }

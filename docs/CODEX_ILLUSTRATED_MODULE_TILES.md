@@ -27,12 +27,34 @@ Use a seeded, stable hash based on **entity kind + persistent ID**, with categor
 Inspect the real headless UI (`headless/web/index.html`, `headless/web/app.js`, `headless/web/style.css`) and the currently active UI branch before editing. Verify where the **MOVEMENT** and **ADD INSTRUMENT / ADD SMART SWITCH** UI are actually implemented; the current `main` headless page does not expose all of these names. Do not invent inert controls or pretend these modules already exist. If a target feature is on another development branch, document the target and implement there in a follow-up rather than silently creating fake UI.
 Preserve all event handlers, routes, controller learn, patch state, active note status, command payloads and MIDI scheduling. CSS/presentation only except minimal stable tile-selection helper.
 
+
+## Collapsible hierarchy: all modules
+Every module/card must be **collapsible/expandable**, including PHRASE, INSTRUMENT, TRANSFORMER, SMART SWITCH, CONTROLLER and MOVEMENT, with nested sub-sections where relevant. The desired interaction hierarchy is:
+
+```text
+▸ MOVEMENT
+    ▸ CONTROLLERS
+    ▸ EDITOR
+    ▸ TEST
+    ▸ ETC.
+```
+
+- Clicking/tapping the section header or disclosure chevron expands/collapses its content; provide clear open/closed states.
+- Support nested independent disclosure (e.g. collapse MOVEMENT entirely or expand MOVEMENT while CONTROLLERS and EDITOR stay closed).
+- **Collapsed tiles retain the thumbnail**, the module name and useful concise status indicators; expanded tiles expose the **existing real controls and editors**, not duplicate or fake buttons.
+- Preserve per-module and nested section expansion state across UI rerenders and, if practical, page refresh. Use stable module IDs; do not let telemetry updates unexpectedly close an editor.
+- Collapsing is purely a presentation change: never stop playback, alter MIDI output, change engine state, clear selections or discard uncommitted edits without an explicit user action.
+- Use semantic buttons / `aria-expanded` / `aria-controls`, accessible focus and keyboard activation. Prefer a reusable component/style for consistency.
+- In the collapsed state, allow denser responsive grids; expanding a tile must remain usable without overlapping neighboring tiles.
+- Inspect the actual implementation of MOVEMENT/CONTROLLERS/EDITOR/TEST before wiring the hierarchy; do not invent controls missing from the current codebase.
+
 ## Acceptance / verification
 - All supported card types have appropriately themed thumbnails with requested opacity; 90% ADD SMART SWITCH stands out.
 - 32 source images sliced correctly and referenced by manifest, no missing files.
 - Cards remain readable and clickable; controller and movement grids adapt to desktop/tablet/mobile.
 - Deterministic selection persists across refresh and model rerenders.
 - No new fake buttons or broken existing actions.
+- All module cards can collapse/expand, including nested MOVEMENT sections; state persists through UI rerenders without affecting MIDI or unsaved edits.
 - Existing tests pass, plus tests for hash stability, image pool mapping and DOM class coverage where applicable.
 - Before/after screenshots and short note identifying any unsupported targets or source-asset dependency.
 

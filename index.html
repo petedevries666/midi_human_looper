@@ -25,12 +25,14 @@ main { max-width: 1100px; margin: 45px auto; padding: 16px; }
 header {
   display: grid;
   grid-template-columns: 58% 42%;
+  aspect-ratio: 1100 / 160;
   min-height: 0;
   background: #101010;
 }
 .art {
   position: relative;
   min-height: 0;
+  min-width: 0;
   background: #080808;
   overflow: hidden;
   display: flex;
@@ -39,8 +41,8 @@ header {
 .art img {
   display: block;
   width: 100%;
-  height: auto;
-  object-fit: contain;
+  height: 100%;
+  object-fit: fill;
   object-position: center;
 }
 .panel {
@@ -48,7 +50,7 @@ header {
   background-image: url("./design/assets/images/header_bck_dirt.png");
   background-position: right center;
   background-repeat: no-repeat;
-  background-size: cover;
+  background-size: 100% 100%;
   padding: 16px 20px;
   display: flex;
   flex-direction: column;
@@ -88,7 +90,8 @@ input { width: 145px; font-family: "IBM Plex Mono", monospace; font-size: 12px; 
 .header-separator { display: block; width: 100%; height: auto; margin: 0; padding: 0; border: 0; }
 footer { color: #888; font-size: 11px; margin-top: 12px; }
 @media(max-width:650px) {
-  header { grid-template-columns: 1fr; }
+  header { grid-template-columns: 1fr; aspect-ratio: auto; }
+  .art { aspect-ratio: 580 / 160; }
   .panel { border: 0; }
 }
 </style>

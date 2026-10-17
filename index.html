@@ -1,0 +1,123 @@
+
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MBMF | Design Lab</title>
+<style>
+:root {
+  color-scheme: dark;
+  --yellow: #ffe500;
+  --line: #666;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: #0a0a0a;
+  color: #ddd;
+  font-family: "Courier New", monospace;
+}
+main { max-width: 1100px; margin: 45px auto; padding: 16px; }
+header {
+  display: grid;
+  grid-template-columns: 58% 42%;
+  border: 1px solid var(--line);
+  min-height: 165px;
+  background: #101010;
+}
+.art {
+  position: relative;
+  min-height: 165px;
+  background: #080808;
+  overflow: hidden;
+}
+.art::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse at 45% 50%, #622b79 0%, transparent 50%),
+    repeating-linear-gradient(125deg, transparent 0 7px, #292222 8px 9px);
+  opacity: .5;
+}
+.brand {
+  position: absolute;
+  bottom: 10px;
+  left: 14px;
+  color: var(--yellow);
+  font-size: clamp(17px, 2.4vw, 29px);
+  font-weight: 900;
+  letter-spacing: -1px;
+  text-shadow: 3px 3px #000;
+}
+.panel {
+  padding: 16px 20px;
+  border-left: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 12px;
+}
+.row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+}
+.label { color: #888; }
+.status { color: var(--yellow); font-weight: bold; }
+.status::before { content: "● "; }
+.controls { display: flex; gap: 8px; flex-wrap: wrap; }
+button, input {
+  background: #0c0c0c;
+  border: 1px solid #888;
+  color: #eee;
+  font: inherit;
+  padding: 8px 10px;
+}
+button { cursor: pointer; font-weight: bold; }
+button:hover { background: #292929; }
+#panic { color: var(--yellow); border-color: var(--yellow); }
+input { width: 145px; }
+footer { color: #888; font-size: 11px; margin-top: 12px; }
+@media(max-width:650px) {
+  header { grid-template-columns: 1fr; }
+  .panel { border-left: 0; border-top: 1px solid var(--line); }
+}
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <div class="art">
+      <div class="brand">MIDI BAD MOTHERFUCKER</div>
+    </div>
+    <div class="panel">
+      <div class="row">
+        <span class="label">ENGINE</span>
+        <span class="status">RUNNING · DEMO</span>
+      </div>
+      <div class="row">
+        <span class="label">NATIVE</span>
+        <span>STOPPED</span>
+      </div>
+      <div class="row">
+        <span class="label">ACTIVE NOTES</span>
+        <span>00</span>
+      </div>
+      <div class="row">
+        <label class="label" for="token">LAN TOKEN</label>
+        <input id="token" type="password" value="preview" readonly>
+      </div>
+      <div class="controls">
+        <button id="connect" disabled>CONNECT</button>
+        <button id="panic" disabled>PANIC</button>
+      </div>
+    </div>
+  </header>
+  <footer>MBMF DESIGN LAB · STATIC PREVIEW · NO MIDI ENGINE</footer>
+</main>
+</body>
+</html>

@@ -386,7 +386,7 @@ function render(s){
   $('switch-count').textContent=`${s.switches.length} / ${s.switchCapacity||16}`;
   const switchCards=s.switches.map(sw=>{
     const n=node('article',undefined,'switch');n.dataset.switchId=sw.id;window.MBMF_TILES?.decorate(n,'SMART_SWITCH',sw.id);
-    const title=node('strong',sw.name||`SWITCH ${sw.id}`,'switch-name'),edit=button('OPTIONS',()=>editSwitchSequence(sw)),snap=button('SNAPSHOTS',()=>editSwitchSnapshots(sw));snap.textContent='▤';snap.classList.add('switch-snapshot');edit.classList.add('switch-edit');
+    const title=node('strong',sw.name||`SWITCH ${sw.id}`,'switch-name'),edit=button('OPTIONS',()=>editSwitchSequence(sw)),snap=button('SNAPSHOTS',()=>editSwitchSnapshots(sw));snap.replaceChildren();const switchIcon=node('img');switchIcon.src='/assets/footswitch.png';switchIcon.alt='';switchIcon.width=31;switchIcon.height=28;snap.append(switchIcon);snap.classList.add('switch-snapshot');edit.classList.add('switch-edit');
     const isConductor=!!sw.conductor?.steps,mode=button(isConductor?'CONDUCTOR':'ACTION',()=>isConductor?editConductor(sw):editSwitchSequence(sw));mode.classList.add('switch-mode');
     n.append(title,node('small',`${sw.kind===1?'NOTE':sw.kind===2?'CC':'UNASSIGNED'} ${sw.number} · CH ${sw.channel}`,'switch-source'),node('small',`STEP ${sw.conductor?.steps?sw.conductor.step:sw.step} / ${sw.conductor?.steps||sw.length}`,'step'),edit,mode,snap);
     const meter=node('output','','charge-meter');meter.hidden=true;n.append(meter);
@@ -426,8 +426,8 @@ async function testSwitch(id,gesture){
  const output=document.querySelector(`[data-switch-id="${id}"] .switch-test-feedback`);if(output)output.textContent=switchTestFeedback.get(id);
 }
 async function refresh(){try{render(await request('/api/v1/state'));}catch(e){$('connection').textContent='DISCONNECTED · Engine continues independently';$('error').textContent=e.message;}}
-function setPending(value){pending=value;for(const b of document.querySelectorAll('main button:not([data-live-release=held]):not([data-switch-test])')){if(value){b.dataset.pendingDisabled=b.disabled?'1':'0';b.disabled=true;}else if(b.dataset.pendingDisabled!==undefined){b.disabled=b.dataset.pendingDisabled==='1';delete b.dataset.pendingDisabled;}}if(!value&&latest&&$('add-switch'))$('add-switch').disabled=latest.switches.length>=(latest.switchCapacity||16);}
-let commandQueue=Promise.resolve(),uiPointerHeld=false,uiPointerEpoch=0;
+function setPending(value){pending=value;for(const b of document.querySelectorAll('main button:not(#panic):not([data-live-release=held]):not([data-switch-test])')){if(value){b.dataset.pendingDisabled=b.disabled?'1':'0';b.disabled=true;}else if(b.dataset.pendingDisabled!==undefined){b.disabled=b.dataset.pendingDisabled==='1';delete b.dataset.pendingDisabled;}}if(!value&&latest&&$('add-switch'))$('add-switch').disabled=latest.switches.length>=(latest.switchCapacity||16);}
+let commandQueue=Promise.resolve(),commandEpoch=0,uiPointerHeld=false,uiPointerEpoch=0;
 document.addEventListener('pointerdown',()=>{++uiPointerEpoch;uiPointerHeld=true;},true);
 for(const event of ['pointerup','pointercancel'])document.addEventListener(event,()=>{
   // Keep the real target alive through mouseup/click, not just pointerup.
@@ -439,8 +439,8 @@ for(const event of ['pointerup','pointercancel'])document.addEventListener(event
   }));
 },true);
 window.addEventListener('blur',()=>{++uiPointerEpoch;uiPointerHeld=false;});
-function command(value){const session=engineSession;const job=commandQueue.then(()=>executeCommand(value,session));commandQueue=job.catch(()=>{});return job;}
-async function executeCommand(value,session){while(pending)await new Promise(resolve=>setTimeout(resolve,10));if(session!==engineSession){$('error').textContent='Engine restarted; action cancelled.';return false;}setPending(true);try{render(await request('/api/v1/command',{protocolVersion:1,expectedRevision:revision,expectedEngineSessionId:engineSession,...value}));$('error').textContent='';return true;}catch(e){$('error').textContent=value.action?.startsWith('snapshot_')&&e.message==='unknown_target'?'Recall was not applied: a target is missing or has a legacy expression assignment.':e.message;await refresh();return false;}finally{setPending(false);}}
+function command(value){const session=engineSession,epoch=commandEpoch;const job=commandQueue.then(()=>epoch===commandEpoch?executeCommand(value,session,epoch):false);commandQueue=job.catch(()=>{});return job;}
+async function executeCommand(value,session,epoch){while(pending&&epoch===commandEpoch)await new Promise(resolve=>setTimeout(resolve,10));if(epoch!==commandEpoch)return false;if(session!==engineSession){$('error').textContent='Engine restarted; action cancelled.';return false;}setPending(true);try{render(await request('/api/v1/command',{protocolVersion:1,expectedRevision:revision,expectedEngineSessionId:engineSession,...value}));$('error').textContent='';return true;}catch(e){$('error').textContent=value.action?.startsWith('snapshot_')&&e.message==='unknown_target'?'Recall was not applied: a target is missing or has a legacy expression assignment.':e.message;await refresh();return false;}finally{setPending(false);}}
 function connectStream(){
   if(ws){ws.onclose=null;ws.close();}
   ws=new WebSocket(`${location.protocol==='https:'?'wss':'ws'}://${location.host}/api/v1/ws`);
@@ -449,7 +449,13 @@ function connectStream(){
   ws.onclose=()=>{$('connection').textContent='DISCONNECTED · Engine continues independently';reconnect=setTimeout(connectStream,1000);};ws.onerror=()=>ws.close();
 }
 async function patch(action){if(pending)return;setPending(true);try{const data=await request(`/api/v1/patch/${action}`,{slot:Number($('patch-slot').value),expectedRevision:revision,expectedEngineSessionId:engineSession});$('patch-status').textContent=action==='save'?'PATCH SAVED':action==='export'?`EXPORTED ${data.file}`:'PATCH LOADED';if(data.revision)render(data);}catch(e){$('error').textContent=e.message;}finally{setPending(false);refresh();}}
-$('panic').addEventListener('click',()=>command({action:'panic'}));
+$('panic').addEventListener('click',async()=>{
+  // Emergency stop must remain reachable while an ordinary editor command waits.
+  // Discard queued gestures so an older PRESS cannot restart playback afterwards.
+  ++commandEpoch;window.mbmfHeldRelease?.();
+  try{render(await request('/api/v1/command',{protocolVersion:1,expectedRevision:revision,expectedEngineSessionId:engineSession,action:'panic'}));$('error').textContent='';}
+  catch(e){$('error').textContent=e.message;await refresh();}
+});
 $('connect').addEventListener('click',()=>{clearTimeout(reconnect);loadDescriptors();refresh();connectStream();});
 $('clear-patch').onclick=async()=>{if(confirm('Clear the current MBMF patch, including phrases, Controllers, Smart Switch configuration and MBMF snapshots? Saved files and other Zynthian chains stay unchanged.')){if(await command({action:'patch_clear',confirm:true})){renderedModel='';renderedSnapshots='';render(latest);$('patch-status').textContent='CLEARED · SAVE to keep this patch';}}};
 $('save-patch').addEventListener('click',()=>patch('save'));$('load-patch').addEventListener('click',()=>patch('load'));

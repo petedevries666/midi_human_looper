@@ -171,4 +171,16 @@ class Capacity(unittest.TestCase):
   self.assertFalse(state['snapshots']);self.assertEqual(len(state['switches']),4)
   self.assertFalse(state['activeNotes']);self.assertFalse(state['chainRunning'])
 
+ def test_18_panic_accepts_stale_revision_and_sweeps_orphan_notes(self):
+  self.phrase128(mode=2);self.wait(lambda s:s['pendingOutput']==0)
+  self.cmd('phrase_play',phraseId=128);self.wait(lambda s:s['activeNotes']>0)
+  before=self.control.request();result=self.control.request(op=2,revision=before['revision']-1,session=before['engineSessionId'])
+  self.assertEqual(result['status'],'ok')
+  after=self.wait(lambda s:not s['activeNotes'] and not s['chainRunning'] and s['pendingOutput']==0)
+  self.assertGreaterEqual(after['midiGenerated']-before['midiGenerated'],2048)
+  self.assertFalse(after['instances']);self.assertEqual(after['lastEvent'][1:],[143,127,0])
+ def test_19_panic_keeps_engine_session_guard(self):
+  before=self.control.request();result=self.control.request(op=2,revision=-1,session=before['engineSessionId']+1)
+  self.assertEqual(result['status'],'conflict')
+
 if __name__=='__main__':unittest.main(verbosity=2)

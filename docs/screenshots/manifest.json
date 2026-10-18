@@ -1878,5 +1878,23 @@
         "provenance": "Physical native engine; actual editor through localhost review proxy"
       }
     ]
+  },
+  "illustratedLiveRefinements": {
+    "date": "2026-10-18",
+    "switchAlpha": 0.3,
+    "movementAlpha": 0.4,
+    "instrumentFit": "contain, left center, no-repeat",
+    "artifacts": [
+      {
+        "path": "docs/screenshots/illustrated-live/switch-refinements.png",
+        "sha256": "47892c194097a9ad8b374c2dea69eb2de1be664f58c5e253e61ad2ae97120deb",
+        "provenance": "Installed physical Pi editor, real synchronized instrument links"
+      },
+      {
+        "path": "docs/screenshots/illustrated-live/instrument-art.png",
+        "sha256": "828d3055ca2cf39d0805dee38882a97cd0af9a33a55afa1da1948cb696ea2a37",
+        "provenance": "Installed physical Pi editor, real synchronized instrument links"
+      }
+    ]
   }
 }

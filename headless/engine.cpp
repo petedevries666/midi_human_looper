@@ -8,6 +8,7 @@
 #include "reveal_engine.hpp"
 #include "realtime_trace.hpp"
 #include "parameter_registry.hpp"
+#include "panic_sweep.hpp"
 #include "snapshot_wire.hpp"
 #include "ysfx.hpp"
 #include <algorithm>
@@ -2114,6 +2115,7 @@ int main(int argc, char **argv) {
     std::unique_ptr<std::array<NativeControl,8328>> nativeControls(new std::array<NativeControl,8328>());
 
     std::atomic<uint64_t> xruns{0};
+    PanicSweep panicSweep;
     uint64_t tracedNotes=0,tracedNoteOns=0,tracedCCs=0,tracedOrderErrors=0;
     unsigned tracedLastOffset=0;bool tracedHaveOutput=false;
     auto traceWrite=[&](unsigned offset){if(!rtTrace)return;if(tracedHaveOutput&&offset<tracedLastOffset)++tracedOrderErrors;tracedLastOffset=offset;tracedHaveOutput=true;};
@@ -2158,9 +2160,10 @@ int main(int argc, char **argv) {
         outputRead = outputWrite;
         NSEEL_code_execute(chainRecovery);
         ysfx_midi_clear(fx->midi.out.get());
+        if (panicSweep.remaining()) jack_midi_clear_buffer(outBuffer);
         bool complete = true;
         for (unsigned ch = 0; ch < 16; ++ch)
-          for (unsigned cc : {64u, 123u, 120u}) {
+          for (unsigned cc : {64u, 66u, 69u, 123u, 120u}) {
             uint8_t data[] = {uint8_t(176 | ch), uint8_t(cc), 0};
             ++state.midiGenerated;
             if (jack_midi_event_write(outBuffer, 0, data, 3)) {
@@ -2308,7 +2311,7 @@ int main(int argc, char **argv) {
         if(request.op==5||request.op==42){state.switchLearnTarget=0;state.switchLearnConflict=false;}
         if (request.op != 0 &&
             ((request.session && request.session != engineSession) ||
-             (request.revision != state.revision && request.revision != -1)))
+             (request.op != 2 && request.revision != state.revision && request.revision != -1)))
           reply.status = 1;
         else if (request.op == 35) {
           // Transactional interchange: stopped processor only. No parsing, copying
@@ -2918,6 +2921,7 @@ int main(int argc, char **argv) {
           if (*ok != 1)
             reply.status = 2;
         } else if (request.op == 2) {
+          if(chainMode)panicSweep.begin();
           state.switchLearnTarget=0;state.switchLearnConflict=false;chain.cancel();
           *snapHostRead = *snapHostWrite;
           performanceMorphSeconds = 0;
@@ -3186,7 +3190,16 @@ int main(int argc, char **argv) {
       }
       if (useJack)
         state.late = xruns.load(std::memory_order_relaxed);
-      state.pendingOutput = outputWrite - outputRead;
+      panicSweep.drain(64,[&](const std::array<uint8_t,3>& event) {
+        if (outBuffer && jack_midi_event_write(outBuffer,frames-1,event.data(),event.size())) {
+          ++state.midiWriteFailures;return false;
+        }
+        ++state.midiGenerated;++state.midi;state.last_sample=state.samples+frames-1;
+        state.last_status=event[0];state.last_note=event[1];state.last_value=0;
+        if(outBuffer){++state.midiWritten;traceWrite(frames-1);if(rtTrace)++tracedNotes;}
+        return true;
+      });
+      state.pendingOutput = outputWrite - outputRead + panicSweep.remaining();
       outputPending.store(state.pendingOutput, std::memory_order_release);
       if (muted)
         finalAcknowledged.store(true, std::memory_order_release);

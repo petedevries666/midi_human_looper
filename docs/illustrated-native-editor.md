@@ -6,11 +6,18 @@ and SHA-256 hashes in assets/tiles/manifest.json. Fonts and their OFL licenses
 are local; no external font or artwork requests occur in the product.
 
 Stable module identity selects a semantic illustration pool. Existing modules
-use 20% artwork opacity and Smart Switch add tiles 90%. Smart Switch cards use
+use 20% artwork opacity by default, Smart Switches 30%, Movements 40%, and
+Smart Switch add tiles 90% (Pierre's follow-up values). Smart Switch cards use
 the supplied compact layout: name/source/step, edit, snapshots, ACTION or
 CONDUCTOR and one real press/release TEST. Add tiles all call the same native
 capacity-checked action. An empty Action switch can enter the Conductor editor
 through APPLY & OPEN CONDUCTOR after its current draft is committed.
+
+The icon beside each Smart Switch name is Pierre's original footswitch.png
+from design-preview/design/assets/images/. Its existing snapshot action and
+accessible name remain intact. Instrument artwork keeps its original proportions,
+fits wholly inside the card, and is aligned left and vertically centered without
+repeating or enlarging to cover the whole card.
 
 Sections collapse independently and can be reordered using their drag handle
 or keyboard-accessible up/down buttons. Browser-local preferences retain this

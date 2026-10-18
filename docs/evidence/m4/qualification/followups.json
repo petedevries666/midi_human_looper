@@ -1,0 +1,53 @@
+{
+  "codeCommit": "973cc4f789cb4fb1df40ea04f31f9952128b89f4",
+  "nativeAsan": "PASS capture-status API, no ASAN report files",
+  "legacySequenceComparison": [
+    {
+      "build": "base-85",
+      "attempt": 0,
+      "exitCode": 0
+    },
+    {
+      "build": "base-85",
+      "attempt": 1,
+      "exitCode": 1
+    },
+    {
+      "build": "base-85",
+      "attempt": 2,
+      "exitCode": 0
+    },
+    {
+      "build": "m4",
+      "attempt": 0,
+      "exitCode": 1
+    },
+    {
+      "build": "m4",
+      "attempt": 1,
+      "exitCode": 0
+    },
+    {
+      "build": "m4",
+      "attempt": 2,
+      "exitCode": 0
+    }
+  ],
+  "candidate": {
+    "buildRevision": "973cc4f789cb4fb1df40ea04f31f9952128b89f4.dirty",
+    "chainFrameGap": 8192,
+    "chainClockGap": 8192,
+    "lateBlocks": 18,
+    "maxCallbackUs": 300379,
+    "outputOverflow": 0
+  },
+  "base85": {
+    "buildRevision": "13ed0961c839cd79b3391b14f0bc77b1cfdf268c",
+    "chainFrameGap": 8192,
+    "chainClockGap": 8192,
+    "lateBlocks": 5,
+    "maxCallbackUs": 4328.98,
+    "outputOverflow": 0
+  },
+  "notes": "Single functional runs, not a latency comparison or physical qualification; actual clock gaps on both builds. No timing guards weakened."
+}

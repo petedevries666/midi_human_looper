@@ -1,0 +1,330 @@
+added in both
+  our    100644 0bc09eb216df61f5847ce932cc646a58210f7b84 AGENTS.md
+  their  100644 3953920ecee4d7c95bb57f035b5aa6ffabcd7081 AGENTS.md
++<<<<<<< .our
++=======
++<<<<<<< .our
++=======
++<<<<<<< .our
++=======
++<<<<<<< .our
++=======
+added in both
+  our    100644 3ee1a0c8c61f9f346dd9ba3ba2a017ba6ccc7b2c docs/screenshots/README.md
+  their  100644 7bc889971a5c21bda1346a0b195004cfba224739 docs/screenshots/README.md
++<<<<<<< .our
++=======
+added in both
+  our    100644 2e6a59f3a5e5a076da955d0e653135f7b4370409 docs/screenshots/controller-advanced-1440x900.png
+  their  100644 a8006dff0d4603991fdb33d0c09a2093e85bc1c8 docs/screenshots/controller-advanced-1440x900.png
+added in both
+  our    100644 05890f153065cb7f3815bf63c29c868d81d1e5b3 docs/screenshots/controller-advanced-320x240.png
+  their  100644 cd2af146059dadeedce94ece273487a88881003d docs/screenshots/controller-advanced-320x240.png
+added in both
+  our    100644 9c068481d450ac6717c1084516bae2d3aa65c0d0 docs/screenshots/controller-advanced-800x480.png
+  their  100644 bc29c7c85ba8a471a375e7b1110380ec41cff5f4 docs/screenshots/controller-advanced-800x480.png
+  their  100644 f132f24901bb34beca77e9e733da5f494743af0e docs/screenshots/controller-advanced-bottom-1440x900.png
+added in both
+  our    100644 fc8cf5c59e3513011fc80a60f7338a569b2bfa21 docs/screenshots/controller-advanced-bottom-320x240.png
+  their  100644 7719774192df7d1d0ea086605b01645d54819186 docs/screenshots/controller-advanced-bottom-320x240.png
+added in both
+  our    100644 74cf547b36bddf80461d787445b1c6cf05e6483b docs/screenshots/controller-advanced-bottom-800x480.png
+  their  100644 ebf0f13991b4bfbee01e39ef5afb681c234aca83 docs/screenshots/controller-advanced-bottom-800x480.png
+added in both
+  our    100644 ce21ffe6af234c91b3debaac5326b69992b2e3d6 docs/screenshots/controller-editor-1440x900.png
+  their  100644 520cbdb2400baabe6f8aabfd63135ca6063ea49c docs/screenshots/controller-editor-1440x900.png
+added in both
+  our    100644 e715c2a775bc63e00b79a00114aa94d93d9589d0 docs/screenshots/controller-editor-320x240.png
+  their  100644 69c544b2e8fd47eb82256eaa3a0d3c0070d04c8f docs/screenshots/controller-editor-320x240.png
+added in both
+  our    100644 802f047535a144ef1d3ed7417e4d2e1697a9dd04 docs/screenshots/controller-editor-800x480.png
+  their  100644 452351eddfe12b0ba566882e0e4e6d2989d25ed2 docs/screenshots/controller-editor-800x480.png
+added in both
+  our    100644 fc8cf5c59e3513011fc80a60f7338a569b2bfa21 docs/screenshots/controller-editor-bottom-320x240.png
+  their  100644 9a28606ff191346e44f5e9d452969239c20d2b00 docs/screenshots/controller-editor-bottom-320x240.png
+added in both
+  our    100644 00900a88ffc8c15ac3c826036f3052f0231a8c36 docs/screenshots/controller-editor-bottom-800x480.png
+  their  100644 036cbbe88e32f91ab2eb6eec7d524d5e31fc2ef5 docs/screenshots/controller-editor-bottom-800x480.png
+added in both
+  our    100644 cb3bb5a5938ab1a2bbb3103635e10208ef2b53e5 docs/screenshots/controllers-1440x900.png
+  their  100644 bf82b41f43bd908fc857d073a8562c5b918a3fb9 docs/screenshots/controllers-1440x900.png
+added in both
+  our    100644 7ab5b77d92c0254e67c79a88adfb99e489ecda02 docs/screenshots/controllers-320x240.png
+  their  100644 44e69d3891e6f5b10affbfbde1a3c86c6a5fb59b docs/screenshots/controllers-320x240.png
+added in both
+  our    100644 adf4e255b1c28c9a114d6855036e97759f2ced06 docs/screenshots/controllers-800x480.png
+  their  100644 ded0503cb56654c44fa2b8acc2f0f1a4e8f98da2 docs/screenshots/controllers-800x480.png
+added in both
+  our    100644 e6525b39f5af9eedf6f3c491c4e3d13bf891a203 docs/screenshots/diagnostics-1440x900.png
+  their  100644 8c5ec092a04420c6d4c208c2b054cae93c639963 docs/screenshots/diagnostics-1440x900.png
+added in both
+  our    100644 f61b1f8cdd78cf30d71aef9a8a351aceffb3755c docs/screenshots/diagnostics-320x240.png
+  their  100644 bf5c567f00feb73359a0a6cadfb3c4881132ec6e docs/screenshots/diagnostics-320x240.png
+added in both
+  our    100644 2dfff2a7d716a41a9264e1d974526ad364ea6a4f docs/screenshots/diagnostics-800x480.png
+  their  100644 3a05215bc1252902ea2251c9461c6366d6892806 docs/screenshots/diagnostics-800x480.png
+added in both
+  our    100644 dc13a3602ff185509819dddc10632a1e76352590 docs/screenshots/instrument-editor-1440x900.png
+  their  100644 358b14b9ed1735c3ea79eda2bd25f391376e4d95 docs/screenshots/instrument-editor-1440x900.png
+added in both
+  our    100644 85e2be58f0e3ea90a0cab2be12711574fdc3112e docs/screenshots/instrument-editor-320x240.png
+  their  100644 23e08ade8761126fac09d3ecc2aeebfd5e60b934 docs/screenshots/instrument-editor-320x240.png
+added in both
+  our    100644 c366c8436065ef2cb94d4af48c398eaec3d6446b docs/screenshots/instrument-editor-800x480.png
+  their  100644 c945a5c996d30d490ec8d233b17f419fd98cbfe4 docs/screenshots/instrument-editor-800x480.png
+added in both
+  our    100644 cf4686f05ce9fe3011cadfb86e97a2465ca9b558 docs/screenshots/instrument-editor-bottom-320x240.png
+  their  100644 91c1e73d032d16b96437cdf9b6299250c8b04eca docs/screenshots/instrument-editor-bottom-320x240.png
+  their  100644 2adc20c108fbdcdd3b9f2fc1887187b8c1d664c6 docs/screenshots/instrument-editor-bottom-800x480.png
+added in both
+  our    100644 d80a6b09aae96e53a95d3ec605404ac063637ba6 docs/screenshots/instruments-1440x900.png
+  their  100644 8f8e3d958984d99ff82617dce2c3becc82adbbec docs/screenshots/instruments-1440x900.png
+added in both
+  our    100644 840db1f29d2f15c714b316ed1294058aee71b4fe docs/screenshots/instruments-320x240.png
+  their  100644 98b350d4dc2449415b2311aa5b6cfc7b3862e0d0 docs/screenshots/instruments-320x240.png
+added in both
+  our    100644 4e0b44bc67cf39fcc5592a5afd97a27ac79a9386 docs/screenshots/instruments-800x480.png
+  their  100644 aa87e08c79b8da4d5a3ede4c460569067b11e914 docs/screenshots/instruments-800x480.png
+added in both
+  our    100644 d3b94fc26d81050ad23e606805f7a1ecf0bf87a3 docs/screenshots/manifest.json
+  their  100644 7a76a1605ef8b3756d29d7e6a5cbc246736a69d6 docs/screenshots/manifest.json
++<<<<<<< .our
++=======
++<<<<<<< .our
++=======
++<<<<<<< .our
++=======
++<<<<<<< .our
++=======
++<<<<<<< .our
++=======
++<<<<<<< .our
++=======
++<<<<<<< .our
++=======
++<<<<<<< .our
++=======
++<<<<<<< .our
++=======
++<<<<<<< .our
++=======
++<<<<<<< .our
++=======
++<<<<<<< .our
++=======
++<<<<<<< .our
++=======
++<<<<<<< .our
++=======
++<<<<<<< .our
++=======
++<<<<<<< .our
++=======
++<<<<<<< .our
++=======
++<<<<<<< .our
++=======
++<<<<<<< .our
++=======
++<<<<<<< .our
++=======
++<<<<<<< .our
++=======
++<<<<<<< .our
++=======
++<<<<<<< .our
++=======
++<<<<<<< .our
++=======
++<<<<<<< .our
++=======
++<<<<<<< .our
++=======
++<<<<<<< .our
++=======
++<<<<<<< .our
++=======
++<<<<<<< .our
++=======
++<<<<<<< .our
++=======
++<<<<<<< .our
++=======
++<<<<<<< .our
++=======
++<<<<<<< .our
++=======
++<<<<<<< .our
++=======
++<<<<<<< .our
++=======
++<<<<<<< .our
++=======
++<<<<<<< .our
++=======
++<<<<<<< .our
++=======
++<<<<<<< .our
++=======
+added in both
+  our    100644 52c0473befeafe831e9420a9df50c5534c2d4dbf docs/screenshots/patch-1440x900.png
+  their  100644 7128311918dd24273df218b95bb37d6e6fce9cb9 docs/screenshots/patch-1440x900.png
+added in both
+  our    100644 7bc3e92c60318dec961437f450258b390facf3f9 docs/screenshots/patch-320x240.png
+  their  100644 3126c97b417ce17e8b079379b66905475ebf0011 docs/screenshots/patch-320x240.png
+added in both
+  our    100644 c2802efd70220e948e2fd1285f4a9a68a5461f10 docs/screenshots/patch-800x480.png
+  their  100644 7dc097589852dd40d20c59ac8f8facfc03065147 docs/screenshots/patch-800x480.png
+added in both
+  our    100644 ea6bf4d2f220be77b59ebb08d3820b484b1c895b docs/screenshots/phrase-editor-1440x900.png
+  their  100644 440809026097cca17bbd34b22607980af90be4aa docs/screenshots/phrase-editor-1440x900.png
+added in both
+  our    100644 d5d95b656f498332d02f9555ae7b2bde167b64f0 docs/screenshots/phrase-editor-320x240.png
+  their  100644 764ba0e06e4d0f8b26ed095a7872fc0d96ed266d docs/screenshots/phrase-editor-320x240.png
+added in both
+  our    100644 08956547cdb5aeb2df3146f48d3d554d693c1c73 docs/screenshots/phrase-editor-800x480.png
+  their  100644 b3487a9b139a2959be3520353be680efa0e34ee7 docs/screenshots/phrase-editor-800x480.png
+  their  100644 7456f8054dbd04c1c223ab1bc3a5e0e626c10d31 docs/screenshots/phrase-editor-bottom-320x240.png
+added in both
+  our    100644 0f6460868da4e811107dc9aaa655971a03fcce23 docs/screenshots/phrases-1440x900.png
+  their  100644 b622b334750fbfc3d234e61513b447ee1ab687af docs/screenshots/phrases-1440x900.png
+added in both
+  our    100644 07aad7dd2eb1c0d1c417221ad735e22bbb8866ae docs/screenshots/phrases-320x240.png
+  their  100644 755c9188b424746fdcbe5227231a2e9613e71d28 docs/screenshots/phrases-320x240.png
+added in both
+  our    100644 97ea40ec96bf25150f1c86a921d0ae8605461171 docs/screenshots/phrases-800x480.png
+  their  100644 e83b6623b6f51de164b9d97f7b56998e24fd2edb docs/screenshots/phrases-800x480.png
+added in both
+  our    100644 e4dc40489a4ac7b2f46008a4e1bb92f42217afd4 docs/screenshots/smart-switch-editor-1440x900.png
+  their  100644 19f9e91ea03eaad914d638d6a3e9d0ed0e81fabc docs/screenshots/smart-switch-editor-1440x900.png
+added in both
+  our    100644 f862c07147836ebcbdf2790313de90b5048374be docs/screenshots/smart-switch-editor-320x240.png
+  their  100644 68614590cf1e23eb21f260fc5d57ee509e16615d docs/screenshots/smart-switch-editor-320x240.png
+added in both
+  our    100644 eaf7c23e466b28f41c919b563da89373df0e2509 docs/screenshots/smart-switch-editor-800x480.png
+  their  100644 e0de7f029097ebf5b3f1a3c349f50000bc14e1c4 docs/screenshots/smart-switch-editor-800x480.png
+added in both
+  our    100644 6f5ccc27c278ddc12e3bd1800f66e13ffc9ada74 docs/screenshots/smart-switch-editor-bottom-320x240.png
+  their  100644 c3dfe672484ec158eafa93312831cb744421eca8 docs/screenshots/smart-switch-editor-bottom-320x240.png
+added in both
+  our    100644 952fdaa9a3ff2ab950357fc9b05027d6ced09c5d docs/screenshots/smart-switches-1440x900.png
+  their  100644 71f0473792838ac70282d8a45e270250e2ca06b2 docs/screenshots/smart-switches-1440x900.png
+added in both
+  our    100644 b2dc9cc1ceb4383d111f548e8dd47de705140bb7 docs/screenshots/smart-switches-320x240.png
+  their  100644 1bab9a1599c557ab61d187111ba6927baa777075 docs/screenshots/smart-switches-320x240.png
+added in both
+  our    100644 2fd22df6096c5a7418d16c2b4d417718af7a3fb9 docs/screenshots/smart-switches-800x480.png
+  their  100644 025396480c8fce57841db3244980ff8e99430175 docs/screenshots/smart-switches-800x480.png
+added in both
+  our    100644 2f7aa8a5f23880544c9e62678852edac725d67d1 docs/screenshots/snapshot-ab-1440x900.png
+  their  100644 fee7c2bb7cbd8816a78a598de59863b968bb432b docs/screenshots/snapshot-ab-1440x900.png
+added in both
+  our    100644 ff8918d9d7adde2c8fdb6e8773cad25eeb01028a docs/screenshots/snapshot-ab-320x240.png
+  their  100644 6d735267ca66deee891ff54420c660848bcfbe85 docs/screenshots/snapshot-ab-320x240.png
+added in both
+  our    100644 46629b60ddce5e88b7bd8b0e17d4e6f6ec49e380 docs/screenshots/snapshot-ab-800x480.png
+  their  100644 f472364f9c05e31306488fefde900def6c09929e docs/screenshots/snapshot-ab-800x480.png
+added in both
+  our    100644 f9e420ee49c8358ce074916e8f66ace23f0a214c docs/screenshots/snapshot-ab-editor-1440x900.png
+  their  100644 26bb63bf3e2d068e50d403fea60af71851b3d78e docs/screenshots/snapshot-ab-editor-1440x900.png
+added in both
+  our    100644 c22656372b4b71ce78de9f41b5e23582990c0905 docs/screenshots/snapshot-ab-editor-320x240.png
+  their  100644 fe8844e0dc59f1b5212900d400426e2223083a65 docs/screenshots/snapshot-ab-editor-320x240.png
+added in both
+  our    100644 4b483b071e150004b4019fed1ead70c7ddedb7fe docs/screenshots/snapshot-ab-editor-800x480.png
+  their  100644 0212e59d06f55120d79c59139ce967da7e2fb741 docs/screenshots/snapshot-ab-editor-800x480.png
+added in both
+  our    100644 0110ed0f919e8d63e36c7aebd4410202201833fd docs/screenshots/snapshot-ab-editor-bottom-320x240.png
+  their  100644 ec7642f6f6a4037cd911f8bf0e8526000e9b647a docs/screenshots/snapshot-ab-editor-bottom-320x240.png
+added in both
+  our    100644 448a71a4860a762470e91bcf46b2a2ff9d8c0e63 docs/screenshots/snapshot-editor-1440x900.png
+  their  100644 fe74f223a43acf0baf8beff389b28ecbdec71064 docs/screenshots/snapshot-editor-1440x900.png
+added in both
+  our    100644 22ca17a8a52ff7112968fa59ba52d4265551d515 docs/screenshots/snapshot-editor-320x240.png
+  their  100644 8ead49c7c004fb35075f29073cb490f07b286289 docs/screenshots/snapshot-editor-320x240.png
+added in both
+  our    100644 315cb75f5b5a8ce5033f080246d204d61175dc76 docs/screenshots/snapshot-editor-800x480.png
+  their  100644 d7c0dc02e2e49ca08ef024f1f7fc5e28437fddc6 docs/screenshots/snapshot-editor-800x480.png
+added in both
+  our    100644 61df8c9ee1a1d5b3968d9900ea3b1216d908881a docs/screenshots/snapshot-editor-bottom-320x240.png
+  their  100644 e5111347a7487b0eebc1bca56206a97d5eaad2ea docs/screenshots/snapshot-editor-bottom-320x240.png
+added in both
+  our    100644 0c2ef02c66df6a20dbb30902e50eff12698d2525 docs/screenshots/snapshot-manager-1440x900.png
+  their  100644 4e7653f9183fb5a726e295127eec206b23c60f5a docs/screenshots/snapshot-manager-1440x900.png
+added in both
+  our    100644 c0b2fef08cc69a931b888c02a23ae357a7232c17 docs/screenshots/snapshot-manager-320x240.png
+  their  100644 6f8a562fcd2c79a0f9d4435864b7f489b92d1022 docs/screenshots/snapshot-manager-320x240.png
+added in both
+  our    100644 2b9449346898898a80fda0c438e5496dca97aed8 docs/screenshots/snapshot-manager-800x480.png
+  their  100644 42acb2aac81ec53aa3b14a6140f96955434bae95 docs/screenshots/snapshot-manager-800x480.png
+added in both
+  our    100644 5d00157fb5289d031068e8f07b82c687aff04bd9 docs/screenshots/snapshot-menu-1440x900.png
+  their  100644 9f14f1ac061d8030fa942f7cf2fb8ba62eb0fb71 docs/screenshots/snapshot-menu-1440x900.png
+added in both
+  our    100644 a65d5e1bacf42cc463715d3cd4cc8a2ac3c26e6f docs/screenshots/snapshot-menu-320x240.png
+  their  100644 070d45420efceada30b227f7a98df290f77dc22c docs/screenshots/snapshot-menu-320x240.png
+added in both
+  our    100644 850bb8a7ceda13f6489e45edbfaf45534df5c5ce docs/screenshots/snapshot-menu-800x480.png
+  their  100644 bfac63017a3be14bf69f413509a2115a8af0dea4 docs/screenshots/snapshot-menu-800x480.png
+added in both
+  our    100644 23b40147d56852812d43c6d1e8c6d821a6d29d9e docs/screenshots/snapshots-1440x900.png
+  their  100644 0d74d44152c2106a06e1bc317982f3d8d747e8cc docs/screenshots/snapshots-1440x900.png
+added in both
+  our    100644 5128bb4b88ea059787f51d7d031008f74687ddd1 docs/screenshots/snapshots-320x240.png
+  their  100644 91b4b72685f370ba554eb889b99b16dafc848323 docs/screenshots/snapshots-320x240.png
+added in both
+  our    100644 b6e86591da97dafb203f3a722c6cf41a598b1fc7 docs/screenshots/snapshots-800x480.png
+  their  100644 6bc8ada0228359ba03e2e5e241cdfe5290157709 docs/screenshots/snapshots-800x480.png
+added in both
+  our    100644 b189051cd9358c6ab5fe07a81a19d082fd2a7827 docs/screenshots/transformer-chain-1440x900.png
+  their  100644 bec603b43eb17207919510834661ec25eba3b68a docs/screenshots/transformer-chain-1440x900.png
+added in both
+  our    100644 66786994139dacae74295f258ad00206e67f6913 docs/screenshots/transformer-chain-320x240.png
+  their  100644 2fc55433af2c79af7d2692188763d7df0ae25129 docs/screenshots/transformer-chain-320x240.png
+added in both
+  our    100644 46a9257c7a7720411e5ef14da79311a53959998a docs/screenshots/transformer-chain-800x480.png
+  their  100644 ecc02a47fce13262a3c416dd41ac3a437434c075 docs/screenshots/transformer-chain-800x480.png
+added in both
+  our    100644 a22319b333c76218ae8169a0ba868f85eb4f97e3 docs/screenshots/transformer-editor-1440x900.png
+  their  100644 b1c0bedbe926d40f01cc718fdb0aba821dd348c0 docs/screenshots/transformer-editor-1440x900.png
+added in both
+  our    100644 bffd899a1784972302aacc89ce2ed137f96eb989 docs/screenshots/transformer-editor-320x240.png
+  their  100644 e3fdc701000cb943b69a64a0c79d5d00abe69dd3 docs/screenshots/transformer-editor-320x240.png
+added in both
+  our    100644 6d47908540438dcad4b8688cd2a92d7127ca15ce docs/screenshots/transformer-editor-800x480.png
+  their  100644 162af712d81d59f1205d7d0496fb5a41e6198ad1 docs/screenshots/transformer-editor-800x480.png
+  their  100644 482eb2d2fa92d6668d451fee52d29b19c1faee1c docs/screenshots/transformer-editor-bottom-320x240.png
+added in both
+  our    100644 319db49015978d71db2946c05169259641eada6a docs/web-screenshot-workflow.md
+  their  100644 8d641eb3a4906945e65c5ba61c78c3d6be8ea5fb docs/web-screenshot-workflow.md
++<<<<<<< .our
++=======
+changed in both
+  base   100644 e710589def31e3e153259487d0931c7976d2a2bf headless/web/style.css
+  our    100644 cdf5e8ded601a137da15368b0f08a00dc813d231 headless/web/style.css
+  their  100644 b81eac0f0211070305c165e1f947c81f0b7c5b75 headless/web/style.css
++<<<<<<< .our
++=======
+added in both
+  our    100644 285e3f9816b846b44d87bbbc05413d57dff54532 scripts/screenshots.py
+  their  100644 2a4c1806343305316537384f1e075c5edfc0638c scripts/screenshots.py
++<<<<<<< .our
++=======
++<<<<<<< .our
++=======
++<<<<<<< .our
++=======
++<<<<<<< .our
++=======
++<<<<<<< .our
++=======
++<<<<<<< .our
++=======
++<<<<<<< .our
++=======
++<<<<<<< .our
++=======
++<<<<<<< .our
++=======
++<<<<<<< .our
++=======

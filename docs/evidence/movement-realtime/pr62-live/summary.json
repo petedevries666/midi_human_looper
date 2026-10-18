@@ -1,0 +1,31 @@
+{
+  "binarySha256": "8601ad7f02582a921fa45003d5f57fd3e5aff01d0fd30a035377add86ddb644b",
+  "completeArchive": "summary-full.json.gz",
+  "uncompressedSha256": "605f9671c739f6c0d05ec8065b9ef472d14a26b4f3f7f471d658a7882cb76b15",
+  "results": [
+    {
+      "profile": "LIVE_NORMAL",
+      "frames": 512,
+      "errors": [],
+      "file": "512-LIVE_NORMAL/summary.json"
+    },
+    {
+      "profile": "STRESS",
+      "frames": 512,
+      "errors": [],
+      "file": "512-STRESS/summary.json"
+    },
+    {
+      "profile": "LIVE_NORMAL",
+      "frames": 256,
+      "errors": [],
+      "file": "256-LIVE_NORMAL/summary.json"
+    },
+    {
+      "profile": "STRESS",
+      "frames": 256,
+      "errors": [],
+      "file": "256-STRESS/summary.json"
+    }
+  ]
+}

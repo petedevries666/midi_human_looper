@@ -1,0 +1,237 @@
++ scripts/headless-test.sh
+PASS bounded FIFO
+...............
+----------------------------------------------------------------------
+Ran 15 tests in 7.739s
+
+OK
+.......
+----------------------------------------------------------------------
+Ran 7 tests in 1.316s
+
+OK
+..............................
+----------------------------------------------------------------------
+Ran 30 tests in 12.213s
+
+OK
+.....
+----------------------------------------------------------------------
+Ran 5 tests in 0.003s
+
+OK
+.......
+----------------------------------------------------------------------
+Ran 7 tests in 0.001s
+
+OK
++ /workspace/setup-tools/venv/bin/python tests/test_zynthian_update.py
+...........PASS bounded FIFO
+....
+----------------------------------------------------------------------
+Ran 15 tests in 3.279s
+
+OK
++ /workspace/setup-tools/venv/bin/python tests/test_update_controls.py
+........
+----------------------------------------------------------------------
+Ran 8 tests in 2.615s
+
+OK
++ /workspace/setup-tools/venv/bin/python tests/test_update_native.py
+....
+----------------------------------------------------------------------
+Ran 4 tests in 0.001s
+
+OK
++ /workspace/setup-tools/venv/bin/python tests/test_zynthian_channel_source.py
+....
+----------------------------------------------------------------------
+Ran 4 tests in 0.000s
+
+OK
++ /workspace/setup-tools/venv/bin/python tests/test_patch_extension_preservation.py
+....................
+----------------------------------------------------------------------
+Ran 20 tests in 9.466s
+
+OK
++ /workspace/setup-tools/venv/bin/python tests/test_native_free_capture.py
+test_hardware_stop_state_and_record_finalization (__main__.FreeCapture.test_hardware_stop_state_and_record_finalization) ... ok
+test_free_capture (__main__.FreeCapture.test_free_capture) ... ok
+test_overdub_cancel_and_independent_loop (__main__.FreeCapture.test_overdub_cancel_and_independent_loop) ... ok
+test_inactive_clear_and_targeted_loop_stop (__main__.FreeCapture.test_inactive_clear_and_targeted_loop_stop) ... ok
+test_controller_removal_sequence_and_clear_patch (__main__.FreeCapture.test_controller_removal_sequence_and_clear_patch) ... ok
+test_switch_stop_capture_finalization (__main__.FreeCapture.test_switch_stop_capture_finalization) ... ok
+
+----------------------------------------------------------------------
+Ran 6 tests in 12.472s
+
+OK
++ /workspace/setup-tools/venv/bin/python tests/test_observation.py
+....
+----------------------------------------------------------------------
+Ran 4 tests in 0.019s
+
+OK
++ /workspace/setup-tools/venv/bin/python tests/test_reliability_report.py
+......
+----------------------------------------------------------------------
+Ran 6 tests in 0.000s
+
+OK
++ /workspace/setup-tools/venv/bin/python tests/test_controller_integration.py
+.........
+----------------------------------------------------------------------
+Ran 9 tests in 4.322s
+
+OK
++ /workspace/setup-tools/venv/bin/python tests/test_snapshots.py
+..............
+----------------------------------------------------------------------
+Ran 14 tests in 17.872s
+
+OK
++ /workspace/setup-tools/venv/bin/python tests/test_product_integration.py
+.
+----------------------------------------------------------------------
+Ran 1 test in 1.700s
+
+OK
++ /workspace/setup-tools/venv/bin/python tests/test_web_names.py
+...
+----------------------------------------------------------------------
+Ran 3 tests in 1.618s
+
+OK
++ /workspace/setup-tools/venv/bin/python tests/test_phrase_midi.py
+......
+----------------------------------------------------------------------
+Ran 6 tests in 0.066s
+
+OK
++ /workspace/setup-tools/venv/bin/python tests/test_portable_project.py
+......
+----------------------------------------------------------------------
+Ran 6 tests in 1.892s
+
+OK
++ /workspace/setup-tools/venv/bin/python tests/test_conductor_legacy_contract.py
+.....
+----------------------------------------------------------------------
+Ran 5 tests in 0.877s
+
+OK
++ /workspace/setup-tools/venv/bin/python tests/test_conductor_persistence.py
+.......................
+----------------------------------------------------------------------
+Ran 23 tests in 21.311s
+
+OK
++ /workspace/setup-tools/venv/bin/python tests/test_movement_persistence.py
+.....
+----------------------------------------------------------------------
+Ran 5 tests in 5.493s
+
+OK
++ scripts/movement-test.sh
+MOVEMENT_CPU rate=10 block=8192 sr=48000 samples=8388608 callbacks=1024 mean_us=0.416595 max_us=0.855 emitted=223
+MOVEMENT_CPU rate=25 block=8192 sr=48000 samples=8388608 callbacks=1024 mean_us=0.485511 max_us=59.551 emitted=223
+MOVEMENT_CPU rate=50 block=8192 sr=48000 samples=8388608 callbacks=1024 mean_us=1.81555 max_us=818.927 emitted=223
+MOVEMENT_CPU rate=100 block=8192 sr=48000 samples=8388608 callbacks=1024 mean_us=0.801841 max_us=73.994 emitted=223
+PASS 1204 production MOVEMENT runtime/Controller checks
++ scripts/movement-test.sh
+MOVEMENT_CPU rate=10 block=8192 sr=48000 samples=8388608 callbacks=1024 mean_us=1.93846 max_us=250.506 emitted=223
+MOVEMENT_CPU rate=25 block=8192 sr=48000 samples=8388608 callbacks=1024 mean_us=3.0041 max_us=356.366 emitted=223
+MOVEMENT_CPU rate=50 block=8192 sr=48000 samples=8388608 callbacks=1024 mean_us=4.20546 max_us=405.19 emitted=223
+MOVEMENT_CPU rate=100 block=8192 sr=48000 samples=8388608 callbacks=1024 mean_us=3.98986 max_us=107.344 emitted=223
+PASS 1204 production MOVEMENT runtime/Controller checks
++ scripts/realtime-trace-test.sh
+PASS zero callback allocations; ordered bounded ring; 10000 records; mean instrumented scope ns=4228
++ /workspace/setup-tools/venv/bin/python tests/test_conductor_execution_native.py
+test_steps_coexist_wrap_capacity_and_persistence (__main__.Execution.test_steps_coexist_wrap_capacity_and_persistence) ... ok
+test_layers_missing_and_unsupported_no_fallback (__main__.Execution.test_layers_missing_and_unsupported_no_fallback) ... ok
+test_local_hold_release_overrides_and_source_isolation (__main__.Execution.test_local_hold_release_overrides_and_source_isolation) ... ok
+
+----------------------------------------------------------------------
+Ran 3 tests in 3.956s
+
+OK
++ /workspace/setup-tools/venv/bin/python tests/test_conductor_gestures_native.py
+test_short_press_long_hold_and_load_stopped (__main__.Gestures.test_short_press_long_hold_and_load_stopped) ... ok
+test_test_hold_same_step_and_movement_one_shot (__main__.Gestures.test_test_hold_same_step_and_movement_one_shot) ... ok
+test_stop_panic_and_patch_replacement_cancel_pending (__main__.Gestures.test_stop_panic_and_patch_replacement_cancel_pending) ... ok
+
+----------------------------------------------------------------------
+Ran 3 tests in 6.111s
+
+OK
++ scripts/reveal-test.sh
+PASS production REVEAL Controller-token ownership, default/observed volume, GATE, replacement, physical takeover and MOVEMENT stale-retirement regression
+test_reveal_latch_and_early_release (__main__.Reveal.test_reveal_latch_and_early_release) ... ok
+test_gate_remask_keeps_timeline_and_load_stopped (__main__.Reveal.test_gate_remask_keeps_timeline_and_load_stopped) ... ok
+test_natural_end_and_original_all_channel_ownership (__main__.Reveal.test_natural_end_and_original_all_channel_ownership) ... ok
+test_source_cc7_refusal_and_missing_reference (__main__.Reveal.test_source_cc7_refusal_and_missing_reference) ... ok
+
+----------------------------------------------------------------------
+Ran 4 tests in 10.452s
+
+OK
++ /workspace/setup-tools/venv/bin/python tests/test_phrase_mute_groups.py
+test_source_groups_roundtrip_and_warning (__main__.Groups.test_source_groups_roundtrip_and_warning) ... ok
+test_invalid_group_rollback_and_direct_sources (__main__.Groups.test_invalid_group_rollback_and_direct_sources) ... ok
+test_version_three_preserves_movement_execution (__main__.Groups.test_version_three_preserves_movement_execution) ... ok
+test_patch_banks_portable_and_fresh_engine (__main__.Groups.test_patch_banks_portable_and_fresh_engine) ... ok
+
+----------------------------------------------------------------------
+Ran 4 tests in 5.646s
+
+OK
++ /workspace/setup-tools/venv/bin/python tests/test_portable_engine.py
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.956s
+
+OK
++ /workspace/setup-tools/venv/bin/python tests/test_project_sync.py
+.
+----------------------------------------------------------------------
+Ran 1 test in 8.280s
+
+OK
++ /workspace/setup-tools/venv/bin/python tests/test_project_authority.py
+.
+----------------------------------------------------------------------
+Ran 1 test in 3.256s
+
+OK
++ /workspace/setup-tools/venv/bin/python tests/test_reaper_bridge.py
+....
+----------------------------------------------------------------------
+Ran 4 tests in 0.004s
+
+OK
++ /workspace/setup-tools/venv/bin/python tests/test_phrase_midi_integration.py
+..
+----------------------------------------------------------------------
+Ran 2 tests in 2.803s
+
+OK
++ scripts/controller-test.sh
+PASS: 162709 synthetic-time Controller Engine checks
+PASS: 579 Controller host adapter checks
++ scripts/controller-test.sh
+PASS: 162709 synthetic-time Controller Engine checks
+PASS: 579 Controller host adapter checks
++ scripts/conductor-baseline.sh
+XFAIL ONCE_CROSS_SOURCE_CHOKE {"activeVoices":1,"midi":[[128,48,0],[144,72,83]]}
+PASS VOICE_EXHAUSTION_GLOBAL_RELEASE before=12 after=12 MIDI=[]
+PASS CHOKE_RELEASES_LIVE_OWNER liveOwners=1 MIDI=[[144,72,83]]
+BASELINE: 84 checks; 1 known contract failures; legacy cross-source compatibility remains XFAIL; two ownership contracts promoted with real MIDI
++ /workspace/setup-tools/venv/bin/python tests/test_conductor_native_baseline.py
+Traceback (most recent call last):
+  File "/workspace/mbmf-conductor-a/tests/test_conductor_native_baseline.py", line 35, in <module>
+    if playing!=[2]:raise RuntimeError(f'Baseline changed: expected exact choke symptom, got {playing}')
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+RuntimeError: Baseline changed: expected exact choke symptom, got [1, 2]
+FAILED: exit 1: /workspace/setup-tools/venv/bin/python

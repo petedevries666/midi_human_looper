@@ -1,0 +1,265 @@
++ scripts/headless-test.sh
+PASS bounded FIFO
+...............
+----------------------------------------------------------------------
+Ran 15 tests in 5.832s
+
+OK
+.......
+----------------------------------------------------------------------
+Ran 7 tests in 0.487s
+
+OK
+.........
+----------------------------------------------------------------------
+Ran 9 tests in 1.312s
+
+OK
+....
+----------------------------------------------------------------------
+Ran 4 tests in 0.001s
+
+OK
+Cannot lock down 107341340 byte memory area (Cannot allocate memory)
+PASS actual JACK CONDUCTOR: hardware-like PRESS input, four STEPS/wrap, independent layers, missing reference silence, selective STOP, PANIC, silent LOAD and timestamp ordering {"notes": [[434176, 16, 144, 60, 100], [466944, 16, 144, 62, 100], [499712, 16, 144, 64, 100], [532480, 16, 144, 65, 100], [565248, 16, 144, 60, 100], [802816, 16, 144, 60, 100], [802816, 16, 144, 62, 100], [835584, 0, 128, 60, 0], [892928, 0, 128, 62, 0]], "cleanupMessages": 624, "attacks": [60, 62, 64, 65, 60, 60, 62]}
+Cannot lock down 107341340 byte memory area (Cannot allocate memory)
+PASS actual JACK CONDUCTOR: hardware-like PRESS input, four STEPS/wrap, independent layers, missing reference silence, selective STOP, PANIC, silent LOAD and timestamp ordering {"notes": [[663552, 0, 144, 60, 100], [696320, 0, 144, 62, 100], [729088, 0, 144, 64, 100], [761856, 0, 144, 65, 100], [794624, 0, 144, 60, 100], [1204224, 16, 144, 60, 100], [1204224, 16, 144, 62, 100], [1253376, 0, 128, 60, 0], [1327104, 0, 128, 62, 0]], "cleanupMessages": 768, "attacks": [60, 62, 64, 65, 60, 60, 62]}
+Cannot lock down 107341340 byte memory area (Cannot allocate memory)
+PASS actual JACK ownership: targeted STOP preserves live note, legacy choke, final releases and stable ordering [[0, 229376, 0, 144, 60, 100], [0, 245760, 0, 144, 60, 91], [0, 278528, 0, 144, 62, 91], [0, 344064, 0, 128, 60, 0], [0, 368640, 0, 128, 62, 0], [0, 393216, 0, 144, 60, 91], [0, 417792, 0, 128, 60, 0], [0, 417792, 0, 144, 62, 91], [0, 450560, 0, 128, 62, 0]]
+Cannot lock down 107341340 byte memory area (Cannot allocate memory)
+PASS actual JACK shared-buffer overload: bounded partial emission, queued attacks cancelled, stacked-note cleanup, source preserved {"ons": 64, "emergency": 64, "instanceError": 6, "outputOverflow": 1}
+Cannot lock down 107341340 byte memory area (Cannot allocate memory)
+PASS three native-chain Chromium editors: independent sources and chain telemetry
+PASS native Zynthian adapter: three isolated chains, sequential recording during playback, shared phase, Note Offs, per-chain STOP/SAVE/LOAD and snapshot recreation
+Cannot lock down 107341340 byte memory area (Cannot allocate memory)
+PASS one actual MBMF instance: 3-channel source capture/playback, native-style fanout, identical ordered output streams, explicit receiver channel isolation, LOOP/ONCE/retrigger/HOLD/release/short-tap, actual ARP chord generation/disable, STOP/transport/restart/removal cleanup
+Cannot lock down 107341340 byte memory area (Cannot allocate memory)
+PANIC diagnostic {'blocks': 124, 'midiCount': 8259, 'activeNotes': 0, 'outputOverflow': 0, 'lateBlocks': 3, 'maxCallbackUs': 6035, 'lastEvent': [62976, 191, 64, 0]}
+JACK notes on=4 off=2304 emergency=0
+Cannot lock down 107341340 byte memory area (Cannot allocate memory)
+PASS actual JACK graph: two Instruments, phrase switch, Note On/Off and PANIC
+Flood diagnostic {'midiCount': 73190, 'outputOverflow': 13443, 'pendingOutput': 1104, 'lateBlocks': 5}
+JACK notes on=3168 off=29561 emergency=288
+Cannot lock down 107341340 byte memory area (Cannot allocate memory)
+JACK notes on=5 off=2 emergency=0
+ORDER frame=11 offset=16 note=91 status=144
+ORDER frame=11 offset=120 note=94 status=144
+ORDER frame=11 offset=120 note=94 status=128
+ORDER frame=11 offset=220 note=92 status=144
+ORDER frame=11 offset=400 note=90 status=144
+PASS actual JACK FIFO overflow: emergency channel releases, bounded recovery and final PANIC
+PASS actual JACK timestamp ordering: nonmonotonic generation sorted in one block; equal-time Note On/Off stable
++ /workspace/setup-tools/venv/bin/python tests/test_zynthian_update.py
+.......PASS bounded FIFO
+....
+----------------------------------------------------------------------
+Ran 11 tests in 2.396s
+
+OK
++ /workspace/setup-tools/venv/bin/python tests/test_native_free_capture.py
+test_hardware_stop_state_and_record_finalization (__main__.FreeCapture.test_hardware_stop_state_and_record_finalization) ... ok
+test_free_capture (__main__.FreeCapture.test_free_capture) ... ok
+test_overdub_cancel_and_independent_loop (__main__.FreeCapture.test_overdub_cancel_and_independent_loop) ... ok
+test_inactive_clear_and_targeted_loop_stop (__main__.FreeCapture.test_inactive_clear_and_targeted_loop_stop) ... ok
+test_controller_removal_sequence_and_clear_patch (__main__.FreeCapture.test_controller_removal_sequence_and_clear_patch) ... ok
+test_switch_stop_capture_finalization (__main__.FreeCapture.test_switch_stop_capture_finalization) ... ok
+
+----------------------------------------------------------------------
+Ran 6 tests in 11.117s
+
+OK
++ /workspace/setup-tools/venv/bin/python tests/test_observation.py
+..
+----------------------------------------------------------------------
+Ran 2 tests in 0.020s
+
+OK
++ /workspace/setup-tools/venv/bin/python tests/test_reliability_report.py
+......
+----------------------------------------------------------------------
+Ran 6 tests in 0.000s
+
+OK
++ /workspace/setup-tools/venv/bin/python tests/test_controller_integration.py
+.........
+----------------------------------------------------------------------
+Ran 9 tests in 3.785s
+
+OK
++ /workspace/setup-tools/venv/bin/python tests/test_snapshots.py
+..............
+----------------------------------------------------------------------
+Ran 14 tests in 15.054s
+
+OK
++ /workspace/setup-tools/venv/bin/python tests/test_product_integration.py
+.
+----------------------------------------------------------------------
+Ran 1 test in 1.157s
+
+OK
++ /workspace/setup-tools/venv/bin/python tests/test_web_names.py
+...
+----------------------------------------------------------------------
+Ran 3 tests in 0.929s
+
+OK
++ /workspace/setup-tools/venv/bin/python tests/test_phrase_midi.py
+......
+----------------------------------------------------------------------
+Ran 6 tests in 0.033s
+
+OK
++ /workspace/setup-tools/venv/bin/python tests/test_portable_project.py
+......
+----------------------------------------------------------------------
+Ran 6 tests in 1.203s
+
+OK
++ /workspace/setup-tools/venv/bin/python tests/test_conductor_legacy_contract.py
+.....
+----------------------------------------------------------------------
+Ran 5 tests in 0.610s
+
+OK
++ /workspace/setup-tools/venv/bin/python tests/test_conductor_persistence.py
+.......................
+----------------------------------------------------------------------
+Ran 23 tests in 11.859s
+
+OK
++ /workspace/setup-tools/venv/bin/python tests/test_conductor_execution_native.py
+test_steps_coexist_wrap_capacity_and_persistence (__main__.Execution.test_steps_coexist_wrap_capacity_and_persistence) ... ok
+test_layers_missing_and_unsupported_no_fallback (__main__.Execution.test_layers_missing_and_unsupported_no_fallback) ... ok
+test_local_hold_release_overrides_and_source_isolation (__main__.Execution.test_local_hold_release_overrides_and_source_isolation) ... ok
+
+----------------------------------------------------------------------
+Ran 3 tests in 3.047s
+
+OK
++ /workspace/setup-tools/venv/bin/python tests/test_portable_engine.py
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.756s
+
+OK
++ /workspace/setup-tools/venv/bin/python tests/test_project_sync.py
+.
+----------------------------------------------------------------------
+Ran 1 test in 5.722s
+
+OK
++ /workspace/setup-tools/venv/bin/python tests/test_project_authority.py
+.
+----------------------------------------------------------------------
+Ran 1 test in 2.323s
+
+OK
++ /workspace/setup-tools/venv/bin/python tests/test_reaper_bridge.py
+....
+----------------------------------------------------------------------
+Ran 4 tests in 0.003s
+
+OK
++ /workspace/setup-tools/venv/bin/python tests/test_phrase_midi_integration.py
+..
+----------------------------------------------------------------------
+Ran 2 tests in 2.308s
+
+OK
++ scripts/controller-test.sh
+PASS: 162709 synthetic-time Controller Engine checks
+PASS: 558 Controller host adapter checks
++ scripts/controller-test.sh
+PASS: 162709 synthetic-time Controller Engine checks
+PASS: 558 Controller host adapter checks
++ scripts/conductor-baseline.sh
+XFAIL ONCE_CROSS_SOURCE_CHOKE {"activeVoices":1,"midi":[[128,48,0],[144,72,83]]}
+PASS VOICE_EXHAUSTION_GLOBAL_RELEASE before=12 after=12 MIDI=[]
+PASS CHOKE_RELEASES_LIVE_OWNER liveOwners=1 MIDI=[[144,72,83]]
+BASELINE: 84 checks; 1 known contract failures; legacy cross-source compatibility remains XFAIL; two ownership contracts promoted with real MIDI
++ /workspace/setup-tools/venv/bin/python tests/test_conductor_native_baseline.py
+XFAIL NATIVE_ONCE_CROSS_SOURCE_CHOKE: authoritative PLAYING phrases = [2]
+PASS native adapter fixture import, first/second admission, PANIC and source SAVE/LOAD
++ /workspace/setup-tools/venv/bin/python tests/test_instance_ownership_native.py
+PASS actual native instance IDs/generations, independent admission, targeted/stale STOP, bounded refusal, PANIC, source persistence
++ tests/run_host_tests.sh
+CONDUCTOR EEL PRESS trace [[144,48,100],[144,52,100],[144,56,100],[144,60,100],[144,48,100]]
+CONDUCTOR COST {"layers":1,"blocks":100,"frames":128,"medianUs":27.115,"p95Us":36.082,"maxUs":58.503}
+CONDUCTOR COST {"layers":2,"blocks":100,"frames":128,"medianUs":34.866,"p95Us":104.369,"maxUs":419.019}
+CONDUCTOR COST {"layers":12,"blocks":100,"frames":128,"medianUs":48.423,"p95Us":84.893,"maxUs":285.282}
+PASS actual CONDUCTOR shared EEL checks: 125
+OUTPUT CAPACITY attempted=5120 accepted=4369 owned=4369 error=6 panic=1
+PASS instance ownership actual EEL checks: 6824
+concurrent fixed-state frames: 1 distinct hashes
+concurrent fixed-state frames: 1 distinct hashes
+concurrent fixed-state frames: 1 distinct hashes
+PASS: 18508 EEL2/GUI/MIDI checks
+PASS 18 actual capture fixtures: tick-zero multichannel chords, staggered durations and rests
+PASS 36 shared/native free captures: actual exported ticks, same-block chords and durations
++ scripts/portable-test.sh
+In file included from tests/portable_parity.cpp:4:
+tests/expression_host.cpp: In function ‘int expression_regression_main(int, char**)’:
+tests/expression_host.cpp:747:1: warning: control reaches end of non-void function [-Wreturn-type]
+  747 | }
+      | ^
+PASS portable shared-EEL2 MIDI parity at 44100/48000 Hz (41 checks)
+......
+----------------------------------------------------------------------
+Ran 6 tests in 1.183s
+
+OK
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.600s
+
+OK
++ scripts/conductor-persistence-test.sh
+headless/engine.cpp:181:35: warning: ignoring attributes on template argument ‘EEL_F*’ {aka ‘double*’} [-Wignored-attributes]
+  181 |   std::array<std::array<EEL_F*,128>,16> switchFields;
+      |                                   ^
+headless/engine.cpp:182:33: warning: ignoring attributes on template argument ‘EEL_F*’ {aka ‘double*’} [-Wignored-attributes]
+  182 |   std::array<std::array<EEL_F*,8>,16> conductorFields;
+      |                                 ^
+headless/engine.cpp:184:23: warning: ignoring attributes on template argument ‘EEL_F*’ {aka ‘double*’} [-Wignored-attributes]
+  184 |   std::array<EEL_F*,12> voiceActive,voiceLayer;
+      |                       ^
+headless/engine.cpp:185:23: warning: ignoring attributes on template argument ‘EEL_F*’ {aka ‘double*’} [-Wignored-attributes]
+  185 |   std::array<EEL_F*,16> phraseTriggers,phraseFinished;
+      |                       ^
+PASS bounded FIFO
+Built /workspace/mbmf-conductor-a/.build/midi-headless-engine-conductor-asan on x86_64 (64 bits)
+.......................
+----------------------------------------------------------------------
+Ran 23 tests in 16.824s
+
+OK
+test_steps_coexist_wrap_capacity_and_persistence (__main__.Execution.test_steps_coexist_wrap_capacity_and_persistence) ... ok
+test_layers_missing_and_unsupported_no_fallback (__main__.Execution.test_layers_missing_and_unsupported_no_fallback) ... ok
+test_local_hold_release_overrides_and_source_isolation (__main__.Execution.test_local_hold_release_overrides_and_source_isolation) ... ok
+
+----------------------------------------------------------------------
+Ran 3 tests in 3.812s
+
+OK
+Native sanitizer gate: functional exit=0, diagnostic files=0
++ /workspace/setup-tools/venv/bin/python tests/test_patch_io.py
+......
+----------------------------------------------------------------------
+Ran 6 tests in 0.014s
+
+OK
++ /workspace/setup-tools/venv/bin/python tests/test_headless_browser.py
+PASS: chromium rendering, TEST, simulated switch, PANIC, responsive layout, reconnect and browser unplug
++ /workspace/setup-tools/venv/bin/python tests/test_headless_editor.py
+PASS generic browser editor: descriptor rendering, draft DONE/CANCEL/ESC/outside, atomic commit, Transformer output, stale conflict and responsive layout
++ /workspace/setup-tools/venv/bin/python tests/test_conductor_execution_browser.py
+PASS actual Chromium TEST: unassigned/disabled hardware source, four STEPS and concurrent native instances; browser disconnect leaves playback autonomous
++ /workspace/setup-tools/venv/bin/python tests/test_conductor_editor_browser.py
+PASS browser CONDUCTOR: automatic four STEPS, UUID references, layers/move/delete/UNDO, overrides, source isolation, SAVE/LOAD, reconnect, native TEST/wrap, stale-session refusal and missing source preservation
++ /workspace/setup-tools/venv/bin/python tests/conductor_diagnostics/pending_edit.py
+Traceback (most recent call last):
+  File "/workspace/mbmf-conductor-a/tests/conductor_diagnostics/pending_edit.py", line 9, in <module>
+    from test_native_free_capture import FreeCapture
+ModuleNotFoundError: No module named 'test_native_free_capture'
+FAILED: exit 1: /workspace/setup-tools/venv/bin/python

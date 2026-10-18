@@ -1,0 +1,3 @@
+PASS manual source browser/MIDI path
+PASS targeted keyboard recording with independent LOOP
+PASS issue #53 chromium: blank draft, targeted keyboard FINISH, unbound TAP MIDI, source test ownership/Learn isolation, mapped MIDI output, persistence/removal

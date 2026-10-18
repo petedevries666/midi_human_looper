@@ -1,0 +1,3 @@
+EDITOR CLICK OBSERVATION {"oldButtonDetached": true, "velocityEditorOpened": false, "nativeTranspose": 12}
+IDLE EDITOR POSITIVE CONTROL: VELOCITY opened
+FAIL contract: module EDIT click lost when actual parameter telemetry replaces its pointer-down target

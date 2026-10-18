@@ -1,0 +1,40 @@
+{
+  "backend": "actual private dummy JACK",
+  "rate": 48000,
+  "frames": 8192,
+  "delta": {
+    "midiReceived": 3,
+    "midiInputAccepted": 3,
+    "midiGenerated": 3,
+    "midiQueued": 3,
+    "midiWritten": 3,
+    "midiDropped": 0,
+    "midiWriteFailures": 0,
+    "midiRecoveries": 0,
+    "outputOverflow": 0,
+    "midiCount": 3
+  },
+  "events": [
+    [
+      172032,
+      16,
+      177,
+      1,
+      83
+    ],
+    [
+      172032,
+      32,
+      145,
+      60,
+      90
+    ],
+    [
+      172032,
+      64,
+      129,
+      60,
+      0
+    ]
+  ]
+}

@@ -1,0 +1,1 @@
+PASS browser CONDUCTOR: automatic four STEPS, UUID references, layers/move/delete/UNDO, overrides, source isolation, SAVE/LOAD, reconnect, native TEST/wrap, stale-session refusal and missing source preservation

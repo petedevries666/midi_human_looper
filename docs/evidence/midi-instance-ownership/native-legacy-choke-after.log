@@ -1,0 +1,2 @@
+Cannot lock down 107341340 byte memory area (Cannot allocate memory)
+PASS actual JACK ownership: targeted STOP preserves live note, legacy choke, final releases and stable ordering [[0, 229376, 0, 144, 60, 100], [0, 245760, 0, 144, 60, 91], [0, 278528, 0, 144, 62, 91], [0, 344064, 0, 128, 60, 0], [0, 368640, 0, 128, 62, 0], [0, 393216, 0, 144, 60, 91], [0, 417792, 0, 128, 60, 0], [0, 417792, 0, 144, 62, 91], [0, 450560, 0, 128, 62, 0]]

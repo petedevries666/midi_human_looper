@@ -1,0 +1,559 @@
+{
+  "version": 1,
+  "sourceSheets": [
+    {
+      "id": "mosaic",
+      "file": "Mosaïque punk d’animaux et synthés.png"
+    },
+    {
+      "id": "collage",
+      "file": "Collage punk rock en 16 cases.png"
+    }
+  ],
+  "tiles": [
+    {
+      "id": "paw-keyboard",
+      "file": "paw-keyboard.webp",
+      "sourceSheet": "mosaic",
+      "row": 1,
+      "column": 1,
+      "crop": [
+        15,
+        9,
+        400,
+        221
+      ],
+      "width": 385,
+      "height": 212,
+      "bytes": 30860,
+      "sha256": "ec07f1ecb550b0b649e393c7a833584d189834e257b31ef3d18c7b689bbb26c3"
+    },
+    {
+      "id": "punk-guitar",
+      "file": "punk-guitar.webp",
+      "sourceSheet": "mosaic",
+      "row": 1,
+      "column": 2,
+      "crop": [
+        432,
+        9,
+        824,
+        221
+      ],
+      "width": 392,
+      "height": 212,
+      "bytes": 32880,
+      "sha256": "a4ad500735ae688c83f96bd5ffb61bd4ae08d8bf8fe39120921a7778321be2f8"
+    },
+    {
+      "id": "raccoon-microphone",
+      "file": "raccoon-microphone.webp",
+      "sourceSheet": "mosaic",
+      "row": 1,
+      "column": 3,
+      "crop": [
+        851,
+        9,
+        1243,
+        221
+      ],
+      "width": 392,
+      "height": 212,
+      "bytes": 27968,
+      "sha256": "89884247d96dc1cdc2f716bf8352c9892dc46343b4ae8c512343dff4f9c4a85c"
+    },
+    {
+      "id": "cassette",
+      "file": "cassette.webp",
+      "sourceSheet": "mosaic",
+      "row": 1,
+      "column": 4,
+      "crop": [
+        1269,
+        9,
+        1657,
+        221
+      ],
+      "width": 388,
+      "height": 212,
+      "bytes": 32814,
+      "sha256": "2f21e3e26c5c3a27ff2a2f3117da994103b006eafd1b6fdfc8f647f2c1740d0c"
+    },
+    {
+      "id": "punk-skull",
+      "file": "punk-skull.webp",
+      "sourceSheet": "mosaic",
+      "row": 2,
+      "column": 1,
+      "crop": [
+        15,
+        242,
+        400,
+        455
+      ],
+      "width": 385,
+      "height": 213,
+      "bytes": 26366,
+      "sha256": "fb7a5091fd30fb187a0dfa4df6d778986c1a12d2a5feab0541447610d5a85844"
+    },
+    {
+      "id": "dog-drums",
+      "file": "dog-drums.webp",
+      "sourceSheet": "mosaic",
+      "row": 2,
+      "column": 2,
+      "crop": [
+        432,
+        242,
+        824,
+        455
+      ],
+      "width": 392,
+      "height": 213,
+      "bytes": 30988,
+      "sha256": "e7563d95343810389dd3ecb8ed39e41a3bb813e770e2e3d4755888c63b52b430"
+    },
+    {
+      "id": "sloth-headphones",
+      "file": "sloth-headphones.webp",
+      "sourceSheet": "mosaic",
+      "row": 2,
+      "column": 3,
+      "crop": [
+        851,
+        242,
+        1243,
+        455
+      ],
+      "width": 392,
+      "height": 213,
+      "bytes": 27266,
+      "sha256": "0423ecb492be2a9bc92fb6a2606009481dd073fcac8f8f9ff9bfaa90edda91e0"
+    },
+    {
+      "id": "punk-megaphone",
+      "file": "punk-megaphone.webp",
+      "sourceSheet": "mosaic",
+      "row": 2,
+      "column": 4,
+      "crop": [
+        1269,
+        243,
+        1657,
+        455
+      ],
+      "width": 388,
+      "height": 212,
+      "bytes": 24272,
+      "sha256": "d8f695565b8748bf7b237cfcc8e387b80373701a47ce23dda0ebb656a47fbd05"
+    },
+    {
+      "id": "raccoon-disco",
+      "file": "raccoon-disco.webp",
+      "sourceSheet": "mosaic",
+      "row": 3,
+      "column": 1,
+      "crop": [
+        15,
+        476,
+        400,
+        687
+      ],
+      "width": 385,
+      "height": 211,
+      "bytes": 30642,
+      "sha256": "f5823a4fc684cb24a4c6127fc78c8ce2b3cc3956e298ef2465ea8dfb91543897"
+    },
+    {
+      "id": "spiral-glasses",
+      "file": "spiral-glasses.webp",
+      "sourceSheet": "mosaic",
+      "row": 3,
+      "column": 2,
+      "crop": [
+        432,
+        476,
+        824,
+        688
+      ],
+      "width": 392,
+      "height": 212,
+      "bytes": 30280,
+      "sha256": "6e4036b48d9b5b893f0838b3ca51b0e9449b4a203c070dcbbd11384756cd1418"
+    },
+    {
+      "id": "paw-modular",
+      "file": "paw-modular.webp",
+      "sourceSheet": "mosaic",
+      "row": 3,
+      "column": 3,
+      "crop": [
+        851,
+        476,
+        1243,
+        688
+      ],
+      "width": 392,
+      "height": 212,
+      "bytes": 33660,
+      "sha256": "3521511361627ec43421d8da82fca1cd3fb07f78f97b5f12e6fbf320741ecd3b"
+    },
+    {
+      "id": "dog-cables",
+      "file": "dog-cables.webp",
+      "sourceSheet": "mosaic",
+      "row": 3,
+      "column": 4,
+      "crop": [
+        1269,
+        476,
+        1657,
+        688
+      ],
+      "width": 388,
+      "height": 212,
+      "bytes": 28456,
+      "sha256": "010a3863394e18b06cf6f340f5601cf8ccddbadea368d9185fbc3a6928aa5123"
+    },
+    {
+      "id": "punk-flute",
+      "file": "punk-flute.webp",
+      "sourceSheet": "mosaic",
+      "row": 4,
+      "column": 1,
+      "crop": [
+        15,
+        708,
+        400,
+        921
+      ],
+      "width": 385,
+      "height": 213,
+      "bytes": 29490,
+      "sha256": "d0dfddee37672e560866fd07755d3426e2dbe7a611121c4b2c354a0959190a60"
+    },
+    {
+      "id": "sloth-knobs",
+      "file": "sloth-knobs.webp",
+      "sourceSheet": "mosaic",
+      "row": 4,
+      "column": 2,
+      "crop": [
+        432,
+        709,
+        823,
+        921
+      ],
+      "width": 391,
+      "height": 212,
+      "bytes": 34138,
+      "sha256": "fc19073b2456406cc7872a419e02a332b28a079a7ea5996bb2a562d4cd9f7109"
+    },
+    {
+      "id": "dog-keyboard",
+      "file": "dog-keyboard.webp",
+      "sourceSheet": "mosaic",
+      "row": 4,
+      "column": 3,
+      "crop": [
+        851,
+        709,
+        1243,
+        921
+      ],
+      "width": 392,
+      "height": 212,
+      "bytes": 29818,
+      "sha256": "612db1b98711606b75224915f01d3f4f77ad3befc3238c0f22743124a331f39b"
+    },
+    {
+      "id": "animal-trio",
+      "file": "animal-trio.webp",
+      "sourceSheet": "mosaic",
+      "row": 4,
+      "column": 4,
+      "crop": [
+        1269,
+        709,
+        1657,
+        920
+      ],
+      "width": 388,
+      "height": 211,
+      "bytes": 30280,
+      "sha256": "b4c6bad7103d75a9cf8a2e0c5cfc2ea6f07c825ff408a6a8c1ee389497958a95"
+    },
+    {
+      "id": "punk-electricity",
+      "file": "punk-electricity.webp",
+      "sourceSheet": "collage",
+      "row": 1,
+      "column": 1,
+      "crop": [
+        12,
+        8,
+        408,
+        223
+      ],
+      "width": 396,
+      "height": 215,
+      "bytes": 33460,
+      "sha256": "50b6c829eacc42af20acc80e31b653641e8ae9be2c5eb0ab79d4959b57d8267c"
+    },
+    {
+      "id": "sloth-whiskey",
+      "file": "sloth-whiskey.webp",
+      "sourceSheet": "collage",
+      "row": 1,
+      "column": 2,
+      "crop": [
+        429,
+        8,
+        826,
+        223
+      ],
+      "width": 397,
+      "height": 215,
+      "bytes": 38828,
+      "sha256": "c5f611530c21f52f0e6c02d74174f8e9c431dd8710dd667c29741df80cd81716"
+    },
+    {
+      "id": "dog-picks",
+      "file": "dog-picks.webp",
+      "sourceSheet": "collage",
+      "row": 1,
+      "column": 3,
+      "crop": [
+        844,
+        8,
+        1244,
+        224
+      ],
+      "width": 400,
+      "height": 216,
+      "bytes": 33050,
+      "sha256": "7710a2929435b9f0bdf8535c89bcbcd46673820ca9439e1047f654078d37a34f"
+    },
+    {
+      "id": "punk-bass",
+      "file": "punk-bass.webp",
+      "sourceSheet": "collage",
+      "row": 1,
+      "column": 4,
+      "crop": [
+        1265,
+        7,
+        1662,
+        223
+      ],
+      "width": 397,
+      "height": 216,
+      "bytes": 36180,
+      "sha256": "dd5a009eb402374fbece2485d1f7645be08ee7ad03c7a230352554314d50f89c"
+    },
+    {
+      "id": "dog-tape",
+      "file": "dog-tape.webp",
+      "sourceSheet": "collage",
+      "row": 2,
+      "column": 1,
+      "crop": [
+        12,
+        242,
+        408,
+        455
+      ],
+      "width": 396,
+      "height": 213,
+      "bytes": 33742,
+      "sha256": "6cd05dee7dab882e904992c8ea3155ba6b1bd37af3519ebd2919d401488353f2"
+    },
+    {
+      "id": "sloth-listening",
+      "file": "sloth-listening.webp",
+      "sourceSheet": "collage",
+      "row": 2,
+      "column": 2,
+      "crop": [
+        429,
+        242,
+        825,
+        455
+      ],
+      "width": 396,
+      "height": 213,
+      "bytes": 38246,
+      "sha256": "36765a126651bd0be75978c400400528685b993e6ae2ab23383a81a3f6ceb73c"
+    },
+    {
+      "id": "punk-television",
+      "file": "punk-television.webp",
+      "sourceSheet": "collage",
+      "row": 2,
+      "column": 3,
+      "crop": [
+        844,
+        242,
+        1244,
+        455
+      ],
+      "width": 400,
+      "height": 213,
+      "bytes": 37270,
+      "sha256": "a8323398f0b1d2078097df23995c3f1c1d897285bcef7613a39b4c1a2063c94d"
+    },
+    {
+      "id": "dog-vocals",
+      "file": "dog-vocals.webp",
+      "sourceSheet": "collage",
+      "row": 2,
+      "column": 4,
+      "crop": [
+        1265,
+        242,
+        1661,
+        455
+      ],
+      "width": 396,
+      "height": 213,
+      "bytes": 32102,
+      "sha256": "3a73d06a3727e87ff5c45c6191a1344b7c49e1729a9c20b5b6e8f05da31d0bfd"
+    },
+    {
+      "id": "punk-patchbay",
+      "file": "punk-patchbay.webp",
+      "sourceSheet": "collage",
+      "row": 3,
+      "column": 1,
+      "crop": [
+        12,
+        474,
+        408,
+        704
+      ],
+      "width": 396,
+      "height": 230,
+      "bytes": 37020,
+      "sha256": "0adb4863bd8e9a93731dbdb906b92620c64d0e2d89ef670644c44ec1487fa3cb"
+    },
+    {
+      "id": "dog-pizza",
+      "file": "dog-pizza.webp",
+      "sourceSheet": "collage",
+      "row": 3,
+      "column": 2,
+      "crop": [
+        429,
+        473,
+        825,
+        704
+      ],
+      "width": 396,
+      "height": 231,
+      "bytes": 38578,
+      "sha256": "bed993d91599f625733a57f5c0350b86a56b4a23086732c39b77812876ac0825"
+    },
+    {
+      "id": "sloth-no-tempo",
+      "file": "sloth-no-tempo.webp",
+      "sourceSheet": "collage",
+      "row": 3,
+      "column": 3,
+      "crop": [
+        844,
+        473,
+        1244,
+        704
+      ],
+      "width": 400,
+      "height": 231,
+      "bytes": 37776,
+      "sha256": "cdb6e14e80114f35d8539da9a21b2fc73873b099724da246a119c3186f6afac4"
+    },
+    {
+      "id": "punk-coffee",
+      "file": "punk-coffee.webp",
+      "sourceSheet": "collage",
+      "row": 3,
+      "column": 4,
+      "crop": [
+        1265,
+        473,
+        1661,
+        704
+      ],
+      "width": 396,
+      "height": 231,
+      "bytes": 33970,
+      "sha256": "c1959a2268f56b2671b35bde4f83f6a0ebfa43b545380df78dfc8e6aee3125f8"
+    },
+    {
+      "id": "dog-target",
+      "file": "dog-target.webp",
+      "sourceSheet": "collage",
+      "row": 4,
+      "column": 1,
+      "crop": [
+        12,
+        708,
+        408,
+        923
+      ],
+      "width": 396,
+      "height": 215,
+      "bytes": 33214,
+      "sha256": "607aa6bd19e43c54a722158d3985c86e8a7a57b53fd87d49787e8a8f0d3bc360"
+    },
+    {
+      "id": "punk-turntable",
+      "file": "punk-turntable.webp",
+      "sourceSheet": "collage",
+      "row": 4,
+      "column": 2,
+      "crop": [
+        429,
+        708,
+        825,
+        923
+      ],
+      "width": 396,
+      "height": 215,
+      "bytes": 33248,
+      "sha256": "f5f2f8d53bf1cabdb2c0858bbb1cac86e6082c06d34fb67dce12b98188b40927"
+    },
+    {
+      "id": "sloth-disco",
+      "file": "sloth-disco.webp",
+      "sourceSheet": "collage",
+      "row": 4,
+      "column": 3,
+      "crop": [
+        847,
+        708,
+        1243,
+        923
+      ],
+      "width": 396,
+      "height": 215,
+      "bytes": 35426,
+      "sha256": "62364cc4433686a6121815fc4d8cd0c86ce169c01a6660b657a2e3c0313db963"
+    },
+    {
+      "id": "dog-mixer",
+      "file": "dog-mixer.webp",
+      "sourceSheet": "collage",
+      "row": 4,
+      "column": 4,
+      "crop": [
+        1265,
+        708,
+        1662,
+        923
+      ],
+      "width": 397,
+      "height": 215,
+      "bytes": 35618,
+      "sha256": "fdfe564a8cda9b4dcfb04daf3ac260ad73fa81342bdbe1275fb81f4734168fc4"
+    }
+  ]
+}

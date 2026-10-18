@@ -1,0 +1,6 @@
+Cannot lock down 107341340 byte memory area (Cannot allocate memory)
+M0 before LOOP {"id": 4, "events": 2, "name": "", "state": "STOPPED", "outputChannel": 0, "mode": 0, "timeDecay": 1, "velocityDecay": 1, "baseVelocity": 1, "triggerNote": -1, "triggerChannel": 0, "mute": 0, "solo": 0}
+M0 first LOOP {"id": 4, "events": 2, "name": "", "state": "PLAYING", "outputChannel": 0, "mode": 0, "timeDecay": 1, "velocityDecay": 1, "baseVelocity": 1, "triggerNote": -1, "triggerChannel": 0, "mute": 0, "solo": 0}
+M0 second LOOP {"id": 4, "events": 2, "name": "", "state": "STOPPED", "outputChannel": 0, "mode": 0, "timeDecay": 1, "velocityDecay": 1, "baseVelocity": 1, "triggerNote": -1, "triggerChannel": 0, "mute": 0, "solo": 0}
+M0 JACK actual note trace: [[144, 60, 100], [128, 60, 0], [144, 62, 100], [144, 64, 100], [128, 64, 0], [144, 64, 100], [144, 65, 100], [128, 65, 0]]
+M1 source group ON PASS actual JACK: ONCE overlap, latched HOLD/retrigger, LOOP toggle, PANIC; 48k/8192 Cloud dummy backend

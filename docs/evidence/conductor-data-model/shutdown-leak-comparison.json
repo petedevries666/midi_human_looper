@@ -1,0 +1,16 @@
+[
+  {
+    "label": "B",
+    "build": "25c78f791421650ce73b446eb07bbc00d6d26784",
+    "exit": -6,
+    "diagnostics": "\n=================================================================\n==569977==ERROR: LeakSanitizer: detected memory leaks\n\nDirect leak of 196464 byte(s) in 3 object(s) allocated from:\n    #0 0x7fae91351c57 in malloc ../../../../src/libsanitizer/asan/asan_malloc_linux.cpp:69\n    #1 0x559c53402aa2 in __newBlock_align.constprop.0 (/workspace/mbmf-conductor-a/.build/midi-headless-engine-baseline-asan+0x42caa2) (BuildId: aad7a1bc6d33c8dcd411588726dc22b18cc6b009)\n\nSUMMARY: AddressSanitizer: 196464 byte(s) leaked in 3 allocation(s).\n",
+    "stderr": ""
+  },
+  {
+    "label": "C_before_cleanup",
+    "build": "949b6b2c4d8c23ac18418f7b20fdd267a5aaa100",
+    "exit": -6,
+    "diagnostics": "\n=================================================================\n==569980==ERROR: LeakSanitizer: detected memory leaks\n\nDirect leak of 196464 byte(s) in 3 object(s) allocated from:\n    #0 0x7f9bfcc5fc57 in malloc ../../../../src/libsanitizer/asan/asan_malloc_linux.cpp:69\n    #1 0x5613148312a2 in __newBlock_align.constprop.0 (/workspace/mbmf-conductor-a/.build/midi-headless-engine-conductor-asan+0x4e22a2) (BuildId: 810a07af10208ed19b79b506cf1a45dd2601a001)\n\nSUMMARY: AddressSanitizer: 196464 byte(s) leaked in 3 allocation(s).\n",
+    "stderr": ""
+  }
+]

@@ -1,0 +1,315 @@
+{
+  "versions": {
+    "base": "25fcb1e458ffdce7286ff4c60cd4546d586e19a4",
+    "A": "706f90ca7f22d0ee5d8dcdcac361861143ef5519"
+  },
+  "spec": "73cdee5604992ca3bd68e4c6c3b97c545333b127",
+  "machine": "x86_64",
+  "python": "3.12.14 (main, Aug 25 2026, 14:00:49) [Clang 22.1.3 ]",
+  "binarySha256": "ebaa1f5e7f3228dab6da668ac4ee5dda4768100d4e7c62d23bbde57c458b7f14",
+  "probeSha256": "925afae950b6c3fb54dc3a1ac4d5297b38db43b1386fa7791904f2ca8d9bb445",
+  "productionHashes": {
+    "headless/chain_mode.hpp": "d3a40c31a290db486dd8606dad4d490531612a9dfbe98f308a744e75479e4a36",
+    "headless/controller_config.py": "40b631f34a0311fe445710bf28239c09857113acecfdb9bb128cbe93be812c2d",
+    "headless/controller_engine.hpp": "86a88c8c79121ba5bc53848169ed15c9d3ed9fd060f31e54b2c00b4a4e97b1c2",
+    "headless/controller_host.hpp": "189e7243a499966f6b412a3c4470ac72d51098ddd16708f2d7e3610fefdbd538",
+    "headless/controller_wire.hpp": "679a5e67e89194ccc72621c3ca74283c18ab34fdc00bcb3916de78446bbe1b28",
+    "headless/engine.cpp": "7c69351b9566e9bb8c88278bec2bd9cb4d6ba577c6fb6a50f1cd026eb2b50921",
+    "headless/parameter_registry.hpp": "de9fa932bd663efb1c7231f3514884b2f14c83a099bb1ca982da9f92cbb55016",
+    "headless/phrase_midi.py": "09d05602070c08f1b444b9df11b1332692bff41b19f6e45d1fac2a864e205a04",
+    "headless/portable_project.py": "f2ef457969beb07898bf0a2d0083da65f8a38cfafcde9cf096cf4adb7d1ecae3",
+    "headless/project_sync.py": "c7d4bd5b6e5f2d06ae080a8a421aa107cb6308110f353ca9ec94a1faed5823db",
+    "headless/reaper_bridge.py": "7acf309829e291253e17d7bd94921295b52efa561c8c73c1fc192650a7951846",
+    "headless/registry.py": "60d01bdead2173c92488233d205f1a572dc60b2f2f016f1a02eabc85c1ae41d7",
+    "headless/reliability_report.py": "9bfd5454e8bb5c417af6cdab45e3343220be2ed53c5abc0383801e82f6810c98",
+    "headless/server.py": "4d6733aa2cac700b286fbb2a6b0d83f7f76286ff7218fa33d0afc7ea13ee9b95",
+    "headless/snapshot_wire.hpp": "03c1b561b3b22639a598430fccf5b6cf1332b1abb827b66ce1790ea7778cdb4c",
+    "headless/snapshots.hpp": "bb5977ca59fa2acfef7df834e0e78df8a2cb4730739cbdf053f92c5663f9a0a0",
+    "headless/web/app.js": "02d6c5ab368b80f4841e1a6a1c79784d23a9136161a44c6428e544060651bd35",
+    "headless/web/fonts/OFL.txt": "d5787a50dde5be6c6daecab9ed459939b1bc37cff0d0e00257eaf1ec2cf4c16c",
+    "headless/web/fonts/README.md": "dfb05773ebd4fe98e8d9c330eaf34d5e5aca91c3d99d99324542288c0bab1754",
+    "headless/web/fonts/mbmf-block.woff2": "e036b8b7112053435094f3cfd1a95ddb6bc7dd91bddfdc7cfc9e36bd27b4d86a",
+    "headless/web/index.html": "525ce2b77033399fc57fa53f1efd1beeb350ef4f3af8c68ffc335a4937ac794e",
+    "headless/web/style.css": "76564212ca4080c48a3b8428f8842a0c11a2dc3005a9a63ee7eee1a6f786adaf",
+    "midi_human_looper.jsfx": "e38e784a410b031598f1762da5c45edbb8107df8eb4d5939996b3f2a5c337fb3",
+    "modules/catalog.json": "5202582d88dea0538f9806f39bebb957f91f1dd4caf20c3ef1f4da598ecbc515",
+    "zynthian/install.py": "e07da3445d5ef22ebb7cad56ca6e2b1d8b3a5654d9c4a983ab40a1a3cde2e842",
+    "zynthian/zynthian_engine_mbh.py": "414e89b544a53f141bed8e7490be9bd713d4bea3c38b353155fc0b07d19563bf",
+    "zynthian/zynthian_engine_mbh_catalog.py": "f30f9cfff88cc4406397d0ec8cadf765f18dd340b3561cf009520fa827d2c3d5"
+  },
+  "protocol": "serialized alternating base/A then A/base; fixed number of trials; assertions unchanged",
+  "environment": {
+    "JACKD": "/workspace/scratch/midi-deps/root/usr/bin/jackd",
+    "JACK_DRIVER_DIR": "/workspace/scratch/midi-deps/root/usr/lib/x86_64-linux-gnu/jack",
+    "CHAIN_JACK_BLOCK": "8192",
+    "CHAIN_TIMING_VERSION": "2",
+    "RUN_CHAIN_BROWSER": "1",
+    "CHROMIUM_PATH": "/usr/bin/chromium"
+  },
+  "runs": [
+    {
+      "test": "pending",
+      "order": 1,
+      "version": "base",
+      "startedUTC": "2026-10-13T13:12:08.587267+00:00",
+      "scriptSha256": "6f1f0f9dc3b8314be41a1bb5fa0189e236331997e459f474febaa2748bd7d323",
+      "log": "pending-1-base.log",
+      "loadBefore": [
+        0.0390625,
+        0.22705078125,
+        0.2236328125
+      ],
+      "returnCode": 1,
+      "seconds": 3.279,
+      "loadAfter": [
+        0.1162109375,
+        0.240234375,
+        0.22802734375
+      ],
+      "logSha256": "35d32371f462c9833cc8ffc7bee2016105d19c50a8fce1b978dcca99fc0ad901",
+      "outcome": "REPRODUCED_UNMET_CONTRACT"
+    },
+    {
+      "test": "pending",
+      "order": 2,
+      "version": "A",
+      "startedUTC": "2026-10-13T13:12:11.866508+00:00",
+      "scriptSha256": "6f1f0f9dc3b8314be41a1bb5fa0189e236331997e459f474febaa2748bd7d323",
+      "log": "pending-2-A.log",
+      "loadBefore": [
+        0.1162109375,
+        0.240234375,
+        0.22802734375
+      ],
+      "returnCode": 1,
+      "seconds": 4.057,
+      "loadAfter": [
+        0.82763671875,
+        0.3857421875,
+        0.275390625
+      ],
+      "logSha256": "43f5d7653bef626a9a837ef46f59816cad7bbfe584b1a66f422f814ca79a850f",
+      "outcome": "REPRODUCED_UNMET_CONTRACT"
+    },
+    {
+      "test": "pending",
+      "order": 3,
+      "version": "A",
+      "startedUTC": "2026-10-13T13:12:15.924276+00:00",
+      "scriptSha256": "6f1f0f9dc3b8314be41a1bb5fa0189e236331997e459f474febaa2748bd7d323",
+      "log": "pending-3-A.log",
+      "loadBefore": [
+        0.82763671875,
+        0.3857421875,
+        0.275390625
+      ],
+      "returnCode": 1,
+      "seconds": 3.339,
+      "loadAfter": [
+        0.82763671875,
+        0.3857421875,
+        0.275390625
+      ],
+      "logSha256": "b63110192ec32f033be43649531e71349e3dfeac505996f03a21249e3c5c8d77",
+      "outcome": "REPRODUCED_UNMET_CONTRACT"
+    },
+    {
+      "test": "pending",
+      "order": 4,
+      "version": "base",
+      "startedUTC": "2026-10-13T13:12:19.263393+00:00",
+      "scriptSha256": "6f1f0f9dc3b8314be41a1bb5fa0189e236331997e459f474febaa2748bd7d323",
+      "log": "pending-4-base.log",
+      "loadBefore": [
+        0.82763671875,
+        0.3857421875,
+        0.275390625
+      ],
+      "returnCode": 1,
+      "seconds": 3.783,
+      "loadAfter": [
+        0.921875,
+        0.41259765625,
+        0.28466796875
+      ],
+      "logSha256": "ac2408ac1c92648db1ba047d7ed9608497c483059cf39f868ab38c30080743a2",
+      "outcome": "REPRODUCED_UNMET_CONTRACT"
+    },
+    {
+      "test": "editor",
+      "order": 1,
+      "version": "base",
+      "startedUTC": "2026-10-13T13:12:23.047024+00:00",
+      "scriptSha256": "dab7a337fcac14d528bd426fa04e20eb5ebc70a28ea212b268f8763d0520c209",
+      "log": "editor-1-base.log",
+      "loadBefore": [
+        0.921875,
+        0.41259765625,
+        0.28466796875
+      ],
+      "returnCode": 1,
+      "seconds": 2.741,
+      "loadAfter": [
+        1.32861328125,
+        0.50537109375,
+        0.3154296875
+      ],
+      "logSha256": "6717ad24719a1418d8999b1bafc9522b9697ecb217203a427eee279db8c00045",
+      "outcome": "REPRODUCED_UNMET_CONTRACT"
+    },
+    {
+      "test": "editor",
+      "order": 2,
+      "version": "A",
+      "startedUTC": "2026-10-13T13:12:25.788706+00:00",
+      "scriptSha256": "dab7a337fcac14d528bd426fa04e20eb5ebc70a28ea212b268f8763d0520c209",
+      "log": "editor-2-A.log",
+      "loadBefore": [
+        1.32861328125,
+        0.50537109375,
+        0.3154296875
+      ],
+      "returnCode": 1,
+      "seconds": 2.45,
+      "loadAfter": [
+        1.32861328125,
+        0.50537109375,
+        0.3154296875
+      ],
+      "logSha256": "6717ad24719a1418d8999b1bafc9522b9697ecb217203a427eee279db8c00045",
+      "outcome": "REPRODUCED_UNMET_CONTRACT"
+    },
+    {
+      "test": "editor",
+      "order": 3,
+      "version": "A",
+      "startedUTC": "2026-10-13T13:12:28.239395+00:00",
+      "scriptSha256": "dab7a337fcac14d528bd426fa04e20eb5ebc70a28ea212b268f8763d0520c209",
+      "log": "editor-3-A.log",
+      "loadBefore": [
+        1.32861328125,
+        0.50537109375,
+        0.3154296875
+      ],
+      "returnCode": 1,
+      "seconds": 2.937,
+      "loadAfter": [
+        1.30224609375,
+        0.513671875,
+        0.3193359375
+      ],
+      "logSha256": "6717ad24719a1418d8999b1bafc9522b9697ecb217203a427eee279db8c00045",
+      "outcome": "REPRODUCED_UNMET_CONTRACT"
+    },
+    {
+      "test": "editor",
+      "order": 4,
+      "version": "base",
+      "startedUTC": "2026-10-13T13:12:31.177030+00:00",
+      "scriptSha256": "dab7a337fcac14d528bd426fa04e20eb5ebc70a28ea212b268f8763d0520c209",
+      "log": "editor-4-base.log",
+      "loadBefore": [
+        1.30224609375,
+        0.513671875,
+        0.3193359375
+      ],
+      "returnCode": 1,
+      "seconds": 2.684,
+      "loadAfter": [
+        1.30224609375,
+        0.513671875,
+        0.3193359375
+      ],
+      "logSha256": "6717ad24719a1418d8999b1bafc9522b9697ecb217203a427eee279db8c00045",
+      "outcome": "REPRODUCED_UNMET_CONTRACT"
+    },
+    {
+      "test": "interruption",
+      "order": 1,
+      "version": "base",
+      "startedUTC": "2026-10-13T13:12:33.861492+00:00",
+      "scriptSha256": "3c2c3a6e4baec4c007e9c600337a72de51b9c32b8a31da3d39aa1c0da33c0cc4",
+      "log": "interruption-1-base.log",
+      "loadBefore": [
+        1.30224609375,
+        0.513671875,
+        0.3193359375
+      ],
+      "returnCode": 0,
+      "seconds": 12.457,
+      "loadAfter": [
+        1.01318359375,
+        0.48779296875,
+        0.3134765625
+      ],
+      "logSha256": "3aabd045c7b975407a16a0c07bd8001cda78062dae0e4c4ea45830d018771adb",
+      "outcome": "PASS"
+    },
+    {
+      "test": "interruption",
+      "order": 2,
+      "version": "A",
+      "startedUTC": "2026-10-13T13:12:46.319156+00:00",
+      "scriptSha256": "3c2c3a6e4baec4c007e9c600337a72de51b9c32b8a31da3d39aa1c0da33c0cc4",
+      "log": "interruption-2-A.log",
+      "loadBefore": [
+        1.01318359375,
+        0.48779296875,
+        0.3134765625
+      ],
+      "returnCode": 0,
+      "seconds": 12.856,
+      "loadAfter": [
+        0.9306640625,
+        0.48828125,
+        0.3154296875
+      ],
+      "logSha256": "a1a77185588766549e5061b318a2ab61a4f23f15083b39420dfaa48c1a4a67da",
+      "outcome": "PASS"
+    },
+    {
+      "test": "interruption",
+      "order": 3,
+      "version": "A",
+      "startedUTC": "2026-10-13T13:12:59.175199+00:00",
+      "scriptSha256": "3c2c3a6e4baec4c007e9c600337a72de51b9c32b8a31da3d39aa1c0da33c0cc4",
+      "log": "interruption-3-A.log",
+      "loadBefore": [
+        0.9306640625,
+        0.48828125,
+        0.3154296875
+      ],
+      "returnCode": 0,
+      "seconds": 12.294,
+      "loadAfter": [
+        0.7236328125,
+        0.46337890625,
+        0.3095703125
+      ],
+      "logSha256": "b3f05c5382a62a26e9ea0a687a9c13868ef8ef235695c0a46e59f947fc0471d8",
+      "outcome": "PASS"
+    },
+    {
+      "test": "interruption",
+      "order": 4,
+      "version": "base",
+      "startedUTC": "2026-10-13T13:13:11.469404+00:00",
+      "scriptSha256": "3c2c3a6e4baec4c007e9c600337a72de51b9c32b8a31da3d39aa1c0da33c0cc4",
+      "log": "interruption-4-base.log",
+      "loadBefore": [
+        0.7236328125,
+        0.46337890625,
+        0.3095703125
+      ],
+      "returnCode": 0,
+      "seconds": 12.296,
+      "loadAfter": [
+        0.759765625,
+        0.48095703125,
+        0.31689453125
+      ],
+      "logSha256": "2f5b71ca1bf6c41c77980cf025412c822acbc17f029ca23401d4cdf94e72a66f",
+      "outcome": "PASS"
+    }
+  ]
+}

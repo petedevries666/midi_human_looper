@@ -1,0 +1,8 @@
+Traceback (most recent call last):
+  File "/workspace/mbmf-conductor-a/tests/movement_realtime_matrix.py", line 32, in <module>
+    patch=command(op=4,arg=1);model=conductor.migrate(patch);src=model['sources'][0]['id']
+          ^^^^^^^^^^^^^^^^^^^
+  File "/workspace/mbmf-conductor-a/tests/movement_realtime_matrix.py", line 27, in command
+    state=c.request();r=c.request(revision=state['revision'],session=state['engineSessionId'],**args);assert r.get('status')=='ok',r;return r
+                                                                                                             ^^^^^^^^^^^^^^^^^^^^^
+AssertionError: op=4 patch capture has no status field; harness assertion bug (no musical phase executed)

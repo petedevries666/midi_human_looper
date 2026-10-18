@@ -1,0 +1,1 @@
+PASS zero callback allocations; ordered bounded ring; 10000 records; mean instrumented scope ns=4745

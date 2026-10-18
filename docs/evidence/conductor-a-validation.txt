@@ -1,0 +1,155 @@
+PR A execution evidence (Cloud x86_64; no physical hardware)
+Base engine: 25fcb1e458ffdce7286ff4c60cd4546d586e19a4
+Contract: PR55 d63431a7dda54ce69317ad29e0ddded89ee42404
+Runtime JSFX, native engine, catalog, HTTP API and browser code unchanged.
+Focused new EEL: 85 checks, 3 XFAIL; --strict observed exit 1.
+Focused native HTTP: admission/PANIC/source persistence verified; XFAIL; --strict observed exit 1.
+Compatibility: 5 tests pass (includes actual SMF parsed with mido).
+Combined command: scripts/combined-test.py --native --jack --browser chromium --timeout 240
+Environment: pinned ysfx; HEADLESS_BINARY=.build/midi-headless-engine; CHAIN_JACK_BLOCK=8192.
+
+Attempt 1: full native/JACK/Chromium, FAILED
+PASS bounded FIFO
+PASS three native-chain Chromium editors: independent sources and chain telemetry
+PASS native Zynthian adapter: three isolated chains, sequential recording during playback, shared phase, Note Offs, per-chain STOP/SAVE/LOAD and snapshot recreation
+PASS one actual MBMF instance: 3-channel source capture/playback, native-style fanout, identical ordered output streams, explicit receiver channel isolation, LOOP/ONCE/retrigger/HOLD/release/short-tap, actual ARP chord generation/disable, STOP/transport/restart/removal cleanup
+PASS actual JACK graph: two Instruments, phrase switch, Note On/Off and PANIC
+PASS actual JACK FIFO overflow: emergency channel releases, bounded recovery and final PANIC
+PASS actual JACK timestamp ordering: nonmonotonic generation sorted in one block; equal-time Note On/Off stable
+PASS: 162709 synthetic-time Controller Engine checks
+PASS: 558 Controller host adapter checks
+PASS: 162709 synthetic-time Controller Engine checks
+PASS: 558 Controller host adapter checks
+XFAIL ONCE_CROSS_SOURCE_CHOKE {"activeVoices":1,"midi":[[128,48,0],[144,72,83]]}
+XFAIL VOICE_EXHAUSTION_GLOBAL_RELEASE {"before":12,"after":1,"midi":[[128,48,0],[144,48,91]]}
+XFAIL CHOKE_RELEASES_LIVE_OWNER {"liveOwners":1,"midi":[[128,48,0],[144,72,83]]}
+BASELINE: 85 checks; 3 known contract failures; no engine correction in PR A
+XFAIL NATIVE_ONCE_CROSS_SOURCE_CHOKE: authoritative PLAYING phrases = [2]
+PASS native adapter fixture import, first/second admission, PANIC and source SAVE/LOAD
+PASS: 11685 EEL2/GUI/MIDI checks
+PASS 18 actual capture fixtures: tick-zero multichannel chords, staggered durations and rests
+PASS 36 shared/native free captures: actual exported ticks, same-block chords and durations
+PASS portable shared-EEL2 MIDI parity at 44100/48000 Hz (41 checks)
+PASS: chromium rendering, TEST, simulated switch, PANIC, responsive layout, reconnect and browser unplug
+PASS generic browser editor: descriptor rendering, draft DONE/CANCEL/ESC/outside, atomic commit, Transformer output, stale conflict and responsive layout
+PASS Controller browser: Learn, mapping drafts, points/bends, output, persistence, REAPER export, ESC and responsive layout
+PASS actual Chromium snapshot capture, inline rename, dirty state, update, transactional settings DONE/CANCEL and confirmed deletion
+PASS compact editor: six phrases, inline instance isolation, confirmed deletion, stable replacement ID, shared Phrase Learn and Snapshot capture
+PASS real browser: persistent isolated rename, Enter/Escape, reconnect, mode controls, signature and responsive rows
+PASS tactile controls: mouse drag, keyboard, phrase isolation, SVG action routing, module draft and refresh persistence
+PASS primary action inventory, six visible rows, responsive layout and measured label reduction
+PASS browser MIDI preview/CANCEL/replace actual standard MIDI download and confirmed content-only CLEAR
+PASS native HOLD actual MIDI output: pointer, keyboard, short tap, learned MIDI PRESS/zero RELEASE and PANIC
+PASS contextual named modulation, multipoint/bend/presets/persistence, real recording states and browser ARP enable, named DOWN, RATE/GATE, actual generated native MIDI, PANIC and save/load
+FAILED: exit 1: /workspace/setup-tools/venv/bin/python
+Final failure details:
+  File "/workspace/setup-tools/venv/lib/python3.12/site-packages/playwright/_impl/_connection.py", line 76, in send
+    return await self._connection.wrap_api_call(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/setup-tools/venv/lib/python3.12/site-packages/playwright/_impl/_connection.py", line 632, in wrap_api_call
+    raise rewrite_error(error, f"{parsed_st['apiName']}: {error}") from None
+playwright._impl._errors.TimeoutError: Locator.wait_for: Timeout 30000ms exceeded.
+Call log:
+  - waiting for locator("[data-phrase-id=\"1\"]").get_by_role("button", name="STOP PHRASE", exact=True) to be visible
+
+FAILED: exit 1: /workspace/setup-tools/venv/bin/python
+
+Attempt 2: full native/JACK/Chromium, FAILED
+PASS bounded FIFO
+CHAIN FAILURE 1 process exit None
+CHAIN FAILURE 2 process exit None
+CHAIN FAILURE 3 process exit None
+JackTimedDriver::Process XRun = 311 usec
+JackEngine::XRun: client = mbh_1 was not finished, state = Triggered
+JackEngine::XRun: client = mbh_2 was not finished, state = Triggered
+JackEngine::XRun: client = mbh_3 was not finished, state = Triggered
+JackEngine::XRun: client = mbh_three_chain_probe was not finished, state = Triggered
+JackEngine::XRun: client mbh_three_chain_source finished after current callback
+FAILED: exit 1: scripts/headless-test.sh
+Final failure details:
+
+Traceback (most recent call last):
+  File "/workspace/mbmf-conductor-a/tests/test_zynthian_chains.py", line 97, in <module>
+    wait(1,'chainRecording',True);wait(1,'chainRecording',False);source(0)
+                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/mbmf-conductor-a/tests/test_zynthian_chains.py", line 81, in wait
+    assert not s['chainError'],s
+           ^^^^^^^^^^^^^^^^^^^
+AssertionError: {'protocolVersion': 1, 'schemaVersion': 7, 'revision': 9, 'requestId': 87, 'engineSessionId': 5892233527625193, 'status': 'ok', 'backend': 'jack', 'buildRevision': '25fcb1e458ffdce7286ff4c60cd4546d586e19a4.dirty', 'chainFrameGap': 8192, 'chainClockGap': 8192, 'chainTimingVersion': 2, 'chainCaptureMode': 'two-bar-grid', 'chainMode': 1, 'chainRunning': 0, 'chainArmed': 0, 'chainPhraseId': 1, 'chainRecording': 0, 'chainError': 1, 'chainFrame': 1236992, 'chainLength': 192000, 'chainBpm': 120, 'sampleRate': 48000, 'blockSize': 8192, 'sampleClock': 1597440, 'blocks': 195, 'midiCount': 307, 'activeNotes': 0, 'pendingOutput': 0, 'outputOverflow': 0, 'lateBlocks': 6, 'maxCallbackUs': 5273.05, 'lastEvent': [1589248, 191, 120, 0], 'switches': [{'id': 1, 'name': '', 'enabled': 0, 'type': 0, 'kind': 0, 'channel': 1, 'number': 60, 'length': 0, 'step': 0, 'actionCount': 0, 'lastAction': 0, 'result': 0, 'settings': [0, 0, 0, 60, 127, 0, 0, 300, 800, 0, 0, 0, 1, 0, 0, 0, 0, 0], 'sequence': []}, {'id': 2, 'name': '', 'enabled': 0, 'type': 0, 'kind': 0, 'channel': 1, 'number': 61, 'length': 0, 'step': 0, 'actionCount': 0, 'lastAction': 0, 'result': 0, 'settings': [0, 0, 0, 61, 127, 0, 0, 300, 800, 0, 0, 0, 1, 0, 0, 1, 1, 1], 'sequence': []}, {'id': 3, 'name': '', 'enabled': 0, 'type': 0, 'kind': 0, 'channel': 1, 'number': 62, 'length': 0, 'step': 0, 'actionCount': 0, 'lastAction': 0, 'result': 0, 'settings': [0, 0, 0, 62, 127, 0, 0, 300, 800, 0, 0, 0, 1, 0, 0, 2, 2, 2], 'sequence': []}, {'id': 4, 'name': '', 'enabled': 0, 'type': 0, 'kind': 0, 'channel': 1, 'number': 63, 'length': 0, 'step': 0, 'actionCount': 0, 'lastAction': 0, 'result': 0, 'settings': [0, 0, 0, 63, 127, 0, 0, 300, 800, 0, 0, 0, 1, 0, 0, 3, 3, 3], 'sequence': []}], 'instruments': [{'id': 1, 'name': '', 'enabled': 1, 'input': 0, 'output': 0, 'level': 127, 'serialPitchOrder': False, 'transformers': []}, {'id': 2, 'name': '', 'enabled': 0, 'input': 0, 'output': 0, 'level': 127, 'serialPitchOrder': False, 'transformers': []}, {'id': 3, 'name': '', 'enabled': 0, 'input': 0, 'output': 0, 'level': 127, 'serialPitchOrder': False, 'transformers': []}], 'nativeHeldRelease': True, 'phrases': [{'id': 1, 'events': 4, 'name': '', 'state': 'STOPPED', 'mode': 0, 'timeDecay': 1, 'velocityDecay': 0.8, 'baseVelocity': 1, 'triggerNote': -1, 'triggerChannel': 0, 'mute': 0, 'solo': 0}, {'id': 2, 'events': 0, 'name': '', 'state': 'IDLE', 'mode': 1, 'timeDecay': 1, 'velocityDecay': 0.8, 'baseVelocity': 1, 'triggerNote': -1, 'triggerChannel': 0, 'mute': 0, 'solo': 0}, {'id': 3, 'events': 0, 'name': '', 'state': 'IDLE', 'mode': 1, 'timeDecay': 1, 'velocityDecay': 0.8, 'baseVelocity': 1, 'triggerNote': -1, 'triggerChannel': 0, 'mute': 0, 'solo': 0}, {'id': 4, 'events': 0, 'name': '', 'state': 'IDLE', 'mode': 1, 'timeDecay': 1, 'velocityDecay': 0.8, 'baseVelocity': 1, 'triggerNote': -1, 'triggerChannel': 0, 'mute': 0, 'solo': 0}, {'id': 5, 'events': 0, 'name': '', 'state': 'IDLE', 'mode': 1, 'timeDecay': 1, 'velocityDecay': 0.8, 'baseVelocity': 1, 'triggerNote': -1, 'triggerChannel': 0, 'mute': 0, 'solo': 0}, {'id': 6, 'events': 0, 'name': '', 'state': 'IDLE', 'mode': 1, 'timeDecay': 1, 'velocityDecay': 0.8, 'baseVelocity': 1, 'triggerNote': -1, 'triggerChannel': 0, 'mute': 0, 'solo': 0}, {'id': 7, 'events': 0, 'name': '', 'state': 'IDLE', 'mode': 1, 'timeDecay': 1, 'velocityDecay': 0.8, 'baseVelocity': 1, 'triggerNote': -1, 'triggerChannel': 0, 'mute': 0, 'solo': 0}, {'id': 8, 'events': 0, 'name': '', 'state': 'IDLE', 'mode': 1, 'timeDecay': 1, 'velocityDecay': 0.8, 'baseVelocity': 1, 'triggerNote': -1, 'triggerChannel': 0, 'mute': 0, 'solo': 0}, {'id': 9, 'events': 0, 'name': '', 'state': 'IDLE', 'mode': 1, 'timeDecay': 1, 'velocityDecay': 0.8, 'baseVelocity': 1, 'triggerNote': -1, 'triggerChannel': 0, 'mute': 0, 'solo': 0}, {'id': 10, 'events': 0, 'name': '', 'state': 'IDLE', 'mode': 1, 'timeDecay': 1, 'velocityDecay': 0.8, 'baseVelocity': 1, 'triggerNote': -1, 'triggerChannel': 0, 'mute': 0, 'solo': 0}, {'id': 11, 'events': 0, 'name': '', 'state': 'IDLE', 'mode': 1, 'timeDecay': 1, 'velocityDecay': 0.8, 'baseVelocity': 1, 'triggerNote': -1, 'triggerChannel': 0, 'mute': 0, 'solo': 0}, {'id': 12, 'events': 0, 'name': '', 'state': 'IDLE', 'mode': 1, 'timeDecay': 1, 'velocityDecay': 0.8, 'baseVelocity': 1, 'triggerNote': -1, 'triggerChannel': 0, 'mute': 0, 'solo': 0}, {'id': 13, 'events': 0, 'name': '', 'state': 'IDLE', 'mode': 1, 'timeDecay': 1, 'velocityDecay': 0.8, 'baseVelocity': 1, 'triggerNote': -1, 'triggerChannel': 0, 'mute': 0, 'solo': 0}, {'id': 14, 'events': 0, 'name': '', 'state': 'IDLE', 'mode': 1, 'timeDecay': 1, 'velocityDecay': 0.8, 'baseVelocity': 1, 'triggerNote': -1, 'triggerChannel': 0, 'mute': 0, 'solo': 0}, {'id': 15, 'events': 0, 'name': '', 'state': 'IDLE', 'mode': 1, 'timeDecay': 1, 'velocityDecay': 0.8, 'baseVelocity': 1, 'triggerNote': -1, 'triggerChannel': 0, 'mute': 0, 'solo': 0}, {'id': 16, 'events': 0, 'name': '', 'state': 'IDLE', 'mode': 1, 'timeDecay': 1, 'velocityDecay': 0.8, 'baseVelocity': 1, 'triggerNote': -1, 'triggerChannel': 0, 'mute': 0, 'solo': 0}], 'legacyCurve': {'source': 0, 'points': []}, 'controllerEngine': {'version': 1, 'configuration': [1, 101, 2, 0, 21, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 201, 101, 301, 1, 0, 1, 0.5039370078740157, 0, 2, 1, 0, 0.02, 0.2, 1, 1, 0.5, 1, 2, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0.02, 0.2, 1, 1, 0.5, 1, 2, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0.02, 0.2, 1, 1, 0.5, 1, 2, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0.02, 0.2, 1, 1, 0.5, 1, 2, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0.02, 0.2, 1, 1, 0.5, 1, 2, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0.02, 0.2, 1, 1, 0.5, 1, 2, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0.02, 0.2, 1, 1, 0.5, 1, 2, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0.02, 0.2, 1, 1, 0.5, 1, 2, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0.02, 0.2, 1, 1, 0.5, 1, 2, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0.02, 0.2, 1, 1, 0.5, 1, 2, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0.02, 0.2, 1, 1, 0.5, 1, 2, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0.02, 0.2, 1, 1, 0.5, 1, 2, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0.02, 0.2, 1, 1, 0.5, 1, 2, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0.02, 0.2, 1, 1, 0.5, 1, 2, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0.02, 0.2, 1, 1, 0.5, 1, 2, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0.02, 0.2, 1, 1, 0.5, 1, 2, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0.02, 0.2, 1, 1, 0.5, 1, 2, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0.02, 0.2, 1, 1, 0.5, 1, 2, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0.02, 0.2, 1, 1, 0.5, 1, 2, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0.02, 0.2, 1, 1, 0.5, 1, 2, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0.02, 0.2, 1, 1, 0.5, 1, 2, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0.02, 0.2, 1, 1, 0.5, 1, 2, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0.02, 0.2, 1, 1, 0.5, 1, 2, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0.02, 0.2, 1, 1, 0.5, 1, 2, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0.02, 0.2, 1, 1, 0.5, 1, 2, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0.02, 0.2, 1, 1, 0.5, 1, 2, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0.02, 0.2, 1, 1, 0.5, 1, 2, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0.02, 0.2, 1, 1, 0.5, 1, 2, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0.02, 0.2, 1, 1, 0.5, 1, 2, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0.02, 0.2, 1, 1, 0.5, 1, 2, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0.02, 0.2, 1, 1, 0.5, 1, 2, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0.02, 0.2, 1, 1, 0.5, 1, 2, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]}, 'controllerLearn': {'domain': 'source', 'target': 0, 'conflict': 0, 'kind': 0, 'channel': 1, 'number': 0}, 'controllerRuntime': [{'effective': 1, 'owner': 0, 'returning': 0, 'pickup': 0}, {'effective': 0, 'owner': 0, 'returning': 0, 'pickup': 0}, {'effective': 0, 'owner': 0, 'returning': 0, 'pickup': 0}, {'effective': 0, 'owner': 0, 'returning': 0, 'pickup': 0}, {'effective': 0, 'owner': 0, 'returning': 0, 'pickup': 0}, {'effective': 0, 'owner': 0, 'returning': 0, 'pickup': 0}, {'effective': 0, 'owner': 0, 'returning': 0, 'pickup': 0}, {'effective': 0, 'owner': 0, 'returning': 0, 'pickup': 0}, {'effective': 0, 'owner': 0, 'returning': 0, 'pickup': 0}, {'effective': 0, 'owner': 0, 'returning': 0, 'pickup': 0}, {'effective': 0, 'owner': 0, 'returning': 0, 'pickup': 0}, {'effective': 0, 'owner': 0, 'returning': 0, 'pickup': 0}, {'effective': 0, 'owner': 0, 'returning': 0, 'pickup': 0}, {'effective': 0, 'owner': 0, 'returning': 0, 'pickup': 0}, {'effective': 0, 'owner': 0, 'returning': 0, 'pickup': 0}, {'effective': 0, 'owner': 0, 'returning': 0, 'pickup': 0}, {'effective': 0, 'owner': 0, 'returning': 0, 'pickup': 0}, {'effective': 0, 'owner': 0, 'returning': 0, 'pickup': 0}, {'effective': 0, 'owner': 0, 'returning': 0, 'pickup': 0}, {'effective': 0, 'owner': 0, 'returning': 0, 'pickup': 0}, {'effective': 0, 'owner': 0, 'returning': 0, 'pickup': 0}, {'effective': 0, 'owner': 0, 'returning': 0, 'pickup': 0}, {'effective': 0, 'owner': 0, 'returning': 0, 'pickup': 0}, {'effective': 0, 'owner': 0, 'returning': 0, 'pickup': 0}, {'effective': 0, 'owner': 0, 'returning': 0, 'pickup': 0}, {'effective': 0, 'owner': 0, 'returning': 0, 'pickup': 0}, {'effective': 0, 'owner': 0, 'returning': 0, 'pickup': 0}, {'effective': 0, 'owner': 0, 'returning': 0, 'pickup': 0}, {'effective': 0, 'owner': 0, 'returning': 0, 'pickup': 0}, {'effective': 0, 'owner': 0, 'returning': 0, 'pickup': 0}, {'effective': 0, 'owner': 0, 'returning': 0, 'pickup': 0}, {'effective': 0, 'owner': 0, 'returning': 0, 'pickup': 0}], 'selectedSnapshotId': 1, 'snapshotSkippedTargets': 0, 'targetSnapshotId': 0, 'morphProgress': 1, 'snapshots': [{'id': 1, 'name': 'SNAPSHOT 01', 'seconds': 2, 'ease': 1, 'switching': 2, 'parameterCount': 108, 'dirty': True}, {'id': 2, 'name': 'SNAPSHOT 02', 'seconds': 2, 'ease': 1, 'switching': 2, 'parameterCount': 108, 'dirty': True}], 'snapshotActions': [], 'snapshotAB': {'a': 0, 'b': 0, 'position': 0, 'ease': 0, 'skipped': 0, 'overridden': 0}}
+FAILED: exit 1: scripts/headless-test.sh
+
+Attempt 3: native/Chromium without JACK, FAILED
+PASS bounded FIFO
+PASS: 162709 synthetic-time Controller Engine checks
+PASS: 558 Controller host adapter checks
+PASS: 162709 synthetic-time Controller Engine checks
+PASS: 558 Controller host adapter checks
+XFAIL ONCE_CROSS_SOURCE_CHOKE {"activeVoices":1,"midi":[[128,48,0],[144,72,83]]}
+XFAIL VOICE_EXHAUSTION_GLOBAL_RELEASE {"before":12,"after":1,"midi":[[128,48,0],[144,48,91]]}
+XFAIL CHOKE_RELEASES_LIVE_OWNER {"liveOwners":1,"midi":[[128,48,0],[144,72,83]]}
+BASELINE: 85 checks; 3 known contract failures; no engine correction in PR A
+XFAIL NATIVE_ONCE_CROSS_SOURCE_CHOKE: authoritative PLAYING phrases = [2]
+PASS native adapter fixture import, first/second admission, PANIC and source SAVE/LOAD
+PASS: 11685 EEL2/GUI/MIDI checks
+PASS 18 actual capture fixtures: tick-zero multichannel chords, staggered durations and rests
+PASS 36 shared/native free captures: actual exported ticks, same-block chords and durations
+PASS portable shared-EEL2 MIDI parity at 44100/48000 Hz (41 checks)
+PASS: chromium rendering, TEST, simulated switch, PANIC, responsive layout, reconnect and browser unplug
+PASS generic browser editor: descriptor rendering, draft DONE/CANCEL/ESC/outside, atomic commit, Transformer output, stale conflict and responsive layout
+PASS Controller browser: Learn, mapping drafts, points/bends, output, persistence, REAPER export, ESC and responsive layout
+PASS actual Chromium snapshot capture, inline rename, dirty state, update, transactional settings DONE/CANCEL and confirmed deletion
+PASS compact editor: six phrases, inline instance isolation, confirmed deletion, stable replacement ID, shared Phrase Learn and Snapshot capture
+PASS real browser: persistent isolated rename, Enter/Escape, reconnect, mode controls, signature and responsive rows
+PASS tactile controls: mouse drag, keyboard, phrase isolation, SVG action routing, module draft and refresh persistence
+PASS primary action inventory, six visible rows, responsive layout and measured label reduction
+PASS browser MIDI preview/CANCEL/replace actual standard MIDI download and confirmed content-only CLEAR
+PASS native HOLD actual MIDI output: pointer, keyboard, short tap, learned MIDI PRESS/zero RELEASE and PANIC
+PASS contextual named modulation, multipoint/bend/presets/persistence, real recording states and browser ARP enable, named DOWN, RATE/GATE, actual generated native MIDI, PANIC and save/load
+FAILED: exit 1: /workspace/setup-tools/venv/bin/python
+Final failure details:
++ /workspace/setup-tools/venv/bin/python tests/test_recovery_browser.py
+PASS contextual named modulation, multipoint/bend/presets/persistence, real recording states and browser ARP enable, named DOWN, RATE/GATE, actual generated native MIDI, PANIC and save/load
++ /workspace/setup-tools/venv/bin/python tests/test_hardware_feedback_browser.py
+Traceback (most recent call last):
+  File "/workspace/mbmf-conductor-a/tests/test_hardware_feedback_browser.py", line 42, in <module>
+    api.wait_for(lambda:api.call()['phrases'][0]['mode']==0,'native LOOP selection applied before PLAY')
+  File "/workspace/mbmf-conductor-a/tests/test_headless_mvp.py", line 42, in wait_for
+    raise AssertionError(label+' failed to start')
+AssertionError: native LOOP selection applied before PLAY failed to start
+FAILED: exit 1: /workspace/setup-tools/venv/bin/python
+
+Unchanged focused hardware-feedback browser: PASS
+PASS issue #51: rename focus, EDIT/REMOVE, aligned rails, live module switching, real LOOP STOP/CLEAR, sequencer persistence and confirmed CLEAR PATCH
+
+Instrumented focused hardware-feedback browser: FAILED opening VELOCITY editor
+  File "/workspace/setup-tools/venv/lib/python3.12/site-packages/playwright/_impl/_connection.py", line 632, in wrap_api_call
+    raise rewrite_error(error, f"{parsed_st['apiName']}: {error}") from None
+playwright._impl._errors.TimeoutError: Locator.wait_for: Timeout 30000ms exceeded.
+Call log:
+  - waiting for get_by_role("slider", name="VELOCITY", exact=True) to be visible
+
+
+Remaining issue53 browser workflow, run independently: PASS
+PASS manual source browser/MIDI path
+PASS targeted keyboard recording with independent LOOP
+PASS issue #53 chromium: blank draft, targeted keyboard FINISH, unbound TAP MIDI, source test ownership/Learn isolation, mapped MIDI output, persistence/removal
+
+Selected JACK failure state:
+{
+  "backend": "jack",
+  "buildRevision": "25fcb1e458ffdce7286ff4c60cd4546d586e19a4.dirty",
+  "chainError": 1,
+  "chainRunning": 0,
+  "chainRecording": 0,
+  "chainFrameGap": 8192,
+  "chainClockGap": 8192,
+  "lateBlocks": 6,
+  "maxCallbackUs": 5273.05,
+  "outputOverflow": 0,
+  "activeNotes": 0,
+  "sampleRate": 48000,
+  "blockSize": 8192
+}
+
+Conclusion: focused PR A baseline verified; global regression gate NOT passed; PR B not started.
+No merge, deployment, OS/JACK configuration or hardware changes. Issue54 preserved.

@@ -1,0 +1,2 @@
+PASS primary action inventory, six visible rows, responsive layout and measured label reduction
+{"before": {"phrases": {"labels": 58, "words": 98, "characters": 481}, "instruments": {"labels": 21, "words": 51, "characters": 279}, "transformer-editor": {"labels": 4, "words": 3, "characters": 19}}, "after": {"phrases": {"labels": 53, "words": 52, "characters": 149}, "instruments": {"labels": 18, "words": 18, "characters": 51}, "transformer-editor": {"labels": 4, "words": 4, "characters": 15}}}

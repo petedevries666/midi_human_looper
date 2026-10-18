@@ -1,0 +1,108 @@
+{
+  "versions": {
+    "base": "25fcb1e458ffdce7286ff4c60cd4546d586e19a4",
+    "A": "706f90ca7f22d0ee5d8dcdcac361861143ef5519"
+  },
+  "spec": "73cdee5604992ca3bd68e4c6c3b97c545333b127",
+  "protocol": "Two repetitions each per checkout/test, order base/A/A/base, serialized, identical shared production binary and probe; diagnostic Chromium script leaves original assertions/timeouts unchanged",
+  "machine": "x86_64",
+  "python": "Python 3.12.14",
+  "chromium": "Chromium 151.0.7922.173 built on Debian GNU/Linux 13 (trixie)",
+  "binarySha256": "ebaa1f5e7f3228dab6da668ac4ee5dda4768100d4e7c62d23bbde57c458b7f14",
+  "probeSha256": "925afae950b6c3fb54dc3a1ac4d5297b38db43b1386fa7791904f2ca8d9bb445",
+  "testHashes": {
+    "original": "26c323ab71be9145cad09623abe164acf6af106a1831f3c6dfe774599818fa6e",
+    "a": "a6e12bb7d02dbb28617a2303a01b4fc632e0d37297d981f803f3cb482b195726"
+  },
+  "environment": {
+    "HEADLESS_BINARY": "/workspace/mbmf-conductor-base/.build/midi-headless-engine",
+    "JACKD": "/workspace/scratch/midi-deps/root/usr/bin/jackd",
+    "JACK_DRIVER_DIR": "/workspace/scratch/midi-deps/root/usr/lib/x86_64-linux-gnu/jack",
+    "CHAIN_JACK_BLOCK": "8192",
+    "CHAIN_TIMING_VERSION": "2",
+    "CHROMIUM_PATH": "/usr/bin/chromium",
+    "RUN_CHAIN_BROWSER": "1"
+  },
+  "runs": [
+    {
+      "test": "pending-loss",
+      "order": 1,
+      "version": "base",
+      "startedUTC": "2026-10-13T13:06:37.521613+00:00",
+      "loadBefore": [
+        0.1484375,
+        0.4228515625,
+        0.2548828125
+      ],
+      "log": "pending-loss-1-base.log",
+      "returnCode": 1,
+      "seconds": 3.032,
+      "loadAfter": [
+        0.296875,
+        0.44921875,
+        0.2646484375
+      ],
+      "logSha256": "05b48fcb3f58ec1b180087ee00ce4363badaf69db3f7d2e3bafc413218d17d44"
+    },
+    {
+      "test": "pending-loss",
+      "order": 2,
+      "version": "A",
+      "startedUTC": "2026-10-13T13:06:40.553953+00:00",
+      "loadBefore": [
+        0.296875,
+        0.44921875,
+        0.2646484375
+      ],
+      "log": "pending-loss-2-A.log",
+      "returnCode": 1,
+      "seconds": 3.183,
+      "loadAfter": [
+        0.296875,
+        0.44921875,
+        0.2646484375
+      ],
+      "logSha256": "80997434666b2bf3d57fa4e61e249555e007bbd9c258fd3bf581505746f89c76"
+    },
+    {
+      "test": "pending-loss",
+      "order": 3,
+      "version": "A",
+      "startedUTC": "2026-10-13T13:06:43.737089+00:00",
+      "loadBefore": [
+        0.296875,
+        0.44921875,
+        0.2646484375
+      ],
+      "log": "pending-loss-3-A.log",
+      "returnCode": 1,
+      "seconds": 2.992,
+      "loadAfter": [
+        0.353515625,
+        0.45849609375,
+        0.26904296875
+      ],
+      "logSha256": "b887490bd0130deb9c4f0a2804428e1989d52f46fd19131316d0194f6fbc599e"
+    },
+    {
+      "test": "pending-loss",
+      "order": 4,
+      "version": "base",
+      "startedUTC": "2026-10-13T13:06:46.729221+00:00",
+      "loadBefore": [
+        0.353515625,
+        0.45849609375,
+        0.26904296875
+      ],
+      "log": "pending-loss-4-base.log",
+      "returnCode": 1,
+      "seconds": 3.138,
+      "loadAfter": [
+        0.3251953125,
+        0.45068359375,
+        0.267578125
+      ],
+      "logSha256": "69b592d1f30e9266fbcd07507a77a4bc6e74c19ab6922cca551fad51b7a08754"
+    }
+  ]
+}

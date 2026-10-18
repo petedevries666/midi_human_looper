@@ -1,0 +1,268 @@
+{
+  "versions": {
+    "base": "25fcb1e458ffdce7286ff4c60cd4546d586e19a4",
+    "A": "706f90ca7f22d0ee5d8dcdcac361861143ef5519"
+  },
+  "spec": "73cdee5604992ca3bd68e4c6c3b97c545333b127",
+  "protocol": "Two repetitions each per checkout/test, order base/A/A/base, serialized, identical shared production binary and probe; diagnostic Chromium script leaves original assertions/timeouts unchanged",
+  "machine": "x86_64",
+  "python": "Python 3.12.14",
+  "chromium": "Chromium 151.0.7922.173 built on Debian GNU/Linux 13 (trixie)",
+  "binarySha256": "ebaa1f5e7f3228dab6da668ac4ee5dda4768100d4e7c62d23bbde57c458b7f14",
+  "probeSha256": "925afae950b6c3fb54dc3a1ac4d5297b38db43b1386fa7791904f2ca8d9bb445",
+  "testHashes": {
+    "original": "26c323ab71be9145cad09623abe164acf6af106a1831f3c6dfe774599818fa6e",
+    "a": "a6e12bb7d02dbb28617a2303a01b4fc632e0d37297d981f803f3cb482b195726"
+  },
+  "environment": {
+    "HEADLESS_BINARY": "/workspace/mbmf-conductor-base/.build/midi-headless-engine",
+    "JACKD": "/workspace/scratch/midi-deps/root/usr/bin/jackd",
+    "JACK_DRIVER_DIR": "/workspace/scratch/midi-deps/root/usr/lib/x86_64-linux-gnu/jack",
+    "CHAIN_JACK_BLOCK": "8192",
+    "CHAIN_TIMING_VERSION": "2",
+    "CHROMIUM_PATH": "/usr/bin/chromium",
+    "RUN_CHAIN_BROWSER": "1"
+  },
+  "runs": [
+    {
+      "test": "jack",
+      "order": 1,
+      "version": "base",
+      "startedUTC": "2026-10-13T12:56:11.671251+00:00",
+      "loadBefore": [
+        0.07373046875,
+        0.07763671875,
+        0.01953125
+      ],
+      "log": "jack-1-base.log",
+      "returnCode": 0,
+      "seconds": 86.772,
+      "loadAfter": [
+        0.2392578125,
+        0.126953125,
+        0.0390625
+      ],
+      "logSha256": "862ab69d9172b1b9c2bda3d682264d4bd5d26967e48d320f6a2956497e355738"
+    },
+    {
+      "test": "jack",
+      "order": 2,
+      "version": "A",
+      "startedUTC": "2026-10-13T12:57:38.444349+00:00",
+      "loadBefore": [
+        0.2392578125,
+        0.126953125,
+        0.0390625
+      ],
+      "log": "jack-2-A.log",
+      "returnCode": 0,
+      "seconds": 86.174,
+      "loadAfter": [
+        0.40234375,
+        0.208984375,
+        0.07421875
+      ],
+      "logSha256": "862ab69d9172b1b9c2bda3d682264d4bd5d26967e48d320f6a2956497e355738"
+    },
+    {
+      "test": "jack",
+      "order": 3,
+      "version": "A",
+      "startedUTC": "2026-10-13T12:59:04.618625+00:00",
+      "loadBefore": [
+        0.40234375,
+        0.208984375,
+        0.07421875
+      ],
+      "log": "jack-3-A.log",
+      "returnCode": 0,
+      "seconds": 88.097,
+      "loadAfter": [
+        0.57763671875,
+        0.32763671875,
+        0.1279296875
+      ],
+      "logSha256": "862ab69d9172b1b9c2bda3d682264d4bd5d26967e48d320f6a2956497e355738"
+    },
+    {
+      "test": "jack",
+      "order": 4,
+      "version": "base",
+      "startedUTC": "2026-10-13T13:00:32.716485+00:00",
+      "loadBefore": [
+        0.57763671875,
+        0.32763671875,
+        0.1279296875
+      ],
+      "log": "jack-4-base.log",
+      "returnCode": 0,
+      "seconds": 87.281,
+      "loadAfter": [
+        0.50439453125,
+        0.3818359375,
+        0.16455078125
+      ],
+      "logSha256": "862ab69d9172b1b9c2bda3d682264d4bd5d26967e48d320f6a2956497e355738"
+    },
+    {
+      "test": "chromium-original",
+      "order": 1,
+      "version": "base",
+      "startedUTC": "2026-10-13T13:01:59.997815+00:00",
+      "loadBefore": [
+        0.50439453125,
+        0.3818359375,
+        0.16455078125
+      ],
+      "log": "chromium-original-1-base.log",
+      "returnCode": 0,
+      "seconds": 6.089,
+      "loadAfter": [
+        0.70458984375,
+        0.42578125,
+        0.18017578125
+      ],
+      "logSha256": "b649bc68825cfc0e52f5addc5fff72d615e3eaa8d3410bc73eedd0c4e88ca821"
+    },
+    {
+      "test": "chromium-original",
+      "order": 2,
+      "version": "A",
+      "startedUTC": "2026-10-13T13:02:06.087074+00:00",
+      "loadBefore": [
+        0.70458984375,
+        0.42578125,
+        0.18017578125
+      ],
+      "log": "chromium-original-2-A.log",
+      "returnCode": 0,
+      "seconds": 6.104,
+      "loadAfter": [
+        0.64794921875,
+        0.41845703125,
+        0.17919921875
+      ],
+      "logSha256": "277ab9b2c3e8b727b64c7cf89399a9d23b44b55b621c0c2355bad563bbadb09d"
+    },
+    {
+      "test": "chromium-original",
+      "order": 3,
+      "version": "A",
+      "startedUTC": "2026-10-13T13:02:12.191142+00:00",
+      "loadBefore": [
+        0.64794921875,
+        0.41845703125,
+        0.17919921875
+      ],
+      "log": "chromium-original-3-A.log",
+      "returnCode": 0,
+      "seconds": 6.307,
+      "loadAfter": [
+        1.23681640625,
+        0.54443359375,
+        0.2216796875
+      ],
+      "logSha256": "b81ef8af74f335567f6a92f21f3800020f28c2c3add430d4c695be9df9062b21"
+    },
+    {
+      "test": "chromium-original",
+      "order": 4,
+      "version": "base",
+      "startedUTC": "2026-10-13T13:02:18.498165+00:00",
+      "loadBefore": [
+        1.23681640625,
+        0.54443359375,
+        0.2216796875
+      ],
+      "log": "chromium-original-4-base.log",
+      "returnCode": 0,
+      "seconds": 6.094,
+      "loadAfter": [
+        1.1201171875,
+        0.54296875,
+        0.224609375
+      ],
+      "logSha256": "ee520fa1c909875e324e42614e8c7eee4e789676390fef1ba6f2550b06fe0443"
+    },
+    {
+      "test": "chromium-a",
+      "order": 1,
+      "version": "base",
+      "startedUTC": "2026-10-13T13:02:24.592878+00:00",
+      "loadBefore": [
+        1.1201171875,
+        0.54296875,
+        0.224609375
+      ],
+      "log": "chromium-a-1-base.log",
+      "returnCode": 0,
+      "seconds": 5.877,
+      "loadAfter": [
+        1.0302734375,
+        0.53369140625,
+        0.22314453125
+      ],
+      "logSha256": "dbf606b9a5e015514ee258386a6ece217dda7b2fa7af3e396a467b3e0092943f"
+    },
+    {
+      "test": "chromium-a",
+      "order": 2,
+      "version": "A",
+      "startedUTC": "2026-10-13T13:02:30.470323+00:00",
+      "loadBefore": [
+        1.0302734375,
+        0.53369140625,
+        0.22314453125
+      ],
+      "log": "chromium-a-2-A.log",
+      "returnCode": 1,
+      "seconds": 34.527,
+      "loadAfter": [
+        0.5732421875,
+        0.47314453125,
+        0.212890625
+      ],
+      "logSha256": "4eb7ee830350fa27d1f6924a4f19a7c874ac4c8570c40a63c2661ef173fcc90d"
+    },
+    {
+      "test": "chromium-a",
+      "order": 3,
+      "version": "A",
+      "startedUTC": "2026-10-13T13:03:04.997582+00:00",
+      "loadBefore": [
+        0.5732421875,
+        0.47314453125,
+        0.212890625
+      ],
+      "log": "chromium-a-3-A.log",
+      "returnCode": 0,
+      "seconds": 6.005,
+      "loadAfter": [
+        0.6875,
+        0.49853515625,
+        0.22265625
+      ],
+      "logSha256": "b649bc68825cfc0e52f5addc5fff72d615e3eaa8d3410bc73eedd0c4e88ca821"
+    },
+    {
+      "test": "chromium-a",
+      "order": 4,
+      "version": "base",
+      "startedUTC": "2026-10-13T13:03:11.002688+00:00",
+      "loadBefore": [
+        0.6875,
+        0.49853515625,
+        0.22265625
+      ],
+      "log": "chromium-a-4-base.log",
+      "returnCode": 0,
+      "seconds": 7.709,
+      "loadAfter": [
+        0.63232421875,
+        0.490234375,
+        0.22119140625
+      ],
+      "logSha256": "dbf606b9a5e015514ee258386a6ece217dda7b2fa7af3e396a467b3e0092943f"
+    }
+  ]
+}

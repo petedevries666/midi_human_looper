@@ -1,0 +1,21 @@
+{
+  "scope": "Cloud software/JACK dummy; no physical V4 qualification",
+  "sourceHashes": {
+    "headless/engine.cpp": "b4bd15d6e3b9b8525bd68fca3b2f380070da27b02af9c0f462ddd8e4acef913e",
+    "headless/conductor.py": "7adab635d254ffb4f1e1ad32fbde3228cd5c817f51200420433ec24e17a4f5a1",
+    "headless/conductor_document.hpp": "9ba98e1f2682452fc6ecd208b20615feb384dcc7d0bb125e5ebfdf6f6772dae4",
+    "headless/conductor_execution.hpp": "8b294647b8752a7313a8a6e671a165d5c401598d333078cab14f92139f927dae",
+    "headless/movement_engine.hpp": "f202592ae110cb3889dcbffd3f898ccc6f91cabb0da5ef931576f6332837beed",
+    "headless/server.py": "c81f0a635ed42c0007ad9211276bd41ea9765d6c8baec6ac1059578ecb2b741d",
+    "headless/web/app.js": "9e7b4c7b7c26a1e9dae210b2e3ec6ff288d1e611c5dbef411f3e25e33faf10c4",
+    "headless/web/conductor.js": "5244a1c62813c9e445a990436eccfc91f7b0546d8d8a6721801f1c8a6358d008",
+    "headless/web/movement.js": "e0c047b945a51101259d7a54271622b4d1ade60da0b29266de23655f090b47ec",
+    "midi_human_looper.jsfx": "e47e929cc8cbecc2462832e7c25d2b977dbb9ab381752263629762c1fa159645"
+  },
+  "fullEelChecks": 18508,
+  "m1MidiChecks": 64,
+  "asanReports": 0,
+  "fullCombinedExecuted": false,
+  "engineCodeCommit": "f743b9146c3820caba9e2da1716b0a9a106b5d0f",
+  "extendedM0EntryChecks": 100
+}

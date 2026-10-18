@@ -1,0 +1,9 @@
+test_source_groups_roundtrip_and_warning (__main__.Groups.test_source_groups_roundtrip_and_warning) ... ok
+test_invalid_group_rollback_and_direct_sources (__main__.Groups.test_invalid_group_rollback_and_direct_sources) ... ok
+test_version_three_preserves_movement_execution (__main__.Groups.test_version_three_preserves_movement_execution) ... ok
+test_patch_banks_portable_and_fresh_engine (__main__.Groups.test_patch_banks_portable_and_fresh_engine) ... ok
+
+----------------------------------------------------------------------
+Ran 4 tests in 4.284s
+
+OK

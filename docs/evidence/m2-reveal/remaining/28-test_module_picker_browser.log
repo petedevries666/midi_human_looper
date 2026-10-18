@@ -1,0 +1,2 @@
+PICKER AFTER REAL ACK {"selected": "4", "other": "6", "nativeTypes": [1]}
+PASS actual pending ADD, independent type pickers, correct native module kinds and SAVE/LOAD

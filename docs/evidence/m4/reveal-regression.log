@@ -1,0 +1,11 @@
+PASS production REVEAL Controller-token ownership, default/observed volume, GATE, replacement, physical takeover and MOVEMENT stale-retirement regression
+test_reveal_latch_and_early_release (__main__.Reveal.test_reveal_latch_and_early_release) ... ok
+test_gate_remask_keeps_timeline_and_load_stopped (__main__.Reveal.test_gate_remask_keeps_timeline_and_load_stopped) ... ok
+test_natural_end_and_original_all_channel_ownership (__main__.Reveal.test_natural_end_and_original_all_channel_ownership) ... ok
+test_source_cc7_refusal_and_missing_reference (__main__.Reveal.test_source_cc7_refusal_and_missing_reference) ... ok
+test_twelve_instances_saturation_preserves_existing_owners (__main__.Reveal.test_twelve_instances_saturation_preserves_existing_owners) ... ok
+
+----------------------------------------------------------------------
+Ran 5 tests in 8.265s
+
+OK

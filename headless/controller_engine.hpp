@@ -12,6 +12,12 @@ enum class Takeover { Direct, Pickup, Glide, Slew };
 enum class Return { Off, Idle, Release, Command };
 enum class Ease { Linear, Smooth };
 enum class Switch { Continuous, Start, Midpoint, End };
+// Shared GLIDE response; adapters may stream a time-varying demand without
+// duplicating its normalization/easing policy.
+inline double glide(double start,double demand,double elapsed,double seconds,Ease ease=Ease::Linear){
+  double x=clamp(elapsed/seconds);if(ease==Ease::Smooth)x=x*x*(3-2*x);
+  return clamp(start+(demand-start)*x);
+}
 struct Point {
   double x, y, bend;
   Point(double px = 0, double py = 0, double pb = 0) : x(px), y(py), bend(pb) {}
@@ -90,7 +96,10 @@ struct Target {
   Switch morphSwitch = Switch::Continuous;
 };
 class Engine {
-  static const unsigned TargetCapacity = 256, MappingCapacity = 64;
+public:
+  static const unsigned TargetCapacity = 2048, MappingCapacity = 64;
+
+private:
   struct Runtime {
     Mapping config;
     bool used = false, previousKnown = false, active = false, returning = false;
@@ -138,10 +147,7 @@ class Engine {
       if (at - m.startAt >= m.config.returnSeconds)
         release(t);
     } else if (m.config.takeover == Takeover::Glide) {
-      double x = clamp((at - m.startAt) / m.config.glideSeconds);
-      if (m.config.ease == Ease::Smooth)
-        x = x * x * (3 - 2 * x);
-      t.effective = clamp(m.start + (m.demand - m.start) * x);
+      t.effective = glide(m.start,m.demand,at-m.startAt,m.config.glideSeconds,m.config.ease);
     } else if (m.config.takeover == Takeover::Slew) {
       double d = m.config.slewPerSecond * std::max(0., at - time);
       t.effective = clamp(t.effective +
@@ -157,6 +163,16 @@ public:
       if (t.id == id && id)
         return &t;
     return nullptr;
+  }
+  void rawCCMasks(std::array<unsigned,128>& masks) const {
+    masks.fill(0);for(const auto &t:targets)if(t.id>=0x80000000u&&t.id<0x80000800u){unsigned key=t.id-0x80000000u;masks[key%128]|=1u<<(key/128);}
+  }
+  unsigned freeTargets() const {
+    unsigned count = 0;
+    for (const auto &t : targets)
+      if (!t.id)
+        ++count;
+    return count;
   }
   bool addTarget(uint32_t id, double effective) {
     if (!id || target(id) || !std::isfinite(effective) || effective < 0 ||
@@ -427,6 +443,19 @@ public:
       morph(e.target, e.goal, e.seconds, now, e.ease, e.switching);
     }
     return true;
+  }
+  // Streaming performance macro updates retain their original token. Physical
+  // takeover cannot be undone by a subsequent macro tick.
+  bool updateExternal(uint32_t id, uint64_t token, double value) {
+    if (!std::isfinite(value) || value < 0 || value > 1)
+      return false;
+    for (auto &t : targets)
+      if (t.id == id && t.owner == UINT32_MAX && t.token == token) {
+        t.morphing = false;
+        t.effective = value;
+        return true;
+      }
+    return false;
   }
   bool releaseExternal(uint32_t id, uint64_t token) {
     for (auto &t : targets)

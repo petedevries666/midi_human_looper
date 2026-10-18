@@ -1,0 +1,517 @@
+{
+  "provenance": "PR50 25fcb1e; existing parameter meanings must survive ownership changes",
+  "contractVersion": 1,
+  "parameters": [
+    {
+      "id": "velocity",
+      "engineKind": 0,
+      "valueType": "float",
+      "min": 0.2,
+      "max": 3,
+      "default": 1,
+      "step": 0.01,
+      "normalizedConversion": "linear_quantized",
+      "serializationVersion": 1
+    },
+    {
+      "id": "level",
+      "engineKind": 1,
+      "valueType": "int",
+      "min": 0,
+      "max": 127,
+      "default": 100,
+      "step": 1,
+      "normalizedConversion": "linear_quantized",
+      "serializationVersion": 1
+    },
+    {
+      "id": "mod_level",
+      "engineKind": 2,
+      "valueType": "int",
+      "min": 0,
+      "max": 127,
+      "default": 0,
+      "step": 1,
+      "normalizedConversion": "linear_quantized",
+      "serializationVersion": 1
+    },
+    {
+      "id": "arp_enabled",
+      "engineKind": 3,
+      "valueType": "toggle",
+      "min": 0,
+      "max": 1,
+      "default": 0,
+      "step": 1,
+      "normalizedConversion": "equal_bins",
+      "serializationVersion": 1,
+      "choices": [
+        "OFF",
+        "ON"
+      ]
+    },
+    {
+      "id": "arp_mode",
+      "engineKind": 4,
+      "valueType": "enum",
+      "min": 0,
+      "max": 2,
+      "default": 0,
+      "step": 1,
+      "normalizedConversion": "equal_bins",
+      "serializationVersion": 1,
+      "choices": [
+        "RANDOM",
+        "UP",
+        "DOWN"
+      ]
+    },
+    {
+      "id": "arp_rate",
+      "engineKind": 5,
+      "valueType": "float",
+      "min": 0.25,
+      "max": 16,
+      "default": 4,
+      "step": 0.25,
+      "normalizedConversion": "linear_quantized",
+      "serializationVersion": 1
+    },
+    {
+      "id": "arp_gate",
+      "engineKind": 6,
+      "valueType": "float",
+      "min": 0.02,
+      "max": 1,
+      "default": 0.5,
+      "step": 0.01,
+      "normalizedConversion": "linear_quantized",
+      "serializationVersion": 1
+    },
+    {
+      "id": "transpose",
+      "engineKind": 7,
+      "valueType": "int",
+      "min": -48,
+      "max": 48,
+      "default": 0,
+      "step": 1,
+      "normalizedConversion": "linear_quantized",
+      "serializationVersion": 1
+    },
+    {
+      "id": "range_mode",
+      "engineKind": 8,
+      "valueType": "enum",
+      "min": 0,
+      "max": 3,
+      "default": 0,
+      "step": 1,
+      "normalizedConversion": "equal_bins",
+      "serializationVersion": 1,
+      "choices": [
+        "FULL",
+        "DOWN",
+        "UP",
+        "BOTH"
+      ]
+    },
+    {
+      "id": "range_low",
+      "engineKind": 9,
+      "valueType": "int",
+      "min": 0,
+      "max": 127,
+      "default": 0,
+      "step": 1,
+      "normalizedConversion": "linear_quantized",
+      "serializationVersion": 1
+    },
+    {
+      "id": "range_high",
+      "engineKind": 10,
+      "valueType": "int",
+      "min": 0,
+      "max": 127,
+      "default": 127,
+      "step": 1,
+      "normalizedConversion": "linear_quantized",
+      "serializationVersion": 1
+    },
+    {
+      "id": "note_mode",
+      "engineKind": 11,
+      "valueType": "enum",
+      "min": 0,
+      "max": 3,
+      "default": 0,
+      "step": 1,
+      "normalizedConversion": "equal_bins",
+      "serializationVersion": 1,
+      "choices": [
+        "POLY",
+        "BASS",
+        "LAST",
+        "LEGATO"
+      ]
+    },
+    {
+      "id": "arp_hold",
+      "engineKind": 12,
+      "valueType": "toggle",
+      "min": 0,
+      "max": 1,
+      "default": 0,
+      "step": 1,
+      "normalizedConversion": "equal_bins",
+      "serializationVersion": 1,
+      "choices": [
+        "OFF",
+        "ON"
+      ]
+    },
+    {
+      "id": "cc_number",
+      "engineKind": 13,
+      "valueType": "int",
+      "min": 0,
+      "max": 127,
+      "default": 1,
+      "step": 1,
+      "normalizedConversion": "linear_quantized",
+      "serializationVersion": 1
+    },
+    {
+      "id": "enabled",
+      "engineKind": -1,
+      "valueType": "toggle",
+      "min": 0,
+      "max": 1,
+      "default": 0,
+      "step": 1,
+      "normalizedConversion": "equal_bins",
+      "serializationVersion": 1,
+      "choices": [
+        "OFF",
+        "ON"
+      ]
+    },
+    {
+      "id": "input",
+      "engineKind": -2,
+      "valueType": "int",
+      "min": 0,
+      "max": 16,
+      "default": 0,
+      "step": 1,
+      "normalizedConversion": "linear_quantized",
+      "serializationVersion": 1
+    },
+    {
+      "id": "output",
+      "engineKind": -3,
+      "valueType": "int",
+      "min": 0,
+      "max": 16,
+      "default": 0,
+      "step": 1,
+      "normalizedConversion": "linear_quantized",
+      "serializationVersion": 1
+    },
+    {
+      "id": "controller_takeover",
+      "engineKind": 100,
+      "valueType": "enum",
+      "min": 0,
+      "max": 3,
+      "default": 0,
+      "step": 1,
+      "normalizedConversion": "linear_quantized",
+      "serializationVersion": 1,
+      "choices": [
+        "DIRECT",
+        "PICKUP",
+        "GLIDE",
+        "SLEW"
+      ]
+    },
+    {
+      "id": "controller_returnMode",
+      "engineKind": 101,
+      "valueType": "enum",
+      "min": 0,
+      "max": 3,
+      "default": 0,
+      "step": 1,
+      "normalizedConversion": "linear_quantized",
+      "serializationVersion": 1,
+      "choices": [
+        "OFF",
+        "IDLE",
+        "RELEASE",
+        "COMMAND"
+      ]
+    },
+    {
+      "id": "controller_easing",
+      "engineKind": 102,
+      "valueType": "enum",
+      "min": 0,
+      "max": 1,
+      "default": 0,
+      "step": 1,
+      "normalizedConversion": "linear_quantized",
+      "serializationVersion": 1,
+      "choices": [
+        "LINEAR",
+        "SMOOTH"
+      ]
+    },
+    {
+      "id": "controller_priority",
+      "engineKind": 103,
+      "valueType": "int",
+      "min": 0,
+      "max": 1000,
+      "default": 0,
+      "step": 1,
+      "normalizedConversion": "linear_quantized",
+      "serializationVersion": 1
+    },
+    {
+      "id": "controller_threshold",
+      "engineKind": 104,
+      "valueType": "float",
+      "min": 0,
+      "max": 1,
+      "default": 0.02,
+      "step": 0.01,
+      "normalizedConversion": "linear_quantized",
+      "serializationVersion": 1
+    },
+    {
+      "id": "controller_glideSeconds",
+      "engineKind": 105,
+      "valueType": "float",
+      "min": 0.01,
+      "max": 60,
+      "default": 0.2,
+      "step": 0.01,
+      "normalizedConversion": "linear_quantized",
+      "serializationVersion": 1
+    },
+    {
+      "id": "controller_slewPerSecond",
+      "engineKind": 106,
+      "valueType": "float",
+      "min": 0.01,
+      "max": 1000,
+      "default": 1,
+      "step": 0.01,
+      "normalizedConversion": "linear_quantized",
+      "serializationVersion": 1
+    },
+    {
+      "id": "controller_idleSeconds",
+      "engineKind": 107,
+      "valueType": "float",
+      "min": 0,
+      "max": 3600,
+      "default": 1,
+      "step": 0.01,
+      "normalizedConversion": "linear_quantized",
+      "serializationVersion": 1
+    },
+    {
+      "id": "controller_returnSeconds",
+      "engineKind": 108,
+      "valueType": "float",
+      "min": 0.01,
+      "max": 60,
+      "default": 0.5,
+      "step": 0.01,
+      "normalizedConversion": "linear_quantized",
+      "serializationVersion": 1
+    },
+    {
+      "id": "phrase_time_decay",
+      "engineKind": 14,
+      "valueType": "float",
+      "min": 0.5,
+      "max": 2,
+      "default": 1,
+      "step": 0.01,
+      "normalizedConversion": "log_ratio",
+      "serializationVersion": 1
+    },
+    {
+      "id": "phrase_velocity_decay",
+      "engineKind": 15,
+      "valueType": "float",
+      "min": 0.2,
+      "max": 1,
+      "default": 0.8,
+      "step": 0.01,
+      "normalizedConversion": "linear_quantized",
+      "serializationVersion": 1
+    },
+    {
+      "id": "snapshot_ab",
+      "engineKind": 16,
+      "valueType": "float",
+      "min": 0,
+      "max": 1,
+      "default": 0,
+      "step": 0.001,
+      "normalizedConversion": "linear_continuous",
+      "serializationVersion": 1
+    },
+    {
+      "id": "phrase_base_velocity",
+      "engineKind": 17,
+      "valueType": "float",
+      "min": 0.2,
+      "max": 3,
+      "default": 1,
+      "step": 0.01,
+      "normalizedConversion": "linear_quantized",
+      "serializationVersion": 1
+    },
+    {
+      "id": "phrase_mute",
+      "engineKind": 18,
+      "valueType": "toggle",
+      "min": 0,
+      "max": 1,
+      "default": 0,
+      "step": 1,
+      "normalizedConversion": "equal_bins",
+      "serializationVersion": 1,
+      "choices": [
+        "OFF",
+        "ON"
+      ]
+    },
+    {
+      "id": "phrase_solo",
+      "engineKind": 19,
+      "valueType": "toggle",
+      "min": 0,
+      "max": 1,
+      "default": 0,
+      "step": 1,
+      "normalizedConversion": "equal_bins",
+      "serializationVersion": 1,
+      "choices": [
+        "OFF",
+        "ON"
+      ]
+    },
+    {
+      "id": "phrase_play_mode",
+      "engineKind": 20,
+      "valueType": "enum",
+      "min": 0,
+      "max": 2,
+      "default": 1,
+      "step": 1,
+      "normalizedConversion": "equal_bins",
+      "serializationVersion": 1,
+      "choices": [
+        "LOOP",
+        "ONCE",
+        "HOLD"
+      ]
+    },
+    {
+      "id": "instrument_on",
+      "engineKind": 21,
+      "valueType": "toggle",
+      "min": 0,
+      "max": 1,
+      "default": 1,
+      "step": 1,
+      "normalizedConversion": "equal_bins",
+      "serializationVersion": 1,
+      "choices": [
+        "OFF",
+        "ON"
+      ]
+    },
+    {
+      "id": "instrument_midi_in",
+      "engineKind": 22,
+      "valueType": "enum",
+      "min": 0,
+      "max": 16,
+      "default": 0,
+      "step": 1,
+      "normalizedConversion": "equal_bins",
+      "serializationVersion": 1,
+      "choices": [
+        "ALL",
+        "CH 1",
+        "CH 2",
+        "CH 3",
+        "CH 4",
+        "CH 5",
+        "CH 6",
+        "CH 7",
+        "CH 8",
+        "CH 9",
+        "CH 10",
+        "CH 11",
+        "CH 12",
+        "CH 13",
+        "CH 14",
+        "CH 15",
+        "CH 16"
+      ]
+    },
+    {
+      "id": "instrument_midi_out",
+      "engineKind": 23,
+      "valueType": "enum",
+      "min": 0,
+      "max": 16,
+      "default": 0,
+      "step": 1,
+      "normalizedConversion": "equal_bins",
+      "serializationVersion": 1,
+      "choices": [
+        "ORIGINAL",
+        "CH 1",
+        "CH 2",
+        "CH 3",
+        "CH 4",
+        "CH 5",
+        "CH 6",
+        "CH 7",
+        "CH 8",
+        "CH 9",
+        "CH 10",
+        "CH 11",
+        "CH 12",
+        "CH 13",
+        "CH 14",
+        "CH 15",
+        "CH 16"
+      ]
+    },
+    {
+      "id": "transformer_enabled",
+      "engineKind": 24,
+      "valueType": "toggle",
+      "min": 0,
+      "max": 1,
+      "default": 1,
+      "step": 1,
+      "normalizedConversion": "equal_bins",
+      "serializationVersion": 1,
+      "choices": [
+        "OFF",
+        "ON"
+      ]
+    }
+  ]
+}

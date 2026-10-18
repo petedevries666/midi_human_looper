@@ -1,0 +1,4 @@
+M4 rejected case=1 reason=record_overflow oldSourceEvents=2 oldLength=1024
+M4 rejected case=2 reason=release_capacity oldSourceEvents=2 oldLength=1024
+M4 rejected case=3 reason=invalid_capture oldSourceEvents=2 oldLength=1024
+PASS: 162 M4 clock-domain checks

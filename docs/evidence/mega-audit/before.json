@@ -1,0 +1,36 @@
+{
+  "sourceRevision": "74c72d8db495f9c08a6e2c7ba4eed3aeaf7547a0",
+  "runtimeBuildRevision": "74c72d8db495f9c08a6e2c7ba4eed3aeaf7547a0",
+  "findings": [
+    {
+      "extension": "controllerEngine",
+      "http": 200,
+      "preserved": false,
+      "unknownPresent": false
+    },
+    {
+      "extension": "globalSnapshots",
+      "http": 200,
+      "preserved": false,
+      "unknownPresent": false
+    }
+  ],
+  "encodingBenchmark": {
+    "payloadBytes": 11714,
+    "iterationsPerSample": 256,
+    "samplesUs": [
+      4686.59099609375,
+      4840.652140625,
+      4645.50419921875,
+      4596.8864140625,
+      4561.87651171875,
+      4848.15971875,
+      5542.9187578125,
+      4677.2459765625,
+      4885.23192578125
+    ],
+    "medianUs": 4686.59099609375,
+    "tracemallocPeak": 23678,
+    "scope": "Python observation serialization only; CPU time with tracemalloc overhead, not a JACK measurement"
+  }
+}

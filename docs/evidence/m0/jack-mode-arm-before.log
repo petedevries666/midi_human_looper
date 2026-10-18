@@ -1,0 +1,37 @@
+Cannot lock down 107341340 byte memory area (Cannot allocate memory)
+M0 before LOOP {"id": 4, "events": 2, "name": "", "state": "STOPPED", "outputChannel": 0, "mode": 0, "timeDecay": 1, "velocityDecay": 1, "baseVelocity": 1, "triggerNote": -1, "triggerChannel": 0, "mute": 0, "solo": 0}
+M0 first LOOP {"id": 4, "events": 2, "name": "", "state": "STOPPED", "outputChannel": 0, "mode": 0, "timeDecay": 1, "velocityDecay": 1, "baseVelocity": 1, "triggerNote": -1, "triggerChannel": 0, "mute": 0, "solo": 0}
+M0 second LOOP {"id": 4, "events": 2, "name": "", "state": "PLAYING", "outputChannel": 0, "mode": 0, "timeDecay": 1, "velocityDecay": 1, "baseVelocity": 1, "triggerNote": -1, "triggerChannel": 0, "mute": 0, "solo": 0}
+jack JACK diagnostic: jackdmp 1.9.22
+Copyright 2001-2005 Paul Davis and others.
+Copyright 2004-2016 Grame.
+Copyright 2016-2023 Filipe Coelho.
+jackdmp comes with ABSOLUTELY NO WARRANTY
+This is free software, and you are welcome to redistribute it
+under certain conditions; see the file COPYING for details
+JACK server starting in non-realtime mode
+self-connect-mode is "Don't restrict self connect requests"
+Cannot lock down 107341340 byte memory area (Cannot allocate memory)
+JackEngine::XRun: client = mbmf_d was not finished, state = Triggered
+JackEngine::XRun: client = conductor_send was not finished, state = Triggered
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+Cannot write socket fd = 20 err = Broken pipe
+CheckRes error
+Could not write notification
+ClientNotify fails name = conductor_probe notification = 1 val1 = 0 val2 = 0
+Cannot write socket fd = 20 err = Broken pipe
+CheckRes error
+Could not write notification
+ClientNotify fails name = conductor_send notification = 18 val1 = 0 val2 = 0
+Cannot write socket fd = 20 err = Broken pipe
+CheckRes error
+Could not write notification
+ClientNotify fails name = conductor_send notification = 18 val1 = 1 val2 = 0
+Jack main caught signal 15
+
+Traceback (most recent call last):
+  File "/workspace/mbmf-conductor-a/tests/test_m0_playback_jack.py", line 47, in <module>
+    assert not c.request()['phrases'][3]['state']=='PLAYING','LOOP second PRESS stops'
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: LOOP second PRESS stops

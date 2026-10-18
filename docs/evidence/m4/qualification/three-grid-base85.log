@@ -1,0 +1,71 @@
+Cannot lock down 107341340 byte memory area (Cannot allocate memory)
+CHAIN FAILURE 1 process exit None
+Cannot lock down 107341340 byte memory area (Cannot allocate memory)
+READY /tmp/mbh-chains-zu_fqvqb/midi-human-looper/processor-1/control.sock
+EDITOR http://127.0.0.1:8766
+
+CHAIN FAILURE 2 process exit None
+Cannot lock down 107341340 byte memory area (Cannot allocate memory)
+READY /tmp/mbh-chains-zu_fqvqb/midi-human-looper/processor-2/control.sock
+EDITOR http://127.0.0.1:8767
+
+CHAIN FAILURE 3 process exit None
+Cannot lock down 107341340 byte memory area (Cannot allocate memory)
+READY /tmp/mbh-chains-zu_fqvqb/midi-human-looper/processor-3/control.sock
+EDITOR http://127.0.0.1:8768
+
+JACK FAILURE LOG Cannot lock down 107341340 byte memory area (Cannot allocate memory)
+JackEngine::XRun: client = mbh_1 was not finished, state = Running
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackEngine::XRun: client = mbh_1 was not finished, state = Running
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackTimedDriver::Process XRun = 211 usec
+JackEngine::XRun: client = mbh_1 was not finished, state = Triggered
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackEngine::XRun: client = mbh_1 was not finished, state = Triggered
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackTimedDriver::Process XRun = 6756 usec
+JackEngine::XRun: client = mbh_1 was not finished, state = Running
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackTimedDriver::Process XRun = 226 usec
+JackEngine::XRun: client = mbh_1 was not finished, state = Triggered
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackTimedDriver::Process XRun = 119 usec
+JackEngine::XRun: client = mbh_1 was not finished, state = Running
+JackEngine::XRun: client = mbh_2 was not finished, state = Running
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackEngine::XRun: client = mbh_1 was not finished, state = Triggered
+JackEngine::XRun: client mbh_2 finished after current callback
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackTimedDriver::Process XRun = 55 usec
+JackEngine::XRun: client = mbh_2 was not finished, state = Running
+JackEngine::XRun: client = mbh_3 was not finished, state = Running
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackTimedDriver::Process XRun = 195 usec
+JackTimedDriver::Process XRun = 247 usec
+JackEngine::XRun: client = mbh_1 was not finished, state = Triggered
+JackEngine::XRun: client = mbh_2 was not finished, state = Triggered
+JackEngine::XRun: client = mbh_3 was not finished, state = Triggered
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackTimedDriver::Process XRun = 229 usec
+JackEngine::XRun: client = mbh_1 was not finished, state = Triggered
+JackEngine::XRun: client = mbh_2 was not finished, state = Triggered
+JackEngine::XRun: client = mbh_3 was not finished, state = Triggered
+JackAudioDriver::ProcessGraphAsyncMaster: Process error
+JackTimedDriver::Process XRun = 312 usec
+Jack main caught signal 15
+
+Traceback (most recent call last):
+  File "/workspace/mbmf-conductor-a/tests/test_zynthian_chains.py", line 89, in <module>
+    wait(i,'chainRecording',True);wait(i,'chainRecording',False)
+                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/mbmf-conductor-a/tests/test_zynthian_chains.py", line 80, in wait
+    s=state(i)
+      ^^^^^^^^
+  File "/workspace/mbmf-conductor-a/tests/test_zynthian_chains.py", line 75, in state
+    def state(i):return engines[i-1].instances[i]['control'].request()
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/mbmf-conductor-a/headless/server.py", line 108, in request
+    chunk = client.recv(4096)
+            ^^^^^^^^^^^^^^^^^
+KeyboardInterrupt

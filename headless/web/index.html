@@ -1,14 +1,41 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>MIDI BAD MOTHERFUCKER · Headless MIDI</title><link rel="stylesheet" href="/style.css"><script defer src="/app.js"></script></head>
+
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>MIDI BAD MOTHERFUCKER · Live Engine</title><link rel="stylesheet" href="/style.css"><link rel="stylesheet" href="/assets/fonts/fonts.css"><link rel="stylesheet" href="/tiles.css"><script defer src="/tiles.js"></script><script defer src="/app.js"></script><script defer src="/conductor.js"></script><script defer src="/movement.js"></script><script defer src="/switch-presets.js"></script><script defer src="/update.js"></script><script defer src="/module-layout.js"></script></head>
+
 <body><main>
-<header><div><h1>MIDI BAD MOTHERFUCKER</h1><p>Autonomous JACK MIDI engine</p></div><button id="panic">PANIC</button></header>
-<div class="connection"><span id="connection" role="status">Connecting…</span><label>LAN token <input id="token" type="password" autocomplete="off"></label><button id="connect">CONNECT</button></div>
-<p class="notice">The engine owns MIDI timing. Connect JACK MIDI ports for hardware input/output. Patch LOAD stops active notes; recording controls use the existing phrase engine.</p>
-<div id="error" role="alert"></div><div id="metrics" class="metrics"></div>
-<section class="patch-controls"><label>PATCH <select id="patch-slot"><option value="1">1</option><option value="2">2</option></select></label><button id="save-patch">SAVE PATCH</button><button id="load-patch">LOAD PATCH</button><button id="export-patch">EXPORT REAPER BASE</button><span id="patch-status" role="status"></span></section>
-<section><h2>PHRASES</h2><div id="phrases" class="phrases"></div></section>
-<section><h2>INSTRUMENTS / TRANSFORMER CHAINS</h2><div id="instruments"></div></section>
-<section><h2>GLOBAL CONTROLLERS</h2><div id="controllers"></div><button id="add-controller">ADD CONTROLLER SOURCE</button><div id="mappings"></div><button id="add-mapping">ADD MAPPING</button><p class="notice">Headless controller configuration is saved in the same patch JSON. Use EXPORT REAPER BASE for a separate REAPER-compatible file. REAPER Lua refuses to load or overwrite patches containing headless controller configuration, preserving the original file.</p></section>
-<section><h2>SMART SWITCHES</h2><div id="switches" class="switches"></div></section>
-<footer id="last-midi">Waiting for MIDI output</footer>
-</main><dialog id="editor"><div id="editor-content"></div></dialog></body></html>
+
+<header class="illustrated-header">
+
+<div class="header-art"><h1 class="sr-only">MIDI BAD MOTHERFUCKER</h1><img src="/assets/header_mbmf.png" alt="" aria-hidden="true" width="580" height="160"><span id="app-version">V …</span></div>
+
+<div class="header-panel"><div class="header-status-row"><span>ENGINE</span><span id="connection" role="status">Connecting…</span></div><div class="transport-controls"><span id="transport-state" role="status"></span><button id="stop-native" hidden>STOP</button></div><label class="header-token">LAN TOKEN <input id="token" type="password" autocomplete="off"></label><div class="header-actions"><button id="connect">CONNECT</button><button id="panic">PANIC</button></div></div>
+
+</header><img class="header-separator" src="/assets/hori_separator_01.png" alt="" aria-hidden="true">
+
+<div id="error" role="alert"></div>
+
+<section class="patch-controls patch-toolbar" aria-label="Patch controls"><label>PATCH <select id="patch-slot"><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option></select></label><button id="save-patch">SAVE PATCH</button><button id="load-patch">LOAD PATCH</button><button id="clear-patch">CLEAR PATCH</button><button id="export-patch" aria-label="EXPORT REAPER BASE" title="Export REAPER-compatible base patch; headless-only control data stays in the original">JSFX BASE</button><span id="patch-status" role="status"></span><details id="project-tools"><summary>PROJECT</summary><button id="inspect-project">RESTART STATE</button><button id="commit-project">COMMIT RESTART STATE</button><span id="project-status" role="status"></span></details></section>
+
+<div id="module-groups"><details id="snapshots-section" class="module-group" open><summary><h2>SNAPSHOTS</h2></summary><div class="group-content"><button id="capture-snapshot">+ CAPTURE SNAPSHOT</button><div id="snapshots"></div><div id="snapshot-ab"></div></div></details>
+
+<details id="smart-switches-section" class="module-group" open><summary><h2>SMART SWITCHES <output id="switch-count"></output></h2></summary><div class="group-content"><button id="add-switch">+ SMART SWITCH</button><div id="switches" class="switches"></div></div></details>
+
+<details id="movement-section" class="module-group"><summary><h2>MOVEMENTS</h2></summary><div class="group-content"><div id="movements"></div><button id="add-movement">+ MOVEMENT</button></div></details>
+
+<details id="phrases-section" class="module-group" open><summary><h2>PHRASES</h2></summary><div class="group-content"><div id="phrase-pagination"></div><div id="phrases" class="phrases"></div></div></details>
+
+<details id="instruments-section" class="module-group" open><summary><h2>INSTRUMENTS / TRANSFORMER CHAINS</h2></summary><div class="group-content"><div id="instruments"></div><button id="add-instrument">ADD INSTRUMENT</button></div></details>
+
+
+
+<details id="controller-section" class="module-group"><summary><h2>CONTROLLERS / EDITOR / TEST</h2></summary><div class="group-content"><h2>GLOBAL CONTROLLERS</h2><div id="controllers"></div><button id="add-controller">ADD CONTROLLER SOURCE</button><div id="mappings"></div><button id="add-mapping">ADD MAPPING</button><details class="context-help"><summary>COMPATIBILITY</summary><p class="notice">Headless controller configuration is saved in the same patch JSON. Use EXPORT REAPER BASE for a separate REAPER-compatible file. REAPER Lua refuses to load or overwrite patches containing headless controller configuration, preserving the original file.</p></details></div></details>
+
+
+
+<details id="movement-config" class="module-group"><summary><h2>CONFIG / MIDI OUTPUT</h2></summary><div class="group-content"><label>MOVEMENT CC RATE <select id="movement-rate" aria-label="MOVEMENT CC RATE"><option value="10">10 Hz</option><option value="25" selected>25 Hz</option><option value="50">50 Hz</option><option value="100">100 Hz</option></select></label></div></details>
+
+<details id="diagnostics-section" class="module-group"><summary><h2>ENGINE TEST / DIAGNOSTICS</h2></summary><div class="group-content"><div id="metrics" class="metrics"></div><footer id="last-midi">Waiting for MIDI output</footer></div></details>
+
+<details id="runtime-update" class="module-group"><summary><h2>UPDATE</h2></summary><div class="group-content"><div id="update-version"></div><button id="update-check">CHECK</button><button id="update-install" disabled>INSTALL</button><button id="update-rollback" disabled>ROLLBACK</button><button id="update-recover" hidden>RECOVER</button><pre id="update-changes"></pre><div id="update-progress" role="status"></div></div></details>
+
+</div><dialog id="editor"><div id="editor-content"></div></dialog></main></body></html>

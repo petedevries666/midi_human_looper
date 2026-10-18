@@ -16,13 +16,14 @@ import urllib.request
 
 ROOT = Path(__file__).resolve().parents[1]
 BINARY = os.environ.get('HEADLESS_BINARY', '/tmp/midi-headless-engine')
+HTTP_TIMEOUT = float(os.environ.get('HEADLESS_HTTP_TIMEOUT', '4'))
 
 class HeadlessTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.temp = tempfile.TemporaryDirectory(prefix='midi-m0-')
         cls.sock = str(Path(cls.temp.name)/'engine.sock')
-        cls.engine = subprocess.Popen([BINARY, str(ROOT/'midi_human_looper.jsfx'), cls.sock,'--demo'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        cls.engine = subprocess.Popen([BINARY, os.environ.get('HEADLESS_SOURCE',str(ROOT/'midi_human_looper.jsfx')), cls.sock,'--demo'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         cls.wait_for(lambda: Path(cls.sock).exists(), 'engine socket')
         with socket.socket() as s:
             s.bind(('127.0.0.1', 0))
@@ -62,7 +63,7 @@ class HeadlessTests(unittest.TestCase):
         if body is not None:body.setdefault('expectedEngineSessionId',self.call()['engineSessionId'])
         request = urllib.request.Request(self.base+'/api/v1/'+('command' if body is not None else 'state'),data=json.dumps(body).encode() if body is not None else None,headers={'Content-Type':'application/json',**(headers or {})})
         try:
-            response=urllib.request.urlopen(request,timeout=4)
+            response=urllib.request.urlopen(request,timeout=HTTP_TIMEOUT)
         except urllib.error.HTTPError as error:
             response=error
         self.assertEqual(response.status,expected)
@@ -74,10 +75,35 @@ class HeadlessTests(unittest.TestCase):
     def setUp(self):
         self.command('panic')
 
+    def test_midi_diagnostics_keep_mock_distinct_from_jack(self):
+        before=self.call()
+        self.command('midi',channel=1,note=60,value=90)
+        self.command('midi',channel=1,note=60,value=0)
+        after=self.call()
+        self.assertGreater(after['midiGenerated'],before['midiGenerated'])
+        self.assertEqual(after['midiWritten'],0)
+        self.assertEqual(after['midiQueued'],0)
+        self.assertEqual(after['midiReceived'],0)
+        self.assertEqual(after['midiInputAccepted'],0)
+        self.assertGreater(after['midiCount'],before['midiCount'])
+
+    def test_read_only_release_monitor(self):
+        before=self.call()
+        result=subprocess.run([sys.executable,str(ROOT/'scripts/monitor-live-engine.py'),
+                               '--socket',self.sock,'--seconds','1'],
+                              capture_output=True,text=True,timeout=5)
+        self.assertEqual(result.returncode,1,'mock backend cannot qualify a JACK test')
+        report=json.loads(result.stdout)
+        self.assertEqual(report['last']['buildRevision'],before['buildRevision'])
+        self.assertEqual(report['observations'],2)
+        self.assertIn('not a JACK hardware observation',report['problems'])
+        self.assertEqual(self.call()['revision'],before['revision'])
+
     def test_real_engine_and_fifo(self):
         result=subprocess.run([BINARY,'--queue-test'],capture_output=True,text=True,check=True)
         self.assertIn('PASS bounded FIFO',result.stdout)
         state=self.call()
+        self.assertRegex(state["buildRevision"],r"^[0-9a-f]{40}(?:\.dirty)?$")
         self.assertEqual(state['schemaVersion'],7)
         self.assertEqual(len(state['phrases']),16)
         self.assertEqual([s['id'] for s in state['switches']],[1,2,3,4])

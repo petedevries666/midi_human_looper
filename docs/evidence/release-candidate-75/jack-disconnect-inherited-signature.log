@@ -1,0 +1,14 @@
+Cannot lock down 107341340 byte memory area (Cannot allocate memory)
+Traceback (most recent call last):
+  File "/workspace/mbmf-conductor-a/tests/test_movement_jack.py", line 72, in <module>
+    install(25,[ba,bb],[step([None,block(ba['id'],'MOVEMENT')]),step([None,block(bb['id'],'MOVEMENT')])]);before=c.request()['switches'][0]['actionCount'];probe.stdin.write('144 110 127 16\n128 110 0 16\n144 110 127 16\n');probe.stdin.flush();wait(lambda s:s['switches'][0]['actionCount']==before+2,'two coalesced PRESS events');event(128,110,0);time.sleep(1.1);assert not c.request()['movements']['active']
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/mbmf-conductor-a/tests/test_movement_jack.py", line 42, in install
+    command(op=2);state=c.request();patch=c.request(op=4,arg=1,revision=state['revision'],session=state['engineSessionId']);model=conductor.migrate(patch);model.update(version=2,movements=items,ccRate=rate)
+    ^^^^^^^^^^^^^
+  File "/workspace/mbmf-conductor-a/tests/test_movement_jack.py", line 21, in command
+    state=c.request();result=c.request(revision=state['revision'],session=state['engineSessionId'],**args);assert result.get('status')=='ok',result;return result
+                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/mbmf-conductor-a/headless/server.py", line 110, in request
+    raise ConnectionError('engine disconnected')
+ConnectionError: engine disconnected

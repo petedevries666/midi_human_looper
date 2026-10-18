@@ -1,0 +1,15 @@
+PASS production REVEAL Controller-token ownership, default/observed volume, GATE, replacement, physical takeover and MOVEMENT stale-retirement regression
+test_reveal_latch_and_early_release (__main__.Reveal.test_reveal_latch_and_early_release) ... ok
+test_gate_remask_keeps_timeline_and_load_stopped (__main__.Reveal.test_gate_remask_keeps_timeline_and_load_stopped) ... ok
+test_natural_end_and_original_all_channel_ownership (__main__.Reveal.test_natural_end_and_original_all_channel_ownership) ... ok
+test_source_cc7_refusal_and_missing_reference (__main__.Reveal.test_source_cc7_refusal_and_missing_reference) ... ok
+test_twelve_instances_saturation_preserves_existing_owners (__main__.Reveal.test_twelve_instances_saturation_preserves_existing_owners) ... ok
+
+----------------------------------------------------------------------
+Ran 5 tests in 21.345s
+
+OK
+Cannot lock down 107341340 byte memory area (Cannot allocate memory)
+GATE PRESS {'sampleClock': 933888, 'lastEvent': [921328, 177, 7, 127], 'reveals': [{'instanceId': 6, 'requestedHidden': 0, 'ownedChannels': 2, 'restoreVolumes': [0, 127, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]}]}
+GATE HOLD {'sampleClock': 958464, 'lastEvent': [945328, 145, 76, 90], 'reveals': [{'instanceId': 6, 'requestedHidden': 0, 'ownedChannels': 2, 'restoreVolumes': [0, 127, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]}]}
+PASS real JACK REVEAL mute-before-On, 250ms reveal, no reattack, GATE timeline, targeted STOP, physical takeover, PANIC; attacks [48, 72, 48, 72, 76, 48, 72, 76, 48, 72, 76, 48, 72, 48, 72, 76] CC7 [[696320, 16, 177, 7, 0], [696320, 64, 177, 7, 127], [761856, 16, 177, 7, 0], [770048, 3824, 177, 7, 127], [901120, 0, 177, 7, 127], [991232, 16, 177, 7, 0], [999424, 3824, 177, 7, 127], [1040384, 16, 177, 7, 0], [1097728, 0, 177, 7, 127], [1163264, 0, 177, 7, 102], [1163264, 1920, 177, 7, 101], [1163264, 3840, 177, 7, 100], [1163264, 5760, 177, 7, 99], [1163264, 7680, 177, 7, 98], [1171456, 1408, 177, 7, 97], [1171456, 3328, 177, 7, 96], [1171456, 5248, 177, 7, 94], [1171456, 7168, 177, 7, 93], [1179648, 16, 177, 7, 0], [1187840, 3824, 177, 7, 93], [1212416, 16, 177, 7, 0], [1310720, 0, 177, 7, 93], [1359872, 16, 177, 7, 0], [1359872, 64, 177, 7, 93], [1400832, 16, 177, 7, 0], [1409024, 3824, 177, 7, 93], [1425408, 16, 177, 7, 85]]

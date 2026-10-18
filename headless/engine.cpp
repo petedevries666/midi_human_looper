@@ -1065,7 +1065,7 @@ static void control(int listener, Queue<Request, 8> &commands,
                       request.arg >> request.revision >> request.ch >>
                       request.note >> request.value) &&
                  request.id > 0 && request.id <= 9007199254740991ULL &&
-                 request.op >= 0 && (request.op <= 52) && request.arg >= 0 &&
+                 request.op >= 0 && (request.op <= 53) && request.arg >= 0 &&
                  request.arg <= (request.op == 1 ? 5 : request.op == 13   ? 5
                                  : request.op == 40 ? 7
                                  : request.op == 15 || request.op == 34 ? 3
@@ -2190,6 +2190,7 @@ int main(int argc, char **argv) {
         if(nativeClearOffset==page.count){++nativeClearCursor;nativeClearOffset=0;}
       }
     };
+    int programChannel = 0; // Global host reservation, 0 disables it; never a patch parameter.
     std::function<int(jack_nframes_t)> process = [&](jack_nframes_t frames) {
       realtime_trace::Trace::Scope trace(rtTrace.get(),state.samples,frames);
       if(rtTrace)trace.value.jackFrame=useJack?jack_last_frame_time(jack):state.samples;
@@ -2283,6 +2284,8 @@ int main(int argc, char **argv) {
               loading.load(std::memory_order_acquire)) {
             ++state.midiDropped;
           } else {
+            if (programChannel && e.size==2 && (e.buffer[0]&240)==192 &&
+                (e.buffer[0]&15)==programChannel-1) continue;
             if (inputWrite - inputRead >= 8192 || e.size > 256) {
               ++state.midiDropped;
               ++state.outputOverflow;
@@ -2420,6 +2423,10 @@ int main(int argc, char **argv) {
               auto &v=model.switchFields[slot];*v[0]=1;*v[4]=std::min(127,60+slot);*v[7]=300;*v[8]=800;*v[12]=127;*v[14]=1;*v[17]=slot;*v[18]=slot;*v[19]=slot;*v[20]=1;*v[21]=next;
               *cell(fx,unsigned(variable(fx,"DS_CFG_BASE"))+1)=next+1;*target=slot;NSEEL_code_execute(switchReset);++state.revision;}
           }else reply.status=3;
+        }
+        else if(request.op==53){
+          if(request.value>16)reply.status=3;
+          else {programChannel=int(request.value);++state.revision;}
         }
         else if(request.op==50){
           if(request.arg==1){state.switchLearnTarget=0;state.switchLearnConflict=false;}

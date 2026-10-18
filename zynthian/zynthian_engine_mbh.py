@@ -104,13 +104,17 @@ class zynthian_engine_mbh(zynthian_engine):
                 from project_sync import ProjectStore
                 ProjectStore(library,entry['control']).restore()
             manager = getattr(self.state_manager, 'chain_manager', None)
+            recall=None
+            if getattr(self.state_manager,'ctrldev_manager',None) is not None:
+                from patch_recall import install as install_recall
+                recall=install_recall(self.state_manager,data.parent,library,self._live_entries)
             if manager is not None:
                 from zynthian_chains import ChainLinks, Bridge
                 links = ChainLinks(manager, processor.chain_id, entry['control'],
                     entry.get('host_chain_snapshot'), getattr(self, 'host_chain_identities', {}),
                     mixer=getattr(self.state_manager, 'zynmixer', None))
                 entry['host_chains'] = Bridge(data/'host-chains.sock', links,
-                    on_refresh=lambda: self._refresh_host_chain_selectors(processor))
+                    on_refresh=lambda: self._refresh_host_chain_selectors(processor),recall=recall)
             web=[sys.executable,str(self.root/'headless/server.py'),'--socket',socket_path,'--patch-dir',str(library),'--port',str(self.config.get('web_port_base',8765)+pid),'--bind',self.config.get('web_bind','127.0.0.1')]
             if entry.get('host_chains'):
                 web += ['--host-chain-socket', str(data/'host-chains.sock')]

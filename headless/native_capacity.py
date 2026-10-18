@@ -142,7 +142,10 @@ NATIVE_SNAPSHOT_PARAMETER_BASE=CONDUCTOR_BASE-12000;native_snapshot_pending=0;
     for index in ('pv_i','si','gi'):
         change(f'{index}<4?SW_RT_BASE+{index}*32:DS_RT_BASE+({index}-4)*32',
                f'{index}<4?SW_RT_BASE+{index}*32:DS_RT_BASE+({index}-4)*32')
-    return source
+    # RESET/STOP+RESET reset both the legacy traversal and native Conductor.
+    change('mem[r+10]=-1;);', 'mem[r+10]=-1;mem[CONDUCTOR_BASE+si*8+3]=-1;mem[CONDUCTOR_BASE+si*8+4]=0;mem[CONDUCTOR_BASE+si*8+5]=0;mem[CONDUCTOR_BASE+si*8+6]=0;mem[r+22]=0;mem[r+27]=0;mem[r+29]=0;mem[r+31]=0;);')
+    from native_arp import extend
+    return extend(source)
 
 def constants(source):
     """Resolve numeric allocation declarations, never execute EEL code."""

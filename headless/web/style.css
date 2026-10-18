@@ -226,5 +226,6 @@ dialog[data-contextual][open]{position:relative;inset:auto;width:100%;max-width:
 :root{--switch-held:#e9b650}
 [data-switch-test][aria-pressed=true]{border-color:var(--switch-held);color:var(--switch-held);background:#493b16}
 #switch-count{font-size:11px;color:#aaa}
+#patch-recall-options{max-width:100%;margin-top:12px}#patch-recall-options label{display:inline-flex;flex-wrap:wrap;align-items:center;gap:5px;max-width:100%;margin:5px}#patch-recall-options select{max-width:100%;min-width:0}#patch-recall-options button{max-width:100%;white-space:normal;margin:3px}#pc-status{display:block;overflow-wrap:anywhere}
 #add-switch{margin-bottom:8px}
 @media(min-width:1000px){#switches .switch>button[data-switch-test]{grid-column:4;grid-row:1}#switches .switch>button[aria-label=CONDUCTOR]{grid-row:3}#switches .switch>.switch-test-feedback{grid-column:1/-1;grid-row:4}#switches .switch>.charge-meter{grid-row:5}}

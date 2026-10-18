@@ -126,7 +126,7 @@ class Store:
   if self.path.stat().st_size>2000000:raise ValueError('Preset library oversized')
   data=json.loads(self.path.read_text(encoding='utf-8'))
   if set(data)!={'version','revision','presets','links','activeSlot'} or data['version']!=1:raise ValueError('Unknown preset library preserved')
-  if type(data['activeSlot']) is not int or not 0<=data['activeSlot']<=4:raise ValueError('Invalid saved active patch slot')
+  if type(data['activeSlot']) is not int or not 0<=data['activeSlot']<=127:raise ValueError('Invalid saved active patch slot')
   for ident,p in data['presets'].items():uuid.UUID(ident);text(p['name'],64);validate_config(p['config'])
   return data
  def current(self):
@@ -138,7 +138,7 @@ class Store:
  def inventory(self):
   with self.lock:
    data=self.read();saved=[]
-   for slot in range(1,5):
+   for slot in range(1,128):
     path=self.directory/f'patch{slot}.json'
     if not path.exists():continue
     try:
@@ -157,7 +157,7 @@ class Store:
    if state['revision']!=request.get('expectedRevision') or state['engineSessionId']!=request.get('expectedEngineSessionId'):raise ValueError('Engine changed; reopen preview')
    if operation not in ('save','update','apply','link','propagate','unlink','delete'):raise ValueError('Unknown preset operation')
    if operation in ('update','propagate','unlink') and 'slot' in request:
-    if type(request['slot']) is not int or request['slot'] not in (1,2,3,4):raise ValueError('Choose the current patch identity')
+    if type(request['slot']) is not int or not 1<=request['slot']<=127:raise ValueError('Choose the current patch identity')
     data['activeSlot']=request['slot']
    ident=request.get('presetId');preset=data['presets'].get(ident);files={};summary=[];warnings=[];errors=[];current_config=None;current_owner=owner
    if operation in ('save','update'):
@@ -171,7 +171,7 @@ class Store:
    if operation in ('apply','link'):
     _,current_config,w,e=apply_config(patch,owner,preset['config'],preset.get('references'),request.get('resolutions'));warnings+=w;errors+=e;summary.append('Apply to current SWITCH '+str(owner))
     active=request.get('slot',self.active_slot or 1)
-    if type(active) is not int or active not in (1,2,3,4):raise ValueError('Choose the current patch slot')
+    if type(active) is not int or not 1<=active<=127:raise ValueError('Choose the current patch slot')
     data['activeSlot']=active;path=self.directory/f'patch{active}.json'
     previous=json.loads(path.read_text()) if path.exists() else None
     if previous is not None:
@@ -188,7 +188,7 @@ class Store:
    if operation=='propagate' and (not isinstance(targets,list) or not targets or len(targets)>64):raise ValueError('Select at least one saved patch destination')
    for item in targets:
     slot,key=item.get('slot'),item.get('switchId')
-    if type(slot) is not int or slot not in (1,2,3,4) or type(key) is not int:raise ValueError('Select saved patch destinations')
+    if type(slot) is not int or not 1<=slot<=127 or type(key) is not int:raise ValueError('Select saved patch destinations')
     path=self.directory/f'patch{slot}.json'
     if not path.exists():errors.append('PATCH '+str(slot)+' is not saved');continue
     old=files.get(str(path),{}).get('new') or json.loads(path.read_text());new,resolved,w,e=apply_config(old,key,preset['config'],preset.get('references'),item.get('resolutions'))
@@ -242,7 +242,7 @@ class Store:
   if not journal.exists():self.active_slot=self.read()['activeSlot'];return
   p=json.loads(journal.read_text())
   for name in p['files']:
-   if Path(name).resolve().parent!=self.directory.resolve() or not re.fullmatch(r'patch[1-4]\.json',Path(name).name):raise ValueError('Invalid preset recovery path')
+   if Path(name).resolve().parent!=self.directory.resolve() or not re.fullmatch(r'patch(?:[1-9]|[1-9][0-9]|1[01][0-9]|12[0-7])\.json',Path(name).name):raise ValueError('Invalid preset recovery path')
   all_new=all(Path(name).exists() and digest(json.loads(Path(name).read_text()))==digest(entry['new']) for name,entry in p['files'].items())
   if all_new:atomic_json(self.path,p['library'])
   else:

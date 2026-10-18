@@ -237,12 +237,15 @@ class Handler(BaseHTTPRequestHandler):
             return
         if path == '/api/v1/zynthian/chains':
             self.host_chain_command(read_only=True);return
+        if path == '/api/v1/patch-recall':
+            self.host_chain_command(read_only=True,recall=True);return
         if path == '/api/v1/patches':
+            self.server.switch_presets.active_slot=self.server.switch_presets.read()['activeSlot']
             from patch_names import read
             try:names=read(self.server.patch_dir)
             except ValueError as e:self.respond(422,{'error':str(e)});return
             slots=[]
-            for slot in range(1,5):slots.append({'slot':slot,'saved':(self.server.patch_dir/f'patch{slot}.json').is_file(),'name':names.get(str(slot),'')})
+            for slot in range(1,128):slots.append({'slot':slot,'saved':(self.server.patch_dir/f'patch{slot}.json').is_file(),'name':names.get(str(slot),'')})
             self.respond(200,{'slots':slots,'activeSlot':self.server.switch_presets.active_slot});return
         if path == '/api/v1/switch-presets':
             self.preset_command('status');return
@@ -299,6 +302,7 @@ class Handler(BaseHTTPRequestHandler):
                  '/conductor.js': ('conductor.js', 'text/javascript; charset=utf-8'),
                  '/movement.js': ('movement.js', 'text/javascript; charset=utf-8'),
                  '/update.js': ('update.js', 'text/javascript; charset=utf-8'),
+                 '/patch-recall.js': ('patch-recall.js', 'text/javascript; charset=utf-8'),
                  '/switch-presets.js': ('switch-presets.js','text/javascript; charset=utf-8'),
                  '/style.css': ('style.css', 'text/css; charset=utf-8'),
                  '/tiles.css': ('tiles.css','text/css; charset=utf-8'),
@@ -373,6 +377,8 @@ class Handler(BaseHTTPRequestHandler):
             return
         if self.path == '/api/v1/zynthian/chains':
             self.host_chain_command();return
+        if self.path == '/api/v1/patch-recall':
+            self.host_chain_command(recall=True);return
         if self.path == '/api/v1/switch-presets':
             self.preset_command();return
         if self.path == '/api/v1/update':
@@ -659,7 +665,10 @@ class Handler(BaseHTTPRequestHandler):
         except OSError as error:self.respond(503,{'error':str(error)})
 
     def patch_command(self):
-        with self.server.patch_lock,self.server.control.lock:self._patch_command_locked()
+        from patch_lock import library_lock
+        try:
+            with library_lock(self.server.patch_dir),self.server.patch_lock,self.server.control.lock:self._patch_command_locked()
+        except ValueError as error:self.respond(409,{'error':str(error)})
 
     def _patch_command_locked(self):
         try:
@@ -667,7 +676,7 @@ class Handler(BaseHTTPRequestHandler):
             if not 0<n<=2048:raise ValueError()
             data=json.loads(self.rfile.read(n));slot=data.get('slot');rev=data.get('expectedRevision');session=data.get('expectedEngineSessionId')
             if type(session) is not int or not 1<=session<=9007199254740991:raise ValueError()
-            if type(slot) is not int or slot not in (1,2,3,4) or type(rev) is not int or not 1<=rev<2147483647:raise ValueError()
+            if type(slot) is not int or not 1<=slot<=127 or type(rev) is not int or not 1<=rev<2147483647:raise ValueError()
             path=self.server.patch_dir/f'patch{slot}.json'
             if self.path.endswith('/rename'):
                 from patch_names import rename
@@ -737,13 +746,13 @@ class Handler(BaseHTTPRequestHandler):
             self.respond(503,{'error':'patch I/O or engine unavailable'})
 
 
-    def host_chain_command(self, read_only=False):
+    def host_chain_command(self, read_only=False, recall=False):
         path = getattr(self.server, 'host_chain_socket', None)
         if path is None:
             self.respond(503, {'error': 'Zynthian chain links unavailable'});return
         try:
             from zynthian_chains import bridge_request
-            request = {'action': 'status'}
+            request = {'action': 'patch_recall','operation':'status'} if recall else {'action': 'status'}
             if not read_only:
                 length = int(self.headers.get('Content-Length', '0'))
                 if not 0 < length <= 4096 or self.headers.get('Content-Type', '').split(';')[0] != 'application/json':

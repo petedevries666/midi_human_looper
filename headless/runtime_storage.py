@@ -39,7 +39,7 @@ def patch_library(data,configured=None):
     with tempfile.TemporaryDirectory(prefix='.patch-library-',dir=library.parent) as temporary:
         stage=Path(temporary)/'library';stage.mkdir()
         names=['patch-names.json','smart-switch-presets.json']
-        names += [f'patch{i}{suffix}.json' for i in range(1,5) for suffix in ('','-reaper')]
+        names += [f'patch{i}{suffix}.json' for i in range(1,128) for suffix in ('','-reaper')]
         for name in names:
             source=data/name
             if source.is_symlink():raise RuntimeError('Refusing symlink in patch migration')

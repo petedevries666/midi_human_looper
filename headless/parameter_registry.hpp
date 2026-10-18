@@ -14,7 +14,7 @@ static constexpr Parameter parameters[]={
   {0,127,1,0}, // 1: level
   {0,127,1,0}, // 2: mod_level
   {0,1,1,1}, // 3: arp_enabled
-  {0,2,1,1}, // 4: arp_mode
+  {0,12,1,1}, // 4: arp_mode
   {0.25,16,0.25,0}, // 5: arp_rate
   {0.02,1,0.01,0}, // 6: arp_gate
   {-48,48,1,0}, // 7: transpose

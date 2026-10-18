@@ -2,6 +2,7 @@
 #include "../headless/parameter_registry.hpp"
 static void parameter_contract_tests(const char *source) {
   Host h(source,false);
+  NSEEL_VM_setramsize(h.f->vm.get(),33554432);ysfx_init(h.f);
   for (double rate : {.2,.5,.8,1.}) {
     for (int repeat : {0,1,2,10,1000}) {
       for (int pitch=0;pitch<128;++pitch) {
@@ -28,6 +29,11 @@ static void parameter_contract_tests(const char *source) {
   for (int kind=0;kind<25;++kind) {
     for (double x : {0.,.001,.127,.25,.499999,.5,.500001,.75,.999,1.}) {
       const auto expression="param_scale("+std::to_string(kind)+","+std::to_string(x)+")";
+      if(kind==4 && h.val("IO_SCHEMA")<8){
+        const double legacy=std::min(2.,std::floor(x*3));
+        check(h.eval(expression)==legacy,"frozen REAPER ARP retains three modes");
+        continue;
+      }
       check(std::abs(h.eval(expression)-performance::physical(kind,x))<1e-7,
             "shared EEL/C++ descriptor scaling parity");
       const double v=performance::physical(kind,x);

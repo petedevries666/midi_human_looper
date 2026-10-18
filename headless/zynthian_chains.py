@@ -261,7 +261,7 @@ class ChainLinks:
 
 class Bridge:
     """One bounded local endpoint per processor, owned by its native adapter."""
-    def __init__(self, path, links, on_refresh=None):
+    def __init__(self, path, links, on_refresh=None, recall=None):
         self.path, self.links = Path(path), links
         self.on_refresh = on_refresh
         if self.path.exists() or self.path.is_symlink():
@@ -276,7 +276,10 @@ class Bridge:
                     if len(line) > 4096 or not line.endswith(b'\n'):
                         raise ValueError('Bounded JSON request required')
                     request = json.loads(line)
-                    if request == {'action': 'status'}:
+                    if not isinstance(request,dict):raise ValueError('JSON object required')
+                    if request.get('action')=='patch_recall' and recall is not None:
+                        result=recall.request(request)
+                    elif request == {'action': 'status'}:
                         result = bridge.links.status()
                     elif set(request)=={'action','inventoryRevision','expectedRevision','expectedEngineSessionId'} and request['action']=='relink_channels':
                         result=bridge.links.relink_channels(request['inventoryRevision'],request['expectedRevision'],request['expectedEngineSessionId'])

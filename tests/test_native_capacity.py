@@ -69,11 +69,12 @@ class Capacity(unittest.TestCase):
   m[base:base+10]=[0,144,67,90,0,4800,128,67,0,0]
   m[cfg['COUNT_BASE']+127]=2;m[cfg['LEN_BASE']+127]=9600;m[cfg['MODE_BASE']+127]=mode
   self.load(p)
- def configure(self,ident=64,policy=1):
+ def configure(self,ident=64,policy=1,network_gestures=False):
   s=next(v for v in self.control.request()['switches'] if v['id']==ident)
   settings=list(s['settings']);settings[:11]=[1,1,15,119,127,0,policy,80,100,0,0]
   settings[12:]=[1,3,4,63,63,63]
-  return self.cmd('switch_commit',switchId=ident,settings=settings,sequence=[128],name='CAPACITY TEST',longHold={'milliseconds':250,'action':6,'target':0})
+  if network_gestures:settings[7:9]=[500,1000]
+  return self.cmd('switch_commit',switchId=ident,settings=settings,sequence=[128],name='CAPACITY TEST',longHold={'milliseconds':1500 if network_gestures else 250,'action':6,'target':0})
  def test_01_dimensions_and_factory(self):
   s=self.control.request();self.assertEqual((s['schemaVersion'],s['phraseCapacity'],s['switchCapacity']),(8,128,64));self.assertEqual(len(s['phrases']),128)
   p=self.export();self.assertEqual(len(p['memory']),layout(p)['PATCH_PAYLOAD_SIZE']);validate_patch(p)
@@ -95,7 +96,9 @@ class Capacity(unittest.TestCase):
   self.phrase128(mode=0);self.cmd('phrase_play',phraseId=128);self.wait(lambda s:s['chainRunning'])
   self.cmd('phrase_stop',phraseId=128);self.wait(lambda s:not s['chainRunning'] and s['activeNotes']==0)
  def test_06_gestures_real_edges_switch64(self):
-  self.add_all();self.phrase128();self.configure();self.cmd('switch_test_edge',switchId=64,edge='press');time.sleep(.02);self.cmd('switch_test_edge',switchId=64,edge='release')
+  # This test traverses HTTP/state serialization on the Pi. A 100 ms HOLD
+  # threshold can classify the transport delay as a hold rather than a short tap.
+  self.add_all();self.phrase128();self.configure(network_gestures=True);self.cmd('switch_test_edge',switchId=64,edge='press');time.sleep(.02);self.cmd('switch_test_edge',switchId=64,edge='release')
   self.wait(lambda s:s['switches'][-1]['lastAction']==1)
   time.sleep(.12)
   for _ in range(2):self.cmd('switch_test_edge',switchId=64,edge='press');self.cmd('switch_test_edge',switchId=64,edge='release');time.sleep(.015)
@@ -244,5 +247,22 @@ class Capacity(unittest.TestCase):
   after=self.export();allowed=set(range(cfg['TRIG_BASE'],cfg['TRIG_BASE']+128))
   self.assertTrue(all(a==b or i in allowed for i,(a,b) in enumerate(zip(before['memory'],after['memory']))))
   self.assertEqual(before.get('conductor'),after.get('conductor'))
+
+ def test_25_patch_slot127_and_program_channel_reservation(self):
+  def post(action,**extra):
+   state=self.control.request();body=dict(slot=127,expectedRevision=state['revision'],expectedEngineSessionId=state['engineSessionId'],**extra)
+   request=urllib.request.Request(self.url+'/api/v1/patch/'+action,data=json.dumps(body).encode(),headers={'Content-Type':'application/json'})
+   return json.load(urllib.request.urlopen(request,timeout=30))
+  self.cmd('module_structure',instrumentId=1,operation='add',engineType=5)
+  arp=next(t for t in self.control.request()['instruments'][0]['transformers'] if t['type']==5)
+  self.cmd('parameter_set',targetId=1,moduleId=arp['id'],kind=4,value=12)
+  self.assertEqual(post('save')['status'],'saved')
+  post('rename',name='MONZTER',expectedName='')
+  inventory=json.load(urllib.request.urlopen(self.url+'/api/v1/patches',timeout=30));self.assertEqual(len(inventory['slots']),127);self.assertEqual(inventory['slots'][-1]['name'],'MONZTER')
+  post('load');self.assertEqual(self.server.switch_presets.active_slot,127)
+  arp=next(t for t in self.control.request()['instruments'][0]['transformers'] if t['type']==5)
+  self.assertEqual(next(p['value'] for p in arp['parameters'] if p['kind']==4),12)
+  state=self.control.request();self.assertEqual(self.control.request(op=53,value=16,revision=state['revision'],session=state['engineSessionId'])['status'],'ok')
+  state=self.control.request();self.assertNotEqual(self.control.request(op=53,value=17,revision=state['revision'],session=state['engineSessionId'])['status'],'ok')
 
 if __name__=='__main__':unittest.main(verbosity=2)

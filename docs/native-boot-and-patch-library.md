@@ -42,4 +42,9 @@ and subsequent processor IDs reuse them. This avoids a split library while the
 current UI stays running. Six storage/socket/selection tests and five snapshot
 hook tests pass. The adapter and configuration were installed without restarting
 services because the live UI did not confirm a new last-state snapshot save;
-an actual restart qualification remains pending a user-saved instrument snapshot.
+The user subsequently saved an instrument snapshot. A physical-device Zynthian UI
+restart restored both amsynth and Sfizz after deliberately abandoning both UNIX
+socket endpoints. Native patch source and Conductor matched the pre-restart state
+(except host-controlled instrument names); saved slots, names and the original
+snapshot were byte-identical. JACK retained its process at 44100 Hz / 512 frames /
+3 periods. This qualifies a UI restart, not a power-cycle or arbitrary failed boot.

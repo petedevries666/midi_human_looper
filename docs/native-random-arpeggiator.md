@@ -10,14 +10,23 @@ Legacy identities 0 RANDOM, 1 UP, 2 DOWN are unchanged. Native schema 8 adds:
 | 6 | RANDOM WALK | Random neighbouring held pitch, reversing at the ends. |
 | 7 | RANDOM MUTATE | Eight-step motif; 25% mutation probability per position/cycle. |
 | 8 | RANDOM WEIGHTED | Lower held pitches have higher descending-rank weights. |
-| 9 | RANDOM CLIMB UP | Upward leaps; wrap exactly to the lowest pitch. |
-| 10 | RANDOM CLIMB DOWN | Downward leaps; wrap exactly to the highest pitch. |
-| 11 | RANDOM CLIMB UP / DOWN | Start low; reverse at the top without duplication. |
-| 12 | RANDOM CLIMB DOWN / UP | Start high; reverse at the bottom without duplication. |
+| 9 | RANDOM CLIMB UP | Start at the lowest held pitch, explore upwards with occasional backtracking, then descend. |
+| 10 | RANDOM CLIMB DOWN | Start at the highest held pitch, explore downwards with occasional backtracking, then ascend. |
+| 11 | RANDOM CLIMB UP / DOWN | Same exploratory traversal as CLIMB UP in this revision. |
+| 12 | RANDOM CLIMB DOWN / UP | Same exploratory traversal as CLIMB DOWN in this revision. |
 
-CLIMB favours small leaps spanning one to three held-note positions. The leap
-range, eight-step motif and mutation probability are fixed in this version; no
-extra JUMP/length/mutation controls are added. Selection uses actual held MIDI
+CLIMB now uses a biased random walk: each step chooses the preferred direction
+with 70% probability and a short reverse with 30% probability. A step moves
+1 or 2 held-note positions (STEP MAX default = 2); near boundaries the distance
+is clamped. At the highest/lowest note, the preferred direction reverses.
+There is no wrap jump, no cached sequence and every journey is newly sampled.
+The preferred direction persists across temporary backtracking.
+
+STEP MAX is currently fixed at 2 in the native selector; the requested
+editable 1–4 parameter, patch persistence and editor binding still need
+implementation. Do not advertise a working STEP MAX control yet.
+The UP / UP-DOWN and DOWN / DOWN-UP pairs intentionally share traversal
+semantics for now; they must be differentiated or consolidated in a follow-up. Selection uses actual held MIDI
 pitches, including their authored octaves; no octave generator is added. One
 held pitch repeats to remain playable; two pitches necessarily alternate in
 NO REPEAT. Pool/mode changes reset the pattern.

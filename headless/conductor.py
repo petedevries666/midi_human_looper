@@ -131,7 +131,7 @@ def validate(data):
         # MOVEMENT refs are valid but unresolved until its source library exists.
         if source['type'] != 'PHRASE':
             raise ValueError('CONDUCTOR unsupported source pool binding')
-        integer(source['slot'], 1, 16)
+        integer(source['slot'], 1, 128)
         if source['slot'] in slots:
             raise ValueError('CONDUCTOR aliased PHRASE slot')
         slots.add(source['slot']); sources[source['id']] = source
@@ -285,7 +285,7 @@ def migrate(patch):
     """
     if 'conductor' in patch:
         return copy.deepcopy(decode(patch['conductor']))
-    return dict(version=VERSION, sources=[dict(id=str(uuid.uuid4()), type='PHRASE', slot=i) for i in range(1, 17)], switches=[])
+    return dict(version=VERSION, sources=[dict(id=str(uuid.uuid4()), type='PHRASE', slot=i) for i in range(1, 129 if patch.get('schema')==8 else 17)], switches=[])
 
 
 def resolve(data, existing_switches=None):

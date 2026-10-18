@@ -92,7 +92,7 @@ inline bool validDocument(const std::vector<unsigned> &bytes){
     std::set<std::string> ids,sources,movements;std::set<unsigned> slots,switchIds;
     auto unique=[&](const Value &v){require(ids.insert(uuid(v)).second);};
     const auto &src=root.at("sources");require(src.type=='a');
-    for(const auto &v:src.array){if(groupVersion){fields(v,{"id","type","slot","muteGroup"});require(integer(v.at("muteGroup"),0,16777215));}else fields(v,{"id","type","slot"});unique(v.at("id"));require(choice(v.at("type"),{"PHRASE"})&&integer(v.at("slot"),1,16)&&slots.insert(unsigned(v.at("slot").number)).second);sources.insert(uuid(v.at("id")));}
+    for(const auto &v:src.array){if(groupVersion){fields(v,{"id","type","slot","muteGroup"});require(integer(v.at("muteGroup"),0,16777215));}else fields(v,{"id","type","slot"});unique(v.at("id"));require(choice(v.at("type"),{"PHRASE"})&&integer(v.at("slot"),1,128)&&slots.insert(unsigned(v.at("slot").number)).second);sources.insert(uuid(v.at("id")));}
     if(movementVersion){
       const auto &rate=root.at("ccRate");require(integer(rate,10,100)&&(rate.number==10||rate.number==25||rate.number==50||rate.number==100));
       const auto &library=root.at("movements");require(library.type=='a');

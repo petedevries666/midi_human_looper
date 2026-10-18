@@ -8,7 +8,7 @@
 <div id="error" role="alert"></div>
 <section class="patch-controls"><label>PATCH <select id="patch-slot"><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option></select></label><button id="save-patch">SAVE PATCH</button><button id="load-patch">LOAD PATCH</button><button id="clear-patch">CLEAR PATCH</button><button id="export-patch" aria-label="EXPORT REAPER BASE" title="Export REAPER-compatible base patch; headless-only control data stays in the original">JSFX BASE</button><span id="patch-status" role="status"></span><details id="project-tools"><summary>PROJECT</summary><button id="inspect-project">RESTART STATE</button><button id="commit-project">COMMIT RESTART STATE</button><span id="project-status" role="status"></span></details></section>
 <section id="snapshots-section"><h2>SNAPSHOTS</h2><button id="capture-snapshot">+ CAPTURE SNAPSHOT</button><div id="snapshots"></div><div id="snapshot-ab"></div></section>
-<section><h2>SMART SWITCHES</h2><div id="switches" class="switches"></div></section>
+<section><h2>SMART SWITCHES <output id="switch-count"></output></h2><button id="add-switch">+ SMART SWITCH</button><div id="switches" class="switches"></div></section>
 <details id="movement-section"><summary>MOVEMENTS</summary><div id="movements"></div><button id="add-movement">+ MOVEMENT</button></details>
 <section><h2>PHRASES</h2><div id="phrase-pagination"></div><div id="phrases" class="phrases"></div></section>
 <section><h2>INSTRUMENTS / TRANSFORMER CHAINS</h2><div id="instruments"></div><button id="add-instrument">ADD INSTRUMENT</button></section>

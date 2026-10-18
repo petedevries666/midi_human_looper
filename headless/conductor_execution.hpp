@@ -41,18 +41,19 @@ inline bool supportedBlock(const Value& b) {
   }
   return true;
 }
+template<std::size_t SwitchCapacity>
 inline std::vector<double> compile(const std::vector<unsigned>& bytes,double base,
-                                  const std::array<unsigned,16>& owners,
+                                  const std::array<unsigned,SwitchCapacity>& owners,
                                   const std::map<std::string,unsigned>& movements = {}) {
-  std::vector<double> out(16*8,0);
+  std::vector<double> out(SwitchCapacity*8,0);
   if(bytes.empty())return out;
   auto root=document(bytes);std::map<std::string,unsigned> slots;
-  std::array<unsigned,16> groups{};
+  std::array<unsigned,128> groups{};
   for(const auto& s:root.at("sources").array)if(s.object.count("muteGroup"))groups[unsigned(s.at("slot").number)-1]=unsigned(s.at("muteGroup").number);
   for(const auto& s:root.at("sources").array)slots[s.at("id").text]=unsigned(s.at("slot").number)-1;
   for(const auto& sw:root.at("switches").array) {
-    unsigned si=16;for(unsigned j=0;j<16;++j)if(owners[j]==sw.at("switchId").number)si=j;
-    if(si==16)continue;unsigned h=si*8;
+    unsigned si=SwitchCapacity;for(unsigned j=0;j<SwitchCapacity;++j)if(owners[j]==sw.at("switchId").number)si=j;
+    if(si==SwitchCapacity)continue;unsigned h=si*8;
     out[h]=owners[si];out[h+1]=sw.at("steps").array.size();out[h+2]=base+out.size();out[h+3]=-1;
     out[h+7]=choice(sw.at("traversal"),{"SEQUENTIAL"})&&choice(sw.at("transition"),{"IMMEDIATE","END_OF_PHRASE"})&&choice(sw.at("gesture"),{"INSTANT"});
     if(out[h+7]&&sw.object.count("advance")&&choice(sw.at("advance"),{"RELEASE"}))out[h+7]=2;
@@ -101,7 +102,7 @@ inline std::vector<double> compile(const std::vector<unsigned>& bytes,double bas
       record[74]=releaseAdmissions.size();record[75]=chargeAdmissions.size();record[76]=base+out.size();out.insert(out.end(),releaseAdmissions.begin(),releaseAdmissions.end());record[77]=base+out.size();out.insert(out.end(),chargeAdmissions.begin(),chargeAdmissions.end());
       record[78]=base+out.size();std::vector<double> binding;
       double patchThreshold=root.object.count("supercharge")?root.at("supercharge").at("thresholdMs").number:600,patchFull=root.object.count("supercharge")?root.at("supercharge").at("fullMs").number:2000;
-      double threshold=record[73]>0?patchThreshold:-1,full=patchFull;
+      double threshold=(record[73]>0||!chargeAdmissions.empty())?patchThreshold:-1,full=patchFull;
       if(step.object.count("supercharge")){
         const auto &c=step.at("supercharge");threshold=c.object.count("thresholdMs")?c.at("thresholdMs").number:patchThreshold;full=c.object.count("fullMs")?c.at("fullMs").number:patchFull;
         unsigned chargeIndex=0;for(const auto &a:c.at("bindings").array){if(a.object.count("target")){auto it=movements.find("charge:"+step.at("id").text+":"+std::to_string(chargeIndex));if(it!=movements.end())chargeAdmissions.push_back(it->second);++chargeIndex;continue;}++chargeIndex;unsigned row=0;for(const auto &l:step.at("layers").array){const auto &b=l.at("block");if(b.type=='z'||!choice(b.at("type"),{"PHRASE"})||!supportedBlock(b))continue;auto it=slots.find(b.at("sourceId").text);if(it==slots.end()||(groups[it->second]&&winners[groups[it->second]]!=it->second))continue;

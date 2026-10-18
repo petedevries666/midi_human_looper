@@ -25,7 +25,7 @@ inline bool readConfiguration(std::istream &in, Configuration &c) {
     unsigned ease = 0, sw = 0;
     if (!integer(in, r.id, 16777215) || !(in >> r.seconds) ||
         !integer(in, ease, 1) || !integer(in, sw, 3) ||
-        !integer(in, r.state.count, 512))
+        !integer(in, r.state.count, 2048))
       return false;
     r.ease = controller::Ease(ease);
     r.switching = controller::Switch(sw);

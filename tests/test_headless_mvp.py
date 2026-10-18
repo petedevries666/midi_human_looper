@@ -16,6 +16,7 @@ import urllib.request
 
 ROOT = Path(__file__).resolve().parents[1]
 BINARY = os.environ.get('HEADLESS_BINARY', '/tmp/midi-headless-engine')
+HTTP_TIMEOUT = float(os.environ.get('HEADLESS_HTTP_TIMEOUT', '4'))
 
 class HeadlessTests(unittest.TestCase):
     @classmethod
@@ -62,7 +63,7 @@ class HeadlessTests(unittest.TestCase):
         if body is not None:body.setdefault('expectedEngineSessionId',self.call()['engineSessionId'])
         request = urllib.request.Request(self.base+'/api/v1/'+('command' if body is not None else 'state'),data=json.dumps(body).encode() if body is not None else None,headers={'Content-Type':'application/json',**(headers or {})})
         try:
-            response=urllib.request.urlopen(request,timeout=4)
+            response=urllib.request.urlopen(request,timeout=HTTP_TIMEOUT)
         except urllib.error.HTTPError as error:
             response=error
         self.assertEqual(response.status,expected)

@@ -19,7 +19,7 @@ struct Value {
 };
 struct State {
   unsigned count = 0;
-  std::array<Value, 512> values{};
+  std::array<Value, 2048> values{};
   bool valid() const {
     if (count > values.size())
       return false;

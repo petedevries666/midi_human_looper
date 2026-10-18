@@ -24,7 +24,7 @@ struct Binding {
   bool valid() const {
     return policy.valid() && instrument && instrument <= 16777215 &&
            module <= 16777215 && kind >= 0 && kind <= 26 &&
-           (performance::phraseKind(kind) ? instrument <= 16 && !module
+           (performance::phraseKind(kind) ? instrument <= 128 && !module
             : kind == 16                  ? instrument == 1 && !module
             : ((kind >= 21 && kind <= 23) || kind==25 || kind==26)    ? !module
             : kind == 24                  ? module != 0

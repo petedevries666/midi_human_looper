@@ -223,3 +223,8 @@ dialog[data-contextual][open]{position:relative;inset:auto;width:100%;max-width:
 #editor .parameter[hidden]{display:none}
 
 .charge-binding{border:1px solid #666;padding:8px;margin:8px 0;display:grid;gap:6px}.charge-binding>select{max-width:100%;min-width:0}.charge-meter{color:#fff020;grid-column:1/-1}.charge-meter[hidden]{display:none}.curve-point input[type=checkbox]{width:auto;min-width:16px}
+:root{--switch-held:#e9b650}
+[data-switch-test][aria-pressed=true]{border-color:var(--switch-held);color:var(--switch-held);background:#493b16}
+#switch-count{font-size:11px;color:#aaa}
+#add-switch{margin-bottom:8px}
+@media(min-width:1000px){#switches .switch>button[data-switch-test]{grid-column:4;grid-row:1}#switches .switch>button[aria-label=CONDUCTOR]{grid-row:3}#switches .switch>.switch-test-feedback{grid-column:1/-1;grid-row:4}#switches .switch>.charge-meter{grid-row:5}}

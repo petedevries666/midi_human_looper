@@ -43,23 +43,25 @@ struct ChainMode {
   }
   void clearError(){error=false;errorPhrase=-1;errorReason=CaptureError::None;}
 
-  EEL_F* phraseTriggers[16]{};
+  unsigned phraseCapacity=16;
+  EEL_F* phraseTriggers[128]{};
   EEL_F* holdAccepted;
-  EEL_F* phraseModes[16]{};
-  EEL_F* phraseCounts[16]{};
+  EEL_F* phraseModes[128]{};
+  EEL_F* phraseCounts[128]{};
   ysfx_t *fx;
   ChainMode(ysfx_t *f, bool active, unsigned version=1, bool grid=false)
       : enabled(active), timingVersion(version), gridCapture(grid), fx(f) {
+    phraseCapacity=unsigned(*ysfx_find_var(f,"LAYERS"));
     if (version!=1 && version!=2) throw std::runtime_error("unsupported chain timing version");
     if (active)
       for (unsigned i = 0; i < 4096; ++i)
-        *NSEEL_VM_getramptr(f->vm.get(), 3000000 + i, nullptr) = 0;
+        *NSEEL_VM_getramptr(f->vm.get(), (phraseCapacity>16?6000000:3000000) + i, nullptr) = 0;
     const auto modeBase=unsigned(*ysfx_find_var(f,"MODE_BASE"));
-    for(unsigned i=0;i<16;++i)
+    for(unsigned i=0;i<phraseCapacity;++i)
       phraseModes[i]=NSEEL_VM_getramptr(f->vm.get(),modeBase+i,nullptr);
-    for(unsigned i=0;i<16;++i)phraseCounts[i]=NSEEL_VM_getramptr(f->vm.get(),unsigned(*ysfx_find_var(f,"COUNT_BASE"))+i,nullptr);
-    for(unsigned i=0;i<16;++i)phraseTriggers[i]=NSEEL_VM_getramptr(f->vm.get(),unsigned(*ysfx_find_var(f,"TRIG_BASE"))+i,nullptr);
-    if(active && !grid)for(unsigned i=0;i<33024;++i)*NSEEL_VM_getramptr(f->vm.get(),3008000+i,nullptr)=0;
+    for(unsigned i=0;i<phraseCapacity;++i)phraseCounts[i]=NSEEL_VM_getramptr(f->vm.get(),unsigned(*ysfx_find_var(f,"COUNT_BASE"))+i,nullptr);
+    for(unsigned i=0;i<phraseCapacity;++i)phraseTriggers[i]=NSEEL_VM_getramptr(f->vm.get(),unsigned(*ysfx_find_var(f,"TRIG_BASE"))+i,nullptr);
+    if(active && !grid)for(unsigned i=0;i<phraseCapacity*2064;++i)*NSEEL_VM_getramptr(f->vm.get(),(phraseCapacity>16?6200000:3008000)+i,nullptr)=0;
     captureActive = NSEEL_VM_regvar(f->vm.get(), "chain_capture_active");
     captureStart = NSEEL_VM_regvar(f->vm.get(), "chain_capture_start");
     captureEnd = NSEEL_VM_regvar(f->vm.get(), "chain_capture_end");
@@ -136,7 +138,12 @@ struct ChainMode {
         "chain_target]=!chain_bad;mem[LEN_BASE+chain_target]=chain_duration;chain_j=0;loop(16,mem[3007400+chain_j]>0?(layer_count(chain_target)<MAX_EVENTS_PER_LAYER?store_event(chain_target,max(0,chain_duration-1),176|chain_j,64,0,0):chain_bad=1;);chain_j+=1;);");
   }
   NSEEL_CODEHANDLE compile(const char *s) {
-    auto code = NSEEL_code_compile(fx->vm.get(), s, 0);
+    std::string source(s);
+    if(phraseCapacity>16){
+      for(const auto &pair: {std::pair<const char*,const char*>("3000000","6000000"),{"3002048","6002048"},{"3007400","6007400"}}){size_t p=0;while((p=source.find(pair.first,p))!=std::string::npos){source.replace(p,7,pair.second);p+=7;}}
+      const std::string old="free_loop_stop_mask|=1<<chain_target";auto p=source.find(old);if(p!=std::string::npos)source.replace(p,old.size(),"(mem[NATIVE_STOP_FLAGS+chain_target]=1;free_loop_stop_mask=1;)");
+    }
+    auto code = NSEEL_code_compile(fx->vm.get(), source.c_str(), 0);
     if (!code)
       throw std::runtime_error("chain bridge compilation");
     return code;
@@ -156,7 +163,7 @@ struct ChainMode {
     recording=*musicalState==2 || *freeActive>.5 || *overdub>.5;
     armed=*musicalState==1 || *freeReady>.5 || *overdubArmed>.5;
     run=false;
-    for(unsigned i=0;i<16;++i)
+    for(unsigned i=0;i<phraseCapacity;++i)
       run=run || (*musicalState==3 && *phraseModes[i]<.5 && *phraseTriggers[i]>.5 && *phraseCounts[i]>0);
     for(unsigned i=0;i<12;++i)run=run || *voiceActive[i]>.5;
     if(!run && !recording && !armed && *musicalState==3)*musicalState=4;
@@ -211,7 +218,7 @@ struct ChainMode {
     *captureActive=0;
   }
   bool command(int action, int selected) {
-    if(selected<0 || selected>=16 || action<0 || action>7)return false;
+    if(selected<0 || selected>=int(phraseCapacity) || action<0 || action>7)return false;
     if(action==7){
       *target=selected;NSEEL_code_execute(independentPlay);*target=phrase;observe();return *instanceAccepted>0;
     }

@@ -14,7 +14,7 @@ FORMAT = 'MBMF_PORTABLE_PROJECT'
 SIZE = 171649
 LAYERS, STRIDE, COUNT = 16, 10240, 163840
 LENGTH, TRIGGER, POSITION, REPEAT = 163952, 163920, 163936, 163984
-MAX_BYTES = 16000000
+MAX_BYTES = 134217728
 MARKERS = (164892,165316,165829,166494,166828,168366)
 
 
@@ -36,18 +36,22 @@ def validate_patch(patch):
     # Import lazily: server imports this module for bridge endpoints.
     from server import validate_patch_extensions
     validate_patch_extensions(patch)
-    if patch['schema'] != 7 or patch.get('work_mem_size') != SIZE:
+    from native_capacity import layout,address
+    cfg=layout(patch);size=cfg['PATCH_PAYLOAD_SIZE'];layers=cfg['LAYERS']
+    if patch['schema'] not in (7,8) or patch.get('work_mem_size') != size:
         raise ValueError('Portable v1 requires migrated schema-7 patch; load older patches in the engine first')
     memory, globals_ = patch.get('memory'), patch.get('globals')
-    if not isinstance(memory, list) or len(memory) != SIZE or not isinstance(globals_, list) or len(globals_) != 9:
+    if not isinstance(memory, list) or len(memory) != size or not isinstance(globals_, list) or len(globals_) != 9:
         raise ValueError('Invalid patch dimensions')
     if any(type(x) not in (int, float) or not math.isfinite(x) for x in memory + globals_):
         raise ValueError('Invalid numeric patch data')
     if globals_[0] < 0:
         raise ValueError('Invalid loop length')
-    if any(memory[index]!=version for version,index in enumerate(MARKERS,2)):
+    if any(memory[address(patch,index)]!=version for version,index in enumerate(MARKERS,2)):
         raise ValueError('Invalid schema-7 extension markers')
-    if int(globals_[8])!=globals_[8] or not 0<=globals_[8]<LAYERS:
+    if patch['schema']==8 and memory[cfg['NATIVE_LEGACY_PAYLOAD']]!=8:
+        raise ValueError('Invalid native schema-8 marker')
+    if int(globals_[8])!=globals_[8] or not 0<=globals_[8]<layers:
         raise ValueError('Invalid phrase identity')
     from registry import REGISTRY
     supported={code for code in REGISTRY.engine_types if code>0}
@@ -57,23 +61,23 @@ def validate_patch(patch):
     for instrument in range(8):
         count_index=164851+instrument if instrument<3 else 168474+instrument-3
         type_index=164854+instrument*6 if instrument<3 else 169964+(instrument-3)*6
-        count=memory[count_index]
+        count=memory[address(patch,count_index)]
         if int(count)!=count or not 0<=count<=6:raise ValueError('Invalid Transformer chain length')
         used=set()
         for slot in range(int(count)):
-            code=abs(memory[type_index+slot])
+            code=abs(memory[address(patch,type_index+slot)])
             if int(code)!=code or not 1<=code<=11 or code in used:raise ValueError('Invalid/aliased Transformer instance code')
             used.add(code)
             if code>=7:
                 index=instrument*5+int(code)-7
-                address=166513+index*21 if index<15 else 171124+(index-15)*21
-                kind=memory[address]
+                record_address=166513+index*21 if index<15 else 171124+(index-15)*21
+                kind=memory[address(patch,record_address)]
                 if kind in (3,5):raise ValueError('Stateful Transformer stacking is unsupported; original retained')
             else:kind=code
             if kind not in supported:raise ValueError('Unsupported Transformer capability; original retained')
-    for p in range(LAYERS):
-        n = memory[COUNT+p]
-        if int(n) != n or not 0 <= n <= 2048 or memory[LENGTH+p] < 0:
+    for p in range(layers):
+        n = memory[cfg['COUNT_BASE']+p]
+        if int(n) != n or not 0 <= n <= 2048 or memory[cfg['LEN_BASE']+p] < 0:
             raise ValueError('Invalid phrase capacity or duration')
         notes=[]
         for j in range(int(n)):
@@ -86,17 +90,19 @@ def validate_patch(patch):
 
 
 def timing(patch, scale):
+    from native_capacity import layout
+    cfg=layout(patch);layers=cfg['LAYERS']
     result = copy.deepcopy(patch)
     memory = result['memory']
     result['globals'][0] *= scale
-    for p in range(LAYERS):
-        memory[LENGTH+p] *= scale
-        for j in range(int(memory[COUNT+p])):
+    for p in range(layers):
+        memory[cfg['LEN_BASE']+p] *= scale
+        for j in range(int(memory[cfg['COUNT_BASE']+p])):
             i = p*STRIDE+j*5
             memory[i] *= scale
             memory[i+4] *= scale
         # These are playheads/trigger counters, never performance configuration.
-        for base in (TRIGGER, POSITION, REPEAT):
+        for base in (cfg['TRIG_BASE'],cfg['ONCEPOS_BASE'],cfg['REPEAT_BASE']):
             memory[base+p] = 0
     return result
 
@@ -144,13 +150,17 @@ def materialize(project, sample_rate, adapter='native'):
     # MIDI source events are emitted on the destination sample grid. This also
     # prevents harmless floating error from failing the native fixed-grid guard.
     patch['globals'][0]=round(patch['globals'][0])
-    for phrase in range(LAYERS):
-        patch['memory'][LENGTH+phrase]=round(patch['memory'][LENGTH+phrase])
-        for event in range(int(patch['memory'][COUNT+phrase])):
+    from native_capacity import layout
+    cfg=layout(patch)
+    for phrase in range(cfg['LAYERS']):
+        patch['memory'][cfg['LEN_BASE']+phrase]=round(patch['memory'][cfg['LEN_BASE']+phrase])
+        for event in range(int(patch['memory'][cfg['COUNT_BASE']+phrase])):
             index=phrase*STRIDE+event*5
             patch['memory'][index]=round(patch['memory'][index])
             patch['memory'][index+4]=round(patch['memory'][index+4])
     if adapter == 'reaper':
+        if patch['schema']==8:
+            raise ValueError('Native schema 8 is not executable by frozen REAPER; original retained')
         if 'conductor' in patch:
             raise ValueError('REAPER cannot execute CONDUCTOR yet; portable original retained')
         # Preserve the portable original, reject execution of native-only data.

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Native RELEASE/SUPERCHARGE regressions; private worker, no JACK or live Pi data."""
-import copy,time,unittest
+import copy,time,unittest,os
 from test_conductor_execution_native import Execution
 from test_conductor_persistence import step,block
 from test_movement_persistence import movement
@@ -34,7 +34,7 @@ class Supercharge(Execution):
  def test_release_after_long_press_without_charge(self):
   m,b=self.add_movement('RELEASE');self.sequence['steps']=[step([block(self.phrase()),b])];self.commit();self.edge(True);time.sleep(.7);self.edge(False);self.assertEqual(self.call()['movements']['active'],1)
  def test_charge_waits_for_exact_master_boundary(self):
-  state=self.call();self.c.request(op=35,target=0,arg=1,phrase=dict(lengthSeconds=.6,events=[[0,144,70,100],[.55,128,70,0]]),revision=state['revision'],session=state['engineSessionId']);self.sequence.update(advance='RELEASE',transition='END_OF_PHRASE');p=block(self.phrase());p['overrides']['playMode']=ov('ONCE');m,b=self.add_movement();s=step([block(self.phrase(1)),b]);self.charge(s,[dict(blockId=b['id'],parameter='movementDuration',**{'from':.1,'to':2,'factor':2})]);self.sequence['steps']=[step([p]),s];self.commit();self.edge(True);self.edge(False);self.edge(True);time.sleep(.15);self.edge(False);self.assertEqual(self.call()['switches'][0]['conductor']['queuedStep'],2);self.wait_for(lambda:self.cursor()==2 and self.call()['movements']['active']==1,'charged boundary admission');self.assertLess(self.call()['movements']['running'][0]['progress'],.4)
+  pattern=float(os.environ.get('HEADLESS_PATTERN_SECONDS','.6'));state=self.call();self.c.request(op=35,target=0,arg=1,phrase=dict(lengthSeconds=pattern,events=[[0,144,70,100],[pattern-.05,128,70,0]]),revision=state['revision'],session=state['engineSessionId']);self.sequence.update(advance='RELEASE',transition='END_OF_PHRASE');p=block(self.phrase());p['overrides']['playMode']=ov('ONCE');m,b=self.add_movement();s=step([block(self.phrase(1)),b]);self.charge(s,[dict(blockId=b['id'],parameter='movementDuration',**{'from':.1,'to':2,'factor':2})]);self.sequence['steps']=[step([p]),s];self.commit();self.edge(True);self.edge(False);self.edge(True);time.sleep(.15);self.edge(False);self.assertEqual(self.call()['switches'][0]['conductor']['queuedStep'],2);self.wait_for(lambda:self.cursor()==2 and self.call()['movements']['active']==1,'charged boundary admission');self.assertLess(self.call()['movements']['running'][0]['progress'],.4)
  def test_patch_charge_defaults_and_step_overrides(self):
   self.sequence['advance']='RELEASE';self.model['supercharge']=dict(thresholdMs=50,fullMs=100);m,b=self.add_movement();s=step([block(self.phrase()),b]);self.sequence['steps']=[s];s['supercharge']=dict(bindings=[dict(blockId=b['id'],parameter='movementDuration',**{'from':.1,'to':1,'factor':1})]);self.commit();self.edge(True);time.sleep(.15);self.edge(False);time.sleep(.3);self.assertEqual(self.call()['movements']['active'],1,'inherited full charge duration');self.command('panic')
   s['supercharge']['fullMs']=5000;self.commit();self.edge(True);time.sleep(.15);self.edge(False);time.sleep(.3);self.assertEqual(self.call()['movements']['active'],0,'local full charge override');self.command('panic')

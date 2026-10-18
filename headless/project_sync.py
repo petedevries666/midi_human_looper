@@ -42,7 +42,9 @@ def executable(project,state):
     if state.get('chainMode') and state.get('chainCaptureMode','two-bar-grid')=='two-bar-grid':
         # Empty studio patches have no loop duration yet. The existing native
         # transport owns that grid; adopting it cannot move or truncate notes.
-        if patch['globals'][0]==0 and not any(patch['memory'][portable.COUNT:portable.COUNT+portable.LAYERS]):
+        from native_capacity import layout
+        cfg=layout(patch)
+        if patch['globals'][0]==0 and not any(patch['memory'][cfg['COUNT_BASE']:cfg['COUNT_BASE']+cfg['LAYERS']]):
             patch['globals'][0]=state['chainLength'];adopted=True
         if patch['globals'][0]!=state['chainLength']:
             raise Conflict('Portable loop does not match the native two-bar grid; no timing adaptation or truncation performed')

@@ -18,20 +18,23 @@ def validate_config(config):
  if not isinstance(config,dict) or set(config)!={'settings','sequence','name','longHold'}:raise ValueError('Incomplete switch preset')
  s=config['settings'];seq=config['sequence'];lh=config['longHold']
  if not isinstance(s,list) or len(s)!=18 or any(type(v) is not int for v in s):raise ValueError('Switch settings required')
- ranges=[(0,1),(0,2),(0,15),(0,127),(0,127),(0,127),(0,1),(50,2000),(100,5000),(0,3),(0,1),(0,64)]+[(0,9)]*3+[(0,47)]*3
+ ranges=[(0,1),(0,2),(0,15),(0,127),(0,127),(0,127),(0,1),(50,2000),(100,5000),(0,3),(0,1),(0,64)]+[(0,9)]*3+[(0,64)]*3
  if any(not a<=v<=b for v,(a,b) in zip(s,ranges)) or (s[1]==2 and s[4]==s[5]):raise ValueError('Invalid switch or MIDI settings')
- if not isinstance(seq,list) or len(seq)>64 or any(type(v) is not int or not 1<=v<=16 for v in seq):raise ValueError('Invalid phrase references')
+ if any(s[12+i]>=7 and s[15+i]>=48 for i in range(3)):raise ValueError('Invalid module target')
+ if not isinstance(seq,list) or len(seq)>64 or any(type(v) is not int or not 1<=v<=128 for v in seq):raise ValueError('Invalid phrase references')
  if not isinstance(config['name'],str) or len(config['name'])>16 or any(not 32<=ord(c)<127 for c in config['name']):raise ValueError('Switch name must fit 16 characters')
- if not isinstance(lh,dict) or set(lh)!={'milliseconds','action','target'} or any(type(v) is not int for v in lh.values()) or not(lh['milliseconds']==0 or s[8]<lh['milliseconds']<=30000) or not 0<=lh['action']<=9 or not 0<=lh['target']<48:raise ValueError('Invalid LONG HOLD settings')
+ if not isinstance(lh,dict) or set(lh)!={'milliseconds','action','target'} or any(type(v) is not int for v in lh.values()) or not(lh['milliseconds']==0 or s[8]<lh['milliseconds']<=30000) or not 0<=lh['action']<=9 or not 0<=lh['target']<=64:raise ValueError('Invalid LONG HOLD settings')
  result=copy.deepcopy(config);result['settings'][11]=len(result['sequence']);return result
 
 def switches(patch):
- if patch.get('format')!='MIDI_HUMAN_LOOPER_PATCH' or patch.get('schema')!=7 or len(patch.get('memory',[]))!=SIZE:raise ValueError('Preset propagation requires schema 7; original preserved')
+ from native_capacity import layout
+ cfg=layout(patch);size=cfg['PATCH_PAYLOAD_SIZE'];sw_base=cfg['SW_LEGACY_PAYLOAD'];ds_base=cfg['DS_LEGACY_PAYLOAD'];i_base=cfg['I_LEGACY_PAYLOAD']
+ if patch.get('format')!='MIDI_HUMAN_LOOPER_PATCH' or patch.get('schema') not in (7,8) or len(patch.get('memory',[]))!=size:raise ValueError('Preset propagation requires schema 7 or 8; original preserved')
  mem=patch['memory']
- if mem[SW_BASE]!=3 or mem[DS_BASE]!=6 or mem[I_BASE]!=7:raise ValueError('Unknown switch layout; original preserved')
+ if mem[sw_base]!=3 or mem[ds_base]!=6 or mem[i_base]!=7:raise ValueError('Unknown switch layout; original preserved')
  result={}
- for index in range(16):
-  base=SW_BASE+1+index*128 if index<4 else DS_BASE+2+(index-4)*128
+ for index in range(cfg['SW_COUNT']):
+  base=sw_base+1+index*128 if index<4 else ds_base+2+(index-4)*128
   if mem[base+20]:
    ident=int(mem[base+21]);n=int(mem[base+11]);config=dict(settings=[int(mem[base+j]) for j in FIELDS],sequence=[int(v)+1 for v in mem[base+48:base+48+n]],name=''.join(chr(int(v)) for v in mem[base+32:base+48] if v),longHold=dict(zip(('milliseconds','action','target'),(int(v) for v in mem[base+120:base+123]))))
    validate_config(config);result[ident]=dict(slot=index,base=base,config=config)
@@ -58,22 +61,25 @@ def module_targets(patch):
   if isinstance(n,ast.Name):return constants[n.id]
   if isinstance(n,ast.BinOp):return ops[type(n.op)](val(n.left),val(n.right))
   raise ValueError()
- source=(Path(__file__).resolve().parents[1]/'midi_human_looper.jsfx').read_text(encoding='utf-8').split('function ')[0]
+ from native_capacity import layout
+ constants=layout(patch)
+ source=''
+ i_base=constants['I_LEGACY_PAYLOAD']
  for name,expression in re.findall(r'\b([A-Z][A-Z0-9_]*)\s*=\s*([^;]+);',source):
   try:constants[name]=val(ast.parse(expression.strip(),mode='eval').body)
   except (ValueError,KeyError,SyntaxError,TypeError):pass
  mem=patch['memory'];out=[]
  for slot in range(8):
-  if not mem[I_BASE+2+slot]:continue
-  ident=int(mem[I_BASE+10+slot]);base=int(constants['INST_TRANSFORM_TYPE_BASE'])+slot*6 if slot<3 else I_BASE+int(constants['I_INST_TRANSFORM_TYPE_BASE']-constants['I_CFG_BASE'])+(slot-3)*6
+  if not mem[i_base+2+slot]:continue
+  ident=int(mem[i_base+10+slot]);base=int(constants['INST_TRANSFORM_TYPE_BASE'])+slot*6 if slot<3 else i_base+int(constants['I_INST_TRANSFORM_TYPE_BASE']-constants['I_CFG_BASE'])+(slot-3)*6
   for kind in sorted({abs(int(v)) for v in mem[base:base+6]}-{0}):out.append(dict(value=slot*6+kind-1,instrumentId=ident,engineType=kind))
  return out
 
 def metadata(config,patch,owner):
- sw=switches(patch);by_slot={v['slot']:key for key,v in sw.items()};modules={m['value']:m for m in module_targets(patch)};result={}
+ sw=switches(patch);capacity=64 if patch['schema']==8 else 16;by_slot={v['slot']:key for key,v in sw.items()};modules={m['value']:m for m in module_targets(patch)};result={}
  for i,key in enumerate(GESTURES):
   action=config['settings'][12+i] if i<3 else config['longHold']['action'];target=config['settings'][15+i] if i<3 else config['longHold']['target']
-  if action in (3,5):result[key]=dict(type='switch',id='SELF' if by_slot.get(target)==owner else 'ALL' if target==16 else by_slot.get(target))
+  if action in (3,5):result[key]=dict(type='switch',id='SELF' if by_slot.get(target)==owner else 'ALL' if target==capacity else by_slot.get(target))
   elif action in (7,8,9):result[key]=dict(type='module',**{k:v for k,v in modules.get(target,{}).items() if k!='value'})
  return result
 
@@ -88,7 +94,7 @@ def apply_config(patch,owner,config,refs=None,resolutions=None):
   if action in (3,5):
    ident=resolutions.get(key,ref.get('id','SELF'))
    if ident=='SELF':ident=owner
-   if ident=='ALL':target=16
+   if ident=='ALL':target=64 if patch['schema']==8 else 16
    elif ident not in sw:errors.append(key+': destination switch missing')
    else:target=sw[ident]['slot']
   elif action in (7,8,9):
@@ -135,7 +141,7 @@ class Store:
     path=self.directory/f'patch{slot}.json'
     if not path.exists():continue
     try:
-     if path.stat().st_size>16000000:raise ValueError('Saved patch oversized')
+     if path.stat().st_size>134217728:raise ValueError('Saved patch oversized')
      p=json.loads(path.read_text());owners=conductor_ids(p)
      saved.append(dict(slot=slot,switches=[dict(id=k,name=v['config']['name'],conductor=k in owners,snapshot=snapshot_bound(p,k)) for k,v in switches(p).items()],modules=module_targets(p)))
     except (ValueError,KeyError,TypeError) as error:saved.append(dict(slot=slot,switches=[],modules=[],error=str(error)))

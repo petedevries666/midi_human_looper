@@ -97,7 +97,7 @@ struct Target {
 };
 class Engine {
 public:
-  static const unsigned TargetCapacity = 512, MappingCapacity = 64;
+  static const unsigned TargetCapacity = 2048, MappingCapacity = 64;
 
 private:
   struct Runtime {

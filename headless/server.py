@@ -26,7 +26,7 @@ PATCH_KEYS={'format','schema','work_mem_size','globals','memory','controllerEngi
 def validate_patch_extensions(patch):
     if not isinstance(patch,dict) or set(patch)-PATCH_KEYS:
         raise ValueError('Unsupported patch fields preserved; refusing to discard configuration.')
-    if patch.get('format')!='MIDI_HUMAN_LOOPER_PATCH' or type(patch.get('schema')) is not int or not 1<=patch['schema']<=7:
+    if patch.get('format')!='MIDI_HUMAN_LOOPER_PATCH' or type(patch.get('schema')) is not int or not 1<=patch['schema']<=8:
         raise ValueError('Unsupported patch format/schema preserved; refusing overwrite or load.')
     if 'conductor' in patch:
         from conductor import decode as decode_conductor
@@ -85,6 +85,10 @@ class Control:
             if phrase is not None:
                 line=line.rstrip('\n')+' '+format(phrase['lengthSeconds'],'.17g')+' '+str(len(phrase['events']))+' '+' '.join(format(v,'.17g') for e in phrase['events'] for v in e)+'\n'
             if patch is not None:
+                if patch.get('schema') in range(1,8) and self.request().get('schemaVersion')==8:
+                    from native_capacity import migrate
+                    patch=migrate(patch);target=8
+                    line=f'{request_id} {op} {target} {arg} {revision} {ch} {note} {value}'+(f' session {session}' if session else '')+'\n'
                 validate_patch_extensions(patch)
                 line = line.rstrip('\n') + ' ' + ' '.join(format(v, '.17g') for v in patch['globals']+patch['memory'])+'\n'
                 if 'controllerEngine' in patch:
@@ -92,7 +96,7 @@ class Control:
                     line=line.rstrip('\n')+' controllers '+' '.join(format(v,'.17g') for v in patch['controllerEngine']['configuration'])+'\n'
                 if 'globalSnapshots' in patch:
                     snapshot_wire=patch['globalSnapshots'].get('configuration')
-                    if type(patch['globalSnapshots'].get('version')) is not int or patch['globalSnapshots'].get('version') not in (1,2,3,4) or not isinstance(snapshot_wire,list) or len(snapshot_wire)>52000 or any(type(v) not in (int,float) or not math.isfinite(v) for v in snapshot_wire):raise ValueError('invalid snapshots')
+                    if type(patch['globalSnapshots'].get('version')) is not int or patch['globalSnapshots'].get('version') not in (1,2,3,4) or not isinstance(snapshot_wire,list) or len(snapshot_wire)>220000 or any(type(v) not in (int,float) or not math.isfinite(v) for v in snapshot_wire):raise ValueError('invalid snapshots')
                     # The native worker validates the complete versioned structure.
                     if 'controllerEngine' not in patch:
                         line=line.rstrip('\n')+' controllers '+' '.join(format(v,'.17g') for v in [1]+[0]*64+([0,0,0,0,0,1,0,0,0,0,0,.02,.2,1,1,.5,1,2]+[0,0,0,1,1,0]+[0]*42)*32)+'\n'
@@ -109,7 +113,7 @@ class Control:
                     if not chunk:
                         raise ConnectionError('engine disconnected')
                     data.extend(chunk)
-                    if len(data) > 16000000:
+                    if len(data) > 134217728:
                         raise ValueError('oversized engine response')
             return json.loads(data)
 
@@ -295,7 +299,7 @@ class Handler(BaseHTTPRequestHandler):
                 result=getattr(self.server.projects,operation)()
             else:
                 length=int(self.headers.get('Content-Length','0'))
-                if not 0 < length <= 16000000:raise ValueError('Bounded project upload required')
+                if not 0 < length <= 134217728:raise ValueError('Bounded project upload required')
                 if self.headers.get('Content-Type','').split(';')[0]!='application/json':raise ValueError('JSON required')
                 data=json.loads(self.rfile.read(length))
                 if not isinstance(data,dict):raise ValueError('Invalid project command')
@@ -310,7 +314,7 @@ class Handler(BaseHTTPRequestHandler):
     def phrase_export(self, path):
         try:
             phrase_id=int(path.split('/')[4])
-            if not 1<=phrase_id<=16:raise ValueError('Invalid phrase')
+            if not 1<=phrase_id<=128:raise ValueError('Invalid phrase')
             result=self.server.control.request(op=35,target=phrase_id-1,arg=0,revision=-1)
             if result.get('status')!='ok':raise ValueError('Finish recording before exporting MIDI')
             self.respond(200,write_smf(result['phraseData']),'audio/midi')
@@ -322,7 +326,7 @@ class Handler(BaseHTTPRequestHandler):
             length=int(self.headers.get('Content-Length','0'))
             if not 0<length<=MAX_BYTES*4//3+4096:raise ValueError('Oversized MIDI upload (limit 1 MiB)')
             data=json.loads(self.rfile.read(length));phrase_id=data.get('phraseId');mode=data.get('mode')
-            if type(phrase_id) is not int or not 1<=phrase_id<=16 or mode not in ('preview','replace'):
+            if type(phrase_id) is not int or not 1<=phrase_id<=128 or mode not in ('preview','replace'):
                 raise ValueError('Choose a valid destination and preview or replace')
             raw=base64.b64decode(data['file'],validate=True)
             parsed=read_smf(raw)
@@ -367,7 +371,7 @@ class Handler(BaseHTTPRequestHandler):
             return
         try:
             length = int(self.headers.get('Content-Length', '0'))
-            if length < 1 or length > 32768:
+            if length < 1 or length > 16000000:
                 self.respond(413, {'error': 'command size limit'})
                 return
             data = json.loads(self.rfile.read(length))
@@ -441,14 +445,16 @@ class Handler(BaseHTTPRequestHandler):
                 target,gesture,kind,snapshot=data.get('switchId'),data.get('gesture'),data.get('snapshotAction'),data.get('snapshotId',0)
                 if any(type(v) is not int for v in (target,gesture,kind,snapshot)) or not 1<=target<=16777215 or not 0<=gesture<=2 or not 0<=kind<=7 or not 0<=snapshot<=16777215:raise ValueError()
                 args=dict(op=28,target=target,arg=gesture,ch=kind,module=snapshot)
+            elif action=='switch_add':
+                args=dict(op=51)
             elif action=='switch_commit':
                 target=data.get('switchId');settings=data.get('settings');sequence=data.get('sequence');name=data.get('name','')
-                if type(target) is not int or not 1<=target<=16777215 or not isinstance(settings,list) or len(settings)!=18 or any(type(v) is not int for v in settings) or not isinstance(sequence,list) or len(sequence)>64 or any(type(v) is not int or not 1<=v<=16 for v in sequence) or not isinstance(name,str) or len(name)>16 or any(not 32<=ord(c)<127 for c in name):raise ValueError()
+                if type(target) is not int or not 1<=target<=16777215 or not isinstance(settings,list) or len(settings)!=18 or any(type(v) is not int for v in settings) or not isinstance(sequence,list) or len(sequence)>64 or any(type(v) is not int or not 1<=v<=128 for v in sequence) or not isinstance(name,str) or len(name)>16 or any(not 32<=ord(c)<127 for c in name):raise ValueError()
                 settings=list(settings);settings[11]=len(sequence)
                 args=dict(op=41,target=target,settings=settings+[p-1 for p in sequence]+[0]*(64-len(sequence))+[ord(c) for c in name]+[0]*(16-len(name)))
                 if 'longHold' in data:
                     lh=data['longHold']
-                    if not isinstance(lh,dict) or set(lh)!={'milliseconds','action','target'} or any(type(v) is not int for v in lh.values()) or not (lh['milliseconds']==0 or settings[8]<lh['milliseconds']<=30000) or not 0<=lh['action']<=9 or not 0<=lh['target']<48:raise ValueError('LONG HOLD must exceed HOLD')
+                    if not isinstance(lh,dict) or set(lh)!={'milliseconds','action','target'} or any(type(v) is not int for v in lh.values()) or not (lh['milliseconds']==0 or settings[8]<lh['milliseconds']<=30000) or not 0<=lh['action']<=9 or not 0<=lh['target']<=64:raise ValueError('LONG HOLD must exceed HOLD')
                     args['settings'] += [lh['milliseconds'],lh['action'],lh['target']]
 
             elif action in ('switch_learn','switch_learn_cancel'):
@@ -503,11 +509,11 @@ class Handler(BaseHTTPRequestHandler):
                 args=dict(op=44,instance=(id,generation))
             elif action=='phrase_play_independent':
                 target=data.get('phraseId')
-                if type(target) is not int or not 1<=target<=16:raise ValueError()
+                if type(target) is not int or not 1<=target<=128:raise ValueError()
                 args=dict(op=40,target=target-1,arg=7)
             elif action=='phrase_stop':
                 target=data.get('phraseId')
-                if type(target) is not int or not 1<=target<=16:raise ValueError()
+                if type(target) is not int or not 1<=target<=128:raise ValueError()
                 args=dict(op=40,target=target-1,arg=6)
             elif action == 'chain_stop':
                 args=dict(op=40,target=0,arg=0)
@@ -518,7 +524,7 @@ class Handler(BaseHTTPRequestHandler):
                 args = dict(op=2)
             elif action in ('phrase_rename','instrument_rename'):
                 target=data.get('phraseId' if action=='phrase_rename' else 'instrumentId');name=data.get('name')
-                if type(target) is not int or not 1<=target<=(16 if action=='phrase_rename' else 16777215) or not isinstance(name,str) or len(name)>16 or any(not 32<=ord(c)<127 for c in name):raise ValueError('Names support up to 16 printable ASCII characters, matching REAPER')
+                if type(target) is not int or not 1<=target<=(128 if action=='phrase_rename' else 16777215) or not isinstance(name,str) or len(name)>16 or any(not 32<=ord(c)<127 for c in name):raise ValueError('Names support up to 16 printable ASCII characters, matching REAPER')
                 args=dict(op=36,target=target,arg=int(action=='instrument_rename'),name=name)
             elif action in ('parameter_curve','parameter_unassign'):
                 target,module,kind=data.get('targetId'),data.get('moduleId',0),data.get('kind')
@@ -537,7 +543,7 @@ class Handler(BaseHTTPRequestHandler):
                 args=dict(op=13,target=target,module=module,arg=('add','delete','bypass','up','down').index(op)+1,note=type_)
             elif action in ('phrase_learn','phrase_learn_cancel','phrase_forget','phrase_learn_confirm'):
                 target=data.get('phraseId')
-                if type(target) is not int or not 1<=target<=16:raise ValueError()
+                if type(target) is not int or not 1<=target<=128:raise ValueError()
                 args=dict(op=34,target=target,arg=('phrase_learn','phrase_learn_cancel','phrase_forget','phrase_learn_confirm').index(action))
             elif action in ('instrument_add','instrument_delete'):
                 target=data.get('instrumentId',0)
@@ -567,15 +573,15 @@ class Handler(BaseHTTPRequestHandler):
                 args=dict(op=10 if field=='enabled' else 9,target=target,arg=('input','output','level').index(field) if field!='enabled' else 0,value=value)
             elif action=='phrase_output':
                 target=data.get('phraseId');channel=data.get('channel')
-                if type(target) is not int or not 1<=target<=16 or type(channel) is not int or not 0<=channel<=17:raise ValueError('invalid phrase output channel')
+                if type(target) is not int or not 1<=target<=128 or type(channel) is not int or not 0<=channel<=17:raise ValueError('invalid phrase output channel')
                 args=dict(op=49,target=target-1,value=channel)
             elif action=='phrase_cancel':
                 target=data.get('phraseId')
-                if type(target) is not int or not 1<=target<=16:raise ValueError()
+                if type(target) is not int or not 1<=target<=128:raise ValueError()
                 args=dict(op=40,target=target-1,arg=5)
             elif action in ('phrase_play','phrase_record','phrase_finish','phrase_clear','phrase_release','phrase_cancel'):
                 target=data.get('phraseId')
-                if type(target) is not int or not 1<=target<=16:raise ValueError('invalid phrase')
+                if type(target) is not int or not 1<=target<=128:raise ValueError('invalid phrase')
                 args=dict(op=40,target=target-1,arg=4) if action=='phrase_release' else dict(op=35,target=target-1,arg=2) if action=='phrase_clear' else dict(op={'phrase_play':6,'phrase_record':7,'phrase_finish':8}[action],target=target-1)
             elif action == 'midi':
                 channel, note, value = data.get('channel'), data.get('note'), data.get('value')
@@ -644,6 +650,8 @@ class Handler(BaseHTTPRequestHandler):
                 if patch.get('status')=='conflict':self.respond(409,patch);return
                 if patch.get('format')!='MIDI_HUMAN_LOOPER_PATCH':raise ValueError()
                 if self.path.endswith('/export'):
+                    if patch['schema']==8:
+                        self.respond(422,{'error':'Native schema 8 cannot be exported to frozen REAPER; original preserved.'});return
                     if 'conductor' in patch:
                         self.respond(422,{'error':'REAPER cannot execute CONDUCTOR yet; export refused, original preserved.'});return
                     snapshots=patch.get('globalSnapshots',{}).get('configuration',[])
@@ -660,14 +668,14 @@ class Handler(BaseHTTPRequestHandler):
                 if self.path.endswith('/save'):self.server.switch_presets.on_patch(slot)
                 self.respond(200,{'status':'saved','slot':slot,'file':path.name})
             else:
-                if path.stat().st_size>16000000:raise ValueError()
+                if path.stat().st_size>134217728:raise ValueError()
                 patch=json.loads(path.read_text())
                 try:validate_patch_extensions(patch)
                 except ValueError as error:
                     self.respond(422,{'error':str(error)});return
                 patch=self.server.switch_presets.materialize(patch,slot)
                 schema=patch.get('schema');memory=patch.get('memory');globals_=patch.get('globals')
-                if patch.get('format')!='MIDI_HUMAN_LOOPER_PATCH' or type(schema) is not int or not 1<=schema<=7 or not isinstance(memory,list) or patch.get('work_mem_size')!=len(memory) or not 0<len(memory)<=200000 or not isinstance(globals_,list) or len(globals_)!=9:raise ValueError()
+                if patch.get('format')!='MIDI_HUMAN_LOOPER_PATCH' or type(schema) is not int or not 1<=schema<=8 or not isinstance(memory,list) or patch.get('work_mem_size')!=len(memory) or not 0<len(memory)<=2000000 or not isinstance(globals_,list) or len(globals_)!=9:raise ValueError()
                 if any(type(x) not in (int,float) or not math.isfinite(x) for x in globals_+memory):raise ValueError()
                 result=self.server.control.request(op=5,target=schema,revision=rev,session=session,patch=patch)
                 if result.get('status')!='ok':self.respond(409 if result.get('status')=='conflict' else 400,result);return

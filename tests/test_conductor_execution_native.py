@@ -11,7 +11,7 @@ class Execution(FreeCapture):
         self.command('panic')
         self.c=Control(self.sock)
         state=self.call();legacy=self.c.request(op=4,revision=state['revision'],session=state['engineSessionId']);legacy.pop('conductor',None)
-        self.c.request(op=5,target=7,patch=legacy,revision=state['revision'],session=state['engineSessionId'])
+        self.c.request(op=5,target=legacy['schema'],patch=legacy,revision=state['revision'],session=state['engineSessionId'])
         for instrument in (2,3):self.command('instrument_route',instrumentId=instrument,field='enabled',value=0)
         sw=self.call()['switches'][0];settings=list(sw['settings']);settings[:4]=[1,1,0,110]
         self.command('switch_commit',switchId=1,settings=settings,sequence=[],name='CONDUCTOR')

@@ -2,7 +2,7 @@
 """Actual native JSFX, command queue and HTTP snapshot capture tests."""
 import sys,unittest,json,urllib.request,urllib.error,time,subprocess
 from pathlib import Path
-from test_headless_mvp import BINARY,ROOT
+from test_headless_mvp import BINARY,ROOT,HTTP_TIMEOUT
 from test_headless_mvp import HeadlessTests
 class SnapshotTests(HeadlessTests):
     def setUp(self):
@@ -14,7 +14,7 @@ class SnapshotTests(HeadlessTests):
     def patch(self,action):
         state=self.call();body=dict(slot=1,expectedRevision=state['revision'],expectedEngineSessionId=state['engineSessionId'])
         req=urllib.request.Request(self.base+'/api/v1/patch/'+action,data=json.dumps(body).encode(),headers={'Content-Type':'application/json'})
-        return json.load(urllib.request.urlopen(req,timeout=5))
+        return json.load(urllib.request.urlopen(req,timeout=max(5,HTTP_TIMEOUT)))
     def capture(self):
         return self.command('snapshot_capture')['snapshots'][-1]
     def test_capture_live_dirty_update_independence(self):
@@ -146,7 +146,7 @@ class SnapshotTests(HeadlessTests):
             except (ValueError,KeyError,SyntaxError):pass
         def patch(action):
             state=self.call();req=urllib.request.Request(self.base+'/api/v1/patch/'+action,data=json.dumps(dict(slot=1,expectedRevision=state['revision'],expectedEngineSessionId=state['engineSessionId'])).encode(),headers={'Content-Type':'application/json'})
-            return json.load(urllib.request.urlopen(req,timeout=5))
+            return json.load(urllib.request.urlopen(req,timeout=max(5,HTTP_TIMEOUT)))
         patch('save');path=Path(self.temp.name)/'patches/patch1.json';original=path.read_bytes()
         data=json.loads(original);data['memory'][int(constants['INST_EXP_ASSIGN_BASE'])+1]=1
         data['memory'][int(constants['CONTROLLER_CC_BASE'])]=25
@@ -252,7 +252,7 @@ class SnapshotTests(HeadlessTests):
         def patch(action,expected=200):
             state=self.call();body=dict(slot=2,expectedRevision=state['revision'],expectedEngineSessionId=state['engineSessionId'])
             req=urllib.request.Request(self.base+'/api/v1/patch/'+action,data=json.dumps(body).encode(),headers={'Content-Type':'application/json'})
-            try:response=urllib.request.urlopen(req,timeout=5)
+            try:response=urllib.request.urlopen(req,timeout=max(5,HTTP_TIMEOUT))
             except urllib.error.HTTPError as error:response=error
             self.assertEqual(response.status,expected);return json.load(response)
         patch('save');path=Path(self.temp.name)/'patches/patch2.json';saved=json.loads(path.read_text())
@@ -271,7 +271,7 @@ class SnapshotTests(HeadlessTests):
         def patch(action):
             s=self.call();body=dict(slot=1,expectedRevision=s['revision'],expectedEngineSessionId=s['engineSessionId'])
             req=urllib.request.Request(self.base+'/api/v1/patch/'+action,data=json.dumps(body).encode(),headers={'Content-Type':'application/json'})
-            return json.load(urllib.request.urlopen(req,timeout=5))
+            return json.load(urllib.request.urlopen(req,timeout=max(5,HTTP_TIMEOUT)))
         self.assertEqual(patch('save')['status'],'saved')
         self.command('snapshot_delete',snapshotId=a['id'])
         patch('load');restored=self.call()['snapshots'];self.assertEqual(restored[0]['name'],'VERSE')

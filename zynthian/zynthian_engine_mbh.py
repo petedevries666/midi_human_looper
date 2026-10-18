@@ -68,9 +68,11 @@ class zynthian_engine_mbh(zynthian_engine):
         if pid < 0 or pid > 512 or self.instances or pid in self._live_entries:raise ValueError('invalid/duplicate processor ID')
         data = Path(self.my_data_dir)/'midi-human-looper'/f'processor-{pid}'
         data.mkdir(parents=True, exist_ok=True)
+        from runtime_storage import recover_socket, patch_library
+        library=patch_library(data,self.config.get('patch_library'))
         socket_path = str(data/'control.sock')
-        if Path(socket_path).exists() or Path(socket_path).is_symlink():
-            raise RuntimeError('stale/occupied MBH socket: '+socket_path+'; check process ownership before cleanup')
+        recover_socket(socket_path)
+        recover_socket(data/'host-chains.sock')
         name = f'mbh_{pid}'
         log = (data/'engine.log').open('ab')
         source=self.root/'midi_human_looper.jsfx'
@@ -100,16 +102,20 @@ class zynthian_engine_mbh(zynthian_engine):
             if state:self._restore(entry,state)
             else:
                 from project_sync import ProjectStore
-                ProjectStore(data,entry['control']).restore()
+                ProjectStore(library,entry['control']).restore()
             manager = getattr(self.state_manager, 'chain_manager', None)
+            recall=None
+            if getattr(self.state_manager,'ctrldev_manager',None) is not None:
+                from patch_recall import install as install_recall
+                recall=install_recall(self.state_manager,data.parent,library,self._live_entries)
             if manager is not None:
                 from zynthian_chains import ChainLinks, Bridge
                 links = ChainLinks(manager, processor.chain_id, entry['control'],
                     entry.get('host_chain_snapshot'), getattr(self, 'host_chain_identities', {}),
                     mixer=getattr(self.state_manager, 'zynmixer', None))
                 entry['host_chains'] = Bridge(data/'host-chains.sock', links,
-                    on_refresh=lambda: self._refresh_host_chain_selectors(processor))
-            web=[sys.executable,str(self.root/'headless/server.py'),'--socket',socket_path,'--patch-dir',str(data),'--port',str(self.config.get('web_port_base',8765)+pid),'--bind',self.config.get('web_bind','127.0.0.1')]
+                    on_refresh=lambda: self._refresh_host_chain_selectors(processor),recall=recall)
+            web=[sys.executable,str(self.root/'headless/server.py'),'--socket',socket_path,'--patch-dir',str(library),'--port',str(self.config.get('web_port_base',8765)+pid),'--bind',self.config.get('web_bind','127.0.0.1')]
             if entry.get('host_chains'):
                 web += ['--host-chain-socket', str(data/'host-chains.sock')]
             if self.config.get('token_file'):web+=['--token-file',self.config['token_file']]

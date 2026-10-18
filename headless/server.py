@@ -237,6 +237,16 @@ class Handler(BaseHTTPRequestHandler):
             return
         if path == '/api/v1/zynthian/chains':
             self.host_chain_command(read_only=True);return
+        if path == '/api/v1/patch-recall':
+            self.host_chain_command(read_only=True,recall=True);return
+        if path == '/api/v1/patches':
+            self.server.switch_presets.active_slot=self.server.switch_presets.read()['activeSlot']
+            from patch_names import read
+            try:names=read(self.server.patch_dir)
+            except ValueError as e:self.respond(422,{'error':str(e)});return
+            slots=[]
+            for slot in range(1,128):slots.append({'slot':slot,'saved':(self.server.patch_dir/f'patch{slot}.json').is_file(),'name':names.get(str(slot),'')})
+            self.respond(200,{'slots':slots,'activeSlot':self.server.switch_presets.active_slot});return
         if path == '/api/v1/switch-presets':
             self.preset_command('status');return
         if path == '/api/v1/update':
@@ -278,13 +288,27 @@ class Handler(BaseHTTPRequestHandler):
         if path == '/api/v1/state':
             self.engine()
             return
+        if path.startswith('/assets/'):
+            asset=(ROOT/path.lstrip('/')).resolve()
+            types={'.css':'text/css; charset=utf-8','.png':'image/png','.webp':'image/webp','.woff2':'font/woff2','.json':'application/json; charset=utf-8'}
+            try:asset.relative_to((ROOT/'assets').resolve())
+            except ValueError:
+                self.respond(404,{'error':'not found'});return
+            if not asset.is_file() or asset.suffix not in types:
+                self.respond(404,{'error':'not found'});return
+            self.respond(200,asset.read_bytes(),types[asset.suffix]);return
         files = {'/': ('index.html', 'text/html; charset=utf-8'),
                  '/app.js': ('app.js', 'text/javascript; charset=utf-8'),
                  '/conductor.js': ('conductor.js', 'text/javascript; charset=utf-8'),
                  '/movement.js': ('movement.js', 'text/javascript; charset=utf-8'),
                  '/update.js': ('update.js', 'text/javascript; charset=utf-8'),
+                 '/patch-recall.js': ('patch-recall.js', 'text/javascript; charset=utf-8'),
                  '/switch-presets.js': ('switch-presets.js','text/javascript; charset=utf-8'),
                  '/style.css': ('style.css', 'text/css; charset=utf-8'),
+                 '/tiles.css': ('tiles.css','text/css; charset=utf-8'),
+                 '/tiles.js': ('tiles.js','text/javascript; charset=utf-8'),
+                 '/module-layout.js': ('module-layout.js','text/javascript; charset=utf-8'),
+                  '/interactions.js': ('interactions.js','text/javascript; charset=utf-8'),
                  '/fonts/mbmf-block.woff2': ('fonts/mbmf-block.woff2', 'font/woff2')}
         if path not in files:
             self.respond(404, {'error': 'not found'})
@@ -353,6 +377,8 @@ class Handler(BaseHTTPRequestHandler):
             return
         if self.path == '/api/v1/zynthian/chains':
             self.host_chain_command();return
+        if self.path == '/api/v1/patch-recall':
+            self.host_chain_command(recall=True);return
         if self.path == '/api/v1/switch-presets':
             self.preset_command();return
         if self.path == '/api/v1/update':
@@ -361,7 +387,7 @@ class Handler(BaseHTTPRequestHandler):
             self.project_command(self.path.rsplit('/',1)[-1]);return
         if self.path == '/api/v1/phrase/midi':
             self.phrase_import();return
-        if self.path in ('/api/v1/patch/save','/api/v1/patch/load','/api/v1/patch/export'):
+        if self.path in ('/api/v1/patch/save','/api/v1/patch/load','/api/v1/patch/export','/api/v1/patch/copy','/api/v1/patch/paste','/api/v1/patch/rename'):
             self.patch_command();return
         if self.path != '/api/v1/command':
             self.respond(404, {'error': 'not found'})
@@ -383,6 +409,15 @@ class Handler(BaseHTTPRequestHandler):
             session=data.get('expectedEngineSessionId')
             if type(session) is not int or not 1<=session<=9007199254740991:raise ValueError('engine session required')
             action = data.get('action')
+            if action=='switch_delete':
+                from switch_edit import remove_switch
+                with self.server.patch_lock,self.server.control.lock:
+                    patch=self.server.control.request(op=4,arg=1,revision=revision,session=session)
+                    if patch.get('format')!='MIDI_HUMAN_LOOPER_PATCH':self.respond(409,{'error':'Stop MBMF and release keys before deleting a switch.'});return
+                    patch=remove_switch(patch,data.get('switchId'))
+                    result=self.server.control.request(op=5,arg=1,target=patch['schema'],revision=revision,session=session,patch=patch)
+                if result.get('status')=='ok':self.engine();return
+                self.respond(409,result);return
             if length>2048 and action not in ('snapshot_commit','conductor_commit'):
                 self.respond(413,{'error':'command size limit'});return
             if action=='conductor_commit':
@@ -630,7 +665,10 @@ class Handler(BaseHTTPRequestHandler):
         except OSError as error:self.respond(503,{'error':str(error)})
 
     def patch_command(self):
-        with self.server.patch_lock,self.server.control.lock:self._patch_command_locked()
+        from patch_lock import library_lock
+        try:
+            with library_lock(self.server.patch_dir),self.server.patch_lock,self.server.control.lock:self._patch_command_locked()
+        except ValueError as error:self.respond(409,{'error':str(error)})
 
     def _patch_command_locked(self):
         try:
@@ -638,8 +676,27 @@ class Handler(BaseHTTPRequestHandler):
             if not 0<n<=2048:raise ValueError()
             data=json.loads(self.rfile.read(n));slot=data.get('slot');rev=data.get('expectedRevision');session=data.get('expectedEngineSessionId')
             if type(session) is not int or not 1<=session<=9007199254740991:raise ValueError()
-            if type(slot) is not int or slot not in (1,2,3,4) or type(rev) is not int or not 1<=rev<2147483647:raise ValueError()
+            if type(slot) is not int or not 1<=slot<=127 or type(rev) is not int or not 1<=rev<2147483647:raise ValueError()
             path=self.server.patch_dir/f'patch{slot}.json'
+            if self.path.endswith('/rename'):
+                from patch_names import rename
+                with self.server.patch_lock:name=rename(self.server.patch_dir,slot,data.get('name'),data.get('expectedName'))
+                self.respond(200,{'status':'renamed','slot':slot,'name':name});return
+            if self.path.endswith('/copy'):
+                patch=self.server.control.request(op=4,arg=1,revision=rev,session=session)
+                if patch.get('format')!='MIDI_HUMAN_LOOPER_PATCH':self.respond(409,{'error':'Stop MBMF before copying the patch.'});return
+                ident=os.urandom(12).hex();self.server.patch_clipboard=(ident,patch)
+                self.respond(200,{'status':'copied','clipboardId':ident});return
+            if self.path.endswith('/paste'):
+                saved=getattr(self.server,'patch_clipboard',None)
+                if not saved or data.get('clipboardId')!=saved[0]:self.respond(409,{'error':'COPY PATCH first; clipboard changed or expired.'});return
+                patch=saved[1];result=self.server.control.request(op=5,target=patch['schema'],revision=rev,session=session,patch=patch)
+                if result.get('status')!='ok':self.respond(409,result);return
+                self.server.switch_presets.on_patch(slot);self.engine();return
+            if self.path.endswith('/load') and not path.exists():
+                result=self.server.control.request(op=42,revision=rev,session=session)
+                if result.get('status')!='ok':self.respond(409,result);return
+                self.server.switch_presets.on_patch(slot);result=self.server.control.request();result['emptySlot']=True;self.respond(200,result);return
             if self.path.endswith('/save') or self.path.endswith('/export'):
                 if path.exists():
                     previous=json.loads(path.read_text())
@@ -689,13 +746,13 @@ class Handler(BaseHTTPRequestHandler):
             self.respond(503,{'error':'patch I/O or engine unavailable'})
 
 
-    def host_chain_command(self, read_only=False):
+    def host_chain_command(self, read_only=False, recall=False):
         path = getattr(self.server, 'host_chain_socket', None)
         if path is None:
             self.respond(503, {'error': 'Zynthian chain links unavailable'});return
         try:
             from zynthian_chains import bridge_request
-            request = {'action': 'status'}
+            request = {'action': 'patch_recall','operation':'status'} if recall else {'action': 'status'}
             if not read_only:
                 length = int(self.headers.get('Content-Length', '0'))
                 if not 0 < length <= 4096 or self.headers.get('Content-Type', '').split(';')[0] != 'application/json':

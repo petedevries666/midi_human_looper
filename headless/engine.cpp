@@ -8,6 +8,7 @@
 #include "reveal_engine.hpp"
 #include "realtime_trace.hpp"
 #include "parameter_registry.hpp"
+#include "panic_sweep.hpp"
 #include "snapshot_wire.hpp"
 #include "ysfx.hpp"
 #include <algorithm>
@@ -1064,7 +1065,7 @@ static void control(int listener, Queue<Request, 8> &commands,
                       request.arg >> request.revision >> request.ch >>
                       request.note >> request.value) &&
                  request.id > 0 && request.id <= 9007199254740991ULL &&
-                 request.op >= 0 && (request.op <= 52) && request.arg >= 0 &&
+                 request.op >= 0 && (request.op <= 53) && request.arg >= 0 &&
                  request.arg <= (request.op == 1 ? 5 : request.op == 13   ? 5
                                  : request.op == 40 ? 7
                                  : request.op == 15 || request.op == 34 ? 3
@@ -1516,6 +1517,26 @@ int main(int argc, char **argv) {
                   "engine_addr(INST_OUT_BASE,0)]=0;");
     PatchModel patch(fx); // Capture clean factory data before demo or restored user data.
     ChainMode chain(fx, chainMode, chainTimingVersion, chainGridCapture);
+    // Allocate/touch native ownership pages before JACK can call us. The first
+    // emergency reset must not fault in enlarged phrase/transformer tables.
+    if (chainMode) execute(fx, "reset_note_runtime();");
+    struct ClearPage { EEL_F *data; unsigned count; };
+    std::vector<ClearPage> nativeClearPages;
+    auto nativeHostBulkClear = NSEEL_VM_regvar(fx->vm.get(),"native_host_bulk_clear");
+    if (chainMode && variable(fx,"IO_SCHEMA")==8) {
+      auto bindClear = [&](unsigned address,unsigned count) {
+        while(count) {
+          int available=0;
+          auto data=NSEEL_VM_getramptr(fx->vm.get(),address,&available);
+          if(!data || available<=0)throw std::runtime_error("native cleanup page allocation");
+          unsigned n=std::min(count,unsigned(available));
+          nativeClearPages.push_back({data,n});address+=n;count-=n;
+        }
+      };
+      if(!chainGridCapture)bindClear(6200000,unsigned(variable(fx,"LAYERS"))*2064);
+      for(const char *name:{"NATIVE_ARP_HELD_BASE","NATIVE_ARP_SOURCE_BASE","NATIVE_MONO_SOURCE_BASE"})
+        bindClear(unsigned(variable(fx,name)),unsigned(variable(fx,"NATIVE_TRANSFORM_CELLS")));
+    }
     if (demo)
       execute(
           fx,
@@ -1560,6 +1581,14 @@ int main(int argc, char **argv) {
     if(!switchReset)throw std::runtime_error("switch reset bridge");
     auto panic_bridge =
         NSEEL_code_compile(fx->vm.get(),
+                           chainMode && useJack ?
+                           // Global native recovery clears live and phrase ownership
+                           // below and sends channel safety in this callback. The
+                           // selective phrase stop would scan the same tables first
+                           // and even re-voice retained live mono notes unnecessarily.
+                           "memset(TRIG_BASE,0,LAYERS);memset(HOLD_ACTIVE_BASE,0,LAYERS);"
+                           "state==STATE_PLAYING?state=STATE_STOPPED;"
+                           "snap_parameter_cancel();panic_pending=1;" :
                            "sw_stop_phrases();reset_note_runtime();snap_"
                            "parameter_cancel();panic_pending=1;",
                            0);
@@ -1569,7 +1598,12 @@ int main(int argc, char **argv) {
     // of current grid events. Reset ownership and emit bounded channel cleanup.
     auto panicPending = ysfx_find_var(fx, "panic_pending");
     auto chainRecovery = NSEEL_code_compile(fx->vm.get(),
-        "send_all_notes_off();reset_note_runtime();panic_pending=0;", 0);
+        // Channel safety is emitted by the host immediately below. Do not
+        // generate 2,048 EEL Note Offs only to discard them, or reset twice.
+        "memset(I_QUARANTINE_BASE,0,INST_CAP*2048+INST_CAP);"
+        "memset(I_FALLBACK_BASE,0,4096);memset(I_SUSTAIN_BASE,0,INST_CAP*16+16);"
+        "memset(SW_PHRASE_OUT_BASE,0,SW_MEMORY_END-SW_PHRASE_OUT_BASE);"
+        "reset_note_runtime();panic_pending=0;", 0);
     if (!chainRecovery) throw std::runtime_error("chain recovery bridge");
     auto phraseTarget = NSEEL_VM_regvar(fx->vm.get(), "remote_phrase");
     auto phrasePlay = NSEEL_code_compile(
@@ -2114,6 +2148,7 @@ int main(int argc, char **argv) {
     std::unique_ptr<std::array<NativeControl,8328>> nativeControls(new std::array<NativeControl,8328>());
 
     std::atomic<uint64_t> xruns{0};
+    PanicSweep panicSweep;
     uint64_t tracedNotes=0,tracedNoteOns=0,tracedCCs=0,tracedOrderErrors=0;
     unsigned tracedLastOffset=0;bool tracedHaveOutput=false;
     auto traceWrite=[&](unsigned offset){if(!rtTrace)return;if(tracedHaveOutput&&offset<tracedLastOffset)++tracedOrderErrors;tracedLastOffset=offset;tracedHaveOutput=true;};
@@ -2144,6 +2179,18 @@ int main(int argc, char **argv) {
     std::unique_ptr<Request> processingRequest(new Request());
     struct MovementPhysical {unsigned offset=0,ch=0,cc=0,value=0;};
     std::array<MovementPhysical,136> movementPhysical{};
+    size_t nativeClearCursor=nativeClearPages.size();unsigned nativeClearOffset=0;
+    auto clearNativeChunk = [&]() {
+      unsigned budget=262144; // At most 2 MiB; no allocation or VM lookup here.
+      while(budget && nativeClearCursor<nativeClearPages.size()) {
+        const auto &page=nativeClearPages[nativeClearCursor];
+        unsigned n=std::min(budget,page.count-nativeClearOffset);
+        std::memset(static_cast<void*>(page.data+nativeClearOffset),0,n*sizeof(EEL_F));
+        budget-=n;nativeClearOffset+=n;
+        if(nativeClearOffset==page.count){++nativeClearCursor;nativeClearOffset=0;}
+      }
+    };
+    int programChannel = 0; // Global host reservation, 0 disables it; never a patch parameter.
     std::function<int(jack_nframes_t)> process = [&](jack_nframes_t frames) {
       realtime_trace::Trace::Scope trace(rtTrace.get(),state.samples,frames);
       if(rtTrace)trace.value.jackFrame=useJack?jack_last_frame_time(jack):state.samples;
@@ -2152,15 +2199,35 @@ int main(int argc, char **argv) {
       movements.block(frames);
       void *outBuffer =
           useJack ? jack_port_get_buffer(midiOut, frames) : nullptr;
+      auto drainPanic = [&]() {
+        panicSweep.drain(64,[&](const std::array<uint8_t,3>& event) {
+          if(outBuffer && jack_midi_event_write(outBuffer,frames-1,event.data(),event.size())) {
+            ++state.midiWriteFailures;return false;
+          }
+          ++state.midiGenerated;++state.midi;state.last_sample=state.samples+frames-1;
+          state.last_status=event[0];state.last_note=event[1];state.last_value=0;
+          if(outBuffer){++state.midiWritten;traceWrite(frames-1);if(rtTrace)++tracedNotes;}
+          return true;
+        });
+      };
       auto cleanupChain = [&]() {
         ++state.midiRecoveries;
         state.midiDropped += outputWrite-outputRead;
         outputRead = outputWrite;
+        nativeClearCursor=0;nativeClearOffset=0;
+        // An explicit global stop is already silent. Bound its cold-table work
+        // across callbacks, admitting queued inputs/commands only when complete.
+        // A running grid recovery retains its synchronous transport semantics.
+        if(chain.run || chain.recording || chain.armed)
+          while(nativeClearCursor<nativeClearPages.size())clearNativeChunk();
+        *nativeHostBulkClear=nativeClearPages.empty()?0:1;
         NSEEL_code_execute(chainRecovery);
+        *nativeHostBulkClear=0;
         ysfx_midi_clear(fx->midi.out.get());
+        if (panicSweep.remaining()) jack_midi_clear_buffer(outBuffer);
         bool complete = true;
         for (unsigned ch = 0; ch < 16; ++ch)
-          for (unsigned cc : {64u, 123u, 120u}) {
+          for (unsigned cc : {64u, 66u, 69u, 123u, 120u}) {
             uint8_t data[] = {uint8_t(176 | ch), uint8_t(cc), 0};
             ++state.midiGenerated;
             if (jack_midi_event_write(outBuffer, 0, data, 3)) {
@@ -2217,6 +2284,8 @@ int main(int argc, char **argv) {
               loading.load(std::memory_order_acquire)) {
             ++state.midiDropped;
           } else {
+            if (programChannel && e.size==2 && (e.buffer[0]&240)==192 &&
+                (e.buffer[0]&15)==programChannel-1) continue;
             if (inputWrite - inputRead >= 8192 || e.size > 256) {
               ++state.midiDropped;
               ++state.outputOverflow;
@@ -2235,6 +2304,19 @@ int main(int argc, char **argv) {
         for (unsigned q = inputRead; q != inputWrite; ++q)
           (*inputQueue)[q % 8192].offset = 0;
         return 0;
+      }
+      if(nativeClearCursor<nativeClearPages.size()) {
+        clearNativeChunk();
+        if(nativeClearCursor<nativeClearPages.size()) {
+          for(unsigned q=inputRead;q!=inputWrite;++q)(*inputQueue)[q%8192].offset=0;
+          if(outBuffer)flushOutput(outBuffer,frames);
+          drainPanic();state.pendingOutput=outputWrite-outputRead+panicSweep.remaining();
+          outputPending.store(state.pendingOutput,std::memory_order_release);
+          state.late=xruns.load(std::memory_order_relaxed);
+          state.samples+=frames;++state.blocks;
+          trace.value.xruns=state.late;trace.value.pending=state.pendingOutput;
+          return 0;
+        }
       }
       unsigned movementOutputCount=0,movementPhysicalCount=0;
       unsigned generatedOrder=0;uint64_t generatedAt=UINT64_MAX;
@@ -2308,7 +2390,7 @@ int main(int argc, char **argv) {
         if(request.op==5||request.op==42){state.switchLearnTarget=0;state.switchLearnConflict=false;}
         if (request.op != 0 &&
             ((request.session && request.session != engineSession) ||
-             (request.revision != state.revision && request.revision != -1)))
+             (request.op != 2 && request.revision != state.revision && request.revision != -1)))
           reply.status = 1;
         else if (request.op == 35) {
           // Transactional interchange: stopped processor only. No parsing, copying
@@ -2341,6 +2423,10 @@ int main(int argc, char **argv) {
               auto &v=model.switchFields[slot];*v[0]=1;*v[4]=std::min(127,60+slot);*v[7]=300;*v[8]=800;*v[12]=127;*v[14]=1;*v[17]=slot;*v[18]=slot;*v[19]=slot;*v[20]=1;*v[21]=next;
               *cell(fx,unsigned(variable(fx,"DS_CFG_BASE"))+1)=next+1;*target=slot;NSEEL_code_execute(switchReset);++state.revision;}
           }else reply.status=3;
+        }
+        else if(request.op==53){
+          if(request.value>16)reply.status=3;
+          else {programChannel=int(request.value);++state.revision;}
         }
         else if(request.op==50){
           if(request.arg==1){state.switchLearnTarget=0;state.switchLearnConflict=false;}
@@ -2918,6 +3004,7 @@ int main(int argc, char **argv) {
           if (*ok != 1)
             reply.status = 2;
         } else if (request.op == 2) {
+          if(chainMode)panicSweep.begin();
           state.switchLearnTarget=0;state.switchLearnConflict=false;chain.cancel();
           *snapHostRead = *snapHostWrite;
           performanceMorphSeconds = 0;
@@ -3040,7 +3127,8 @@ int main(int argc, char **argv) {
       chain.finishSwitchStop();
       trace.mark(5);
       controllers.rawCCMasks(revealMasks);for(unsigned cc=0;cc<128;++cc){*revealMaskCells[cc]=revealMasks[cc];*revealMaskCells[128+cc]=0;}*revealExisting=revealMasks[7];*revealReserved=0;*revealFree=controllers.freeTargets();*nativeControlCount=0;
-      ysfx_process_float(fx, nullptr, nullptr, 0, 0, frames);
+      if(nativeClearCursor==nativeClearPages.size())
+        ysfx_process_float(fx, nullptr, nullptr, 0, 0, frames);
       trace.mark(6);
       // The shared output buffer rejected an owned event: cancel queued attacks
       // through the existing native emergency recovery on the next callback.
@@ -3186,7 +3274,8 @@ int main(int argc, char **argv) {
       }
       if (useJack)
         state.late = xruns.load(std::memory_order_relaxed);
-      state.pendingOutput = outputWrite - outputRead;
+      drainPanic();
+      state.pendingOutput = outputWrite - outputRead + panicSweep.remaining();
       outputPending.store(state.pendingOutput, std::memory_order_release);
       if (muted)
         finalAcknowledged.store(true, std::memory_order_release);

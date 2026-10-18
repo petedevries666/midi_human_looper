@@ -15,11 +15,13 @@ async function refreshMovements(state){
 }
 function paintMovementLibrary(){
  const root=$('movements');root.replaceChildren();$('movement-rate').value=movementModel?.ccRate||25;
- for(const m of movementModel?.movements||[]){const row=node('div',undefined,'movement-row');row.dataset.movementId=m.id;
+ for(const m of movementModel?.movements||[]){const row=node('div',undefined,'movement-row');row.dataset.movementId=m.id;window.MBMF_TILES?.decorate(row,'MOVEMENT',m.id);
   const preview=previewCurve(m.points.map(p=>[p[0],p[1],p[2]??0]),m.interpolation==='HOLD');preview.setAttribute('aria-label',`${m.name} curve`);
-  row.append(node('strong',m.name),preview,node('output','STOPPED','movement-state'),node('output',`${m.duration}s \u00b7 ${m.target.type==='CC'?`CH${m.target.channel} CC${m.target.number}`:'PARAM'}`),button('EDIT',()=>editMovement(m.id)),button('\u25b6',()=>command({action:'movement_preview',movementId:m.id})),button('\u25a0',()=>command({action:'movement_stop',movementId:m.id})),button('\u00d7',async()=>{
-   if(!confirm(`Delete ${m.name}? References will remain missing.`))return;try{const loaded=await request('/api/v1/conductor'),model=upgradeMovementModel(loaded.model);model.movements=model.movements.filter(v=>v.id!==m.id);await saveMovementModel(model,loaded);}catch(e){$('error').textContent=e.message;}
-  }));const names=['PREVIEW MOVEMENT','STOP MOVEMENT','DELETE MOVEMENT'];[...row.querySelectorAll('button')].slice(1).forEach((b,i)=>{b.setAttribute('aria-label',`${names[i]} ${m.name}`);b.title=names[i];});if(m.playMode==='GATED'){const play=row.querySelectorAll('button')[1];bindHeldTest(play,{action:'movement_preview',movementId:m.id},{action:'movement_release',movementId:m.id});play.title='MAINTENIR pour jouer · relâcher pour RELEASE';}root.append(row);
+  const play=button('\u25b6',()=>command({action:'movement_preview',movementId:m.id})),stop=button('\u25a0',()=>command({action:'movement_stop',movementId:m.id}));
+  play.setAttribute('aria-label',`PREVIEW MOVEMENT ${m.name}`);stop.setAttribute('aria-label',`STOP MOVEMENT ${m.name}`);
+  row.append(node('strong',m.name),preview,node('output','STOPPED','movement-state'),node('output',`${m.duration}s \u00b7 ${m.target.type==='CC'?`CH${m.target.channel} CC${m.target.number}`:'PARAM'}`),play,stop);
+  cardActions(row,[{label:'EDIT',run:()=>editMovement(m.id)},{label:'DELETE',run:async()=>{if(!confirm(`Delete ${m.name}? References will remain missing.`))return;try{const loaded=await request('/api/v1/conductor'),model=upgradeMovementModel(loaded.model);model.movements=model.movements.filter(v=>v.id!==m.id);await saveMovementModel(model,loaded);}catch(e){$('error').textContent=e.message;}}}]);
+  if(m.playMode==='GATED'){bindHeldTest(play,{action:'movement_preview',movementId:m.id},{action:'movement_release',movementId:m.id});play.title='MAINTENIR pour jouer · relâcher pour RELEASE';}root.append(row);
  }
 }
 async function editMovement(id=null){

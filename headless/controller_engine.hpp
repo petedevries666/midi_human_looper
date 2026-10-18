@@ -112,6 +112,7 @@ private:
   double time = 0;
   uint64_t generation = 0, sequence = 0;
   Runtime *owner(Target &t) {
+    if (!t.owner || t.owner == UINT32_MAX) return nullptr;
     for (auto &m : mappings)
       if (m.used && m.config.id == t.owner && m.token == t.token)
         return &m;

@@ -126,6 +126,7 @@ class Store:
   if self.path.stat().st_size>2000000:raise ValueError('Preset library oversized')
   data=json.loads(self.path.read_text(encoding='utf-8'))
   if set(data)!={'version','revision','presets','links','activeSlot'} or data['version']!=1:raise ValueError('Unknown preset library preserved')
+  if type(data['activeSlot']) is not int or not 0<=data['activeSlot']<=4:raise ValueError('Invalid saved active patch slot')
   for ident,p in data['presets'].items():uuid.UUID(ident);text(p['name'],64);validate_config(p['config'])
   return data
  def current(self):
@@ -238,7 +239,7 @@ class Store:
     atomic_json(self.path,plan['oldLibrary']);journal.unlink(missing_ok=True);raise
  def recover(self):
   journal=self.directory/'smart-switch-preset-transaction.json'
-  if not journal.exists():return
+  if not journal.exists():self.active_slot=self.read()['activeSlot'];return
   p=json.loads(journal.read_text())
   for name in p['files']:
    if Path(name).resolve().parent!=self.directory.resolve() or not re.fullmatch(r'patch[1-4]\.json',Path(name).name):raise ValueError('Invalid preset recovery path')
@@ -251,6 +252,7 @@ class Store:
     else:atomic_json(name,entry['old'])
    atomic_json(self.path,p['oldLibrary'])
   journal.unlink()
+  self.active_slot=self.read()['activeSlot']
  def on_patch(self,slot):
   with self.lock:
    data=self.read();data['activeSlot']=slot;self.active_slot=slot;data['revision']+=1;atomic_json(self.path,data)

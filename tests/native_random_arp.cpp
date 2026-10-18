@@ -23,13 +23,30 @@ int main(int argc,char**argv){
    if(mode==3||mode==4||mode==6||mode>=9)check(notes[i]!=notes[i-1],"no consecutive duplicate");
    if(mode==6){std::vector<int> pool={48,52,55,60,64,67};auto a=std::find(pool.begin(),pool.end(),notes[i]),b=std::find(pool.begin(),pool.end(),notes[i-1]);check(std::abs(a-b)==1,"walk visits neighbours");}
    if(mode==5)check(notes[i]==notes[i%8],"random loop repeats its eight-step motif");
-   if(mode==9)check(notes[i]>notes[i-1]||notes[i-1]==67,"climb up wraps only at top");
-   if(mode==10)check(notes[i]<notes[i-1]||notes[i-1]==48,"climb down wraps only at bottom");
-   if(mode==9&&notes[i-1]==67)check(notes[i]==48,"climb up restarts at lowest pitch");
-   if(mode==10&&notes[i-1]==48)check(notes[i]==67,"climb down restarts at highest pitch");
+   if(mode>=9){
+    std::vector<int> pool={48,52,55,60,64,67};
+    auto a=std::find(pool.begin(),pool.end(),notes[i]);
+    auto b=std::find(pool.begin(),pool.end(),notes[i-1]);
+    check(std::abs(a-b)>=1 && std::abs(a-b)<=2,"CLIMB moves one or two held positions without wrapping");
+   }
   }
   if(mode==4)for(unsigned i=0;i+6<=notes.size();i+=6){std::set<int> bag(notes.begin()+i,notes.begin()+i+6);check(bag.size()==6,"bag visits each held pitch once");}
-  if(mode==11||mode==12){int direction=mode==11?1:-1;check(notes[0]==(direction>0?48:67),"climb initial endpoint");for(unsigned i=1;i<notes.size();++i){if(notes[i-1]==67)direction=-1;if(notes[i-1]==48)direction=1;check((notes[i]-notes[i-1])*direction>0,"climb changes direction only at endpoint");}}
+  if(mode>=9){
+   check(notes[0]==((mode==9||mode==11)?48:67),"CLIMB starts at its requested endpoint");
+   check(std::find(notes.begin(),notes.end(),48)!=notes.end() && std::find(notes.begin(),notes.end(),67)!=notes.end(),"CLIMB reaches both endpoints");
+   // Each return to the starting endpoint begins a freshly sampled excursion.
+   int origin=(mode==9||mode==11)?48:67;
+   std::vector<std::vector<int>> excursions;std::vector<int> excursion;
+   bool left=false;
+   for(int pitch:notes){
+    if(pitch==origin && left){excursions.push_back(excursion);excursion.clear();left=false;}
+    excursion.push_back(pitch);if(pitch!=origin)left=true;
+   }
+   check(excursions.size()>=2,"CLIMB completes multiple journeys");
+   bool varied=false;
+   for(size_t j=1;j<excursions.size();++j)if(excursions[j]!=excursions[j-1])varied=true;
+   check(varied,"CLIMB regenerates its path every journey");
+  }
   h.run("send_all_notes_off();reset_note_runtime();");h.eq("mem[ARP_ACTIVE_NOTE_BASE]",-1,"panic clears arp ownership");
   // Set a single held pitch directly, then exercise the same native selector.
   h.run("memset(ARP_HELD_COUNT_BASE,0,128);mem[ARP_HELD_COUNT_BASE+60]=1;test_pick=native_arp_pick(0,"+std::to_string(mode)+");");h.eq("test_pick",60,"one-note fallback remains playable");

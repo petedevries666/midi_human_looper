@@ -44,18 +44,22 @@ local(b,count,n,j,changed,idx,last,pos,pick,tmp,direction,remaining,delta,result
    remaining=floor(rand(count*(count+1)/2));pick=-1;
    j=0;loop(count,pick<0?(remaining<count-j?pick=j:remaining-=count-j;);j+=1;);
  ):(
+   // CLIMB is an exploratory, biased random walk, not a sorted-note staircase.
+   // Both UP variants begin at the bottom; both DOWN variants at the top.
+   // Reverse the preferred direction at the endpoints, never teleport.
    direction=mem[b+3];
    idx<0?pick=direction>0?0:count-1:(
      count<=1?pick=0:(
-       pick=-1;
-       (idx==count-1 && direction>0) || (idx==0 && direction<0)?(
-         mode==11 || mode==12?direction=-direction:pick=direction>0?0:count-1;
-       );
-       pick<0?(
-         remaining=direction>0?count-1-idx:idx;
-         // Prefer a small leap, with occasional two/three-position leaps.
-         delta=min(remaining,1+floor(rand(1)*rand(1)*3));pick=idx+direction*delta;
-       );
+       idx==count-1?direction=-1;
+       idx==0?direction=1;
+       // 70% in the preferred direction, 30% of exploratory backtracking.
+       // When a chosen direction is blocked, take the available direction.
+       n=rand(1)<.7?direction:-direction;
+       remaining=n>0?count-1-idx:idx;
+       remaining<=0?(n=-n;remaining=n>0?count-1-idx:idx;);
+       // STEP MAX = 2 held-note positions (native default).
+       delta=min(remaining,1+floor(rand(2)));
+       pick=idx+n*delta;
      );
    );mem[b+3]=direction;
  );

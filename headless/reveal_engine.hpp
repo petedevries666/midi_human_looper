@@ -11,7 +11,7 @@ class Runtime {
   std::array<uint64_t,2048> physicalAt{};
   std::array<bool,2048> used{};
   controller::Host &host;double sampleRate;
-  bool owns(const Voice &v,unsigned ch)const{auto t=host.target(target(ch,v.cc));return v.tokens[ch]&&t&&t->owner==UINT32_MAX&&t->token==v.tokens[ch];}
+  bool owns(const Voice &v,unsigned ch)const{if(!v.tokens[ch])return false;auto t=host.target(target(ch,v.cc));return t&&t->owner==UINT32_MAX&&t->token==v.tokens[ch];}
 public:
   unsigned rejected=0;
   explicit Runtime(controller::Host& h,double sr=48000):host(h),sampleRate(sr){configCC.fill(7);observed.fill(-1);pending.fill(-1);physicalAt.fill(UINT64_MAX);}

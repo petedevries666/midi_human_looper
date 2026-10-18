@@ -46,6 +46,44 @@ def build_source(source):
     change('6008000', '6200000')
     change('6040768', '6462144')
     change('loop(33024,', 'loop(LAYERS*2064,')
+    # Clear contiguous runtime pages in the VM's native implementation. Expanded
+    # phrase capacity made interpreted per-cell STOP/PANIC clears miss JACK's
+    # deadline. Keep every address and sentinel; never touch serialized sources.
+    for counter in ('pv_i', 'gi'):
+        change(f'{counter}=0;loop(LAYERS*2064,mem[6200000+{counter}]=0;{counter}+=1;);',
+               'memset(6200000,0,LAYERS*2064);')
+    change('j=0;loop(2048,idx=gi*2048+j;mem[engine_addr(SW_LIVE_OUT_BASE,idx)]=0;mem[engine_addr(SW_PHRASE_OUT_BASE,idx)]=0;mem[engine_addr(SW_LOOP_INPUT_BASE,idx)]=0;mem[I_ONCE_OUT_BASE+idx]=0;\n mem[input_addr(gi*2048+j)]=0;mem[input_addr((INST_CAP+gi)*2048+j)]=0;j+=1;);',
+           'memset(engine_addr(SW_LIVE_OUT_BASE,gi*2048),0,2048);memset(engine_addr(SW_PHRASE_OUT_BASE,gi*2048),0,2048);memset(engine_addr(SW_LOOP_INPUT_BASE,gi*2048),0,2048);memset(I_ONCE_OUT_BASE+gi*2048,0,2048);memset(input_addr(gi*2048),0,2048);memset(input_addr((INST_CAP+gi)*2048),0,2048);')
+    change('j=0;loop(INST_CAP*4096,mem[input_addr(j)]=0;j+=1;);',
+           'j=0;loop(INST_CAP*2,memset(input_addr(j*2048),0,2048);j+=1;);')
+    change('ch=0;loop(INST_CAP*2048+INST_CAP,mem[I_QUARANTINE_BASE+ch]=0;ch+=1;);',
+           'memset(I_QUARANTINE_BASE,0,INST_CAP*2048+INST_CAP);')
+    change('ch=0;loop(INST_CAP, note=0;loop(2048,mem[engine_addr(SW_LIVE_OUT_BASE,ch*2048+note)]=0;mem[engine_addr(SW_PHRASE_OUT_BASE,ch*2048+note)]=0;mem[engine_addr(SW_LOOP_INPUT_BASE,ch*2048+note)]=0;mem[I_ONCE_OUT_BASE+ch*2048+note]=0;note+=1;);ch+=1;);',
+           'ch=0;loop(INST_CAP,memset(engine_addr(SW_LIVE_OUT_BASE,ch*2048),0,2048);memset(engine_addr(SW_PHRASE_OUT_BASE,ch*2048),0,2048);memset(engine_addr(SW_LOOP_INPUT_BASE,ch*2048),0,2048);memset(I_ONCE_OUT_BASE+ch*2048,0,2048);ch+=1;);')
+    change('ch=0;loop(4096,mem[I_FALLBACK_BASE+ch]=0;ch+=1;);',
+           'memset(I_FALLBACK_BASE,0,4096);')
+    change('ch=SW_PHRASE_OUT_BASE;loop(SW_MEMORY_END-SW_PHRASE_OUT_BASE,mem[ch]=0;ch+=1;);',
+           'memset(SW_PHRASE_OUT_BASE,0,SW_MEMORY_END-SW_PHRASE_OUT_BASE);')
+    change('gi=0;loop(INST_CAP*2048,mem[I_ONCE_OUT_BASE+gi]=0;gi+=1;);',
+           'memset(I_ONCE_OUT_BASE,0,INST_CAP*2048);')
+    change('v=0;loop(INSTANCE_OWNERS,j=0;loop(128,\n idx=(v*INST_CAP+gi)*128+j;mem[NATIVE_ARP_HELD_BASE+idx]=0;mem[NATIVE_ARP_SOURCE_BASE+idx]=0;mem[NATIVE_MONO_SOURCE_BASE+idx]=0;j+=1;);v+=1;);',
+           'v=0;loop(INSTANCE_OWNERS,idx=(v*INST_CAP+gi)*128;memset(NATIVE_ARP_HELD_BASE+idx,0,128);memset(NATIVE_ARP_SOURCE_BASE+idx,0,128);memset(NATIVE_MONO_SOURCE_BASE+idx,0,128);v+=1;);')
+    # Per-instrument deletion still clears its own strided instance rows. A
+    # global reset can clear each complete plane once without the EEL row loop.
+    change('native_phrase_contract>=2?(v=0;loop(INSTANCE_OWNERS,idx=',
+           'native_phrase_contract>=2?(!native_runtime_bulk_clear?(v=0;loop(INSTANCE_OWNERS,idx=')
+    change('v+=1;);mem[NATIVE_MONO_OWNER_BASE+gi]=-1;);',
+           'v+=1;););mem[NATIVE_MONO_OWNER_BASE+gi]=-1;);')
+    change('pv_i=0;loop(INST_CAP,i_clear_runtime(pv_i);pv_i+=1;);',
+           'native_runtime_bulk_clear=1;native_phrase_contract>=2?(memset(NATIVE_ARP_HELD_BASE,0,NATIVE_TRANSFORM_CELLS);memset(NATIVE_ARP_SOURCE_BASE,0,NATIVE_TRANSFORM_CELLS);memset(NATIVE_MONO_SOURCE_BASE,0,NATIVE_TRANSFORM_CELLS););pv_i=0;loop(INST_CAP,i_clear_runtime(pv_i);pv_i+=1;);native_runtime_bulk_clear=0;')
+    change('j=0;loop(128,mem[engine_addr(ARP_HELD_COUNT_BASE,gi*128+j)]=0;mem[engine_addr(ARP_SOURCE_COUNT_BASE,gi*128+j)]=0;\n mem[engine_addr(SW_ARP_PHRASE_BASE,gi*128+j)]=0;mem[engine_addr(SW_ARP_PHRASE_SOURCE_BASE,gi*128+j)]=0;\n mem[engine_addr(MONO_HELD_COUNT_BASE,gi*128+j)]=0;mem[engine_addr(SW_MONO_PHRASE_BASE,gi*128+j)]=0;j+=1;);',
+           ''.join(f'memset(engine_addr({page},gi*128),0,128);' for page in ('ARP_HELD_COUNT_BASE','ARP_SOURCE_COUNT_BASE','SW_ARP_PHRASE_BASE','SW_ARP_PHRASE_SOURCE_BASE','MONO_HELD_COUNT_BASE','SW_MONO_PHRASE_BASE')))
+    # The JACK host pre-binds and clears these exact same pages with libc.
+    # Other entry points retain the complete standalone EEL reset.
+    change('native_free_time?(memset(6200000,0,LAYERS*2064););',
+           'native_free_time && !native_host_bulk_clear?(memset(6200000,0,LAYERS*2064););')
+    change('native_runtime_bulk_clear=1;native_phrase_contract>=2?(',
+           'native_runtime_bulk_clear=1;native_phrase_contract>=2 && !native_host_bulk_clear?(')
     change('loop(16,mem[FREE_LOOP_ANCHOR_BASE', 'loop(LAYERS,mem[FREE_LOOP_ANCHOR_BASE')
     change('loop(16,mem[FREE_FINISHED_BASE', 'loop(LAYERS,mem[FREE_FINISHED_BASE')
     change('CONDUCTOR_BASE-16;', 'CONDUCTOR_BASE-256;')

@@ -229,4 +229,20 @@ class Capacity(unittest.TestCase):
   slots=json.load(urllib.request.urlopen(self.url+'/api/v1/patches'));self.assertTrue(next(v for v in slots['slots'] if v['slot']==3)['saved'])
   with self.assertRaises(urllib.error.HTTPError):api('paste',3,clipboardId='expired')
 
+ def test_24_global_stop_clears_last_phrase_and_allows_replay(self):
+  # Expanded-slot HOLD must stop immediately, remain stopped and be playable
+  # again. Global cleanup must preserve musical source/configuration cells.
+  self.phrase128(mode=2);before=self.export();cfg=layout(before)
+  for _ in range(3):
+   self.cmd('phrase_play',phraseId=128);self.wait(lambda s:s['activeNotes']>0)
+   s=self.control.request();reply=self.control.request(op=40,target=0,arg=0,revision=s['revision'],session=s['engineSessionId'])
+   self.assertEqual(reply['status'],'ok')
+   stopped=self.wait(lambda s:not s['activeNotes'] and not s['instances'] and not s['chainRunning'] and not s['pendingOutput'])
+   time.sleep(.1);again=self.control.request()
+   self.assertFalse(again['activeNotes']);self.assertFalse(again['instances'])
+   self.assertEqual(again['midiCount'],stopped['midiCount'])
+  after=self.export();allowed=set(range(cfg['TRIG_BASE'],cfg['TRIG_BASE']+128))
+  self.assertTrue(all(a==b or i in allowed for i,(a,b) in enumerate(zip(before['memory'],after['memory']))))
+  self.assertEqual(before.get('conductor'),after.get('conductor'))
+
 if __name__=='__main__':unittest.main(verbosity=2)

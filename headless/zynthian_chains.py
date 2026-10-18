@@ -151,6 +151,9 @@ class ChainLinks:
         """Bridge native automation at control rate; never write audio from the callback."""
         if self.mixer is None:return
         with self.lock:
+            if not self.bindings:
+                self._mixer_sync.clear()
+                return
             state=self.control.request();session=state['engineSessionId']
             destinations={d['identity']:d for d in self.destinations()};alive=set()
             for key,identity in sorted(self.bindings.items(),key=lambda item:int(item[0])):
@@ -210,8 +213,32 @@ class ChainLinks:
             self.synchronize()
             return self.status()
 
+    def relink_channels(self, inventory_revision, revision, session):
+        """Explicit recovery only: preserve living links and never guess ties."""
+        with self.lock:
+            current=self.status()
+            if (current['inventoryRevision']!=inventory_revision or current['engineRevision']!=revision or current['engineSessionId']!=session):
+                raise ValueError('State changed; refresh before relinking')
+            state=self.control.request()
+            if state['revision']!=revision or state['engineSessionId']!=session or not at_rest(state):
+                raise ValueError('Stop MBMF and release all keys before relinking')
+            report=[]
+            for instrument in state['instruments']:
+                key=str(instrument['id']);old=current['bindings'].get(key)
+                if old and old['destination'] is not None:
+                    report.append(dict(instrumentId=instrument['id'],status='preserved'));continue
+                matches=[c for c in current['chains'] if c['channel'] is not None and c['channel']==instrument['output']]
+                if len(matches)==1:
+                    self.bindings[key]=matches[0]['identity'];status='linked'
+                else:status='ambiguous' if matches else 'missing'
+                report.append(dict(instrumentId=instrument['id'],status=status))
+            self.synchronize()
+            result=self.status();result['relinkReport']=report
+            return result
+
     def synchronize(self):
         with self.lock:
+            if not self.bindings:return
             chains = {c['identity']: c for c in self.destinations()}
             for instrument_id, identity in list(self.bindings.items()):
                 chain = chains.get(identity)
@@ -251,6 +278,8 @@ class Bridge:
                     request = json.loads(line)
                     if request == {'action': 'status'}:
                         result = bridge.links.status()
+                    elif set(request)=={'action','inventoryRevision','expectedRevision','expectedEngineSessionId'} and request['action']=='relink_channels':
+                        result=bridge.links.relink_channels(request['inventoryRevision'],request['expectedRevision'],request['expectedEngineSessionId'])
                     elif set(request)=={'action','instrumentId','identity','value','expectedPan','inventoryRevision','expectedEngineSessionId'} and request['action']=='pan':
                         result=bridge.links.set_pan(request['instrumentId'],request['identity'],request['value'],request['expectedPan'],request['inventoryRevision'],request['expectedEngineSessionId'])
                     elif set(request)=={'action','instrumentId','identity','value','expectedVolume','inventoryRevision','expectedEngineSessionId'} and request['action']=='volume':

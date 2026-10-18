@@ -29,6 +29,13 @@ def build_source(source):
     change('12*SW_STRIDE', '60*SW_STRIDE')
     change('SW_COUNT=16;', 'SW_COUNT=64;')
     change('SW_RELEASE_SIZE=32;', 'SW_RELEASE_SIZE=128;')
+    # Keep due boundaries in sample order, but stop scanning when none is due.
+    # The legacy fixed outer loop does 64*64 scans per idle audio block after
+    # capacity expansion. A bounded rescan is needed only after executing work.
+    change('loop(SW_COUNT,\n conductor_qsi=-1;conductor_qoffs=samplesblock;conductor_qscan=0;',
+           'conductor_qbudget=SW_COUNT;conductor_qagain=1;\nwhile(conductor_qbudget>0 && conductor_qagain)(\n conductor_qbudget-=1;conductor_qagain=0;\n conductor_qsi=-1;conductor_qoffs=samplesblock;conductor_qscan=0;')
+    change('conductor_qsi>=0?(\n  conductor_qg=',
+           'conductor_qsi>=0?(\n  conductor_qagain=1;conductor_qg=')
     # Native runtime scratch and lookup pages must stay clear of enlarged banks.
     source = re.sub(r'\b3\d{6}\b', lambda m:str(int(m[0])+3000000), source)
     change('INSTANCE_BASE=6100000;', 'INSTANCE_BASE=7000000;')

@@ -105,6 +105,24 @@ class LinksTest(unittest.TestCase):
         self.manager.chains[2].midi_chan=5;self.links.synchronize()
         self.assertEqual(self.control.state['instruments'],before)
         self.assertEqual(self.links.snapshot(),{})
+    def test_idle_unlinked_bridge_does_not_observe_engine(self):
+        def forbidden(**args):raise AssertionError('Unlinked idle bridge queried engine')
+        self.control.request=forbidden;self.links.mixer=object()
+        self.links.synchronize();self.links.synchronize_mixer()
+    def test_relink_by_channel_preserves_input_and_refuses_ambiguity(self):
+        self.control.state['instruments'][0].update(output=1,input=14)
+        s=self.links.status();result=self.links.relink_channels(s['inventoryRevision'],s['engineRevision'],s['engineSessionId'])
+        self.assertEqual(result['relinkReport'][0]['status'],'linked')
+        self.assertEqual(self.control.state['instruments'][0]['input'],14)
+        self.links.bindings.clear();self.manager.chains[3]=chain(3)
+        s=self.links.status();result=self.links.relink_channels(s['inventoryRevision'],s['engineRevision'],s['engineSessionId'])
+        self.assertEqual(result['relinkReport'][0]['status'],'ambiguous');self.assertEqual(self.links.bindings,{})
+    def test_relink_missing_original_channel_and_busy_are_safe(self):
+        s=self.links.status();result=self.links.relink_channels(s['inventoryRevision'],s['engineRevision'],s['engineSessionId'])
+        self.assertEqual(result['relinkReport'][0]['status'],'missing');self.assertEqual(self.links.bindings,{})
+        self.control.state['activeNotes']=1;s=self.links.status()
+        with self.assertRaises(ValueError):self.links.relink_channels(s['inventoryRevision'],s['engineRevision'],s['engineSessionId'])
+        self.assertEqual(self.links.bindings,{})
     def test_two_instruments_follow_distinct_destinations_independently(self):
         self.control.state['instruments'].append(dict(id=2,name='',output=0,input=0,level=100,enabled=1))
         self.manager.chains[3]=chain(3,channel=5,name='Bass',processor=4)

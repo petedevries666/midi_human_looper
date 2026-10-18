@@ -1,6 +1,6 @@
 <!doctype html>
 
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>MIDI BAD MOTHERFUCKER · Live Engine</title><link rel="stylesheet" href="/style.css"><link rel="stylesheet" href="/assets/fonts/fonts.css"><link rel="stylesheet" href="/tiles.css"><script defer src="/tiles.js"></script><script defer src="/app.js"></script><script defer src="/conductor.js"></script><script defer src="/movement.js"></script><script defer src="/switch-presets.js"></script><script defer src="/update.js"></script><script defer src="/module-layout.js"></script></head>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>MIDI BAD MOTHERFUCKER · Live Engine</title><link rel="stylesheet" href="/style.css"><link rel="stylesheet" href="/assets/fonts/fonts.css"><link rel="stylesheet" href="/tiles.css"><script defer src="/tiles.js"></script><script defer src="/interactions.js"></script><script defer src="/app.js"></script><script defer src="/conductor.js"></script><script defer src="/movement.js"></script><script defer src="/switch-presets.js"></script><script defer src="/update.js"></script><script defer src="/module-layout.js"></script></head>
 
 <body><main>
 
@@ -14,7 +14,7 @@
 
 <div id="error" role="alert"></div>
 
-<section class="patch-controls patch-toolbar" aria-label="Patch controls"><label>PATCH <select id="patch-slot"><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option></select></label><button id="save-patch">SAVE PATCH</button><button id="load-patch">LOAD PATCH</button><button id="clear-patch">CLEAR PATCH</button><button id="export-patch" aria-label="EXPORT REAPER BASE" title="Export REAPER-compatible base patch; headless-only control data stays in the original">JSFX BASE</button><span id="patch-status" role="status"></span><details id="project-tools"><summary>PROJECT</summary><button id="inspect-project">RESTART STATE</button><button id="commit-project">COMMIT RESTART STATE</button><span id="project-status" role="status"></span></details></section>
+<section class="patch-controls patch-toolbar" aria-label="Patch controls"><label>PATCH <select id="patch-slot"><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option></select></label><button id="save-patch">SAVE PATCH</button><button id="load-patch">LOAD PATCH</button><button id="clear-patch">CLEAR PATCH</button><button id="copy-patch">COPY PATCH</button><button id="paste-patch" disabled>PASTE PATCH</button><button id="export-patch" aria-label="EXPORT REAPER BASE" title="Export REAPER-compatible base patch; headless-only control data stays in the original">JSFX BASE</button><span id="patch-status" role="status"></span><details id="project-tools"><summary>PROJECT</summary><button id="inspect-project">RESTART STATE</button><button id="commit-project">COMMIT RESTART STATE</button><span id="project-status" role="status"></span></details></section>
 
 <div id="module-groups"><details id="snapshots-section" class="module-group" open><summary><h2>SNAPSHOTS</h2></summary><div class="group-content"><button id="capture-snapshot">+ CAPTURE SNAPSHOT</button><div id="snapshots"></div><div id="snapshot-ab"></div></div></details>
 
@@ -24,9 +24,11 @@
 
 <details id="phrases-section" class="module-group" open><summary><h2>PHRASES</h2></summary><div class="group-content"><div id="phrase-pagination"></div><div id="phrases" class="phrases"></div></div></details>
 
-<details id="instruments-section" class="module-group" open><summary><h2>INSTRUMENTS / TRANSFORMER CHAINS</h2></summary><div class="group-content"><div id="instruments"></div><button id="add-instrument">ADD INSTRUMENT</button></div></details>
+<details id="instruments-section" class="module-group" open><summary><h2>INSTRUMENTS / TRANSFORMER CHAINS</h2></summary><div class="group-content"><button id="relink-channels">RELIER PAR CANAL OUT</button><output id="relink-status" role="status"></output><div id="instruments"></div><button id="add-instrument">ADD INSTRUMENT</button></div></details>
 
 
+
+<details id="module-editor-section" class="module-group" open><summary><h2>TRANSFORMER EDITOR</h2></summary><div class="group-content" id="module-editor-dock"><p class="editor-empty">Cliquer un transformateur pour l’éditer.</p></div></details>
 
 <details id="controller-section" class="module-group"><summary><h2>CONTROLLERS / EDITOR / TEST</h2></summary><div class="group-content"><h2>GLOBAL CONTROLLERS</h2><div id="controllers"></div><button id="add-controller">ADD CONTROLLER SOURCE</button><div id="mappings"></div><button id="add-mapping">ADD MAPPING</button><details class="context-help"><summary>COMPATIBILITY</summary><p class="notice">Headless controller configuration is saved in the same patch JSON. Use EXPORT REAPER BASE for a separate REAPER-compatible file. REAPER Lua refuses to load or overwrite patches containing headless controller configuration, preserving the original file.</p></details></div></details>
 

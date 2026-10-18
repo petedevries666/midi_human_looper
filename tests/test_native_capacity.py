@@ -111,6 +111,19 @@ class Capacity(unittest.TestCase):
   self.cmd('switch_test_edge',switchId=64,edge='release')
   s=self.wait(lambda s:s['switches'][-1]['conductor']['step']==1 and s['midiCount']>=before+2 and not s['activeNotes'])
   self.assertEqual((s['lastEvent'][1]&240,s['lastEvent'][2]),(128,67))
+ def test_23_boundary_rescan_serves_low_and_high_switches(self):
+  self.add_all();self.phrase128(mode=1);self.configure(policy=0)
+  sw=self.control.request()['switches'][0];settings=list(sw['settings']);settings[:11]=[1,0,0,118,127,0,0,80,100,0,0]
+  self.cmd('switch_commit',switchId=1,settings=settings,sequence=[],name='BOUNDARY')
+  p=self.export();cfg=layout(p);p['memory'][cfg['LEN_BASE']+127]=96000
+  model=conductor.with_mute_groups(conductor.migrate(p));source=next(v['id'] for v in model['sources'] if v['slot']==128)
+  def phrase_step():return dict(id=str(uuid.uuid4()),transition='INHERIT',layers=[dict(id=str(uuid.uuid4()),block=dict(id=str(uuid.uuid4()),type='PHRASE',sourceId=source,overrides={}))])
+  model['switches']=[dict(switchId=ident,traversal='SEQUENTIAL',transition='END_OF_PHRASE',gesture='INSTANT',steps=[phrase_step(),phrase_step()]) for ident in (1,64)]
+  p['conductor']=conductor.encode(model);self.load(p)
+  for ident in (1,64):self.cmd('switch_test_edge',switchId=ident,edge='press');self.cmd('switch_test_edge',switchId=ident,edge='release')
+  for ident in (1,64):self.cmd('switch_test_edge',switchId=ident,edge='press');self.cmd('switch_test_edge',switchId=ident,edge='release')
+  self.wait(lambda s:all(next(v for v in s['switches'] if v['id']==ident)['conductor']['queuedStep']==2 for ident in (1,64)))
+  self.wait(lambda s:all(next(v for v in s['switches'] if v['id']==ident)['conductor']['step']==2 and not next(v for v in s['switches'] if v['id']==ident)['conductor']['queuedStep'] for ident in (1,64)),timeout=5)
  def test_08_preset_and_roundtrip_high_slots(self):
   self.add_all();self.phrase128();self.configure();p=self.export();cfg=switches(p)[64]['config'];q,resolved,w,e=apply_config(p,63,cfg,{'double':{'type':'switch','id':'SELF'}})
   self.assertIn('MIDI source already used by SWITCH 64',e)
@@ -182,5 +195,38 @@ class Capacity(unittest.TestCase):
  def test_19_panic_keeps_engine_session_guard(self):
   before=self.control.request();result=self.control.request(op=2,revision=-1,session=before['engineSessionId']+1)
   self.assertEqual(result['status'],'conflict')
+
+ def test_20_delete_legacy_switch_preserves_sources_and_reuse_identity(self):
+  self.phrase128();p=self.export();cfg=layout(p);base=cfg['SW_LEGACY_PAYLOAD']+1
+  for offset,value in {24:9,25:2,27:6,112:1.5,116:5}.items():p['memory'][base+offset]=value
+  other=base+128;p['memory'][other+14]=3;p['memory'][other+17]=0
+  model=conductor.with_mute_groups(conductor.migrate(p));source=next(v['id'] for v in model['sources'] if v['slot']==128);uid=lambda:str(uuid.uuid4())
+  model['switches']=[dict(switchId=1,traversal='SEQUENTIAL',transition='IMMEDIATE',gesture='INSTANT',steps=[dict(id=uid(),transition='INHERIT',layers=[dict(id=uid(),block=dict(id=uid(),type='PHRASE',sourceId=source,overrides={}))])])]
+  p['conductor']=conductor.encode(model);self.load(p);self.cmd('snapshot_capture');snap=self.control.request()['snapshots'][-1]['id'];self.cmd('snapshot_switch',switchId=1,gesture=0,snapshotAction=3,snapshotId=snap)
+  before=self.export();self.cmd('switch_delete',switchId=1);after=self.export();s=self.control.request()
+  self.assertNotIn(1,[v['id'] for v in s['switches']]);self.assertEqual(s['phrases'][-1]['events'],2)
+  self.assertFalse([v for v in s['snapshotActions'] if v['switchId']==1]);self.assertFalse(conductor.decode(after['conductor'])['switches'])
+  self.assertEqual(conductor.decode(before['conductor'])['sources'],conductor.decode(after['conductor'])['sources'])
+  self.assertEqual(after['memory'][:128*10240],before['memory'][:128*10240]);self.assertEqual(after['memory'][other+14],0)
+  self.cmd('switch_add');new=self.control.request()['switches'][0];self.assertEqual(new['id'],5)
+  got=self.export()['memory']
+  for offset,value in {24:9,25:2,27:6,112:1.5,116:5}.items():self.assertEqual(got[base+offset],value)
+ def test_21_switch_delete_refuses_running_performance(self):
+  self.phrase128(mode=2);self.cmd('phrase_play',phraseId=128);self.wait(lambda s:s['activeNotes']>0)
+  with self.assertRaises(AssertionError):self.cmd('switch_delete',switchId=1)
+  self.assertIn(1,[v['id'] for v in self.control.request()['switches']]);self.cmd('panic')
+ def test_22_empty_slot_copy_paste_and_saved_load(self):
+  self.phrase128();self.cmd('phrase_rename',phraseId=128,name='COPY LAST')
+  def api(action,slot,**extra):
+   s=self.control.request();body=dict(slot=slot,expectedRevision=s['revision'],expectedEngineSessionId=s['engineSessionId'],**extra)
+   req=urllib.request.Request(self.url+'/api/v1/patch/'+action,data=json.dumps(body).encode(),headers={'Content-Type':'application/json'})
+   return json.load(urllib.request.urlopen(req,timeout=30))
+  ident=api('copy',1)['clipboardId'];path=self.dir/'patches/patch3.json';path.unlink(missing_ok=True)
+  empty=api('load',3);self.assertTrue(empty['emptySlot']);self.assertTrue(all(p['events']==0 for p in empty['phrases']));self.assertFalse(path.exists())
+  pasted=api('paste',3,clipboardId=ident);self.assertEqual(pasted['phrases'][-1]['events'],2);self.assertEqual(pasted['phrases'][-1]['name'],'COPY LAST');self.assertFalse(path.exists())
+  api('save',3);self.assertTrue(path.exists());self.cmd('patch_clear',confirm=True)
+  loaded=api('load',3);self.assertEqual(loaded['phrases'][-1]['name'],'COPY LAST')
+  slots=json.load(urllib.request.urlopen(self.url+'/api/v1/patches'));self.assertTrue(next(v for v in slots['slots'] if v['slot']==3)['saved'])
+  with self.assertRaises(urllib.error.HTTPError):api('paste',3,clipboardId='expired')
 
 if __name__=='__main__':unittest.main(verbosity=2)

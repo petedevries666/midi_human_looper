@@ -1896,5 +1896,19 @@
         "provenance": "Installed physical Pi editor, real synchronized instrument links"
       }
     ]
-  }
+  },
+  "followupValidation": [
+    {
+      "date": "2026-10-18",
+      "sourceRevision": "5b37e7224377944c2e452fb4fb534b3cccdbe175",
+      "sourceDirty": true,
+      "file": "docs/screenshots/illustrated-live/editor-recovery.png",
+      "dimensions": [
+        65536,
+        4292542531
+      ],
+      "data": "Actual native Zynthian engine and resident patch; token masked; user authorized public visual evidence",
+      "validation": "Direct live desktop review authorized instead of scripts/screenshots.sh; no five-size or physical touch qualification"
+    }
+  ]
 }

@@ -258,6 +258,7 @@ class Store:
   with self.lock:
    data=self.read();out=patch
    for owner,ident in data['links'].get(str(slot),{}).items():
+    if int(owner) not in switches(out):continue # Deleted switches stay deleted.
     preset=data['presets'].get(ident)
     if not preset:raise ValueError('Linked switch preset missing; original patch preserved')
     out,_,_,errors=apply_config(out,int(owner),preset['config'],preset.get('references'))

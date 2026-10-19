@@ -15,7 +15,7 @@ struct Trace {std::array<Event,128> events{};size_t count=0;bool operator()(cons
 static void coreAndCapturedSettings(){
  Scheduler<16,16> s(8000);echocity::Unit unit(8000);auto c=config();c.pitchStep=12;c.pingPong=true;c.otherChannel=3;c.decay=.5;c.gate=.5;c.gateDecay=.5;
  CHECK(unit.configure(c));auto source=s.sources.begin(key(),0);auto result=unit.trigger(s,source,0,60,100,0);
- CHECK(result.ok && result.dryVelocity==50 && result.admitted==3 && s.pending()==6);
+ CHECK(result.ok && result.dryVelocity==100 && result.admitted==3 && s.pending()==6);
  c.pitchStep=-12;c.otherChannel=9;c.gate=4;CHECK(unit.configure(c));
  CHECK(s.sealSource(source,40,40));Trace trace;s.render(0,264,[&](auto e){return trace(e);});
  CHECK(trace.count==6);const uint64_t samples[]={80,100,160,170,240,245};const unsigned pitches[]={72,72,84,84,96,96};
@@ -27,7 +27,7 @@ static void knownDurationAndTempo(){
  Scheduler<16,16> s(8000);echocity::Unit unit(8000);auto c=config();c.unit=echocity::TimeUnit::Beats;c.interval=.5;c.firstOffset=.5;c.repeats=2;c.wet=1;c.decay=1;
  CHECK(unit.configure(c));auto source=s.sources.begin(key(),0);CHECK(s.sources.close(source,100));
  CHECK(!unit.trigger(s,source,0,60,100,100).ok);CHECK(s.pending()==0);
- auto result=unit.trigger(s,source,0,60,100,100,120);CHECK(result.ok && result.admitted==2 && result.dryVelocity==0);
+ auto result=unit.trigger(s,source,0,60,100,100,120);CHECK(result.ok && result.admitted==2 && result.dryVelocity==100);
  Trace trace;s.render(0,8000,[&](auto e){return trace(e);});CHECK(trace.count==4);
  CHECK(trace.events[0].sample==1000 && trace.events[1].sample==1100 && trace.events[2].sample==3000 && trace.events[3].sample==3100);
  source=s.sources.begin(key(),10000);CHECK(s.sources.close(source,10100));CHECK(unit.trigger(s,source,0,60,100,10100,60).ok);

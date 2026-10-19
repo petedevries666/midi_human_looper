@@ -8,13 +8,15 @@ from server import Control
 
 class Wire(unittest.TestCase):
  def test_roundtrip_and_refusals(self):
-  good={'version':1,'configuration':[1,1,1,*DEFAULTS[1:]]}
+  good={'version':2,'configuration':[2,1,1,*DEFAULTS[1:]]}
   self.assertEqual(encode(decode(good)),good)
   bad=[]
-  for index,value in ((0,True),(1,2),(3,float('nan')),(9,33),(10,49),(12,16)):
+  for index,value in ((0,True),(1,2),(3,float('nan')),(9,33),(10,49),(12,16),(13,1.1)):
    p=copy.deepcopy(good);p['configuration'][2+index]=value;bad.append(p)
-  p=copy.deepcopy(good);p['version']=2;bad.append(p)
-  p=copy.deepcopy(good);p['configuration']=[1,2]+p['configuration'][2:]*2;bad.append(p)
+  p=copy.deepcopy(good);p['version']=3;bad.append(p)
+  p=copy.deepcopy(good);p['configuration']=[2,2]+p['configuration'][2:]*2;bad.append(p)
+  old={'version':1,'configuration':[1,1,1,*DEFAULTS[1:13]]}
+  migrated=encode(decode(old));self.assertEqual(migrated['version'],2);self.assertEqual(migrated['configuration'][-1],.5)
   for p in bad:
    with self.assertRaises(ValueError):decode(p)
 
@@ -54,7 +56,7 @@ class RealEngine(unittest.TestCase):
    time.sleep(.05)
   self.fail('Patch export conflict')
  def config(self,rows):
-  p={'version':1,'configuration':[1,len(rows)]+[x for r in rows for x in r]}
+  p={'version':2,'configuration':[2,len(rows)]+[x for r in rows for x in r]}
   self.assertEqual(self.command(54,echo=p)['status'],'ok');return p
  def test_01_configuration_persistence(self):
   row=[self.instrument,*DEFAULTS[1:]];row[3]=80;row[9]=2
@@ -65,7 +67,11 @@ class RealEngine(unittest.TestCase):
   wrong=copy.deepcopy(cfg);wrong['configuration'][2]=16777000
   self.assertNotEqual(self.command(54,echo=wrong)['status'],'ok');self.assertEqual(self.export()['echocity'],cfg)
   p.pop('echocity');self.assertEqual(self.command(5,target=8,patch=p)['status'],'ok')
-  self.assertEqual(self.export()['echocity']['configuration'],[1,0])
+  self.assertEqual(self.export()['echocity']['configuration'],[2,0])
+  legacy={'version':1,'configuration':[1,1,*row[:13]]}
+  self.assertEqual(self.command(54,echo=legacy)['status'],'ok')
+  self.assertEqual(self.export()['echocity'],encode(decode(legacy)))
+  self.config([])
  def test_02_isolated_jack_echoes_and_order(self):
   if not self.jack:self.skipTest('Set ECHOCITY_JACK=1 for actual isolated JACK ports')
   row=[self.instrument,*DEFAULTS[1:]];row[3]=80;row[5]=.5;row[6]=1;row[9]=2
@@ -150,5 +156,19 @@ class RealEngine(unittest.TestCase):
   self.assertFalse(held)
   s=self.control.request();self.assertEqual(s['echocityPending'],0);self.assertEqual(s['echocitySources'],0)
   print('Verified actual JACK phrase, ARP, pitch, ping-pong, bypass and PANIC:',len(events),'packets')
+
+ def test_04_native_velocity_eight_and_patch_restore(self):
+  self.assertEqual(self.command(13,target=self.instrument,arg=1,note=4,module=0)['status'],'ok')
+  for _ in range(100):
+   instrument=next(i for i in self.control.request()['instruments'] if i['id']==self.instrument)
+   velocity=next((t for t in instrument['transformers'] if t['type']==4),None)
+   if velocity:break
+   time.sleep(.01)
+  self.assertIsNotNone(velocity)
+  self.assertEqual(self.command(12,target=self.instrument,module=velocity['id'],parameters=[{'kind':0,'value':8}])['status'],'ok')
+  p=self.export();self.assertEqual(self.command(5,target=8,patch=p)['status'],'ok')
+  i=next(i for i in self.control.request()['instruments'] if i['id']==self.instrument)
+  self.assertEqual(next(t for t in i['transformers'] if t['id']==velocity['id'])['parameters'][0]['value'],8)
+  self.assertNotEqual(self.command(12,target=self.instrument,module=velocity['id'],parameters=[{'kind':0,'value':8.01}])['status'],'ok')
 
 if __name__=='__main__':unittest.main(verbosity=2)

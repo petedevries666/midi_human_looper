@@ -7,13 +7,21 @@ après les transformations POLY/MONO et la génération ARP. L’intégration re
 qualifier sur ports JACK isolés avant installation sur le moteur musical.
 Le JSFX REAPER figé reste inchangé.
 
-Le bouton « + ECHOCITY » ouvre ses réglages : intervalle en ms ou en temps,
+Le menu des transformateurs propose « ECHOCITY — FIN DE CHAÎNE ». Ses réglages : intervalle en ms ou en temps,
 décalage initial, nombre de répétitions, mélange, décroissance de vélocité,
 durée des notes et sa décroissance, transposition par répétition et ping-pong
 vers un autre canal. APPLIQUER valide le lot ; le bypass conserve le son direct.
-La version 1 de l’extension de patch `echocity` conserve ces réglages sans
+La version 2 de l’extension de patch `echocity` conserve ces réglages sans
 déplacer les anciennes cellules mémoire. Charger un ancien patch les retire.
 Une version inconnue est refusée, sans conversion silencieuse.
+
+DRY et WET règlent indépendamment la vélocité du direct et celle des répétitions,
+de 0 à 1. Un nouvel effet démarre avec DRY=1 et WET=0,5. Modifier WET ne change
+jamais DRY. La décroissance affecte seulement les répétitions successives.
+La version 1 reste lisible : l’ancien mélange est converti en DRY=1−WET pour
+conserver le niveau des anciens patches, puis sauvegardé en version 2 avec deux
+niveaux indépendants. Le runtime conserve le direct complet en cas de refus de
+la génération d’échos, comme auparavant.
 
 La première activation exige de relâcher les notes. Le protocole reste ensuite
 actif jusqu’à la fin de la session, même si le dernier effet est retiré.

@@ -22,7 +22,7 @@ int main(){
  {
   Runtime r(8000);Output out;auto emit=[&](auto...args){return out(args...);};r.configure(settings());
   realtime=true;r.begin(0,emit);CHECK(r.source(edge(true),0,120,emit));CHECK(r.source(edge(false),40,120,emit));r.render(0,256,emit);realtime=false;
-  CHECK(out.count==6 && out.events[0].velocity==50);const uint64_t expected[]={0,40,80,120,160,200};
+  CHECK(out.count==6 && out.events[0].velocity==100);const uint64_t expected[]={0,40,80,120,160,200};
   for(unsigned j=0;j<6;++j)CHECK(out.events[j].sample==expected[j]);CHECK(!r.sources()&&!r.pending()&&!r.failed&&!allocations);
  }
  {
@@ -74,6 +74,19 @@ int main(){
   CHECK(r.source({SourceAction::StopPhrases,{},0,0},10,120,emit));
   CHECK(r.sources()==1 && !r.pending() && out.count==1);
   CHECK(r.source(edge(false,Origin::Live),20,120,emit));CHECK(!r.sources() && out.count==2);
+ }
+ {
+  Configurations legacy{};std::istringstream old("1 1 1 1 0 80 1 .5 1 1 1 2 0 0 1");
+  CHECK(read(old,legacy));CHECK(legacy[0].dry==.5 && legacy[0].wet==.5);
+  Configurations explicitLevels{};std::istringstream wire("2 1 1 1 0 80 1 .5 1 1 1 2 0 0 1 1");
+  CHECK(read(wire,explicitLevels));CHECK(explicitLevels[0].dry==1 && explicitLevels[0].wet==.5);
+  for(double wet:{0.,.5,1.}){
+   Runtime r(8000);Output out;auto emit=[&](auto...args){return out(args...);};auto c=settings();c[0].wet=wet;r.configure(c);
+   CHECK(r.source(edge(true),0,120,emit));CHECK(out.events[0].velocity==100);
+   CHECK(r.source(edge(false),40,120,emit));r.render(0,256,emit);CHECK(!r.sources()&&!r.pending());
+  }
+  Runtime r(8000);Output out;auto emit=[&](auto...args){return out(args...);};auto c=settings();c[0].dry=.25;c[0].wet=.7;r.configure(c);
+  CHECK(r.source(edge(true),0,120,emit));CHECK(out.events[0].velocity==25);r.render(0,100,emit);CHECK(out.events[2].velocity==70);
  }
  printf("PASS %u terminal ECHOCITY output / retrigger / recovery checks; no callback allocation\n",checks);
 }

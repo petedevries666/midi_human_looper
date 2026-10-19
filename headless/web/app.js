@@ -159,18 +159,19 @@ document.addEventListener('pointerdown',e=>{const d=$('editor');if(d.open&&d.dat
 function editInstrument(i){const d=descriptor(0);if(!d)return;edit(d,i,d.parameters.map(id=>{const p=catalog.parameters.find(p=>p.id===id),canonical=parameter({enabled:21,input:22,output:23}[id]);const display=canonical?{...p,valueType:canonical.valueType,choices:canonical.choices}:p;return {descriptor:display,value:i[p.engineField],assignment:0};}),null);}
 function echoUnits(){
  const extension=latest?.echocity,wire=extension?.configuration;
- if(extension?.version!==1||!Array.isArray(wire)||wire[0]!==1||!Number.isInteger(wire[1])||wire[1]<0||wire[1]>8||wire.length!==2+13*wire[1])return null;
- return Array.from({length:wire[1]},(_,j)=>wire.slice(2+j*13,15+j*13));
+ const width=extension?.version===1?13:14;
+ if(![1,2].includes(extension?.version)||!Array.isArray(wire)||wire[0]!==extension.version||!Number.isInteger(wire[1])||wire[1]<0||wire[1]>8||wire.length!==2+width*wire[1])return null;
+ return Array.from({length:wire[1]},(_,j)=>{const row=wire.slice(2+j*width,2+(j+1)*width);if(width===13)row.push(1-row[5]);return row;});
 }
 async function commitEcho(instrumentId,unit,expectedRevision=revision){
  const units=echoUnits();if(!units){$('error').textContent='Format ECHOCITY indisponible ; configuration conservée.';return false;}
  const next=units.filter(v=>v[0]!==instrumentId);if(unit)next.push(unit);next.sort((a,b)=>a[0]-b[0]);
- return command({action:'echocity_commit',expectedRevision,echocity:{version:1,configuration:[1,next.length,...next.flat()]}});
+ return command({action:'echocity_commit',expectedRevision,echocity:{version:2,configuration:[2,next.length,...next.flat()]}});
 }
 async function editEcho(instrument){
  const dialog=$('editor');if(dialog.open){if(dialog.dataset.kind!=='module')return;if(await window.mbmfModuleFlush?.()===false)return;dialog.close();}
  const units=echoUnits();if(!units)return;
- const draft=[...(units.find(v=>v[0]===instrument.id)||[instrument.id,1,0,250,1,.5,.7,1,1,4,0,0,1])];
+ const draft=[...(units.find(v=>v[0]===instrument.id)||[instrument.id,1,0,250,1,.5,.7,1,1,4,0,0,1,1])];
  const session=engineSession,rev=revision,content=$('editor-content');let applying=false;
  selectedModule={instrumentId:instrument.id,moduleId:'ECHOCITY'};
  for(const card of document.querySelectorAll('.module'))card.classList.toggle('selected',Number(card.dataset.instrumentId)===instrument.id&&card.dataset.moduleId==='ECHOCITY');
@@ -179,7 +180,7 @@ async function editEcho(instrument){
  const fields=[
   [2,'TEMPS',null,null,null,['ms','beats']], [3,'INTERVALLE',.1,draft[2]?64:60000,.1],
   [4,'PREMIER ÉCHO',0,16,.1], [9,'RÉPÉTITIONS',1,32,1],
-  [5,'MIX ÉCHOS',0,1,.01], [6,'DÉCROISSANCE',0,1,.01],
+  [13,'DRY',0,1,.01], [5,'WET',0,1,.01], [6,'DÉCROISSANCE',0,1,.01],
   [7,'GATE',0,4,.01], [8,'DÉCROISSANCE GATE',0,1,.01],
   [10,'PAS DE HAUTEUR',-48,48,1], [11,'PING-PONG',null,null,null,['OFF','ON']],
   [12,'AUTRE CANAL',null,null,null,Array.from({length:16},(_,i)=>String(i+1))]
@@ -969,21 +970,23 @@ function compactInstrument(i){
     if(unit){const card=node('article',undefined,'module');card.dataset.instrumentId=i.id;card.dataset.moduleId='ECHOCITY';
       card.classList.toggle('bypassed',!unit[1]);card.classList.toggle('selected',selectedModule?.instrumentId===i.id&&selectedModule.moduleId==='ECHOCITY');
       window.MBMF_TILES?.decorate(card,'TRANSFORMER','echo:'+i.id);
-      card.append(node('strong','ECHOCITY'),node('small',`${unit[9]} × ${unit[3]} ${unit[2]?'beats':'ms'} · MIX ${Math.round(unit[5]*100)}%`));
+      card.append(node('strong','ECHOCITY'),node('small',`${unit[9]} × ${unit[3]} ${unit[2]?'beats':'ms'} · DRY ${Math.round(unit[13]*100)}% · WET ${Math.round(unit[5]*100)}%`));
       card.append(button('BYPASS',()=>{const changed=[...unit];changed[1]=changed[1]?0:1;return commitEcho(i.id,changed);}));
       cardActions(card,[{label:'EDIT',run:()=>editEcho(i)},{label:'DELETE',run:async()=>{if(confirm('Supprimer ECHOCITY ?')&&await commitEcho(i.id,null)){if($('editor').open)$('editor').close();}}}],()=>editEcho(i));chain.append(card);
-    }else chain.append(button('+ ECHOCITY',()=>editEcho(i)));
+    }
   }
   const select=node('select');select.setAttribute('aria-label',`Transformer type for Instrument ${i.id}`);
   const blank=node('option','+ ADD EMPTY TRANSFORMER');blank.value='empty';select.append(blank);
+  blank.disabled=(i.transformers||[]).length>=6;
   for(const d of catalog?.modules.filter(m=>m.engineType>0&&(catalog.runtimeCapabilities?.transformerTypes||[1,2,3,4,5,6]).includes(m.engineType))||[]){const option=node('option',d.label);option.value=d.engineType;option.disabled=!!transformerAddProblem(i,d.engineType);select.append(option);}
+  if(latest?.echocityAvailable){const option=node('option','ECHOCITY — FIN DE CHAÎNE');option.value='echo';option.disabled=!!echoUnits()?.some(v=>v[0]===i.id);select.append(option);}
   select.value=catalog?.modules.find(m=>m.engineType>0&&(catalog.runtimeCapabilities?.transformerTypes||[1,2,3,4,5,6]).includes(m.engineType))?.engineType??'empty';
   const chosen=transformerChoices.get(i.id);
   if([...select.options].some(option=>option.value===chosen))select.value=chosen;
   select.onchange=()=>transformerChoices.set(i.id,select.value);
   if(select.selectedOptions[0]?.disabled)select.value=[...select.options].find(o=>!o.disabled)?.value||'empty';
-  chain.title=i.serialPitchOrder?'Serial pitch order · Velocity → Polyphony → ARP; CC separate':'Legacy stages: Transpose → Range → Velocity → Polyphony → ARP; CC separate';const addTransformer=button('ADD TRANSFORMER',async()=>{if(select.value==='empty'){addEmptyTransformer(i);return;}await addTransformerAndEdit(i,Number(select.value));});
-  const full=(i.transformers||[]).length>=6,waiting=transformerAdds.has(i.id);select.disabled=full||waiting;addTransformer.disabled=full||waiting;if(full){addTransformer.title=transformerAddProblem(i,0);chain.append(node('small','6 / 6 · chaîne complète'));}
+  chain.title=i.serialPitchOrder?'Serial pitch order · Velocity → Polyphony → ARP; CC separate':'Legacy stages: Transpose → Range → Velocity → Polyphony → ARP; CC separate';const addTransformer=button('ADD TRANSFORMER',async()=>{if(select.value==='echo'){await editEcho(i);return;}if(select.value==='empty'){addEmptyTransformer(i);return;}await addTransformerAndEdit(i,Number(select.value));});
+  const full=(i.transformers||[]).length>=6,waiting=transformerAdds.has(i.id),available=[...select.options].some(o=>!o.disabled);select.disabled=!available||waiting;addTransformer.disabled=!available||waiting;if(full){addTransformer.title=transformerAddProblem(i,0);chain.append(node('small','6 / 6 · chaîne complète'));}
   if(waiting){const notice=node('small',`${descriptor(transformerAdds.get(i.id).type)?.label||'TRANSFORMATEUR'} · en attente du relâchement des notes`);notice.setAttribute('role','status');chain.append(notice);}
   window.MBMF_TILES?.decorate(addTransformer,'TRANSFORMER','add:'+i.id,true);chain.append(select,addTransformer,button('EDIT',()=>editInstrument(i)));n.append(chain);return n;
 }

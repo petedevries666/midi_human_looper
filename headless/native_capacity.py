@@ -22,6 +22,8 @@ def build_source(source):
             raise ValueError('Native capacity source contract changed: '+old[:72])
         source = source.replace(old, new)
     change('IO_SCHEMA = 7;', 'IO_SCHEMA = 8;')
+    # Native VELOCITY has a wider gain; frozen REAPER bounds remain unchanged.
+    change('kind==0 ? 3 : kind==3 ?', 'kind==0 ? 8 : kind==3 ?')
     change('LAYERS = 16;', 'LAYERS = 128;')
     change('2+12*SW_STRIDE', '2+60*SW_STRIDE')
     change('12*SW_RT_STRIDE', '60*SW_RT_STRIDE')

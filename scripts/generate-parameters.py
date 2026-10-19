@@ -25,7 +25,7 @@ namespace performance {
         cpp+=f'constexpr bool {name}(int kind) {{ return '+ ' || '.join(f'kind=={k}' for k in params if test(k))+'; }\n'
     cpp+='struct Parameter { double low,high,step; int conversion; };\nstatic constexpr Parameter parameters[]={\n'
     for k in sorted(params):
-        p=params[k]
+        p=dict(params[k],**catalog.get('nativeParameterOverrides',{}).get(params[k]['id'],{}))
         conv={'linear_quantized':0,'equal_bins':1,'log_ratio':2,'linear_continuous':3}[p['normalizedConversion']]
         cpp+=f'  {{{p["min"]},{p["max"]},{p["step"]},{conv}}}, // {k}: {p["id"]}\n'
     cpp+='''};
@@ -46,8 +46,8 @@ inline double normalized(int kind,double v) {
 }
 } // namespace performance
 '''
-    # REAPER is frozen at three ARP modes. Native schema 8 widens its own EEL
-    # bounds during source generation; its C++ descriptors use the full catalog.
+    # Keep frozen REAPER bounds. Native-only overrides apply to C++ above and
+    # the native EEL generator, never to this shared legacy parameter table.
     def eel_lookup(field,default):return cpp_expr([(f'kind=={k}',2 if k==4 and field=='max' else p[field]) for k,p in params.items() if p[field]!=default],default)
     eel='// Generated bounds: scripts/generate-parameters.py / modules/catalog.json\n'
     for name,field,default in [('param_min','min',0),('param_max','max',127),('param_step','step',1)]:eel+=f'function {name}(kind)\n({eel_lookup(field,default)};);\n'
@@ -86,9 +86,10 @@ local(lo,hi,n)
     return {ROOT/'headless/parameter_registry.hpp':cpp,ROOT/'midi_human_looper.jsfx':source}
 
 def main():
-    p=argparse.ArgumentParser(description=__doc__);p.add_argument('--check',action='store_true');args=p.parse_args()
+    p=argparse.ArgumentParser(description=__doc__);p.add_argument('--check',action='store_true');p.add_argument('--native-only',action='store_true',help='Only generate the native C++ header; never write the frozen REAPER file');args=p.parse_args()
     stale=[]
     for path,text in generated().items():
+        if args.native_only and path.suffix=='.jsfx':continue
         if path.read_text()!=text:
             if args.check:stale.append(str(path.relative_to(ROOT)))
             else:path.write_text(text)

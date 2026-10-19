@@ -3,6 +3,17 @@ let revision=1, engineSession=null, pending=false, renderedModel='', latest=null
 // Next insertion type is an editor choice, not a musical parameter. Preserve it
 // by stable instrument ID when a pending native response rebuilds the rows.
 const transformerChoices=new Map();
+const transformerAdds=new Map();
+function settleTransformerAdds(s){
+ const ready=[];
+ for(const [id,addition] of transformerAdds){
+  const instrument=s.instruments.find(i=>i.id===id);
+  if(!instrument){transformerAdds.delete(id);continue;}
+  const created=instrument.transformers.find(t=>t.type===addition.type&&!addition.before.has(t.id));
+  if(created){transformerAdds.delete(id);ready.push([instrument,created]);}
+ }
+ return ready;
+}
 let hostChains=null,hostChainsBusy=false;
 async function refreshHostChains(){
  if(document.hidden)return;
@@ -440,8 +451,9 @@ function render(s){
   if(!catalog){latest=s;revision=s.revision;engineSession=s.engineSessionId;$('connection').textContent='CONNECTED · Chargement des modules…';if(!descriptorRetry)loadDescriptors();return;}
   if(s.status==='ok'&&['token required','invalid token'].includes($('error').textContent))$('error').textContent='';
   if(engineSession===s.engineSessionId&&s.revision<revision)return;
-  if(engineSession!==s.engineSessionId){transformerChoices.clear();$('mapping-editor').close();}
+  if(engineSession!==s.engineSessionId){transformerChoices.clear();transformerAdds.clear();$('mapping-editor').close();}
   for(const id of transformerChoices.keys())if(!s.instruments.some(i=>i.id===id))transformerChoices.delete(id);
+  for(const [instrument,created] of settleTransformerAdds(s)){const session=s.engineSessionId;setTimeout(()=>{if(engineSession===session&&!$('editor').open)editModule(instrument,created);},0);}
   engineSession=s.engineSessionId;revision=s.revision;latest=s;
   $('connection').textContent='CONNECTED · Engine running';
   $('stop-native').hidden=!s.chainMode;paintPhraseStates(s);paintEffectiveRails(s);paintConductorRuntime(s);if(typeof refreshMovements==='function')refreshMovements(s);
@@ -477,7 +489,7 @@ function render(s){
   renderAB(s);
   if(!document.activeElement?.closest('#controllers .name-input'))renderControllers(s);
   if(uiPointerHeld||document.activeElement?.tagName==='SELECT'||document.activeElement?.classList.contains('name-input')||document.activeElement?.type==='range'||document.querySelector('[data-live-release=held]'))return;
-  const model=JSON.stringify([s.echocityAvailable,s.echocity,s.controllerEngine,s.controllerLearn,s.phrases.map(p=>({...p,state:undefined,events:0})),s.instruments.map(i=>({...i,hostMixer:undefined})),s.switches.map(v=>({...v,step:0,actionCount:0,lastAction:0,result:0,conductor:v.conductor?.steps||0,supercharge:undefined})),s.snapshotActions,s.switchLearn]);if(model===renderedModel)return;renderedModel=model;
+  const model=JSON.stringify([[...transformerAdds].map(([id,p])=>[id,p.type]),s.echocityAvailable,s.echocity,s.controllerEngine,s.controllerLearn,s.phrases.map(p=>({...p,state:undefined,events:0})),s.instruments.map(i=>({...i,hostMixer:undefined})),s.switches.map(v=>({...v,step:0,actionCount:0,lastAction:0,result:0,conductor:v.conductor?.steps||0,supercharge:undefined})),s.snapshotActions,s.switchLearn]);if(model===renderedModel)return;renderedModel=model;
   compactPhrases(s);
   paintPhraseStates(s);
   $('instruments').replaceChildren(...s.instruments.map(compactInstrument));
@@ -566,7 +578,7 @@ async function patch(action){
   if(action==='copy'){patchClipboard=data.clipboardId;$('patch-status').textContent='PATCH COPIED';}
   else if(action==='save'){$('patch-status').textContent='PATCH SAVED';loadedPatchSlot=slot;}
   else if(action==='export')$('patch-status').textContent=`EXPORTED ${data.file}`;
-  else{loadedPatchSlot=slot;selectedModule=null;$('mapping-editor').close();renderedModel='';renderedSnapshots='';renderedControllers='';movementRevision=-1;render(data);$('patch-status').textContent=action==='paste'?'PATCH PASTED · SAVE pour conserver':data.emptySlot?'EMPTY SLOT · NEW PATCH · SAVE pour conserver':'PATCH LOADED';}
+  else{loadedPatchSlot=slot;selectedModule=null;transformerAdds.clear();$('mapping-editor').close();renderedModel='';renderedSnapshots='';renderedControllers='';movementRevision=-1;render(data);$('patch-status').textContent=action==='paste'?'PATCH PASTED · SAVE pour conserver':data.emptySlot?'EMPTY SLOT · NEW PATCH · SAVE pour conserver':'PATCH LOADED';}
   $('error').textContent='';
  }catch(e){$('error').textContent=e.message;$('patch-status').textContent=e.message;if(action==='load')$('patch-slot').value=previous;}
  finally{setPending(false);$('paste-patch').disabled=!patchClipboard;await refresh();await refreshPatchSlots();}
@@ -897,13 +909,17 @@ function transformerAddProblem(i,type){
  return '';
 }
 async function addTransformerAndEdit(i,type){
+ if(transformerAdds.has(i.id))return false;
  const current=latest.instruments.find(v=>v.id===i.id);if(!current)return;
  const problem=transformerAddProblem(current,type);if(problem){$('error').textContent=problem;return;}
- const before=new Set(current.transformers.map(t=>t.id));
- if(await command({action:'module_structure',instrumentId:i.id,operation:'add',engineType:type})){
-  const fresh=latest.instruments.find(v=>v.id===i.id),created=fresh?.transformers.find(t=>!before.has(t.id));
-  if(created)await editModule(fresh,created);
+ if($('editor').open){if($('editor').dataset.kind!=='module')return false;if(await window.mbmfModuleFlush?.()===false)return false;$('editor').close();}
+ transformerAdds.set(i.id,{type,before:new Set(current.transformers.map(t=>t.id))});
+ const accepted=await command({action:'module_structure',instrumentId:i.id,operation:'add',engineType:type});
+ if(!accepted){transformerAdds.delete(i.id);renderedModel='';if(latest)render(latest);}
+ else if(transformerAdds.has(i.id)){
+  renderedModel='';render(latest);
  }
+ return accepted;
 }
 function addEmptyTransformer(i){
  const dialog=$('editor');if(dialog.open)return;const session=engineSession;
@@ -912,10 +928,8 @@ function addEmptyTransformer(i){
  const blank=node('option','CHOOSE TYPE');blank.value='';select.append(blank);
  for(const d of catalog.modules.filter(m=>m.engineType>0&&(catalog.runtimeCapabilities?.transformerTypes||[1,2,3,4,5,6]).includes(m.engineType))){const o=node('option',d.label);o.value=d.engineType;o.disabled=!!transformerAddProblem(i,d.engineType);select.append(o);}
  const error=node('p');error.setAttribute('role','alert');
- const done=button('DONE',async()=>{if(session!==engineSession){error.textContent='Engine restarted; CANCEL and reopen.';return;}const before=new Set(latest.instruments.find(v=>v.id===i.id)?.transformers.map(t=>t.id)||[]);
-  if(await command({action:'module_structure',instrumentId:i.id,operation:'add',engineType:Number(select.value)})){
-   const instrument=latest.instruments.find(v=>v.id===i.id),module=instrument?.transformers.find(t=>!before.has(t.id));dialog.close();if(module)await editModule(instrument,module);
-  }else error.textContent=$('error').textContent;
+ const done=button('DONE',async()=>{if(session!==engineSession){error.textContent='Engine restarted; CANCEL and reopen.';return;}
+  const type=Number(select.value);dialog.close();await addTransformerAndEdit(i,type);
  });done.disabled=true;select.onchange=()=>done.disabled=!select.value;
  content.append(select,error,done,button('CANCEL',()=>dialog.close()));showEditor(dialog);select.focus();
 }
@@ -969,7 +983,8 @@ function compactInstrument(i){
   select.onchange=()=>transformerChoices.set(i.id,select.value);
   if(select.selectedOptions[0]?.disabled)select.value=[...select.options].find(o=>!o.disabled)?.value||'empty';
   chain.title=i.serialPitchOrder?'Serial pitch order · Velocity → Polyphony → ARP; CC separate':'Legacy stages: Transpose → Range → Velocity → Polyphony → ARP; CC separate';const addTransformer=button('ADD TRANSFORMER',async()=>{if(select.value==='empty'){addEmptyTransformer(i);return;}await addTransformerAndEdit(i,Number(select.value));});
-  const full=(i.transformers||[]).length>=6;select.disabled=full;addTransformer.disabled=full;if(full){addTransformer.title=transformerAddProblem(i,0);chain.append(node('small','6 / 6 · chaîne complète'));}
+  const full=(i.transformers||[]).length>=6,waiting=transformerAdds.has(i.id);select.disabled=full||waiting;addTransformer.disabled=full||waiting;if(full){addTransformer.title=transformerAddProblem(i,0);chain.append(node('small','6 / 6 · chaîne complète'));}
+  if(waiting){const notice=node('small',`${descriptor(transformerAdds.get(i.id).type)?.label||'TRANSFORMATEUR'} · en attente du relâchement des notes`);notice.setAttribute('role','status');chain.append(notice);}
   window.MBMF_TILES?.decorate(addTransformer,'TRANSFORMER','add:'+i.id,true);chain.append(select,addTransformer,button('EDIT',()=>editInstrument(i)));n.append(chain);return n;
 }
 

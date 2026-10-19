@@ -10,7 +10,7 @@ constexpr bool binned(int kind) { return kind==3 || kind==4 || kind==8 || kind==
 constexpr bool phraseKind(int kind) { return kind==14 || kind==15 || kind==17 || kind==18 || kind==19 || kind==20; }
 struct Parameter { double low,high,step; int conversion; };
 static constexpr Parameter parameters[]={
-  {0.2,3,0.01,0}, // 0: velocity
+  {0.2,8,0.01,0}, // 0: velocity
   {0,127,1,0}, // 1: level
   {0,127,1,0}, // 2: mod_level
   {0,1,1,1}, // 3: arp_enabled

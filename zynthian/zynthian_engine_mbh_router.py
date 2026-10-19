@@ -308,7 +308,7 @@ class LearnedCCRelay:
         target=getattr(state,'midi_learn_zctrl',None)
         processor=getattr(target,'processor',None)
         port=ctx.devices_in[self.index]
-        if target is None:raise ValueError('Activer MIDI Learn sur le paramètre Zynthian à assigner')
+        if target is None:raise ValueError('Armer le contrôle Zynthian : appui long sur son potentiomètre, puis Chain learn…')
         if port is None or port.name!=self.name:raise ValueError('Source MIDI MBMF indisponible')
         for candidate in self.allowed:
             if chain is not None and candidate is not chain:continue
@@ -320,6 +320,10 @@ class LearnedCCRelay:
             if getattr(state,'midi_learn_zctrl',None) is not target:raise ValueError('La cible MIDI Learn a changé')
             manager.add_midi_learn(channel,cc,target)
             state.disable_learn_cc()
+            # The scoped relay consumes the MIDI event, so the ordinary GUI CC
+            # callback cannot end its own Learn display. Queue this on the GUI
+            # thread rather than touching Tk widgets from the host/MIDI thread.
+            if callable(getattr(state,'send_cuia',None)):state.send_cuia('DISABLE_MIDI_LEARN')
             return True
         raise ValueError('La cible Learn doit appartenir à la chaîne Zynthian liée à cet instrument')
     def midi_event(self,event):

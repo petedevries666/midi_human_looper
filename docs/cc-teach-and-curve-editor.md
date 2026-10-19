@@ -3,8 +3,11 @@
 ## Apprendre un CC dans Zynthian
 
 Lier l’instrument MBMF à une chaîne Zynthian, activer son CC/MOD et choisir son
-numéro de CC. Activer MIDI Learn sur le paramètre désiré dans cette même chaîne,
-puis déplacer MOD LEVEL ou cliquer TEACH dans l’éditeur du transformateur.
+numéro de CC. Sur le contrôle désiré de cette même chaîne, faire un appui long
+sur le potentiomètre puis sélectionner « Chain learn… ». Déplacer MOD LEVEL ou
+cliquer TEACH dans l’éditeur du transformateur. Un simple tap tactile ne suffit
+pas à sélectionner la cible ; le mode général Learn peut également demander de
+tourner l’encodeur ou de faire glisser son contrôle pour le présélectionner.
 
 TEACH assigne explicitement le CC courant au contrôle armé, puis lui applique la
 valeur actuelle de MOD LEVEL. Il fonctionne donc même sans changement de valeur.
@@ -19,6 +22,9 @@ Une cible non armée, d’une autre chaîne, un processeur remplacé ou une rout
 admise sont refusés. Bank Select et les CC système 120–127 ne sont pas appris.
 Les événements du relais restent consommés avant les commandes MIDI globales.
 Les vrais CC reçus peuvent également apprendre le contrôle armé de leur chaîne.
+Après succès, la sortie du mode Learn est également envoyée à la file du GUI :
+l’affichage et les points d’interrogation ne restent pas bloqués alors que la
+cible du moteur a déjà été désarmée.
 
 ## Courbe d’un paramètre déjà lié
 

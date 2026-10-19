@@ -35,8 +35,9 @@ class Relay(unittest.TestCase):
   self.manager.add_midi_learn=learn
   state=self.context.state_manager;state.midi_learn_zctrl=self.target
   state.disable_learn_cc=lambda:setattr(state,'midi_learn_zctrl',None)
+  self.gui_actions=[];state.send_cuia=self.gui_actions.append
  def test_real_cc_can_learn_armed_control_and_apply_once(self):
-  self.arm();self.relay.midi_event(bytes([176,6,73]));self.assertEqual(self.values,[73]);self.assertEqual(len(self.learns),1);self.assertIsNone(self.context.state_manager.midi_learn_zctrl)
+  self.arm();self.relay.midi_event(bytes([176,6,73]));self.assertEqual(self.values,[73]);self.assertEqual(len(self.learns),1);self.assertIsNone(self.context.state_manager.midi_learn_zctrl);self.assertEqual(self.gui_actions,['DISABLE_MIDI_LEARN'])
  def test_teach_unchanged_cc_only_learns_when_explicitly_armed(self):
   with self.assertRaises(ValueError):self.relay.teach_cc(0,6,self.chain)
   self.arm();self.relay.teach_cc(0,6,self.chain);self.relay.midi_event(bytes([176,6,0]));self.assertEqual(self.values,[0]);self.assertEqual(len(self.learns),1)

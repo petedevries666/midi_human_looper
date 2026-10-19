@@ -18,7 +18,8 @@ Ne pas présenter ces limites comme des fonctionnalités terminées.
 - [x] Conserver les choix MIDI RECALL non appliqués lors de LIER et du polling ;
   montrer explicitement « MODIFICATIONS EN ATTENTE · APPLIQUER ».
 - [x] Tests des handlers JavaScript de production avec réponses HTTP contrôlées.
-- [ ] Qualification visuelle authentifiée de cet incrément sur le Pi.
+- [x] Qualification visuelle authentifiée de cet incrément sur le Pi : nom de
+  version, identités des transformateurs et 13 choix ARP, dont le mode 11 actif.
 - [ ] Qualification prolongée audio/MIDI ; les tests courts ne la remplacent pas.
 
 La dispense humaine antérieure de captures aux cinq tailles reste limitée à la
@@ -93,6 +94,10 @@ revendiqué ici. Les tests JS ne sont pas des captures ni une preuve de rendu.
   release intégrée qualifiée. (#75/#76)
 
 ## Discipline et prochain travail
+
+La validation directe de l’interface V.2 DICKINSON est terminée : version,
+identités des modules et choix ARP vérifiés. Les preuves opérationnelles et
+captures restent privées ; aucun patch musical n’est publié.
 
 Chaque case exige : code natif réel si nécessaire, MIDI observé pour une règle
 musicale, UI utilisable, SAVE/LOAD/migration et résultat attribué au bon commit.

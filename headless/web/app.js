@@ -71,7 +71,25 @@ function tactileSlider(label,value,min,max,step,oncommit,defaultValue=1,logarith
 function descriptor(type){return catalog?.modules.find(m=>m.engineType===type);}
 function musicalValue(p,value){return p?.choices?.[Math.round(value)]??`${Number(value).toFixed(p?.step>=1?0:2)} ${p?.unit||''}`;}
 function parameter(kind){return catalog?.parameters.find(p=>p.engineKind===kind);}
-async function loadDescriptors(){try{catalog=await request('/api/v1/descriptors');$('app-version').textContent=`V ${catalog.applicationVersion||'UNKNOWN'}`;renderedModel='';if(latest)render(latest);}catch(e){$('error').textContent=e.message;}}
+let descriptorRequest=null,descriptorRetry=null,descriptorFailures=0,descriptorError='';
+async function loadDescriptors(){
+ if(descriptorRequest)return descriptorRequest;
+ clearTimeout(descriptorRetry);descriptorRetry=null;
+ descriptorRequest=(async()=>{
+  try{
+   const value=await request('/api/v1/descriptors');
+   if(!Array.isArray(value.modules)||!Array.isArray(value.parameters))throw new Error('Invalid module definitions');
+   catalog=value;descriptorFailures=0;
+   $('app-version').textContent=catalog.displayVersion||`V ${catalog.applicationVersion||'UNKNOWN'}`;
+   if($('error').textContent===descriptorError)$('error').textContent='';descriptorError='';
+   renderedModel='';if(latest)render(latest);return true;
+  }catch(e){
+   descriptorError=`Modules : ${e.message} · CONNECT pour réessayer`;$('error').textContent=descriptorError;
+   if(!document.hidden&&$('token').value)descriptorRetry=setTimeout(()=>{descriptorRetry=null;loadDescriptors();},Math.min(15000,2000*2**Math.min(descriptorFailures++,3)));
+   return false;
+  }finally{descriptorRequest=null;}
+ })();return descriptorRequest;
+}
 function mappingFor(binding){return controllerConfiguration().mappings.find(m=>m.instrumentId===binding.instrumentId&&m.moduleId===binding.moduleId&&m.kind===binding.kind&&m.enabled);}
 function curveY(points,x,hold=false){let y=points.at(-1)[1];for(let i=1;i<points.length;i++)if(x<points[i][0]||(!hold&&x===points[i][0])){const a=points[i-1],b=points[i];let t=hold?0:(x-a[0])/(b[0]-a[0]),power=1+5*Math.abs(a[2]||0);t=a[2]>0?Math.pow(t,power):a[2]<0?1-Math.pow(1-t,power):t;return a[1]+(b[1]-a[1])*t;}return y;}
 function previewCurve(points,hold=false){const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');svg.setAttribute('viewBox','0 0 100 20');svg.classList.add('rail-curve');svg.setAttribute('aria-hidden','true');const path=document.createElementNS(svg.namespaceURI,'path');path.setAttribute('d',Array.from({length:101},(_,x)=>`${x?'L':'M'}${x},${20*(1-curveY(points,x/100,hold))}`).join(' '));svg.append(path);return svg;}
@@ -120,6 +138,8 @@ function showEditor(dialog,docked=false,kind=''){if(kind)dialog.dataset.kind=kin
 document.addEventListener('pointerdown',e=>{const d=$('editor');if(d.open&&d.dataset.contextual&&!d.contains(e.target)&&!e.target.closest('.module')&&!e.target.closest('.group-layout-controls')&&!e.target.closest('#assignment-menu'))d.close();});
 function editInstrument(i){const d=descriptor(0);if(!d)return;edit(d,i,d.parameters.map(id=>{const p=catalog.parameters.find(p=>p.id===id),canonical=parameter({enabled:21,input:22,output:23}[id]);const display=canonical?{...p,valueType:canonical.valueType,choices:canonical.choices}:p;return {descriptor:display,value:i[p.engineField],assignment:0};}),null);}
 async function editModule(i,tf){
+ if(!catalog&&!await loadDescriptors())return;
+ if(!descriptor(tf.type)){$('error').textContent='Type de transformateur indisponible ; reconnecter les modules.';return;}
  if($('editor').open){if($('editor').dataset.kind!=='module')return;if(await window.mbmfModuleFlush?.()===false)return;$('editor').close();}
  try{render(await request('/api/v1/state'));}catch(e){$('error').textContent=e.message;return;}
  const fresh=latest.instruments.find(v=>v.id===i.id),current=fresh?.transformers.find(v=>v.id===tf.id);if(!fresh||!current)return;i=fresh;tf=current;
@@ -345,6 +365,7 @@ function renderAB(s){
 }
 function paintEffectiveRails(s){paintHostVolumes();for(const rail of document.querySelectorAll('.tactile-slider input[type=range]')){const b=rail.mbmfBinding;if(!b||!rail.setEffective)continue;const p=[14,15,17].includes(b.kind)?s.phrases.find(p=>p.id===b.instrumentId):s.instruments.find(i=>i.id===b.instrumentId);if(!p)continue;const field={1:'level',14:'timeDecay',15:'velocityDecay',17:'baseVelocity'}[b.kind];if(field)rail.setEffective(p[field]);}}
 function render(s){
+  if(!catalog){latest=s;revision=s.revision;engineSession=s.engineSessionId;$('connection').textContent='CONNECTED · Chargement des modules…';if(!descriptorRetry)loadDescriptors();return;}
   if(s.status==='ok'&&['token required','invalid token'].includes($('error').textContent))$('error').textContent='';
   if(engineSession===s.engineSessionId&&s.revision<revision)return;
   if(engineSession!==s.engineSessionId)transformerChoices.clear();

@@ -1,0 +1,36 @@
+{
+  "data": "Actual native schema-8 engine / generic ARP editor",
+  "interactions": "Mouse, keyboard, SAVE/LOAD, refresh, CANCEL; native parameter assertions",
+  "artifacts": [
+    {
+      "file": "docs/screenshots/dickinson/arp-320x240.png",
+      "width": 320,
+      "height": 240,
+      "checks": []
+    },
+    {
+      "file": "docs/screenshots/dickinson/arp-800x480.png",
+      "width": 800,
+      "height": 480,
+      "checks": []
+    },
+    {
+      "file": "docs/screenshots/dickinson/arp-1366x768.png",
+      "width": 1366,
+      "height": 768,
+      "checks": []
+    },
+    {
+      "file": "docs/screenshots/dickinson/arp-1440x900.png",
+      "width": 1440,
+      "height": 900,
+      "checks": []
+    },
+    {
+      "file": "docs/screenshots/dickinson/arp-1904x1032.png",
+      "width": 1904,
+      "height": 1032,
+      "checks": []
+    }
+  ]
+}

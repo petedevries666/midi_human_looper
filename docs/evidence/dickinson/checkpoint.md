@@ -21,3 +21,20 @@ Milestone 1: Program Change no-op
 
 Next: STEP MAX + ARP traversal lifecycle, native extension, generic editor,
 actual emitted MIDI and screenshots. Full regression pending.
+
+Milestone 2: native ARP settings/traversal
+
+- Added kinds 27/28, generic Web binding, native Controller/snapshot resolution,
+  versioned nativeArp carrier, old-patch defaults, atomic target validation.
+- Actual EEL output: 7,177 focused checks + unchanged 25,426 random-ARP checks pass.
+- Actual native/API: three focused tests pass; 25 native-capacity tests pass.
+- Actual private JACK 48k/1024: two complete UP traversals, matched releases,
+  receiver chronology, zero output overflow, eight production-host MIDI PC no-ops.
+  Full receiver trace retained in jack.json. Physical hardware NOT RUN.
+- Browser controls, keyboard, CANCEL, SAVE/LOAD/refresh and five layout/PNG checks
+  pass; visually inspected all five targeted images. Global screenshot workflow
+  fails on unchanged Smart Switch TEST-label clipping at 320px, not claimed green.
+- Native source still has same mode 9/11 and 10/12 semantics. See exact traversal
+  and restart policies in docs/dickinson-arp-and-recall.md.
+- Remaining validation: sanitizer completion, final native rebuild/regressions,
+  snapshot adapter identity fixtures, evidence summary, push and Draft PR.

@@ -308,7 +308,7 @@ class zynthian_engine_mbh(zynthian_engine):
             atomic_json(target,patch)
             return
         elif action=='load':
-            patch=json.loads((entry['data']/'patch1.json').read_text());response=control.request(op=5,target=patch['schema'],patch=patch,**common)
+            patch=json.loads((entry['data']/'patch1.json').read_text());response=control.request(op=5,target=patch['schema'],loaded_slot=1,patch=patch,**common)
         else:raise ValueError('unknown MBH action')
         if response.get('status')!='ok':raise RuntimeError('MBH rejected command: '+response.get('status','unknown'))
 
@@ -345,7 +345,9 @@ class zynthian_engine_mbh(zynthian_engine):
         entry['phrase']=state['phrase']
         now=entry['control'].request()
         patch=state['patch']
-        result=entry['control'].request(op=5,target=patch['schema'],patch=patch,revision=now['revision'],session=now['engineSessionId'])
+        loaded=state.get('loadedPatchSlot',0)
+        if type(loaded) is not int or not 0<=loaded<=127:raise ValueError('Invalid snapshot loaded patch identity')
+        result=entry['control'].request(op=5,target=patch['schema'],loaded_slot=loaded,patch=patch,revision=now['revision'],session=now['engineSessionId'])
         if result.get('status')!='ok':raise RuntimeError('MBH snapshot load rejected')
         entry['host_chain_snapshot'] = state.get('hostChainBindings', {})
         if entry.get('host_chains'):
@@ -356,7 +358,7 @@ class zynthian_engine_mbh(zynthian_engine):
             now=entry['control'].request()
             patch=entry['control'].request(op=4,revision=now['revision'],session=now['engineSessionId'])
             if patch.get('format')!='MIDI_HUMAN_LOOPER_PATCH':raise RuntimeError('MBH snapshot save rejected')
-            result[str(pid)]=dict(version=1,phrase=entry['phrase'],patch=patch)
+            result[str(pid)]=dict(version=1,phrase=entry['phrase'],patch=patch,loadedPatchSlot=now.get('loadedPatchSlot',0))
             if entry.get('host_chains'):
                 result[str(pid)]['hostChainBindings'] = entry['host_chains'].links.snapshot()
         identities = {}

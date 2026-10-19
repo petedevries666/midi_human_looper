@@ -1,6 +1,10 @@
 {
   "contractVersion": 1,
-  "nativeParameterOverrides": {"velocity": {"max": 8}},
+  "nativeParameterOverrides": {
+    "velocity": {
+      "max": 8
+    }
+  },
   "parameters": [
     {
       "id": "velocity",
@@ -714,6 +718,44 @@
       "assignmentEligible": true,
       "nativeOnly": true,
       "engineField": "host_pan"
+    },
+    {
+      "id": "arp_step_max",
+      "engineKind": 27,
+      "label": "STEP MAX",
+      "valueType": "int",
+      "min": 1,
+      "max": 4,
+      "default": 2,
+      "step": 1,
+      "unit": "",
+      "normalizedConversion": "linear_quantized",
+      "assignmentEligible": true,
+      "curveSupport": true,
+      "serializationVersion": 1,
+      "nativeOnly": true,
+      "snapshotSwitch": "discrete"
+    },
+    {
+      "id": "arp_playback",
+      "engineKind": 28,
+      "label": "PLAYBACK",
+      "valueType": "enum",
+      "min": 0,
+      "max": 1,
+      "default": 0,
+      "step": 1,
+      "unit": "",
+      "normalizedConversion": "equal_bins",
+      "assignmentEligible": true,
+      "curveSupport": true,
+      "serializationVersion": 1,
+      "nativeOnly": true,
+      "snapshotSwitch": "discrete",
+      "choices": [
+        "CONTINUOUS",
+        "ONCE"
+      ]
     }
   ],
   "modules": [
@@ -805,7 +847,9 @@
         "arp_rate",
         "arp_gate",
         "arp_hold",
-        "arp_enabled"
+        "arp_enabled",
+        "arp_step_max",
+        "arp_playback"
       ],
       "serializationVersion": 1,
       "migration": "legacy_schema_1_to_7",

@@ -39,7 +39,7 @@ inline bool readConfiguration(std::istream &in, Configuration &c) {
       auto &v = r.state.values[j];
       unsigned k = 0, include = 0, expression = 0;
       if (!integer(in, v.key.instrument, 16777215) ||
-          !integer(in, v.key.module, 16777215) || !integer(in, k, 24) ||
+          !integer(in, v.key.module, 16777215) || !integer(in, k, 28) ||
           !(in >> v.effective) || !integer(in, include, 1) ||
           !integer(in, expression, 1))
         return false;

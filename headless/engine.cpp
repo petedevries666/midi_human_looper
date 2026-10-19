@@ -11,6 +11,7 @@
 #include "panic_sweep.hpp"
 #include "echocity_runtime.hpp"
 #include "snapshot_wire.hpp"
+#include "native_arp_config.hpp"
 #include "ysfx.hpp"
 #include <algorithm>
 #include <array>
@@ -72,6 +73,7 @@ struct ParameterChange {
 };
 struct RequestFields {
   echocity::Configurations echoConfig{};
+  native_arp::Configuration arpConfig{};
   uint64_t id = 0, session = 0, instanceId=0, instanceGeneration=0;
   int op = 0, target = 0, arg = 0, revision = 1, ch = 0, note = 0, value = 0;
   int module = 0, count = 0;
@@ -80,7 +82,7 @@ struct RequestFields {
   double macroPosition = 0;
   double snapshotSeconds = 2;
   int snapshotEase = 1, snapshotSwitch = 2;
-  std::array<ParameterChange, 5> parameters{};
+  std::array<ParameterChange, 7> parameters{};
   std::array<int,101> switchSettings{};bool hasLongHold=false;
   controller::Binding binding;
   controller::Configuration controllerConfig;
@@ -109,8 +111,8 @@ struct Instrument {
   std::array<uint64_t,2> hostMixerSequence{};
   char name[17]{};
   std::array<int, 6> transformerIds{}, transformerTypes{}, transformerOn{};
-  std::array<std::array<double, 5>, 6> transformerValues{},transformerPending{};
-  std::array<std::array<int, 5>, 6> transformerKinds{},
+  std::array<std::array<double, 7>, 6> transformerValues{},transformerPending{};
+  std::array<std::array<int, 7>, 6> transformerKinds{},
       transformerAssignments{};
   std::array<int, 6> parameterCounts{};
   int transformerCount = 0;
@@ -124,6 +126,7 @@ struct Phrase {
 };
 struct Snapshot {
   echocity::Configurations echoConfig{};
+  native_arp::Configuration arpConfig{};
   bool echoAvailable=false;
   unsigned echoPending=0,echoSources=0;
   uint64_t echoRejected=0;
@@ -232,10 +235,22 @@ struct Model {
   std::array<EEL_F*,12> voiceActive,voiceLayer;
   std::array<EEL_F*,128> phraseTriggers,phraseFinished;
   struct CurvePointers{double *count=nullptr;std::array<std::array<double*,3>,16> points{};};
-  std::array<std::array<std::array<CurvePointers,5>,12>,8> legacyCurves;
+  std::array<std::array<std::array<CurvePointers,7>,12>,8> legacyCurves;
   std::array<CurvePointers,8> levelCurves;
   mutable std::array<std::array<double,2>,8> hostMixer{};
   mutable std::array<std::array<uint64_t,2>,8> hostMixerSequence{};
+  double unassigned=0;
+  std::array<std::array<double,2>,8> legacyArpDefaults{};
+  std::array<std::array<double*,2>,8> arpValues{};
+  native_arp::Configuration arpConfiguration() const {
+    native_arp::Configuration c{};unsigned n=0;for(unsigned i=0;i<8;++i)if(*inst[i][0])c[n++]={unsigned(*inst[i][1]),unsigned(*arpValues[i][0]),unsigned(*arpValues[i][1])};return c;
+  }
+  bool arpTargets(const native_arp::Configuration &c) const {
+    for(const auto &a:c)if(a.instrument){bool found=false;for(unsigned i=0;i<8;++i)found|=*inst[i][0] && *inst[i][1]==a.instrument;if(!found)return false;}return true;
+  }
+  void loadArp(const native_arp::Configuration &c){
+    for(unsigned i=0;i<8;++i){*arpValues[i][0]=2;*arpValues[i][1]=0;for(const auto &a:c)if(a.instrument && *inst[i][0] && *inst[i][1]==a.instrument){*arpValues[i][0]=a.step;*arpValues[i][1]=a.playback;}}
+  }
   mutable double abPosition = 0;
   mutable std::atomic<bool> abRestorePending{false};
   std::array<std::array<double*,14>,140> instances;
@@ -247,9 +262,9 @@ struct Model {
   std::array<double *, 8> tfCount, levelAssignment, levelPending;
   std::array<std::array<double *, 6>, 8> tfCodes;
   std::array<std::array<double *, 12>, 8> tfIds, tfTypes;
-  std::array<std::array<std::array<double *, 5>, 12>, 8> values, assignments,
+  std::array<std::array<std::array<double *, 7>, 12>, 8> values, assignments,
       pendingValues;
-  std::array<std::array<std::array<int, 5>, 12>, 8> kinds, curveIndices;
+  std::array<std::array<std::array<int, 7>, 12>, 8> kinds, curveIndices;
   std::array<int, 8> levelCurveIndices;
   void initParameters(ysfx_t *fx) {
     auto i = NSEEL_VM_regvar(fx->vm.get(), "remote_pi"),
@@ -280,7 +295,10 @@ struct Model {
 
     for (unsigned gi = 0; gi < 8; ++gi)
       for (unsigned code = 1; code < 12; ++code)
-        for (unsigned row = 0; row < 5; ++row) {
+        for (unsigned row = 0; row < 7; ++row) {
+          if(row>=5){
+            kinds[gi][code][row]=27+row-5;values[gi][code][row]=arpValues[gi][row-5];assignments[gi][code][row]=&unassigned;pendingValues[gi][code][row]=nullptr;curveIndices[gi][code][row]=-1;continue;
+          }
           *i = gi;
           *c = code;
           *r = row;
@@ -314,6 +332,7 @@ struct Model {
   }
   explicit Model(ysfx_t *fx) {
     phraseCapacity=unsigned(variable(fx,"LAYERS"));switchCapacity=unsigned(variable(fx,"SW_COUNT"));schema=unsigned(variable(fx,"IO_SCHEMA"));
+    for(unsigned i=0;i<8;++i){legacyArpDefaults[i]={2,0};for(unsigned j=0;j<2;++j)arpValues[i][j]=schema==8?cell(fx,unsigned(variable(fx,"NATIVE_ARP_CONFIG_BASE"))+i*2+j):&legacyArpDefaults[i][j];}
     if(phraseCapacity>128||switchCapacity>64)throw std::runtime_error("native capacity exceeds compiled bounds");
     if(variable(fx,"MAX_ONCE_VOICES")!=voiceActive.size())throw std::runtime_error("shared voice capacity mismatch");
     musicalState=ysfx_find_var(fx,"state");recordLayer=ysfx_find_var(fx,"record_layer");odLayer=ysfx_find_var(fx,"overdub_layer");odActive=ysfx_find_var(fx,"overdub_active");odArmed=ysfx_find_var(fx,"overdub_armed");freeActive=ysfx_find_var(fx,"free_record_active");freeReady=ysfx_find_var(fx,"free_record_ready");freeError=ysfx_find_var(fx,"free_play_error");
@@ -457,7 +476,7 @@ struct Model {
             return result;
           }
           int type = int(rawType);
-          int rows = performance::parameterCount(type);
+          int rows = type==5 && schema!=8?5:performance::parameterCount(type);
           add(identity(*inst[i][1]), identity(*tfIds[i][c]), 24,
               *tfCodes[i][j] > 0, false);
           for (int r = 0; r < rows; ++r)
@@ -508,7 +527,7 @@ struct Model {
           return true;
         }
         int type = c < 7 ? c : int(*tfTypes[i][c]);
-        int rows = performance::parameterCount(type);
+        int rows = type==5 && schema!=8?5:performance::parameterCount(type);
         for (row = 0; row < rows; ++row)
           if (performance::parameterKind(type, row) == b.kind)
             return legacy || !*assignments[i][c][row];
@@ -556,6 +575,7 @@ struct Model {
     return pending && *pending != -999 ? *pending : *bindingValue(b);
   }
   void snapshot(Snapshot &s) const {
+    s.arpConfig=arpConfiguration();
     s.loadedPatchSlot=loadedPatchSlot.load(std::memory_order_acquire);
     s.phraseCapacity=phraseCapacity;s.switchCapacity=switchCapacity;s.schema=schema;
     s.instanceError=int(*instanceError);s.instanceRejected=uint64_t(*instanceRejected);
@@ -629,7 +649,7 @@ struct Model {
         }
         int type = v.transformerTypes[j];
         if (k >= 7 && (type == 1 || type == 2 || type == 4)) v.serialPitch = true;
-        v.parameterCounts[j] = performance::parameterCount(type);
+        v.parameterCounts[j] = type==5 && schema!=8?5:performance::parameterCount(type);
         for (int r = 0; r < v.parameterCounts[j]; ++r) {
           v.transformerValues[j][r] = *values[i][k][r];
           v.transformerPending[j][r]=pendingValues[i][k][r]?*pendingValues[i][k][r]:-999;
@@ -1083,7 +1103,7 @@ static void control(int listener, Queue<Request, 8> &commands,
                  request.arg <= (request.op == 1 ? 5 : request.op == 13   ? 5
                                  : request.op == 40 ? 7
                                  : request.op == 15 || request.op == 34 ? 3
-                                 : request.op == 32 || request.op == 38 ? 26
+                                 : request.op == 32 ? 28 : request.op == 38 ? 26
                                                     : 2) &&
                  request.ch >= 0 &&
                  (request.op == 11 ? request.ch <= 16 : request.ch < 16) &&
@@ -1180,6 +1200,10 @@ static void control(int listener, Queue<Request, 8> &commands,
           valid=echocity::read(input,request.echoConfig);
           if(!(input>>marker))marker.clear();
         }
+        if(valid && marker=="native_arp"){
+          valid=native_arp::read(input,request.arpConfig);
+          if(!(input>>marker))marker.clear();
+        }
         if(valid && marker=="loaded_patch"){
           valid=performance::integer(input,request.loadedPatchSlot,127);
           if(!(input>>marker))marker.clear();
@@ -1260,12 +1284,12 @@ static void control(int listener, Queue<Request, 8> &commands,
     } else if (valid && request.op == 12) {
       valid = bool(input >> request.module >> request.count) &&
               request.module > 0 && request.module <= 16777215 &&
-              request.count > 0 && request.count <= 5;
+              request.count > 0 && request.count <= 7;
       for (int j = 0; valid && j < request.count; ++j)
         valid = bool(input >> request.parameters[j].kind >>
                      request.parameters[j].value) &&
                 request.parameters[j].kind >= 0 &&
-                request.parameters[j].kind < 14 &&
+                (request.parameters[j].kind < 14 || request.parameters[j].kind==27 || request.parameters[j].kind==28) &&
                 std::isfinite(request.parameters[j].value);
       if (input >> extra)
         valid = false;
@@ -1374,8 +1398,9 @@ static void control(int listener, Queue<Request, 8> &commands,
           }
           paused.store(false,std::memory_order_release);
         } else if(reply.status==0 && request.op==42){
-          model.loadedPatchSlot.store(0,std::memory_order_release);
+          model.loadedPatchSlot.store(0,std::memory_order_release);reply.state.loadedPatchSlot=0;
           patch.load(patch.schema,patch.factory);patch.guardedReady=false;conductorConfiguration.clear();installConductor(conductorConfiguration);
+          model.loadArp(native_arp::Configuration{});
           echoRuntime.configure(echocity::Configurations{},true);
           send_line(fd,json(reply),shutdown);
         } else if (reply.status == 0 && request.op == 4) {
@@ -1389,6 +1414,7 @@ static void control(int listener, Queue<Request, 8> &commands,
                                     performanceSnapshots.configuration()));
           if (!conductorConfiguration.empty())
             document.insert(document.find_last_of('}'),",\"conductor\":"+conductor::json(conductorConfiguration));
+          if(model.schema==8)document.insert(document.find_last_of('}'),",\"nativeArp\":"+native_arp::json(model.arpConfiguration()));
           if(reply.state.echoAvailable)document.insert(document.find_last_of('}'),",\"echocity\":"+echocity::json(reply.state.echoConfig));
           paused.store(false, std::memory_order_release);
           send_line(fd, document, shutdown);
@@ -1403,7 +1429,7 @@ static void control(int listener, Queue<Request, 8> &commands,
             for (unsigned j = 0; j < patch.memory.size(); ++j)
               previous[9 + j] = *patch.memory[j];
             patch.load(unsigned(request.target), patchValues);
-            bool collision = false;
+            bool collision = !model.arpTargets(request.arpConfig);
             for(const auto &c:request.echoConfig)if(c.id){
               bool found=false;for(unsigned j=0;j<8;++j)found|=*model.inst[j][1]==c.instrument && *model.inst[j][0]>.5;
               if(!reply.state.echoAvailable || !found)collision=true;
@@ -1422,6 +1448,7 @@ static void control(int listener, Queue<Request, 8> &commands,
             }
           }
           if (reply.status == 0 && request.op == 5) {
+            model.loadArp(request.arpConfig);
             model.loadedPatchSlot.store(request.loadedPatchSlot,std::memory_order_release);
             reply.state.loadedPatchSlot=request.loadedPatchSlot;
             installConductor(pendingConductor);
@@ -1780,6 +1807,7 @@ int main(int argc, char **argv) {
         if(std::abs(model.hostMixer[i][field]-physical)>1e-9){model.hostMixer[i][field]=physical;++model.hostMixerSequence[i][field];}
         return;
       }
+      if(b.kind==27 || b.kind==28){*model.arpValues[i][b.kind-27]=performance::physical(b.kind,value);return;}
       if (b.kind >= 17) {
         *editI = i;
         *editCode = code;
@@ -2656,6 +2684,7 @@ int main(int argc, char **argv) {
               for (; i < 8; ++i)
                 if (*model.inst[i][0] && *model.inst[i][1] == request.target) break;
               if (i < 8) {
+                *model.arpValues[i][0]=2;*model.arpValues[i][1]=0;
                 cancelAB();
                 for (unsigned j = 0; j < performanceTargetCount; ++j) {
                   auto &p = (*performanceTargets)[j];
@@ -2990,7 +3019,7 @@ int main(int argc, char **argv) {
               reply.status = 2;
             else {
               auto &inst = state.instruments[i];
-              std::array<int, 5> rows{};
+              std::array<int, 7> rows{};
               bool valid = true;
               for (int j = 0; j < request.count; ++j) {
                 auto &change = request.parameters[j];

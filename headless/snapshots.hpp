@@ -26,7 +26,7 @@ struct State {
     for (unsigned i = 0; i < count; ++i) {
       const auto &v = values[i];
       if (!v.key.instrument || v.key.instrument > 16777215 ||
-          v.key.module > 16777215 || v.key.kind < 0 || v.key.kind > 24 ||
+          v.key.module > 16777215 || v.key.kind < 0 || (v.key.kind > 24 && v.key.kind!=27 && v.key.kind!=28) ||
           v.key.kind == 16 || !std::isfinite(v.effective))
         return false;
       for (unsigned j = 0; j < i; ++j)

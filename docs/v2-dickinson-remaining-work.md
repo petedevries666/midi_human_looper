@@ -79,8 +79,10 @@ revendiqué ici. Les tests JS ne sont pas des captures ni une preuve de rendu.
   à l’ownership, aux descripteurs, à l’UI et à la persistance. (#11/#18)
 - [ ] ECHOCITY : passer du scheduler #28 au module musical ; puis Freeze/Reverse
   selon le cahier propre. Ne pas annoncer la fondation comme un effet jouable.
-  Suite native commencée : noyau C++ et tests isolés, raccordement MIDI/Web
-  encore à faire. Voir [le chantier ECHOCITY](echocity-native-core.md).
+  Suite native commencée : noyau C++, journal/pont des sources directes et
+  phrases POLY/MONO, tests avec le vrai ysfx. Sortie musicale partagée, étapes
+  aval/ARP, configuration et Web encore à faire.
+  Voir [le chantier ECHOCITY](echocity-native-core.md).
 - [ ] Velocity Decay Pitch Bias/Pivot : helper encore inactif ; migration native,
   paramètres, contrôleurs, snapshots et lecture réelle à développer.
 - [ ] Transformateurs propres aux PHRASES : absents de l’exécution actuelle.

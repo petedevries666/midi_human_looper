@@ -2,8 +2,10 @@
 
 ## Statut explicite
 
-Noyau C++ en développement, testé isolément. **Il n’est pas encore connecté au
-traitement ysfx/JACK ni proposé comme transformateur insérable dans le Web.**
+Noyau C++ et raccordement des sources en développement. Le banc exécute le
+vrai moteur EEL natif dans ysfx, observe son MIDI sec et transmet ses événements
+sources à l’ordonnanceur C++. **Les échos restent reçus par le banc de test ;
+ils ne sont pas encore insérés dans la sortie du host JACK ou dans le Web.**
 La version musicale déjà installée reste utilisable. Aucun JSFX REAPER figé,
 patch utilisateur, preset ou configuration JACK n’est modifié par ce travail.
 
@@ -86,6 +88,8 @@ encore définie par la chaîne réelle.
 ```sh
 bash scripts/echocity-core-test.sh
 SANITIZE=1 bash scripts/echocity-core-test.sh
+YSFX_SOURCE=/chemin/vers/ysfx bash scripts/echocity-native-test.sh
+SANITIZE=1 YSFX_SOURCE=/chemin/vers/ysfx bash scripts/echocity-native-test.sh
 ```
 
 Ces programmes exécutent le vrai noyau C++ et contrôlent l’absence d’allocation
@@ -95,10 +99,54 @@ captured routing, annulation par origine/module et reprises de fins refusées.
 Les callbacks de sortie et l’horloge de bloc sont des bancs de test : **ce ne
 sont pas des preuves de MIDI réel via ysfx/JACK ni d’écoute sur les synthés.**
 
+Le second script ajoute une preuve différente : entrée MIDI et lecture de phrases
+dans le vrai ysfx épinglé, puis observation de leurs sources et calcul d’échos
+par le C++. Le MIDI sec émis par ysfx est inspecté ; les échos produits par le
+C++ restent dans un récepteur de test. Aucun serveur JACK ni synthé supplémentaire
+n’est lancé. Les cadences 44,1 kHz / 512 et 48 kHz / 128 sont exercées.
+
+## Raccordement des sources natives
+
+`native_echo_sources.py`, appelé uniquement par le générateur natif, ajoute un
+journal borné à 1 024 événements. Il est désactivé par défaut. Le fichier JSFX
+REAPER et les dimensions/adresses de la mémoire sérialisée restent inchangés.
+Sa page de travail commence à 29 000 000, après les autres pages natives et
+dans les 33 554 432 cellules de la VM. Il ne doit pas être sérialisé.
+
+Les événements POLY/MONO sont capturés après leur transformation et avant la
+coalescence physique des notes, avec instrument stable, origine, identité de
+phrase, canal, hauteur, vélocité et position dans le bloc. Les relâchements de
+phrases passent aussi par les destinations capturées dans leur registre existant.
+La fin normale d’une phrase scelle les gates sans couper la traîne ; un arrêt
+explicite, une suppression d’instrument ou un reset annulent le périmètre visé.
+Les suppressions hors DSP restent en attente pour le prochain bloc. Un PANIC
+dans le bloc conserve sa position au lieu d’être antidaté au début du bloc.
+
+`echocity_source_journal.hpp` valide un bloc entier avant tout callback, puis
+trie par position et ordre de génération. Un débordement ou une ligne corrompue
+refuse le bloc et demande la récupération : aucune fin perdue n’est ignorée.
+`echocity_source_bridge.hpp` associe les sources répétées en FIFO et applique
+ces cycles de vie au vrai ordonnanceur. Le lecteur doit pré-lier les cellules
+au démarrage avant activation, et acquitter les curseurs seulement après succès.
+L’admission et les callbacks de sortie doivent propager leurs propres refus à
+la récupération du host ; la validation du journal ne réserve pas tout le MIDI
+physique d’un bloc. Les tests du journal et du pont vérifient l’absence d’allocation.
+Les sorties, y compris celles d’une annulation ponctuelle, doivent être placées
+avec leur `Event.sample` absolu relativement au début du bloc du host.
+Un défaut de sortie existant du VM (`instance_output_fault`) doit également
+invalider le traitement musical du bloc : observer une attaque logique avant
+émission physique ne prouve pas que son admission MIDI a réussi.
+
+Ce raccordement observe une frontière POLY/MONO existante : **il ne fournit pas
+encore une continuation à n’importe quel endroit de la chaîne**. L’accord en
+entrée d’un ARP n’est volontairement pas annoncé comme sa sortie arpégée. L’ARP,
+le mélange MIDI sec/échos, les réattaques superposées et le partage des sorties
+doivent encore être intégrés avant d’activer un module musical.
+
 ## Intégration suivante avant un module jouable
 
-- Raccorder les jetons sources au vrai chemin direct/phrase et à ses Note Off,
-  Note On zéro, sustain, STOP/PANIC, suppression et chargement de patch.
+- Activer le journal/pont dans le host de performance avec configuration native,
+  sortie MIDI partagée, récupération sur refus et chargement de patch.
 - Raccorder une continuation réelle par identité stable aux étapes de la chaîne,
   y compris MONO/ARP ; mesurer le coût et qualifier les réattaques qui se croisent.
 - Intégrer configuration versionnée, IDs indépendants, descripteurs, commandes,

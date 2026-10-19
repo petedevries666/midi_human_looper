@@ -78,6 +78,11 @@ public:
     return result;
   }
   size_t active() const {size_t n=0;for(const auto &r:rows)n+=r.used;return n;}
+  template<class Match,class Visit> void visitHeld(Match match,Visit visit){
+    for(size_t i=0;i<Capacity;++i)if(rows[i].used && rows[i].held && match(rows[i].key)){
+      Token token{uint32_t(i),rows[i].generation,TokenDomain::Source};visit(token);
+    }
+  }
   template<class Match> void closeMatching(uint64_t sample,Match match){
     for(auto &r:rows)if(r.used && match(r.key)){
       r.held=false;r.end=std::max(sample,r.start);if(!r.children)r.used=false;

@@ -1,4 +1,4 @@
-#include "../headless/echocity_core.hpp"
+#include "../headless/echocity_source_journal.hpp"
 #include <cstdlib>
 #include <iostream>
 #include <new>
@@ -81,4 +81,31 @@ static void scopesCancellationAndAllocation(){
  for(unsigned i=0;i<1000;++i){uint64_t now=uint64_t(i+1)*1000;source=s.sources.begin(key(42,Origin::Phrase),now);CHECK(source);CHECK(second.trigger(s,source,0,60,100,now).ok);CHECK(s.sealSource(source,now+10,now+10));s.render(now,1000,emit);CHECK(!s.active() && !s.sources.active());}
  realtime=false;CHECK(allocations==0 && ons==4004 && offs==4004);
 }
-int main(){coreAndCapturedSettings();knownDurationAndTempo();bypassMixAndBounds();lateGateAndWatchdog();refusalAndConfiguration();scopesCancellationAndAllocation();std::cout<<"PASS ECHOCITY native core: "<<checks<<" checks; no callback allocation\n";}
+static void sourceBridgeRealtime(){
+ echocity::SourceBridge<16,16> bridge(8000);echocity::SourceJournal<4> journal;Trace trace;
+ echocity::Unit unit(8000);auto c=config();c.repeats=1;CHECK(unit.configure(c));
+ auto attack=[&](Token token,const echocity::SourceEvent &e,uint64_t now){CHECK(unit.trigger(bridge.scheduler,token,e.key.channel,e.key.pitch,e.velocity,now).ok);};
+ auto emit=[&](const Event&e){return trace(e);};
+ // Rows are intentionally in generation order, not timestamp order. Last row
+ // is natural completion: finish its gates while allowing the delayed tail.
+ std::array<double,24> cells{{2,1,42,60*16,1,20, 1,1,42,60*16+100*2048,1,0, 7,0,42,0,1,30, 0,0,0,0,0,0}};
+ unsigned visited=0;realtime=true;
+ CHECK(journal.consume(0,3,0,128,[&](size_t i){return cells[i];},[&](const echocity::SourceEvent&e){++visited;CHECK(bridge.apply(e,e.offset,attack,emit));}));
+ bridge.scheduler.render(0,128,emit);realtime=false;
+ CHECK(visited==3 && trace.count==2 && trace.events[0].sample==80 && trace.events[1].sample==100);
+ CHECK(!bridge.scheduler.sources.active() && !bridge.scheduler.active() && !allocations);
+ // Validation is all-or-nothing, including a corrupt release after a valid On.
+ visited=0;cells[0]=std::numeric_limits<double>::quiet_NaN();
+ realtime=true;CHECK(!journal.consume(0,3,0,128,[&](size_t i){return cells[i];},[&](const echocity::SourceEvent&){++visited;}));realtime=false;
+ CHECK(!visited && journal.needsRecovery && !allocations);
+ CHECK(!journal.consume(0,5,0,128,[&](size_t i){return cells[i];},[&](const echocity::SourceEvent&){++visited;}));
+ CHECK(!journal.consume(0,0,1,128,[&](size_t i){return cells[i];},[&](const echocity::SourceEvent&){++visited;}));
+ // Stable order at equal sample, and read cursors wrapping the fixed ring.
+ echocity::SourceJournal<4> wrapped;cells[0]=2;unsigned order=0;
+ CHECK(wrapped.consume(4,7,0,128,[&](size_t i){return cells[i];},[&](const echocity::SourceEvent&e){const unsigned expected[]={1,2,7};CHECK(unsigned(e.action)==expected[order++]);}));
+ CHECK(order==3);
+ cells[5]=cells[11]=cells[17]=0;order=0;
+ CHECK(wrapped.consume(0,3,0,128,[&](size_t i){return cells[i];},[&](const echocity::SourceEvent&e){const unsigned expected[]={2,1,7};CHECK(unsigned(e.action)==expected[order++]);}));
+ CHECK(order==3);
+}
+int main(){coreAndCapturedSettings();knownDurationAndTempo();bypassMixAndBounds();lateGateAndWatchdog();refusalAndConfiguration();scopesCancellationAndAllocation();sourceBridgeRealtime();std::cout<<"PASS ECHOCITY native core: "<<checks<<" checks; no callback allocation\n";}

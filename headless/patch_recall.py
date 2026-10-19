@@ -26,6 +26,8 @@ class RecallService:
         self.recover_save()
         from switch_presets import Store
         self.selected=Store(self.library,None).read()['activeSlot']
+        from chain_recall import ChainSaves
+        self.chain_saves=ChainSaves(self)
         self.thread=threading.Thread(target=self.run,name='MBMF-patch-recall',daemon=True);self.thread.start()
 
     @staticmethod
@@ -77,13 +79,17 @@ class RecallService:
         for path in sorted(root.glob('*/*.zss')):
             if not path.is_symlink() and not path.name.startswith('.'):
                 snapshots.append(dict(path=str(path.relative_to(root)),name=path.stem))
-        return dict(settings=copy.deepcopy(self.settings),phase=self.phase,lastError=self.error,selectedSlot=self.selected,snapshots=snapshots)
+        rows=[];chain_error=''
+        if self.active is None and self.pending is None:
+            try:rows=self.chain_saves.inventory()
+            except (ValueError,OSError,KeyError,TypeError) as error:chain_error=str(error)
+        return dict(settings=copy.deepcopy(self.settings),phase='queued' if self.pending and not self.active else self.phase,lastError=self.error,selectedSlot=self.selected,snapshots=snapshots,chainRecalls=rows,chainSaveError=chain_error)
 
     def request(self,request):
         action=request.get('operation')
         with self.lock:
             if action=='status':return self.status()
-            if self.active:raise ValueError('Patch operation in progress')
+            if self.active or self.pending:raise ValueError('Patch operation in progress')
             if action=='configure':
                 candidate={**self.settings,**{k:request[k] for k in ('enabled','channel','withSnapshot')}};self.validate(candidate)
                 from zyngui import zynthian_gui_config
@@ -98,6 +104,12 @@ class RecallService:
                     path=self.snapshot_path(relative);self.validate_snapshot(path)
                     candidate['links'][str(slot)]=dict(snapshot=relative,bindings=self.one_entry()['host_chains'].links.snapshot())
                 atomic_json(self.path,candidate);self.settings=candidate
+            elif action=='save_chain':
+                required={'action','operation','slot','chainId','identity','fingerprint','expectedEngineSessionId'}
+                if set(request)!=required or slot_number(request['slot'])!=self.selected or type(request['chainId']) is not int or not 1<=request['chainId']<=255 or type(request['expectedEngineSessionId']) is not int or not re.fullmatch('[0-9a-f]{64}',str(request['fingerprint'])):
+                    raise ValueError('Invalid chain-save request; refresh the active patch')
+                uuid.UUID(request['identity'])
+                self.pending=('save_chain',copy.deepcopy(request));self.wake.set()
             elif action in ('recall','save_pair'):
                 slot=slot_number(request.get('slot'));self.pending=(action,slot);self.wake.set()
             else:raise ValueError('Unsupported patch recall operation')
@@ -112,6 +124,8 @@ class RecallService:
         # for current snapshots, and one engine/processor is required for recall.
         processors=[v.get('processors',{}) for k,v in config.items() if k.startswith('MB/')]
         if len(processors)!=1 or len(processors[0])!=1:raise ValueError('Snapshot requires exactly one MBMF processor')
+        from chain_recall import validate_assets
+        validate_assets(document,Path(self.manager.snapshot_dir).parent/'presets/lv2')
         return document
 
     @staticmethod
@@ -231,6 +245,8 @@ class RecallService:
                 from patch_lock import library_lock
                 with library_lock(self.library):
                     if job[0]=='recall':self.recall(job[1])
+                    elif job[0]=='save_chain':
+                        self.phase='saving_chain';self.chain_saves.save(job[1])
                     else:self.save_pair(job[1])
             except Exception as error:self.error=str(error);logging.exception('MBMF patch operation failed')
             finally:

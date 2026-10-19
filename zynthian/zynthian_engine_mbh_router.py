@@ -300,6 +300,28 @@ class LearnedCCRelay:
         if self.index<len(ctx.devices_in) and ctx.devices_in[self.index] is not None and ctx.devices_in[self.index].name==self.name:
             flags=ctx.lib_zyncore.zmip_get_flags(self.index)
             if ctx.lib_zyncore.zmip_set_flags(self.index,flags&~1)!=1:logging.error('MBMF relay UI capture shutdown failed')
+    def teach_cc(self,channel,cc,chain=None):
+        """Learn only the armed control of an admitted, live destination chain."""
+        if type(channel) is not int or not 0<=channel<16 or type(cc) is not int or cc in (0,32) or not 0<=cc<120:
+            raise ValueError('CC réservé ou canal invalide')
+        ctx=self.context;manager=ctx.chain_manager;state=self.state_manager
+        target=getattr(state,'midi_learn_zctrl',None)
+        processor=getattr(target,'processor',None)
+        port=ctx.devices_in[self.index]
+        if target is None:raise ValueError('Activer MIDI Learn sur le paramètre Zynthian à assigner')
+        if port is None or port.name!=self.name:raise ValueError('Source MIDI MBMF indisponible')
+        for candidate in self.allowed:
+            if chain is not None and candidate is not chain:continue
+            if manager.chains.get(candidate.chain_id) is not candidate or candidate.midi_chan!=channel:continue
+            if ctx.lib_zyncore.zmop_get_route_from(candidate.zmop_index,self.index)!=1:continue
+            if getattr(processor,'chain_id',None)!=candidate.chain_id:continue
+            if getattr(manager,'processors',{}).get(getattr(processor,'id',None)) is not processor:continue
+            if not any(value is target for value in getattr(processor,'controllers_dict',{}).values()):continue
+            if getattr(state,'midi_learn_zctrl',None) is not target:raise ValueError('La cible MIDI Learn a changé')
+            manager.add_midi_learn(channel,cc,target)
+            state.disable_learn_cc()
+            return True
+        raise ValueError('La cible Learn doit appartenir à la chaîne Zynthian liée à cet instrument')
     def midi_event(self,event):
         # Always consume, including PANIC, notes, master-channel and program events.
         try:
@@ -309,6 +331,9 @@ class LearnedCCRelay:
             ctx=self.context;manager=ctx.chain_manager
             port=ctx.devices_in[self.index]
             if port is None or port.name!=self.name:return False
+            if getattr(self.state_manager,'midi_learn_zctrl',None) is not None:
+                try:self.teach_cc(channel,cc)
+                except ValueError:pass
             targets=[]
             for chain in self.allowed:
                 if manager.chains.get(chain.chain_id) is not chain or chain.midi_chan!=channel:continue

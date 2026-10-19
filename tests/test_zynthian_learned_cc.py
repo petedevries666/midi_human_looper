@@ -26,4 +26,36 @@ class Relay(unittest.TestCase):
   self.relay.end();self.assertEqual(self.flags&1,0);self.assertFalse(self.relay.allowed)
   self.context.state_manager.ctrldev_manager.drivers[0]=object()
   with self.assertRaises(RuntimeError):router._learned_cc_relay(self.context,0,'mbh_1:midi_out')
+ def arm(self):
+  self.target=types.SimpleNamespace(midi_control_change=self.values.append)
+  self.processor=types.SimpleNamespace(id=8,chain_id=2,controllers_dict={'filter':self.target})
+  self.target.processor=self.processor;self.manager.processors={8:self.processor};self.learns=[]
+  def learn(channel,cc,target):
+   self.learns.append((channel,cc,target));self.manager.chain_midi_cc_binding[(2<<16)|(channel<<8)|cc]=[target]
+  self.manager.add_midi_learn=learn
+  state=self.context.state_manager;state.midi_learn_zctrl=self.target
+  state.disable_learn_cc=lambda:setattr(state,'midi_learn_zctrl',None)
+ def test_real_cc_can_learn_armed_control_and_apply_once(self):
+  self.arm();self.relay.midi_event(bytes([176,6,73]));self.assertEqual(self.values,[73]);self.assertEqual(len(self.learns),1);self.assertIsNone(self.context.state_manager.midi_learn_zctrl)
+ def test_teach_unchanged_cc_only_learns_when_explicitly_armed(self):
+  with self.assertRaises(ValueError):self.relay.teach_cc(0,6,self.chain)
+  self.arm();self.relay.teach_cc(0,6,self.chain);self.relay.midi_event(bytes([176,6,0]));self.assertEqual(self.values,[0]);self.assertEqual(len(self.learns),1)
+ def test_learning_rejects_wrong_chain_channel_port_and_removed_processor(self):
+  for invalid in ('chain','channel','port','processor','control','route'):
+   with self.subTest(invalid=invalid):
+    self.setUp();self.arm()
+    if invalid=='chain':self.processor.chain_id=3
+    elif invalid=='channel':self.chain.midi_chan=1
+    elif invalid=='port':self.context.devices_in[0].name='physical:out'
+    elif invalid=='processor':self.manager.processors.clear()
+    elif invalid=='control':self.processor.controllers_dict.clear()
+    else:self.route=0
+    with self.assertRaises(ValueError):self.relay.teach_cc(0,6,self.chain)
+    self.assertFalse(self.learns);self.assertIsNotNone(self.context.state_manager.midi_learn_zctrl)
+ def test_reserved_messages_never_learn_global_actions(self):
+  self.arm()
+  for cc in (0,32,120,121,123,127):
+   with self.assertRaises(ValueError):self.relay.teach_cc(0,cc,self.chain)
+   self.relay.midi_event(bytes([176,cc,12]))
+  self.assertFalse(self.learns)
 if __name__=='__main__':unittest.main()

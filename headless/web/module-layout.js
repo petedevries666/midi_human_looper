@@ -10,6 +10,7 @@ const ids=new Set(groups.map(g=>g.id));
 for(const id of savedOrder)if(ids.has(id))container.append(document.getElementById(id));
 for(const g of groups)if(!savedOrder.includes(g.id))container.append(g);
 if(!savedOrder.includes('module-editor-section')){const editor=document.getElementById('module-editor-section'),instruments=document.getElementById('instruments-section');if(editor&&instruments)container.insertBefore(editor,instruments.nextElementSibling);}
+if(!savedOrder.includes('mapping-editor-section')){const mapping=document.getElementById('mapping-editor-section'),editor=document.getElementById('module-editor-section');if(mapping&&editor)container.insertBefore(mapping,editor.nextElementSibling);}
 let dragging=null;
 function update(){const order=[...container.children];for(const g of order){g.querySelector('[data-move="up"]').disabled=order.indexOf(g)===0;g.querySelector('[data-move="down"]').disabled=order.indexOf(g)===order.length-1;}}
 function persist(){try{localStorage.setItem(key,JSON.stringify({order:[...container.children].map(g=>g.id),open:Object.fromEntries(groups.map(g=>[g.id,g.open]))}));}catch(e){}update();}

@@ -67,7 +67,7 @@ class Control:
                 self._observation_json=json.dumps(state,separators=(',',':')).encode()
             return self._observation_json
 
-    def request(self, op=0, target=0, arg=0, revision=1, ch=0, note=0, value=0, session=0, patch=None, parameters=None, module=0, binding=None, name=None, settings=None, inclusions=None, macro=None,instance=None, phrase=None,echo=None):
+    def request(self, op=0, target=0, arg=0, revision=1, ch=0, note=0, value=0, session=0, patch=None, parameters=None, module=0, binding=None, name=None, settings=None, inclusions=None, macro=None,instance=None, phrase=None,echo=None,loaded_slot=0):
         # One worker producer owns the engine's command queue; HTTP threads never
         # inspect live engine state. A timeout does not cancel an already executed TEST.
         with self.lock:
@@ -113,6 +113,9 @@ class Control:
                 line=line.rstrip('\n')+' conductor '+str(len(patch['conductor']['configuration']))+' '+' '.join(str(v) for v in patch['conductor']['configuration'])+'\n'
             if patch is not None and 'echocity' in patch:
                 line=line.rstrip('\n')+' echocity '+' '.join(format(v,'.17g') for v in patch['echocity']['configuration'])+'\n'
+            if patch is not None and op==5 and loaded_slot:
+                if type(loaded_slot) is not int or not 1<=loaded_slot<=127:raise ValueError('Invalid loaded patch identity')
+                line=line.rstrip('\n')+f' loaded_patch {loaded_slot}\n'
             with socket.socket(socket.AF_UNIX) as client:
                 client.settimeout(15)
                 client.connect(self.path)
@@ -737,7 +740,7 @@ class Handler(BaseHTTPRequestHandler):
             if self.path.endswith('/paste'):
                 saved=getattr(self.server,'patch_clipboard',None)
                 if not saved or data.get('clipboardId')!=saved[0]:self.respond(409,{'error':'COPY PATCH first; clipboard changed or expired.'});return
-                patch=saved[1];result=self.server.control.request(op=5,target=patch['schema'],revision=rev,session=session,patch=patch)
+                patch=saved[1];result=self.server.control.request(op=5,target=patch['schema'],loaded_slot=slot,revision=rev,session=session,patch=patch)
                 if result.get('status')!='ok':self.respond(409,result);return
                 self.server.switch_presets.on_patch(slot);self.engine();return
             if self.path.endswith('/load') and not path.exists():
@@ -781,7 +784,7 @@ class Handler(BaseHTTPRequestHandler):
                 schema=patch.get('schema');memory=patch.get('memory');globals_=patch.get('globals')
                 if patch.get('format')!='MIDI_HUMAN_LOOPER_PATCH' or type(schema) is not int or not 1<=schema<=8 or not isinstance(memory,list) or patch.get('work_mem_size')!=len(memory) or not 0<len(memory)<=2000000 or not isinstance(globals_,list) or len(globals_)!=9:raise ValueError()
                 if any(type(x) not in (int,float) or not math.isfinite(x) for x in globals_+memory):raise ValueError()
-                result=self.server.control.request(op=5,target=schema,revision=rev,session=session,patch=patch)
+                result=self.server.control.request(op=5,target=schema,loaded_slot=slot,revision=rev,session=session,patch=patch)
                 if result.get('status')!='ok':self.respond(409 if result.get('status')=='conflict' else 400,result);return
                 self.server.switch_presets.on_patch(slot)
                 self.engine()

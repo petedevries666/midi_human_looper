@@ -67,8 +67,10 @@ class RecallService:
         # Restoring a snapshot must not recursively trigger another request.
         if 0<event[1]<128 and not (device==0xff and self.phase in ('snapshot','restore')):
             with self.lock:
-                if self.active==('recall',event[1]):self.pending=None
-                else:self.pending=('recall',event[1]);self.wake.set()
+                # Always retain the latest intent, including a return to the old
+                # patch while another snapshot is loading. Worker checks the
+                # authoritative session identity before any stop/file/rig work.
+                self.pending=('midi_recall',event[1]);self.wake.set()
         return True
 
     def status(self):
@@ -144,7 +146,7 @@ class RecallService:
         entry=self.one_entry();c=entry['control'];presets=Store(self.library,c);presets.recover()
         patch=presets.materialize(patch,slot)
         state=c.request()
-        result=c.request(op=5,target=patch['schema'],patch=patch,revision=state['revision'],session=state['engineSessionId'])
+        result=c.request(op=5,target=patch['schema'],loaded_slot=slot,patch=patch,revision=state['revision'],session=state['engineSessionId'])
         if result.get('status')!='ok':raise ValueError('Native patch restoration rejected')
         if bindings is not None:
             links=entry['host_chains'].links;links.restore(bindings);links.synchronize()
@@ -153,7 +155,11 @@ class RecallService:
             if unresolved:raise ValueError('Missing linked Zynthian destination for Instrument '+', '.join(unresolved))
         presets.on_patch(slot);self.selected=slot;self.apply_reservation()
 
-    def recall(self,slot):
+    def recall(self,slot,midi=False):
+        # Persisted/selected slot is UI metadata, never proof of a loaded patch.
+        # A fresh session starts at zero until an actual successful native LOAD.
+        if midi and self.one_entry()['control'].request().get('loadedPatchSlot',0)==slot:
+            return
         patch=checked_patch(self.library/f'patch{slot}.json');link=self.settings['links'].get(str(slot));path=None
         if self.settings['withSnapshot']:
             if link is None:raise ValueError('No Zynthian snapshot linked to this patch; select patch-only or link a snapshot')
@@ -161,7 +167,7 @@ class RecallService:
         entry=self.one_entry();old=entry['control'].request();backup=entry['control'].request(op=4,revision=old['revision'],session=old['engineSessionId'])
         if backup.get('format')!='MIDI_HUMAN_LOOPER_PATCH':raise ValueError('Cannot retain current patch for recovery')
         from switch_presets import Store
-        old_slot=Store(self.library,None).read()['activeSlot'];old_bindings=entry['host_chains'].links.snapshot()
+        old_slot=old.get('loadedPatchSlot',0);old_bindings=entry['host_chains'].links.snapshot()
         recovery=self.directory/'patch-recall-recovery.zss'
         prior_snapshot=getattr(self.manager,'last_snapshot_fpath',None)
         if path:
@@ -244,7 +250,7 @@ class RecallService:
             try:
                 from patch_lock import library_lock
                 with library_lock(self.library):
-                    if job[0]=='recall':self.recall(job[1])
+                    if job[0] in ('recall','midi_recall'):self.recall(job[1],midi=job[0]=='midi_recall')
                     elif job[0]=='save_chain':
                         self.phase='saving_chain';self.chain_saves.save(job[1])
                     else:self.save_pair(job[1])

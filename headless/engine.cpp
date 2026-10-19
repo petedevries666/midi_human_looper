@@ -75,6 +75,7 @@ struct RequestFields {
   uint64_t id = 0, session = 0, instanceId=0, instanceGeneration=0;
   int op = 0, target = 0, arg = 0, revision = 1, ch = 0, note = 0, value = 0;
   int module = 0, count = 0;
+  unsigned loadedPatchSlot = 0;
   char snapshotName[49]{};
   double macroPosition = 0;
   double snapshotSeconds = 2;
@@ -129,6 +130,7 @@ struct Snapshot {
   unsigned switchLearnTarget=0;bool switchLearnConflict=false;
   uint64_t samples = 0, blocks = 0, midi = 0, late = 0, last_sample = 0;
   int revision = 1;
+  unsigned loadedPatchSlot = 0;
   unsigned pendingOutput = 0;
   int chainPhrase=0,chainErrorPhrase=-1,chainErrorCode=0;
   uint64_t captureRejected=0,captureOverflows=0;
@@ -221,6 +223,7 @@ static void execute(ysfx_t *fx, const char *text) {
   NSEEL_code_free(p);
 }
 struct Model {
+  std::atomic<unsigned> loadedPatchSlot{0};
   unsigned phraseCapacity=16,switchCapacity=16,schema=7;
   std::array<std::array<EEL_F*,128>,64> switchFields;
   std::array<std::array<EEL_F*,8>,64> conductorFields;
@@ -553,6 +556,7 @@ struct Model {
     return pending && *pending != -999 ? *pending : *bindingValue(b);
   }
   void snapshot(Snapshot &s) const {
+    s.loadedPatchSlot=loadedPatchSlot.load(std::memory_order_acquire);
     s.phraseCapacity=phraseCapacity;s.switchCapacity=switchCapacity;s.schema=schema;
     s.instanceError=int(*instanceError);s.instanceRejected=uint64_t(*instanceRejected);
     for(unsigned j=0;j<12+phraseCapacity;++j)for(unsigned k=0;k<14;++k)s.instances[j][k]=*instances[j][k];
@@ -655,7 +659,7 @@ static std::string json(const Reply &r) {
   auto &s = r.state;
   std::ostringstream o;
   const char *status[] = {"ok", "conflict", "unknown_target", "invalid"};
-  o << "{\"protocolVersion\":1,\"schemaVersion\":"<<s.schema<<",\"switchCapacity\":"<<s.switchCapacity<<",\"phraseCapacity\":"<<s.phraseCapacity<<",\"revision\":" << s.revision
+  o << "{\"protocolVersion\":1,\"schemaVersion\":"<<s.schema<<",\"switchCapacity\":"<<s.switchCapacity<<",\"phraseCapacity\":"<<s.phraseCapacity<<",\"loadedPatchSlot\":"<<s.loadedPatchSlot<<",\"revision\":" << s.revision
     << ","
        "\"requestId\":"
     << r.id << ",\"engineSessionId\":" << engineSession
@@ -1176,6 +1180,10 @@ static void control(int listener, Queue<Request, 8> &commands,
           valid=echocity::read(input,request.echoConfig);
           if(!(input>>marker))marker.clear();
         }
+        if(valid && marker=="loaded_patch"){
+          valid=performance::integer(input,request.loadedPatchSlot,127);
+          if(!(input>>marker))marker.clear();
+        }
         if (!marker.empty()) valid=false;
       }
     } else if (valid &&
@@ -1366,6 +1374,7 @@ static void control(int listener, Queue<Request, 8> &commands,
           }
           paused.store(false,std::memory_order_release);
         } else if(reply.status==0 && request.op==42){
+          model.loadedPatchSlot.store(0,std::memory_order_release);
           patch.load(patch.schema,patch.factory);patch.guardedReady=false;conductorConfiguration.clear();installConductor(conductorConfiguration);
           echoRuntime.configure(echocity::Configurations{},true);
           send_line(fd,json(reply),shutdown);
@@ -1413,6 +1422,8 @@ static void control(int listener, Queue<Request, 8> &commands,
             }
           }
           if (reply.status == 0 && request.op == 5) {
+            model.loadedPatchSlot.store(request.loadedPatchSlot,std::memory_order_release);
+            reply.state.loadedPatchSlot=request.loadedPatchSlot;
             installConductor(pendingConductor);
             echoRuntime.configure(request.echoConfig,true);
             conductorConfiguration.swap(pendingConductor);

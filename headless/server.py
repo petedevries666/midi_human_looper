@@ -309,6 +309,7 @@ class Handler(BaseHTTPRequestHandler):
             self.respond(200,asset.read_bytes(),types[asset.suffix]);return
         files = {'/': ('index.html', 'text/html; charset=utf-8'),
                  '/app.js': ('app.js', 'text/javascript; charset=utf-8'),
+                 '/block-tools.js': ('block-tools.js', 'text/javascript; charset=utf-8'),
                  '/conductor.js': ('conductor.js', 'text/javascript; charset=utf-8'),
                  '/movement.js': ('movement.js', 'text/javascript; charset=utf-8'),
                  '/update.js': ('update.js', 'text/javascript; charset=utf-8'),
@@ -382,6 +383,36 @@ class Handler(BaseHTTPRequestHandler):
         except (ValueError,KeyError,TypeError) as error:self.respond(422,{'error':str(error)})
         except OSError:self.respond(503,{'error':'Engine unavailable'})
 
+    def block_command(self):
+        from block_edit import capture, paste, KINDS
+        try:
+            length=int(self.headers.get('Content-Length','0'))
+            if not 0<length<=2048:raise ValueError('Invalid block command')
+            data=json.loads(self.rfile.read(length))
+            action=data.get('action');kind=data.get('kind')
+            if kind not in KINDS or action not in ('copy','paste'):raise ValueError('Invalid block operation')
+            revision=data.get('expectedRevision');session=data.get('expectedEngineSessionId')
+            if type(revision) is not int or not 1<=revision<2147483647 or type(session) is not int or not 1<=session<=9007199254740991:raise ValueError('Revision/session required')
+            with self.server.patch_lock,self.server.control.lock:
+                patch=self.server.control.request(op=4,arg=1,revision=revision,session=session)
+                if patch.get('format')!='MIDI_HUMAN_LOOPER_PATCH':
+                    self.respond(409,{'error':'STOP et relâcher les notes avant COPY / PASTE. Réessayer après la fin des échos.'});return
+                context=(session,self.server.switch_presets.read()['activeSlot'])
+                if action=='copy':
+                    clip=capture(patch,kind,data.get('source'))
+                    ident=os.urandom(12).hex()
+                    self.server.block_clipboards[kind]=(ident,context,clip)
+                    self.respond(200,{'clipboardId':ident,'kind':kind});return
+                stored=self.server.block_clipboards.get(kind)
+                if not stored or stored[0]!=data.get('clipboardId'):raise ValueError('COPY expiré ; copier à nouveau')
+                if data.get('mode')=='swap' and stored[1]!=context:raise ValueError('SWAP exige le patch source actuel ; copier à nouveau')
+                result,ident=paste(patch,stored[2],data.get('target'),data.get('mode','empty'))
+                reply=self.server.control.request(op=5,arg=1,target=result['schema'],revision=revision,session=session,patch=result)
+                if reply.get('status')!='ok':self.respond(409,reply);return
+                self.respond(200,{'status':'ok','kind':kind,'id':ident})
+        except (ValueError,KeyError,TypeError,StopIteration) as error:self.respond(422,{'error':str(error) or 'Block missing'})
+        except (OSError,RuntimeError) as error:self.respond(503,{'error':str(error)})
+
     def do_POST(self):
         if not self.allowed(api=True):
             return
@@ -397,6 +428,8 @@ class Handler(BaseHTTPRequestHandler):
             self.project_command(self.path.rsplit('/',1)[-1]);return
         if self.path == '/api/v1/phrase/midi':
             self.phrase_import();return
+        if self.path == '/api/v1/blocks':
+            self.block_command();return
         if self.path in ('/api/v1/patch/save','/api/v1/patch/load','/api/v1/patch/export','/api/v1/patch/copy','/api/v1/patch/paste','/api/v1/patch/rename'):
             self.patch_command();return
         if self.path != '/api/v1/command':
@@ -786,6 +819,7 @@ def make_server(bind, port, path, token='',patch_dir=None,host_chain_socket=None
     server.bind_address, server.token, server.control = bind, token, Control(path)
     server.patch_dir=Path(patch_dir) if patch_dir else Path.home()/'.local/share/midi-human-looper'
     server.patch_lock=threading.RLock()
+    server.block_clipboards={}
     server.host_chain_socket=host_chain_socket
     from project_sync import ProjectStore
     server.projects=ProjectStore(server.patch_dir,server.control)

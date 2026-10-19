@@ -473,13 +473,15 @@ function render(s){
   $('snapshots').replaceChildren(...(s.snapshots||[]).map((r,index)=>{
     const row=node('div',undefined,'snapshot-row');row.dataset.snapshotId=r.id;window.MBMF_TILES?.decorate(row,'SNAPSHOT',r.id);const name=node('input');name.value=r.name;name.maxLength=48;name.setAttribute('data-snapshot-name','');name.setAttribute('aria-label','Snapshot name');name.onchange=()=>{if(snapshotSession!==engineSession){$('error').textContent='Engine restarted; reopen the snapshot controls.';return;}if(name.value!==r.name)command({action:'snapshot_rename',snapshotId:r.id,name:name.value});};row.append(name,node('small','','snapshot-feedback'));
     const more=node('details');more.className='snapshot-actions';more.append(node('summary','•••'));const menu=node('div',undefined,'snapshot-menu');more.append(menu);
-    for(const [label,action] of [['RECALL','snapshot_recall'],['MORPH','snapshot_morph'],['UPDATE','snapshot_update'],['DUPLICATE','snapshot_duplicate'],['↑','snapshot_move'],['↓','snapshot_move'],['DELETE','snapshot_delete']]) {
+    for(const [label,action] of [['RECALL','snapshot_recall'],['MORPH','snapshot_morph'],['UPDATE','snapshot_update'],['DUPLICATE','snapshot_duplicate'],['DELETE','snapshot_delete']]) {
       const control=button(label,()=>{if(snapshotSession!==engineSession){$('error').textContent='Engine restarted; reopen the snapshot controls.';return;}if(action==='snapshot_delete'&&!confirm('Delete this snapshot?'))return;more.open=false;command({action,snapshotId:r.id,direction:label==='↓'?'down':'up'});});
       control.disabled=(label==='↑'&&index===0)||(label==='↓'&&index===(s.snapshots||[]).length-1);
       (['RECALL','MORPH','UPDATE'].includes(label)?row:menu).append(control);
     }
     menu.prepend(button('EDIT',()=>{more.open=false;const current=latest?.snapshots?.find(v=>v.id===r.id);if(current&&snapshotSession===engineSession)editSnapshot(current);}));
     row.append(more);
+    movableBlock(row,'snapshot',r.id);
+    cardActions(row,()=>[{label:'EDIT',run:()=>editSnapshot(r)},blockCopyAction('snapshot',r.id),{label:'DELETE',run:()=>{if(confirm('Delete this snapshot?'))command({action:'snapshot_delete',snapshotId:r.id});}},...blockMoveActions(row,'snapshot')]);
     return row;
   }));
   }
@@ -488,8 +490,11 @@ function render(s){
     if(feedback)feedback.textContent=`${r.id===s.selectedSnapshotId?'SELECTED · ':''}${r.dirty?'MODIFIED':''}${r.id===s.selectedSnapshotId&&s.snapshotSkippedTargets?` · PARTIAL (${s.snapshotSkippedTargets} missing)`:''}${r.id===s.targetSnapshotId?` · MORPH ${Math.round(s.morphProgress*100)}%`:''}`;
   }
   renderAB(s);
+  applyBlockLayout('snapshot');
+  applyBlockLayout('switch');applyBlockLayout('movement');
+  emptyBlockActions($('capture-snapshot'),'snapshot');
   if(!document.activeElement?.closest('#controllers .name-input'))renderControllers(s);
-  if(uiPointerHeld||document.activeElement?.tagName==='SELECT'||document.activeElement?.classList.contains('name-input')||document.activeElement?.type==='range'||document.querySelector('[data-live-release=held]'))return;
+  if(blockDragging||uiPointerHeld||document.activeElement?.tagName==='SELECT'||document.activeElement?.classList.contains('name-input')||document.activeElement?.type==='range'||document.querySelector('[data-live-release=held]'))return;
   const model=JSON.stringify([[...transformerAdds].map(([id,p])=>[id,p.type]),s.echocityAvailable,s.echocity,s.controllerEngine,s.controllerLearn,s.phrases.map(p=>({...p,state:undefined,events:0})),s.instruments.map(i=>({...i,hostMixer:undefined})),s.switches.map(v=>({...v,step:0,actionCount:0,lastAction:0,result:0,conductor:v.conductor?.steps||0,supercharge:undefined})),s.snapshotActions,s.switchLearn]);if(model===renderedModel)return;renderedModel=model;
   compactPhrases(s);
   paintPhraseStates(s);
@@ -502,7 +507,7 @@ function render(s){
     const title=node('strong',sw.name||`SWITCH ${sw.id}`,'switch-name'),snap=button('SNAPSHOTS',()=>editSwitchSnapshots(sw));snap.replaceChildren();const switchIcon=node('img');switchIcon.src='/assets/footswitch.png';switchIcon.alt='';switchIcon.width=31;switchIcon.height=28;snap.append(switchIcon);snap.classList.add('switch-snapshot');
     const isConductor=!!sw.conductor?.steps,mode=button(isConductor?'CONDUCTOR':'ACTION',()=>isConductor?editConductor(sw):editSwitchSequence(sw));mode.classList.add('switch-mode');
     n.append(title,node('small',`${sw.kind===1?'NOTE':sw.kind===2?'CC':'UNASSIGNED'} ${sw.number} · CH ${sw.channel}`,'switch-source'),node('small',`STEP ${sw.conductor?.steps?sw.conductor.step:sw.step} / ${sw.conductor?.steps||sw.length}`,'step'),mode,snap);
-    cardActions(n,[{label:'EDIT',run:()=>editSwitchSequence(sw)},{label:'DELETE',run:async()=>{if(confirm(`Delete ${sw.name||'SWITCH '+sw.id} and its Conductor? Phrase and Movement sources stay available.`))await command({action:'switch_delete',switchId:sw.id});}}]);
+    cardActions(n,()=>[{label:'EDIT',run:()=>editSwitchSequence(sw)},blockCopyAction('switch',sw.id),{label:'DELETE',run:async()=>{if(confirm(`Delete ${sw.name||'SWITCH '+sw.id} and its Conductor? Phrase and Movement sources stay available.`))await command({action:'switch_delete',switchId:sw.id});}},...blockMoveActions(n,'switch')]);
     const meter=node('output','','charge-meter');meter.hidden=true;n.append(meter);
     const test=button('TEST',()=>{});test.dataset.switchTest=String(sw.id);test.dataset.valid='1';test.setAttribute('aria-label',`TEST Smart Switch ${sw.id}`);test.title='Comme la pédale : clic court, double clic ou maintien. Relâcher déclenche RELEASE. Espace / Entrée également.';
     test.textContent='▶';test.classList.add('switch-trigger');
@@ -514,6 +519,9 @@ function render(s){
   const columns=window.innerWidth>=1000?4:window.innerWidth>=600?2:1,spaces=full?0:Math.min(columns-s.switches.length%columns,(s.switchCapacity||16)-s.switches.length);
   const additions=[add];for(let slot=1;slot<spaces;slot++){const extra=button('+ SMART SWITCH',()=>command({action:'switch_add'}));extra.textContent='+';extra.classList.add('switch-add');window.MBMF_TILES?.decorate(extra,'SMART_SWITCH',`add:${slot}`,true);additions.push(extra);}
   $('switches').replaceChildren(...switchCards,...additions);
+  for(const n of switchCards)movableBlock(n,'switch',n.dataset.switchId);
+  for(const n of additions)emptyBlockActions(n,'switch');
+  applyBlockLayout('switch');
 }
 let tileResizeTimer;window.addEventListener('resize',()=>{clearTimeout(tileResizeTimer);tileResizeTimer=setTimeout(()=>{if(latest){renderedModel='';render(latest);}},150);});
 const heldTests=new Set();
@@ -900,6 +908,7 @@ function compactPhrases(s){
     const notices=[...row.children].filter(n=>!cells.includes(n)&&n.tagName==='SMALL'&&!n.textContent.endsWith(' events'));
     const grouped=node('div',undefined,'phrase-rails');grouped.append(...cells.slice(8,11));row.replaceChildren(...cells.slice(0,8),grouped,...cells.slice(11));row.querySelector('.phrase-number').title=`Phrase ${p.id} · ${p.events} source events`;row.querySelector('.phrase-number').setAttribute('aria-label',row.querySelector('.phrase-number').title);for(const notice of notices){notice.classList.add('phrase-alert');row.append(notice);}const reassign=find('REASSIGN');if(reassign){reassign.classList.add('phrase-alert');row.append(reassign);}
     const state=node('small',p.state||'IDLE','phrase-state');row.querySelector('.editable-name').append(state);
+    cardActions(row,()=>[{label:'EDIT',run:()=>phraseOptions(p.id)},...(p.events?[blockCopyAction('phrase',p.id)]:[]),...blockPasteActions('phrase',p.id,!!p.events),{label:'DELETE',disabled:!p.events,run:()=>{if(confirm(`Effacer le MIDI de PHRASE ${p.id} ? Son emplacement et ses liens restent en place.`))command({action:'phrase_clear',phraseId:p.id});}}]);
     return row;
   }));
 }

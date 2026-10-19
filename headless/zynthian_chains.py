@@ -108,6 +108,41 @@ class ChainLinks:
 
     def chain_volume(self, destination):return self.chain_mixer_value(destination, 'volume')
 
+    def teach_cc(self, request):
+        """Explicit scoped Learn, including an unchanged/current MOD LEVEL."""
+        instrument_id,module_id=request['instrumentId'],request['moduleId']
+        if type(instrument_id) is not int or type(module_id) is not int or instrument_id<=0 or module_id<=0:
+            raise ValueError('Invalid CC/MOD identity')
+        with self.lock:
+            status=self.status();binding=status['bindings'].get(str(instrument_id))
+            if (status['engineSessionId']!=request['expectedEngineSessionId'] or status['engineRevision']!=request['expectedRevision']
+                or status['inventoryRevision']!=request['inventoryRevision'] or not binding
+                or binding['identity']!=request['identity'] or binding['status']!='synchronized'):
+                raise ValueError('Chaîne ou réglage modifié ; rouvrir le transformateur')
+            state=self.control.request()
+            if state['revision']!=request['expectedRevision'] or state['engineSessionId']!=request['expectedEngineSessionId']:
+                raise ValueError('Le réglage a changé ; réessayer TEACH')
+            instrument=next((i for i in state['instruments'] if i['id']==instrument_id),None)
+            module=next((m for m in instrument.get('transformers',[]) if m['id']==module_id),None) if instrument else None
+            if not instrument or not instrument.get('enabled') or not module or module['type']!=6 or not module.get('enabled'):
+                raise ValueError('Activer cet instrument et son CC/MOD avant TEACH')
+            cc=next((p['value'] for p in module['parameters'] if p['kind']==13),None)
+            value=next((p['value'] for p in module['parameters'] if p['kind']==2),None)
+            if type(cc) not in (int,float) or cc!=int(cc) or type(value) not in (int,float) or not math.isfinite(value) or not 0<=value<=127:
+                raise ValueError('Valeur CC/MOD invalide')
+            chain=self.manager.chains.get(binding['destination']['chainId'])
+            state_manager=getattr(self.manager,'state_manager',None)
+            drivers=getattr(getattr(state_manager,'ctrldev_manager',None),'drivers',{})
+            # Only the consuming MBMF driver may learn; never forward to global UI.
+            from zyngine.zynthian_engine_mbh_router import LearnedCCRelay
+            for relay in list(drivers.values()):
+                if isinstance(relay,LearnedCCRelay) and chain in relay.allowed:
+                    channel=binding['destination']['channel']-1
+                    relay.teach_cc(channel,int(cc),chain)
+                    relay.midi_event([0xb0|channel,int(cc),round(value)])
+                    return dict(status='taught',channel=channel+1,cc=int(cc),value=round(value))
+            raise ValueError('Relais MIDI de cette chaîne indisponible')
+
     def chain_pan(self, destination):return self.chain_mixer_value(destination, 'pan')
 
     def chain_mixer_value(self, destination, field):
@@ -281,6 +316,8 @@ class Bridge:
                         result=recall.request(request)
                     elif request == {'action': 'status'}:
                         result = bridge.links.status()
+                    elif set(request)=={'action','instrumentId','moduleId','identity','inventoryRevision','expectedRevision','expectedEngineSessionId'} and request['action']=='teach_cc':
+                        result=bridge.links.teach_cc(request)
                     elif set(request)=={'action','inventoryRevision','expectedRevision','expectedEngineSessionId'} and request['action']=='relink_channels':
                         result=bridge.links.relink_channels(request['inventoryRevision'],request['expectedRevision'],request['expectedEngineSessionId'])
                     elif set(request)=={'action','instrumentId','identity','value','expectedPan','inventoryRevision','expectedEngineSessionId'} and request['action']=='pan':

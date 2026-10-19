@@ -77,11 +77,12 @@ revendiqué ici. Les tests JS ne sont pas des captures ni une preuve de rendu.
   distincts du multiplicateur VELOCITY actuel. (#12/#18)
 - [ ] HUMANIZER phrases et instruments : intégrer la fondation #25 au scheduling,
   à l’ownership, aux descripteurs, à l’UI et à la persistance. (#11/#18)
-- [ ] ECHOCITY : passer du scheduler #28 au module musical ; puis Freeze/Reverse
-  selon le cahier propre. Ne pas annoncer la fondation comme un effet jouable.
-  Suite native commencée : noyau C++, journal/pont des sources directes et
-  phrases POLY/MONO, tests avec le vrai ysfx. Sortie musicale partagée, étapes
-  aval/ARP, configuration et Web encore à faire.
+- [ ] ECHOCITY complet : continuations à plusieurs positions et Freeze/Reverse
+  restent à développer. Premier effet terminal natif intégré : notes directes,
+  phrases et sortie ARP, mélange sec/échos, ping-pong, transposition, gate,
+  édition Web transactionnelle et persistance versionnée. Qualification JACK
+  isolée : délai 80 ms, ordre avec CC123, notes tenues, phrases, ARP, bypass et
+  PANIC. Validation musicale sur l’installation réelle encore nécessaire.
   Voir [le chantier ECHOCITY](echocity-native-core.md).
 - [ ] Velocity Decay Pitch Bias/Pivot : helper encore inactif ; migration native,
   paramètres, contrôleurs, snapshots et lecture réelle à développer.

@@ -5,7 +5,7 @@ namespace echocity {
 // Storage is owned/pre-bound by the native host at startup. Reading or sorting
 // a block needs no VM lookup, allocation or lock. Full block validation precedes
 // every callback: a missing release must never leave a partially admitted block.
-template<size_t Capacity=1024> class SourceJournal {
+template<size_t Capacity=8192> class SourceJournal {
   static_assert(Capacity>0,"Nonempty source journal required");
   struct Entry {SourceEvent event{};size_t order=0;};
   std::array<Entry,Capacity> entries{};
@@ -25,6 +25,7 @@ public:
       double row[6];for(unsigned k=0;k<6;++k)row[k]=readCell(((first+j)%Capacity)*6+k);
       auto &entry=entries[j];entry.order=j;
       if(!decodeSource(row,entry.event,frames))return reject();
+      entry.event.journalIndex=unsigned((first+j)%Capacity);
     }
     std::sort(entries.begin(),entries.begin()+count,[](const Entry&a,const Entry&b){
       return a.event.offset!=b.event.offset?a.event.offset<b.event.offset:a.order<b.order;

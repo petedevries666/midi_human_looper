@@ -2,12 +2,42 @@
 
 ## Statut explicite
 
-Noyau C++ et raccordement des sources en développement. Le banc exécute le
-vrai moteur EEL natif dans ysfx, observe son MIDI sec et transmet ses événements
-sources à l’ordonnanceur C++. **Les échos restent reçus par le banc de test ;
-ils ne sont pas encore insérés dans la sortie du host JACK ou dans le Web.**
-La version musicale déjà installée reste utilisable. Aucun JSFX REAPER figé,
-patch utilisateur, preset ou configuration JACK n’est modifié par ce travail.
+Le host natif et le Web proposent maintenant un ECHOCITY terminal par instrument,
+après les transformations POLY/MONO et la génération ARP. L’intégration reste à
+qualifier sur ports JACK isolés avant installation sur le moteur musical.
+Le JSFX REAPER figé reste inchangé.
+
+Le bouton « + ECHOCITY » ouvre ses réglages : intervalle en ms ou en temps,
+décalage initial, nombre de répétitions, mélange, décroissance de vélocité,
+durée des notes et sa décroissance, transposition par répétition et ping-pong
+vers un autre canal. APPLIQUER valide le lot ; le bypass conserve le son direct.
+La version 1 de l’extension de patch `echocity` conserve ces réglages sans
+déplacer les anciennes cellules mémoire. Charger un ancien patch les retire.
+Une version inconnue est refusée, sans conversion silencieuse.
+
+La première activation exige de relâcher les notes. Le protocole reste ensuite
+actif jusqu’à la fin de la session, même si le dernier effet est retiré.
+Les notes directes et les échos partagent un registre de sorties : une répétition
+sur une hauteur tenue réserve ensemble NoteOff et NoteOn pour être audible.
+MIDI 1 ne permet pas de relâcher indépendamment deux voix de même canal/hauteur.
+Les CC existants gardent leurs messages et leur ordre ; les repères privés du
+journal ne quittent jamais le host. CC120/123 actualisent le registre uniquement
+après réservation de leur message de sortie. Un défaut déclenche le balayage
+PANIC avant réutilisation des propriétaires.
+
+Limites : un effet par instrument, en fin de chaîne uniquement ; pas de Feedback,
+Freeze ou Reverse, ni d’assignation de ses paramètres à un contrôleur/MOVEMENT.
+La provenance ARP/MONO est agrégée : STOP des phrases retire les échos issus des
+phrases, tandis que la porte native reste responsable de sa note directe partagée.
+Le runtime réserve au plus 256 voix différées et 2048 sources ; un lot impossible
+est refusé en entier et laisse la vélocité directe complète.
+
+Qualification reproductible : `scripts/echocity-native-test.sh`, puis
+`python3 tests/test_echocity_playable.py`. Le second utilise un moteur privé sans
+JACK par défaut ; `ECHOCITY_JACK=1` ajoute le banc réellement connecté à ses seuls
+ports de test `mbmf_d`, avec `.build/echocity-jack-probe` compilé depuis
+`tests/conductor_jack.cpp` (`MBMF_TEST_ACYCLIC`, `MBMF_TEST_CAPTURE_ALL_CC`,
+`MBMF_TEST_FORBID_PRIVATE_CONTROL`). Aucun port matériel n’est connecté.
 
 ## Audit et choix
 
@@ -137,21 +167,16 @@ Un défaut de sortie existant du VM (`instance_output_fault`) doit également
 invalider le traitement musical du bloc : observer une attaque logique avant
 émission physique ne prouve pas que son admission MIDI a réussi.
 
-Ce raccordement observe une frontière POLY/MONO existante : **il ne fournit pas
-encore une continuation à n’importe quel endroit de la chaîne**. L’accord en
-entrée d’un ARP n’est volontairement pas annoncé comme sa sortie arpégée. L’ARP,
-le mélange MIDI sec/échos, les réattaques superposées et le partage des sorties
-doivent encore être intégrés avant d’activer un module musical.
+Ce raccordement observe les frontières POLY/MONO et les attaques/fins réellement
+générées par l’ARP. Il ne fournit pas de continuation à n’importe quel endroit
+de la chaîne : l’effet musical proposé ici est terminal.
 
-## Intégration suivante avant un module jouable
+## Suite après le premier module terminal
 
-- Activer le journal/pont dans le host de performance avec configuration native,
-  sortie MIDI partagée, récupération sur refus et chargement de patch.
-- Raccorder une continuation réelle par identité stable aux étapes de la chaîne,
-  y compris MONO/ARP ; mesurer le coût et qualifier les réattaques qui se croisent.
-- Intégrer configuration versionnée, IDs indépendants, descripteurs, commandes,
-  sauvegarde/restauration, contrôleurs/MOVEMENTS et édition Web transactionnelle.
-- Tester le MIDI réellement émis et la restauration d’anciens patches avant une
+- Qualifier le MIDI réellement émis et la restauration d’anciens patches avant
   installation musicale. L’écoute et Firefox sur le Pi restent à qualifier.
+- Raccorder une continuation réelle par identité stable aux étapes de la chaîne
+  pour permettre d’autres positions et plusieurs effets.
+- Ajouter les descripteurs d’assignation aux contrôleurs/MOVEMENTS.
 - Étendre ensuite Feedback/Freeze, parcours, taps et Reverse conformément au
   checkpoint #28 ; aucun de ces modes n’est annoncé livré par ce noyau.

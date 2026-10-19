@@ -188,10 +188,15 @@ def _apply_exclusive(context, requested, virtual_names):
                 logging.error('MBMF duplicate keyboard input %s', port.name)
                 return False
             indexes[port.name] = index
-    if len(indexes) != len(requested) or any(name in virtual_names for name in requested):
+    if not indexes or any(name in virtual_names for name in requested):
         _restore_exclusive(context)
         logging.error('MBMF configured exclusive keyboard port missing or unsafe')
         return False
+    missing = set(requested) - set(indexes)
+    if missing:
+        # A disconnected explicitly selected controller must not mute another
+        # selected controller. Never infer or substitute an unselected device.
+        logging.warning('MBMF disconnected configured inputs skipped: %s', ', '.join(sorted(missing)))
 
     # If native slots or chain instances were recycled, restore only valid
     # old ownership and capture a fresh baseline for the new graph.

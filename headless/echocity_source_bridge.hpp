@@ -2,11 +2,12 @@
 #include "echocity_core.hpp"
 
 namespace echocity {
-enum class SourceAction : unsigned { On=1, Off=2, StopInstance=3, RemoveInstrument=4, Reset=5, StopPhrases=6, EndInstance=7 };
+enum class SourceAction : unsigned { On=1, Off=2, StopInstance=3, RemoveInstrument=4, Reset=5, StopPhrases=6, EndInstance=7, ChannelClear=8 };
 struct SourceEvent {
   SourceAction action=SourceAction::Reset;
   native_notes::SourceKey key{};
   unsigned velocity=0,offset=0;
+  unsigned journalIndex=0,order=0,sequence=0;
 };
 // Decodes one native VM journal row, without truncating malformed doubles into
 // plausible MIDI or identities. No VM dependency or allocation in the decoder.
@@ -29,6 +30,7 @@ inline bool decodeSource(const double *row,SourceEvent &out,unsigned frames){
     case SourceAction::RemoveInstrument:if(!e.key.instrument || e.key.instance || row[4] || packed)return false;break;
     case SourceAction::Reset:if(e.key.instrument || e.key.instance || row[4] || packed)return false;break;
     case SourceAction::StopPhrases:if(e.key.instrument || e.key.instance || !row[4] || packed)return false;break;
+    case SourceAction::ChannelClear:return false; // Host-only: actual output CC reservation required.
   }
   out=e;return true;
 }

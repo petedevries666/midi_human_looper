@@ -83,6 +83,10 @@ public:
       Token token{uint32_t(i),rows[i].generation,TokenDomain::Source};visit(token);
     }
   }
+  template<class Match,class Visit> void visit(Match match,Visit visit){
+    for(size_t i=0;i<Capacity;++i)if(rows[i].used && match(rows[i].key))
+      visit(Token{uint32_t(i),rows[i].generation,TokenDomain::Source});
+  }
   template<class Match> void closeMatching(uint64_t sample,Match match){
     for(auto &r:rows)if(r.used && match(r.key)){
       r.held=false;r.end=std::max(sample,r.start);if(!r.children)r.used=false;
@@ -249,6 +253,12 @@ public:
     }
     sources.closeMatching(sample,match);return ok;
   }
+  template<class Emit> bool cancelSource(Token source,uint64_t sample,Emit emit){
+    bool ok=true;
+    for(size_t i=0;i<VoiceCapacity;++i)if(voices[i].used && voices[i].source==source && !cancelOne(i,sample,emit))ok=false;
+    if(sources.get(source) && sources.get(source)->held)sources.close(source,sample);
+    sources.retire(source);return ok;
+  }
   // Use only after actual global panic delivery, never to hide a failed release.
   void resetAfterPanic(){for(auto &v:voices)v.used=false;count=0;sources.resetAfterPanic();needsRecovery=false;}
 };
@@ -261,10 +271,10 @@ template<size_t Capacity=512> class Outputs {
   std::array<Lease,Capacity> leases{};
   std::array<uint32_t,2048> held{};
 public:
-  struct Routed {uint32_t branch=0;uint8_t channel=0,pitch=0,velocity=0;};
+  struct Routed {uint32_t branch=0;uint8_t channel=0,pitch=0,velocity=0;bool retrigger=false;};
   // The emitter reserves the whole physical batch atomically before committing.
   // No first-half chord may escape if the downstream queue cannot accept it.
-  template<class EmitBatch> bool attackBatch(Token voice,const Routed *notes,size_t length,EmitBatch emit){
+  template<class EmitBatch> bool attackBatch(Token voice,const Routed *notes,size_t length,EmitBatch emit,bool retrigger=false){
     constexpr size_t maxFanout=16;
     if(!voice || !notes || !length || length>maxFanout || length>Capacity)return false;
     std::array<size_t,maxFanout> free{};size_t available=0;
@@ -273,9 +283,9 @@ public:
       if(n.channel>15 || n.pitch>127 || !n.velocity || n.velocity>127)return false;
       for(size_t k=0;k<j;++k)if(notes[k].branch==n.branch)return false;
       for(const auto &v:leases)if(v.used && v.voice==voice && v.branch==n.branch)return false;
-      if(!held[n.channel*128+n.pitch]){
+      if(!held[n.channel*128+n.pitch] || retrigger){
         bool duplicate=false;for(size_t k=0;k<attacks;++k)if(physical[k].channel==n.channel && physical[k].pitch==n.pitch)duplicate=true;
-        if(!duplicate)physical[attacks++]=n;
+        if(!duplicate){physical[attacks]=n;physical[attacks++].retrigger=retrigger && held[n.channel*128+n.pitch]>0;}
       }
     }
     for(size_t j=0;j<Capacity && available<length;++j)if(!leases[j].used)free[available++]=j;
@@ -298,6 +308,12 @@ public:
   }
   size_t active()const{size_t n=0;for(const auto &v:leases)n+=v.used;return n;}
   uint32_t owners(uint8_t ch,uint8_t pitch)const{return ch<16 && pitch<128?held[ch*128+pitch]:0;}
+  // Called only for a CC120/123 already reserved in the host's output batch.
+  void channelCleared(uint8_t channel){
+    if(channel>15)return;
+    for(auto &v:leases)if(v.used && v.channel==channel)v.used=false;
+    for(unsigned pitch=0;pitch<128;++pitch)held[channel*128+pitch]=0;
+  }
   void resetAfterPanic(){for(auto &v:leases)v.used=false;held.fill(0);}
 };
 } // namespace native_notes

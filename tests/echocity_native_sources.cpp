@@ -9,16 +9,17 @@ using echocity::SourceEvent;
 using echocity::SourceAction;
 using native_notes::Origin;
 struct NativeHost:Host {
-  std::array<double*,1024*6> sourceCells{};
+  std::vector<double*> sourceCells;
   echocity::SourceJournal<> journal;
   unsigned blockFrames;
   explicit NativeHost(const char *path,bool subscribed=true,unsigned rate=48000,unsigned frames=128):Host(path,false),blockFrames(frames){
     ysfx_set_sample_rate(f,rate);ysfx_set_block_size(f,frames);ysfx_init(f);
-    run("native_phrase_contract=2;native_free_time=1;slider9=1;panic_pending=0;"
+    run("ext_midi_bus=1;native_phrase_contract=2;native_free_time=1;slider9=1;panic_pending=0;"
         "test_i=0;loop(INST_CAP,mem[engine_addr(INST_ENABLED_BASE,test_i)]=0;test_i+=1;);"
         "mem[INST_ENABLED_BASE]=1;mem[INST_IN_BASE]=1;mem[INST_OUT_BASE]=1;"
         "mem[INST_LEVEL_BASE]=127;mem[INST_TRANSFORM_COUNT_BASE]=0;"
         "native_echo_read=0;native_echo_write=0;native_echo_overflow=0;");
+    sourceCells.resize(size_t(val("NATIVE_ECHO_SOURCE_CAP"))*6);
     for(size_t j=0;j<sourceCells.size();++j)sourceCells[j]=NSEEL_VM_getramptr(f->vm.get(),29000000+j,nullptr);
     *ysfx_find_var(f,"native_echo_sources")=subscribed;
   }
@@ -26,6 +27,14 @@ struct NativeHost:Host {
   void midi(int st,int note,int velocity){
     uint8_t bytes[]={uint8_t(st),uint8_t(note),uint8_t(velocity)};ysfx_midi_event_t e{};
     e.size=3;e.data=bytes;check(ysfx_send_midi(f,&e),"real native input MIDI admitted");block();
+  }
+  std::vector<std::vector<int>> events(){
+    std::vector<std::vector<int>> result;ysfx_midi_event_t e{};
+    while(ysfx_receive_midi(f,&e)){
+      if(e.bus==15){check(e.size==17 && e.data[0]==240 && e.data[1]==125 && e.data[2]==77 && e.data[16]==247,"native source order marker remains on private bus");continue;}
+      result.emplace_back(e.data,e.data+e.size);
+    }
+    return result;
   }
   std::vector<SourceEvent> sources(){
     auto *read=ysfx_find_var(f,"native_echo_read"),*write=ysfx_find_var(f,"native_echo_write");
@@ -93,7 +102,8 @@ int main(int argc,char**argv){
   {
     NativeHost h(argv[1]);BridgeFixture b;
     h.midi(144,60,100);auto on=h.sources();check(count(on,SourceAction::On)==1,"real Akai-like input produces one logical source");
-    auto dry=h.events();check(dry.size()==1 && dry[0]==std::vector<int>({144,60,100}),"journal leaves actual dry note unchanged");b.process(on,0);
+    auto dry=h.events();if(dry.size()!=1 || dry[0]!=std::vector<int>({144,60,100})){for(const auto &packet:dry){fprintf(stderr,"dry packet:");for(int byte:packet)fprintf(stderr," %d",byte);fprintf(stderr,"\n");}}
+    check(dry.size()==1 && dry[0]==std::vector<int>({144,60,100}),"journal leaves actual dry note unchanged");b.process(on,0);
     h.midi(144,60,0);auto off=h.sources();check(count(off,SourceAction::Off)==1,"velocity-zero MIDI On closes source");h.events();b.process(off,128);
     for(uint64_t t=256;t<1280;t+=128){h.block();h.events();b.process(h.sources(),t);}
     check(b.output.size()==4,"real source produces two complete echo note pairs");
@@ -182,8 +192,8 @@ int main(int argc,char**argv){
   {
     NativeHost h(argv[1],false);h.midi(144,60,100);check(h.sources().empty(),"unsubscribed production path creates no source traffic");
     check(h.events()==std::vector<std::vector<int>>({{144,60,100}}),"unsubscribed MIDI remains identical");
-    h.run("native_echo_sources=1;test_i=0;loop(1025,native_echo_event(1,1,0,0,60,100,0,0);test_i+=1;);");
-    check(h.val("native_echo_write")==1024 && h.val("native_echo_overflow")==1,"journal overload cannot overwrite an earlier release");
+    h.run("native_echo_sources=1;test_i=0;loop(NATIVE_ECHO_SOURCE_CAP+1,native_echo_event(1,1,0,0,60,100,0,0);test_i+=1;);");
+    check(h.val("native_echo_write")==h.val("NATIVE_ECHO_SOURCE_CAP") && h.val("native_echo_overflow")==1,"journal overload cannot overwrite an earlier release");
     unsigned visited=0;
     check(!h.journal.consume(0,h.val("native_echo_write"),h.val("native_echo_overflow"),128,
       [&](size_t j){return *h.sourceCells[j];},[&](const SourceEvent&){++visited;}),"overflow rejects whole block before native admission");
@@ -191,7 +201,7 @@ int main(int argc,char**argv){
   }
   {
     NativeHost h(argv[1]);h.run("mem[INST_TRANSFORM_COUNT_BASE]=1;mem[INST_TRANSFORM_TYPE_BASE]=5;param_apply(0,3,1);");
-    h.midi(144,60,100);check(count(h.sources(),SourceAction::On)==0,"ARP input chord is not mislabelled as emitted POLY source");h.events();
+    h.midi(144,60,100);auto notes=h.sources();check(count(notes,SourceAction::On)==1,"ARP journals its generated note rather than input chord");h.events();
   }
   {
     // One fixture-only trigger invokes the unchanged production panic function

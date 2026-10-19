@@ -19,3 +19,5 @@ done
 "${CXX:-c++}" "${flags[@]}" -I"$YSFX_SOURCE/include" -I"$YSFX_SOURCE/sources" -I"$YSFX_SOURCE/thirdparty/WDL/source" \
   "$root/tests/echocity_native_sources.cpp" "$YSFX_BUILD/libysfx.a" "${graphics[@]}" -ldl -lpthread -o "$build/echocity_native_sources"
 "$build/echocity_native_sources" "$build/native-expanded.jsfx"
+"${CXX:-c++}" "${flags[@]}" "$root/tests/echocity_runtime.cpp" -o "$build/echocity_runtime"
+"$build/echocity_runtime"

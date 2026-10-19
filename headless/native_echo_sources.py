@@ -1,14 +1,14 @@
 """Native-only source journal. Disabled until a host explicitly subscribes.
 
-This observes logical POLY/MONO edges before final output coalescing. It does
-not replace note routing, change velocity, or claim an arbitrary continuation.
-The ARP input chord is deliberately excluded: it is not an emitted arp note.
+This observes logical POLY/MONO edges and actual generated ARP notes before final
+output coalescing. Private bus markers preserve their order relative to existing
+CC output. The ARP input chord is excluded: it is not an emitted arp note.
 """
 EEL = r'''
-NATIVE_ECHO_SOURCE_BASE=29000000;NATIVE_ECHO_SOURCE_CAP=1024;
+NATIVE_ECHO_SOURCE_BASE=29000000;NATIVE_ECHO_SOURCE_CAP=8192;NATIVE_ECHO_ARP_ORIGIN=29050000;NATIVE_ECHO_MARKER=29050016;
 native_echo_sources=0;native_echo_read=0;native_echo_write=0;native_echo_overflow=0;native_echo_finish=0;native_echo_reset_offset=0;
 function native_echo_event(kind,instrument,instance,ch,note,velocity,origin,offs)
-local(b)
+local(b,j,value,bus,ok)
 (
  native_echo_sources && (kind!=4 || instrument>0) && ((kind!=3 && kind!=7) || instance>0)?(
   native_echo_write-native_echo_read<NATIVE_ECHO_SOURCE_CAP?(
@@ -16,8 +16,24 @@ local(b)
    mem[b]=kind;mem[b+1]=instrument;mem[b+2]=instance;
    mem[b+3]=(ch&15)+((note&127)*16)+((velocity&127)*2048);
    mem[b+4]=origin;mem[b+5]=instance_output_open?max(0,min(samplesblock-1,floor(offs))):0;
-   native_echo_write+=1;
+   instance_output_open?(
+    mem[NATIVE_ECHO_MARKER]=240;mem[NATIVE_ECHO_MARKER+1]=125;mem[NATIVE_ECHO_MARKER+2]=77;
+    mem[NATIVE_ECHO_MARKER+3]=18;mem[NATIVE_ECHO_MARKER+4]=0;
+    value=native_echo_write%NATIVE_ECHO_SOURCE_CAP;j=0;loop(8,mem[NATIVE_ECHO_MARKER+5+j]=value%128;value=floor(value/128);j+=1;);
+    mem[NATIVE_ECHO_MARKER+13]=0;mem[NATIVE_ECHO_MARKER+14]=0;mem[NATIVE_ECHO_MARKER+15]=0;mem[NATIVE_ECHO_MARKER+16]=247;
+    bus=midi_bus;midi_bus=15;ok=midisend_buf(offs,NATIVE_ECHO_MARKER,17)>0;midi_bus=bus;
+    !ok?(native_echo_overflow+=1;instance_output_fault=1;panic_pending=1;);
+   );native_echo_write+=1;
   ):native_echo_overflow+=1;
+ );
+);
+function native_echo_arp(gi,offs,ch,note,velocity,is_on) local(origin)
+(
+ native_echo_sources?(
+  is_on?(origin=mem[engine_addr(SW_ARP_PHRASE_BASE,gi*128+note)]>0 &&
+   mem[engine_addr(SW_ARP_PHRASE_BASE,gi*128+note)]>=mem[engine_addr(ARP_HELD_COUNT_BASE,gi*128+note)];
+   mem[NATIVE_ECHO_ARP_ORIGIN+gi]=origin;):origin=mem[NATIVE_ECHO_ARP_ORIGIN+gi];
+  native_echo_event(is_on?1:2,mem[I_IDS_BASE+gi],0,ch,note,is_on?velocity:0,origin,offs);
  );
 );
 '''
@@ -63,4 +79,13 @@ def extend(source):
            '!phrase_voice_repeats(conductor_qv)?(native_echo_finish=1;instance_stop_voice(conductor_qv,conductor_qoffs);native_echo_finish=0;);')
     change('state==STATE_PLAYING ? state=STATE_STOPPED;\n);\n// Optional native',
            'state==STATE_PLAYING ? state=STATE_STOPPED;\n native_echo_event(6,0,0,0,0,0,1,native_stop_offset);\n);\n// Optional native')
+    change('an>=0 && instrument_output_owners(ch,an,gi)<=0 ? midisend(0,128|ch,an);',
+           'an>=0?native_echo_arp(gi,0,ch,an,0,0);an>=0 && instrument_output_owners(ch,an,gi)<=0 ? midisend(0,128|ch,an);')
+    for edge in ('gate_rem','step_rem'):
+        old=f'instrument_output_owners(ch,an,gi)<=0?midisend(max(0,min(samplesblock-1,{edge})),128|ch,an);'
+        change(old,f'native_echo_arp(gi,max(0,min(samplesblock-1,{edge})),ch,an,0,0);'+old)
+    change('midisend(offs,144|ch,choice|(vel*256));',
+           'native_echo_arp(gi,offs,ch,choice,vel,1);midisend(offs,144|ch,choice|(vel*256));')
+    change('active==n && mem[engine_addr(ARP_HELD_COUNT_BASE,idx)]<=0?(\n   instrument_output_owners',
+           'active==n && mem[engine_addr(ARP_HELD_COUNT_BASE,idx)]<=0?(\n   native_echo_arp(gi,offs,ch,n,0,0);instrument_output_owners')
     return source

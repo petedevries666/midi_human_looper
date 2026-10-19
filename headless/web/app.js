@@ -146,6 +146,54 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape'){if(document.querySe
 function showEditor(dialog,docked=false,kind=''){if(kind)dialog.dataset.kind=kind;else delete dialog.dataset.kind;if(docked){dialog.dataset.contextual='true';if(kind==='module'){$('module-editor-dock').append(dialog);$('module-editor-section').open=true;}else document.querySelector('main').append(dialog);dialog.show();dialog.scrollIntoView({block:'nearest'});}else{document.querySelector('main').append(dialog);delete dialog.dataset.contextual;dialog.showModal();}}
 document.addEventListener('pointerdown',e=>{const d=$('editor');if(d.open&&d.dataset.contextual&&!d.contains(e.target)&&!e.target.closest('.module')&&!e.target.closest('.group-layout-controls')&&!e.target.closest('#assignment-menu')&&!e.target.closest('#mapping-editor-section'))d.close();});
 function editInstrument(i){const d=descriptor(0);if(!d)return;edit(d,i,d.parameters.map(id=>{const p=catalog.parameters.find(p=>p.id===id),canonical=parameter({enabled:21,input:22,output:23}[id]);const display=canonical?{...p,valueType:canonical.valueType,choices:canonical.choices}:p;return {descriptor:display,value:i[p.engineField],assignment:0};}),null);}
+function echoUnits(){
+ const extension=latest?.echocity,wire=extension?.configuration;
+ if(extension?.version!==1||!Array.isArray(wire)||wire[0]!==1||!Number.isInteger(wire[1])||wire[1]<0||wire[1]>8||wire.length!==2+13*wire[1])return null;
+ return Array.from({length:wire[1]},(_,j)=>wire.slice(2+j*13,15+j*13));
+}
+async function commitEcho(instrumentId,unit,expectedRevision=revision){
+ const units=echoUnits();if(!units){$('error').textContent='Format ECHOCITY indisponible ; configuration conservée.';return false;}
+ const next=units.filter(v=>v[0]!==instrumentId);if(unit)next.push(unit);next.sort((a,b)=>a[0]-b[0]);
+ return command({action:'echocity_commit',expectedRevision,echocity:{version:1,configuration:[1,next.length,...next.flat()]}});
+}
+async function editEcho(instrument){
+ const dialog=$('editor');if(dialog.open){if(dialog.dataset.kind!=='module')return;if(await window.mbmfModuleFlush?.()===false)return;dialog.close();}
+ const units=echoUnits();if(!units)return;
+ const draft=[...(units.find(v=>v[0]===instrument.id)||[instrument.id,1,0,250,1,.5,.7,1,1,4,0,0,1])];
+ const session=engineSession,rev=revision,content=$('editor-content');let applying=false;
+ selectedModule={instrumentId:instrument.id,moduleId:'ECHOCITY'};
+ for(const card of document.querySelectorAll('.module'))card.classList.toggle('selected',Number(card.dataset.instrumentId)===instrument.id&&card.dataset.moduleId==='ECHOCITY');
+ content.replaceChildren(node('h2',`${instrument.name||'INSTRUMENT '+instrument.id} / ECHOCITY`),node('p','Dernier dans la chaîne : répète les notes de l’instrument, ARP compris.'));
+ const inputs=new Map();
+ const fields=[
+  [2,'TEMPS',null,null,null,['ms','beats']], [3,'INTERVALLE',.1,draft[2]?64:60000,.1],
+  [4,'PREMIER ÉCHO',0,16,.1], [9,'RÉPÉTITIONS',1,32,1],
+  [5,'MIX ÉCHOS',0,1,.01], [6,'DÉCROISSANCE',0,1,.01],
+  [7,'GATE',0,4,.01], [8,'DÉCROISSANCE GATE',0,1,.01],
+  [10,'PAS DE HAUTEUR',-48,48,1], [11,'PING-PONG',null,null,null,['OFF','ON']],
+  [12,'AUTRE CANAL',null,null,null,Array.from({length:16},(_,i)=>String(i+1))]
+ ];
+ for(const [index,label,min,max,step,choices] of fields){
+  const row=node('label',label,'parameter'),input=node(choices?'select':'input');input.setAttribute('aria-label',`ECHOCITY ${label}`);
+  if(choices)choices.forEach((text,value)=>{const option=node('option',text);option.value=value;input.append(option);});
+  else{input.type='number';input.min=min;input.max=max;input.step=step;}
+  input.value=draft[index];input.oninput=()=>{draft[index]=Number(input.value);
+    if(index===2){const interval=inputs.get(3);interval.max=draft[2]?64:60000;interval.min=draft[2] ? .001 : .1;interval.step=draft[2] ? .001 : .1;interval.nextElementSibling.textContent=draft[2]?'beats':'ms';if(draft[3]>Number(interval.max)){draft[3]=.25;interval.value=draft[3];}}};
+  row.append(input,node('span',index===3?(draft[2]?'beats':'ms'):index===10?'st':index===4?'×':' '));content.append(row);inputs.set(index,input);
+ }
+ if(draft[2]){inputs.get(3).min=.001;inputs.get(3).step=.001;}
+ const error=node('p');error.setAttribute('role','alert');
+ const apply=button('APPLIQUER',async()=>{
+  if(applying)return;if(engineSession!==session){error.textContent='Moteur redémarré ; rouvrir ECHOCITY.';return;}
+  for(const input of inputs.values())if(!input.reportValidity())return;
+  applying=true;apply.disabled=true;
+  try{if(await commitEcho(instrument.id,draft,rev)){dialog.close();renderedModel='';render(latest);}else error.textContent=$('error').textContent==='invalid'?'Relâcher les notes pour le premier ajout, puis réessayer.':$('error').textContent;}
+  finally{applying=false;apply.disabled=false;}
+ });
+ content.append(error,apply,button('CANCEL',()=>{if(!applying)dialog.close();}));
+ window.mbmfModuleFlush=async()=>!applying;dialog.onclick=null;dialog.oncancel=e=>{if(applying)e.preventDefault();};
+ showEditor(dialog,true,'module');
+}
 async function editModule(i,tf){
  if(!catalog&&!await loadDescriptors())return;
  if(!descriptor(tf.type)){$('error').textContent='Type de transformateur indisponible ; reconnecter les modules.';return;}
@@ -429,7 +477,7 @@ function render(s){
   renderAB(s);
   if(!document.activeElement?.closest('#controllers .name-input'))renderControllers(s);
   if(uiPointerHeld||document.activeElement?.tagName==='SELECT'||document.activeElement?.classList.contains('name-input')||document.activeElement?.type==='range'||document.querySelector('[data-live-release=held]'))return;
-  const model=JSON.stringify([s.controllerEngine,s.controllerLearn,s.phrases.map(p=>({...p,state:undefined,events:0})),s.instruments.map(i=>({...i,hostMixer:undefined})),s.switches.map(v=>({...v,step:0,actionCount:0,lastAction:0,result:0,conductor:v.conductor?.steps||0,supercharge:undefined})),s.snapshotActions,s.switchLearn]);if(model===renderedModel)return;renderedModel=model;
+  const model=JSON.stringify([s.echocityAvailable,s.echocity,s.controllerEngine,s.controllerLearn,s.phrases.map(p=>({...p,state:undefined,events:0})),s.instruments.map(i=>({...i,hostMixer:undefined})),s.switches.map(v=>({...v,step:0,actionCount:0,lastAction:0,result:0,conductor:v.conductor?.steps||0,supercharge:undefined})),s.snapshotActions,s.switchLearn]);if(model===renderedModel)return;renderedModel=model;
   compactPhrases(s);
   paintPhraseStates(s);
   $('instruments').replaceChildren(...s.instruments.map(compactInstrument));
@@ -843,12 +891,26 @@ function compactPhrases(s){
   }));
 }
 // A blank is a transactional editor draft, not an unsupported engine type.
+function transformerAddProblem(i,type){
+ if((i.transformers||[]).length>=6)return 'Chaîne complète : 6 transformateurs sur 6. Supprimer un bloc pour en ajouter un autre.';
+ if([3,5].includes(type)&&(i.transformers||[]).some(t=>t.type===type))return `${descriptor(type)?.label||'Ce transformateur'} est déjà présent dans cette chaîne.`;
+ return '';
+}
+async function addTransformerAndEdit(i,type){
+ const current=latest.instruments.find(v=>v.id===i.id);if(!current)return;
+ const problem=transformerAddProblem(current,type);if(problem){$('error').textContent=problem;return;}
+ const before=new Set(current.transformers.map(t=>t.id));
+ if(await command({action:'module_structure',instrumentId:i.id,operation:'add',engineType:type})){
+  const fresh=latest.instruments.find(v=>v.id===i.id),created=fresh?.transformers.find(t=>!before.has(t.id));
+  if(created)await editModule(fresh,created);
+ }
+}
 function addEmptyTransformer(i){
  const dialog=$('editor');if(dialog.open)return;const session=engineSession;
  const content=$('editor-content');content.replaceChildren(node('h2',`${i.name||'INSTRUMENT '+i.id} / EMPTY TRANSFORMER`));
  const select=node('select');select.setAttribute('aria-label','Blank Transformer type');
  const blank=node('option','CHOOSE TYPE');blank.value='';select.append(blank);
- for(const d of catalog.modules.filter(m=>m.engineType>0&&(catalog.runtimeCapabilities?.transformerTypes||[1,2,3,4,5,6]).includes(m.engineType))){const o=node('option',d.label);o.value=d.engineType;select.append(o);}
+ for(const d of catalog.modules.filter(m=>m.engineType>0&&(catalog.runtimeCapabilities?.transformerTypes||[1,2,3,4,5,6]).includes(m.engineType))){const o=node('option',d.label);o.value=d.engineType;o.disabled=!!transformerAddProblem(i,d.engineType);select.append(o);}
  const error=node('p');error.setAttribute('role','alert');
  const done=button('DONE',async()=>{if(session!==engineSession){error.textContent='Engine restarted; CANCEL and reopen.';return;}const before=new Set(latest.instruments.find(v=>v.id===i.id)?.transformers.map(t=>t.id)||[]);
   if(await command({action:'module_structure',instrumentId:i.id,operation:'add',engineType:Number(select.value)})){
@@ -888,14 +950,27 @@ function compactInstrument(i){
       if(operation==='bypass')card.append(button(label,run));else actions.push({label:operation==='up'?'MOVE UP':operation==='down'?'MOVE DOWN':'DELETE',run});
     }cardActions(card,actions,()=>editModule(i,tf));card.querySelector('[aria-label="BYPASS"]')?.setAttribute('aria-pressed',String(!tf.enabled));chain.append(card);
   }
+  if(latest?.echocityAvailable){
+    const unit=echoUnits()?.find(v=>v[0]===i.id);
+    if(unit){const card=node('article',undefined,'module');card.dataset.instrumentId=i.id;card.dataset.moduleId='ECHOCITY';
+      card.classList.toggle('bypassed',!unit[1]);card.classList.toggle('selected',selectedModule?.instrumentId===i.id&&selectedModule.moduleId==='ECHOCITY');
+      window.MBMF_TILES?.decorate(card,'TRANSFORMER','echo:'+i.id);
+      card.append(node('strong','ECHOCITY'),node('small',`${unit[9]} × ${unit[3]} ${unit[2]?'beats':'ms'} · MIX ${Math.round(unit[5]*100)}%`));
+      card.append(button('BYPASS',()=>{const changed=[...unit];changed[1]=changed[1]?0:1;return commitEcho(i.id,changed);}));
+      cardActions(card,[{label:'EDIT',run:()=>editEcho(i)},{label:'DELETE',run:async()=>{if(confirm('Supprimer ECHOCITY ?')&&await commitEcho(i.id,null)){if($('editor').open)$('editor').close();}}}],()=>editEcho(i));chain.append(card);
+    }else chain.append(button('+ ECHOCITY',()=>editEcho(i)));
+  }
   const select=node('select');select.setAttribute('aria-label',`Transformer type for Instrument ${i.id}`);
   const blank=node('option','+ ADD EMPTY TRANSFORMER');blank.value='empty';select.append(blank);
-  for(const d of catalog?.modules.filter(m=>m.engineType>0&&(catalog.runtimeCapabilities?.transformerTypes||[1,2,3,4,5,6]).includes(m.engineType))||[]){const option=node('option',d.label);option.value=d.engineType;select.append(option);}
+  for(const d of catalog?.modules.filter(m=>m.engineType>0&&(catalog.runtimeCapabilities?.transformerTypes||[1,2,3,4,5,6]).includes(m.engineType))||[]){const option=node('option',d.label);option.value=d.engineType;option.disabled=!!transformerAddProblem(i,d.engineType);select.append(option);}
   select.value=catalog?.modules.find(m=>m.engineType>0&&(catalog.runtimeCapabilities?.transformerTypes||[1,2,3,4,5,6]).includes(m.engineType))?.engineType??'empty';
   const chosen=transformerChoices.get(i.id);
   if([...select.options].some(option=>option.value===chosen))select.value=chosen;
   select.onchange=()=>transformerChoices.set(i.id,select.value);
-  chain.title=i.serialPitchOrder?'Serial pitch order · Velocity → Polyphony → ARP; CC separate':'Legacy stages: Transpose → Range → Velocity → Polyphony → ARP; CC separate';const addTransformer=button('ADD TRANSFORMER',async()=>{if(select.value==='empty'){addEmptyTransformer(i);return;}await command({action:'module_structure',instrumentId:i.id,operation:'add',engineType:Number(select.value)});});window.MBMF_TILES?.decorate(addTransformer,'TRANSFORMER','add:'+i.id,true);chain.append(select,addTransformer,button('EDIT',()=>editInstrument(i)));n.append(chain);return n;
+  if(select.selectedOptions[0]?.disabled)select.value=[...select.options].find(o=>!o.disabled)?.value||'empty';
+  chain.title=i.serialPitchOrder?'Serial pitch order · Velocity → Polyphony → ARP; CC separate':'Legacy stages: Transpose → Range → Velocity → Polyphony → ARP; CC separate';const addTransformer=button('ADD TRANSFORMER',async()=>{if(select.value==='empty'){addEmptyTransformer(i);return;}await addTransformerAndEdit(i,Number(select.value));});
+  const full=(i.transformers||[]).length>=6;select.disabled=full;addTransformer.disabled=full;if(full){addTransformer.title=transformerAddProblem(i,0);chain.append(node('small','6 / 6 · chaîne complète'));}
+  window.MBMF_TILES?.decorate(addTransformer,'TRANSFORMER','add:'+i.id,true);chain.append(select,addTransformer,button('EDIT',()=>editInstrument(i)));n.append(chain);return n;
 }
 
 $('add-instrument').onclick=()=>command({action:'instrument_add'});

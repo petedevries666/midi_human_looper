@@ -30,6 +30,12 @@ revendiqué ici. Les tests JS ne sont pas des captures ni une preuve de rendu.
 
 ### P0 — fiabilité et conservation
 
+- [ ] Ignorer un Program Change visant le patch réellement déjà actif : aucun
+  STOP, rechargement MBMF ni rappel du snapshot ; conserver les modifications
+  non sauvegardées. Garder RAPPELER PATCH comme rechargement volontaire.
+  Vérifier l’état chargé dans la session courante, pas seulement le numéro
+  sélectionné/persisté. Tester PC répétés pendant/après chargement, redémarrage,
+  échec de rappel et conservation de la dernière demande utile en attente.
 - [ ] Compléter la validation du chargement : réseau lent, descripteurs en échec,
   token absent/incorrect, reconnexion et redémarrage du moteur, Firefox/mobile.
   Attendu : aucun MODULE/undefined éditable et aucune requête en boucle folle.

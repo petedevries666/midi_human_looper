@@ -6,7 +6,9 @@ on:
   pull_request:
     paths:
       - 'headless/native_expressive_transformers.hpp'
+      - 'headless/native_expressive_live.hpp'
       - 'tests/native_expressive_transformers.cpp'
+      - 'tests/native_expressive_live.cpp'
       - '.github/workflows/native-expressive-test.yml'
 jobs:
   native-expressive:
@@ -16,8 +18,12 @@ jobs:
       - name: Build strict C++17 test against real native scheduler
         run: |
           g++ -std=c++17 -O2 -Wall -Wextra -Werror -pedantic -Iheadless tests/native_expressive_transformers.cpp -o /tmp/mbmf-native-expressive
+          g++ -std=c++17 -O2 -Wall -Wextra -Werror -pedantic -Iheadless tests/native_expressive_live.cpp -o /tmp/mbmf-native-live
+          /tmp/mbmf-native-live
           /tmp/mbmf-native-expressive
       - name: Run ASAN and UBSAN
         run: |
           g++ -std=c++17 -O1 -g -fsanitize=address,undefined -fno-omit-frame-pointer -Wall -Wextra -Werror -pedantic -Iheadless tests/native_expressive_transformers.cpp -o /tmp/mbmf-native-expressive-asan
+          g++ -std=c++17 -O1 -g -fsanitize=address,undefined -fno-omit-frame-pointer -Wall -Wextra -Werror -pedantic -Iheadless tests/native_expressive_live.cpp -o /tmp/mbmf-native-live-asan
+          /tmp/mbmf-native-live-asan
           /tmp/mbmf-native-expressive-asan

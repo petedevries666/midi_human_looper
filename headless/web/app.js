@@ -913,6 +913,19 @@ function compactPhrases(s){
   }));
 }
 // A blank is a transactional editor draft, not an unsupported engine type.
+function editExpressive(instrument,kind){
+ const dialog=$('editor');
+ if(dialog.open)return;
+ const editor=window.MBMF_EXPRESSIVE;
+ if(!editor){$('error').textContent='Expressive editor unavailable';return;}
+ selectedModule={instrumentId:instrument.id,moduleId:kind};
+ const content=$('editor-content');
+ content.replaceChildren(node('h2',`${instrument.name||'INSTRUMENT '+instrument.id} / ${kind==='humanizer'?'HUMANIZER':'VELOCITY CURVES'}`),
+   node('p','DRAFT ONLY · This transformer is not registered in the MIDI engine yet. Editing and export are available, but playback, patch SAVE/LOAD and snapshots do not use these values.'),
+   editor.open(instrument.id,kind),button('CLOSE',()=>dialog.close()));
+ dialog.dataset.kind='expressive';
+ showEditor(dialog);
+}
 function transformerAddProblem(i,type){
  if((i.transformers||[]).length>=6)return 'Chaîne complète : 6 transformateurs sur 6. Supprimer un bloc pour en ajouter un autre.';
  if([3,5].includes(type)&&(i.transformers||[]).some(t=>t.type===type))return `${descriptor(type)?.label||'Ce transformateur'} est déjà présent dans cette chaîne.`;
@@ -984,18 +997,30 @@ function compactInstrument(i){
       cardActions(card,[{label:'EDIT',run:()=>editEcho(i)},{label:'DELETE',run:async()=>{if(confirm('Supprimer ECHOCITY ?')&&await commitEcho(i.id,null)){if($('editor').open)$('editor').close();}}}],()=>editEcho(i));chain.append(card);
     }
   }
+  // Expressive drafts live beside the real transformer list, but are
+  // explicitly marked inactive until a native type is registered.
+  for(const kind of ['humanizer','velocity_curves']){
+    const label=kind==='humanizer'?'HUMANIZER':'VELOCITY CURVES';
+    if(!window.MBMF_EXPRESSIVE?.has(i.id,kind))continue;
+    const card=node('article',undefined,'module');card.dataset.instrumentId=i.id;card.dataset.moduleId=kind;
+    card.classList.add('bypassed');
+    card.append(node('strong',label),node('small','DRAFT · NOT ACTIVE ON MIDI OUTPUT'));
+    cardActions(card,[{label:'EDIT',run:()=>editExpressive(i,kind)}],()=>editExpressive(i,kind));
+    chain.append(card);
+  }
   const select=node('select');select.setAttribute('aria-label',`Transformer type for Instrument ${i.id}`);
   const blank=node('option','+ ADD EMPTY TRANSFORMER');blank.value='empty';select.append(blank);
   blank.disabled=(i.transformers||[]).length>=6;
   for(const d of catalog?.modules.filter(m=>m.engineType>0&&(catalog.runtimeCapabilities?.transformerTypes||[1,2,3,4,5,6]).includes(m.engineType))||[]){const option=node('option',d.label);option.value=d.engineType;option.disabled=!!transformerAddProblem(i,d.engineType);select.append(option);}
+  for(const [value,label] of [['humanizer','HUMANIZER · DRAFT (ENGINE PENDING)'],['velocity_curves','VELOCITY CURVES · DRAFT (ENGINE PENDING)']]){const option=node('option',label);option.value=value;select.append(option);}
   if(latest?.echocityAvailable){const option=node('option','ECHOCITY — FIN DE CHAÎNE');option.value='echo';option.disabled=!!echoUnits()?.some(v=>v[0]===i.id);select.append(option);}
   select.value=catalog?.modules.find(m=>m.engineType>0&&(catalog.runtimeCapabilities?.transformerTypes||[1,2,3,4,5,6]).includes(m.engineType))?.engineType??'empty';
   const chosen=transformerChoices.get(i.id);
   if([...select.options].some(option=>option.value===chosen))select.value=chosen;
-  select.onchange=()=>transformerChoices.set(i.id,select.value);
+  select.onchange=()=>{transformerChoices.set(i.id,select.value);addTransformer.disabled=false;};
   if(select.selectedOptions[0]?.disabled)select.value=[...select.options].find(o=>!o.disabled)?.value||'empty';
-  chain.title=i.serialPitchOrder?'Serial pitch order · Velocity → Polyphony → ARP; CC separate':'Legacy stages: Transpose → Range → Velocity → Polyphony → ARP; CC separate';const addTransformer=button('ADD TRANSFORMER',async()=>{if(select.value==='echo'){await editEcho(i);return;}if(select.value==='empty'){addEmptyTransformer(i);return;}await addTransformerAndEdit(i,Number(select.value));});
-  const full=(i.transformers||[]).length>=6,waiting=transformerAdds.has(i.id),available=[...select.options].some(o=>!o.disabled);select.disabled=!available||waiting;addTransformer.disabled=!available||waiting;if(full){addTransformer.title=transformerAddProblem(i,0);chain.append(node('small','6 / 6 · chaîne complète'));}
+  chain.title=i.serialPitchOrder?'Serial pitch order · Velocity → Polyphony → ARP; CC separate':'Legacy stages: Transpose → Range → Velocity → Polyphony → ARP; CC separate';const addTransformer=button('ADD TRANSFORMER',async()=>{if(select.value==='echo'){await editEcho(i);return;}if(select.value==='humanizer'||select.value==='velocity_curves'){editExpressive(i,select.value);return;}if(select.value==='empty'){addEmptyTransformer(i);return;}await addTransformerAndEdit(i,Number(select.value));});
+  const full=(i.transformers||[]).length>=6,waiting=transformerAdds.has(i.id),available=[...select.options].some(o=>!o.disabled);select.disabled=!available||waiting;addTransformer.disabled=!available||waiting;if(full){addTransformer.title=transformerAddProblem(i,0);chain.append(node('small','6 / 6 · chaîne complète'));}if(['humanizer','velocity_curves'].includes(select.value)){addTransformer.disabled=false;addTransformer.title='Edit an offline draft; no native MIDI processing yet';}
   if(waiting){const notice=node('small',`${descriptor(transformerAdds.get(i.id).type)?.label||'TRANSFORMATEUR'} · en attente du relâchement des notes`);notice.setAttribute('role','status');chain.append(notice);}
   window.MBMF_TILES?.decorate(addTransformer,'TRANSFORMER','add:'+i.id,true);chain.append(select,addTransformer,button('EDIT',()=>editInstrument(i)));n.append(chain);return n;
 }

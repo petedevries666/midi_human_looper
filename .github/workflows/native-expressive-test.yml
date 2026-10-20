@@ -9,6 +9,7 @@ on:
       - 'headless/native_expressive_live.hpp'
       - 'headless/expressive_patch.py'
       - 'headless/web/expressive-lab.js'
+      - 'headless/web/app.js'
       - 'headless/web/index.html'
       - 'tests/native_expressive_transformers.cpp'
       - 'tests/native_expressive_live.cpp'
@@ -28,7 +29,9 @@ jobs:
       - name: Validate versioned editor patch
         run: python3 -m unittest discover -s tests -p 'test_expressive_patch.py' -v
       - name: Check isolated Web editor syntax
-        run: node --check headless/web/expressive-lab.js
+        run: |
+          node --check headless/web/expressive-lab.js
+          node --check headless/web/app.js
       - name: Run ASAN and UBSAN
         run: |
           g++ -std=c++17 -O1 -g -fsanitize=address,undefined -fno-omit-frame-pointer -Wall -Wextra -Werror -pedantic -Iheadless tests/native_expressive_transformers.cpp -o /tmp/mbmf-native-expressive-asan

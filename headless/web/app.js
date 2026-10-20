@@ -999,7 +999,7 @@ function compactInstrument(i){
   }
   // Expressive drafts live beside the real transformer list, but are
   // explicitly marked inactive until a native type is registered.
-  for(const kind of ['humanizer','velocity_curves']){
+  for(const kind of ['humanizer']){
     const label=kind==='humanizer'?'HUMANIZER':'VELOCITY CURVES';
     if(!window.MBMF_EXPRESSIVE?.has(i.id,kind))continue;
     const card=node('article',undefined,'module');card.dataset.instrumentId=i.id;card.dataset.moduleId=kind;
@@ -1012,14 +1012,14 @@ function compactInstrument(i){
   const blank=node('option','+ ADD EMPTY TRANSFORMER');blank.value='empty';select.append(blank);
   blank.disabled=(i.transformers||[]).length>=6;
   for(const d of catalog?.modules.filter(m=>m.engineType>0&&(catalog.runtimeCapabilities?.transformerTypes||[1,2,3,4,5,6]).includes(m.engineType))||[]){const option=node('option',d.label);option.value=d.engineType;option.disabled=!!transformerAddProblem(i,d.engineType);select.append(option);}
-  for(const [value,label] of [['humanizer','HUMANIZER · DRAFT (ENGINE PENDING)'],['velocity_curves','VELOCITY CURVES · DRAFT (ENGINE PENDING)']]){const option=node('option',label);option.value=value;select.append(option);}
+  for(const [value,label] of [['humanizer','HUMANIZER · DRAFT (ENGINE PENDING)']]){const option=node('option',label);option.value=value;select.append(option);}
   if(latest?.echocityAvailable){const option=node('option','ECHOCITY — FIN DE CHAÎNE');option.value='echo';option.disabled=!!echoUnits()?.some(v=>v[0]===i.id);select.append(option);}
   select.value=catalog?.modules.find(m=>m.engineType>0&&(catalog.runtimeCapabilities?.transformerTypes||[1,2,3,4,5,6]).includes(m.engineType))?.engineType??'empty';
   const chosen=transformerChoices.get(i.id);
   if([...select.options].some(option=>option.value===chosen))select.value=chosen;
   select.onchange=()=>{transformerChoices.set(i.id,select.value);addTransformer.disabled=false;};
   if(select.selectedOptions[0]?.disabled)select.value=[...select.options].find(o=>!o.disabled)?.value||'empty';
-  chain.title=i.serialPitchOrder?'Serial pitch order · Velocity → Polyphony → ARP; CC separate':'Legacy stages: Transpose → Range → Velocity → Polyphony → ARP; CC separate';const addTransformer=button('ADD TRANSFORMER',async()=>{if(select.value==='echo'){await editEcho(i);return;}if(select.value==='humanizer'||select.value==='velocity_curves'){editExpressive(i,select.value);return;}if(select.value==='empty'){addEmptyTransformer(i);return;}await addTransformerAndEdit(i,Number(select.value));});
+  chain.title=i.serialPitchOrder?'Serial pitch order · Velocity → Polyphony → ARP; CC separate':'Legacy stages: Transpose → Range → Velocity → Polyphony → ARP; CC separate';const addTransformer=button('ADD TRANSFORMER',async()=>{if(select.value==='echo'){await editEcho(i);return;}if(select.value==='humanizer'){editExpressive(i,select.value);return;}if(select.value==='empty'){addEmptyTransformer(i);return;}await addTransformerAndEdit(i,Number(select.value));});
   const full=(i.transformers||[]).length>=6,waiting=transformerAdds.has(i.id),available=[...select.options].some(o=>!o.disabled);select.disabled=!available||waiting;addTransformer.disabled=!available||waiting;if(full){addTransformer.title=transformerAddProblem(i,0);chain.append(node('small','6 / 6 · chaîne complète'));}if(['humanizer','velocity_curves'].includes(select.value)){addTransformer.disabled=false;addTransformer.title='Edit an offline draft; no native MIDI processing yet';}
   if(waiting){const notice=node('small',`${descriptor(transformerAdds.get(i.id).type)?.label||'TRANSFORMATEUR'} · en attente du relâchement des notes`);notice.setAttribute('role','status');chain.append(notice);}
   window.MBMF_TILES?.decorate(addTransformer,'TRANSFORMER','add:'+i.id,true);chain.append(select,addTransformer,button('EDIT',()=>editInstrument(i)));n.append(chain);return n;

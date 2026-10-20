@@ -1254,7 +1254,7 @@ local(rm,lo,hi,ok)
 // stateless duplicate opts the note processors into the visible serial order.
 function tf_serial(gi)
 local(k,c,code,typ,found)
-(k=0;found=0;c=max(0,min(TRANSFORM_SLOTS,floor(mem[engine_addr(INST_TRANSFORM_COUNT_BASE,gi)])));loop(c,code=abs(mem[engine_addr(INST_TRANSFORM_TYPE_BASE,gi*TRANSFORM_SLOTS+k)]);code>=7?(typ=transform_type(gi,code);typ==1 || typ==2 || typ==4?found=1;);k+=1;);found;);
+(k=0;found=0;c=max(0,min(TRANSFORM_SLOTS,floor(mem[engine_addr(INST_TRANSFORM_COUNT_BASE,gi)])));loop(c,code=abs(mem[engine_addr(INST_TRANSFORM_TYPE_BASE,gi*TRANSFORM_SLOTS+k)]);code>=7?(typ=transform_type(gi,code);typ==1 || typ==2 || typ==4 || typ==7?found=1;);k+=1;);found;);
 function tf_pitch(gi,note)
 local(k,c,code,typ,b,mode,lo,hi)
 (
@@ -1273,14 +1273,52 @@ local(k,c,code,typ,b,mode,lo,hi)
     );
   );note>=0 && note<=127?note:-1;
 );
+// VELOCITY CURVES: type 7, extra transformer only. Reuses the existing
+// serialized 6-point EXP curve (count, X, Y, bend) in the third parameter row.
+// No note ownership or timing changes: only MIDI Note On velocity is mapped.
+function tf_velocity_curve(gi,code,value)
+local(idx,b,count,j,x,y,prevx,prevy,nextx,nexty,t,bend,amount,mapped,found)
+(
+  idx=cc_index(gi,code);b=tf_record(idx)+1;
+  count=max(0,min(EXP_POINTS,floor(mem[b]+.5)));
+  amount=max(0,min(1,mem[cc_cfg(idx)+2]));
+  mapped=value;found=0;
+  count>=2 ? (
+    prevx=max(0,min(1,mem[b+1]));prevy=max(0,min(1,mem[b+1+EXP_POINTS]));
+    value/127<=prevx ? (mapped=127*prevy;found=1;);
+    j=1;
+    loop(count-1,
+      nextx=max(0,min(1,mem[b+1+j]));
+      nexty=max(0,min(1,mem[b+1+EXP_POINTS+j]));
+      !found && value/127<=nextx && nextx>prevx ? (
+        t=max(0,min(1,(value/127-prevx)/(nextx-prevx)));
+        bend=max(-1,min(1,mem[b+1+2*EXP_POINTS+j-1]));
+        // Same bounded curvature family as existing expression curves.
+        bend>0 ? t=t^(1+4*bend) : bend<0 ? t=1-(1-t)^(1-4*bend);
+        mapped=127*(prevy+(nexty-prevy)*t);found=1;
+      );
+      prevx=nextx;prevy=nexty;j+=1;
+    );
+    !found ? mapped=127*prevy;
+  );
+  max(1,min(127,floor(value+(mapped-value)*amount+.5)));
+);
 function tf_velocity(gi,vel,gain)
-local(k,c,code)
+local(k,c,code,typ,out)
 (
   !tf_serial(gi)?gain*=transformer_on(gi,4)?mem[engine_addr(INST_VEL_BASE,gi)]:1:(
     k=0;c=max(0,min(TRANSFORM_SLOTS,floor(mem[engine_addr(INST_TRANSFORM_COUNT_BASE,gi)])));loop(c,code=mem[engine_addr(INST_TRANSFORM_TYPE_BASE,gi*TRANSFORM_SLOTS+k)];
       code>0 && transform_type(gi,code)==4?gain*=code>=7?mem[cc_cfg(cc_index(gi,code))+2]:mem[engine_addr(INST_VEL_BASE,gi)];k+=1;
     );
-  );max(1,min(127,floor(vel*gain+.5)));
+  );
+  out=max(1,min(127,floor(vel*gain+.5)));
+  k=0;c=max(0,min(TRANSFORM_SLOTS,floor(mem[engine_addr(INST_TRANSFORM_COUNT_BASE,gi)])));
+  loop(c,
+    code=mem[engine_addr(INST_TRANSFORM_TYPE_BASE,gi*TRANSFORM_SLOTS+k)];
+    code>=7 && transform_type(gi,code)==7 ? out=tf_velocity_curve(gi,code,out);
+    k+=1;
+  );
+  out;
 );
 
 // Native timing-v2 capture gate. REAPER/legacy paths leave this disabled.
@@ -3149,7 +3187,7 @@ local(q,gi,op,arg,c,code,typ,b,j,idx,ready,limit,targetcode)
           code>=7 ? (
             idx=cc_index(gi,code);b=cc_cfg(idx);mem[tf_record(idx)]=arg;
             mem[b]=mem[engine_addr(CC_CFG_BASE,1)];mem[engine_addr(CC_CFG_BASE,1)]+=1;
-            mem[b+1]=arg==6?1:0;mem[b+2]=arg==4?1:0;mem[b+3]=arg==2?127:0;
+            mem[b+1]=arg==6?1:0;mem[b+2]=(arg==4 || arg==7)?1:0;mem[b+3]=arg==2?127:0;
             j=0;loop(3,tf_linear(cc_ti(idx,j));j+=1;);
           ) : (
             code==6?(mem[primary_cc_id_addr(gi)]=mem[engine_addr(CC_CFG_BASE,1)];mem[engine_addr(CC_CFG_BASE,1)]+=1;mem[engine_addr(PARAM_MOD_CC_BASE,gi)]=1;mem[engine_addr(INST_MOD_BASE,gi)]=0;tf_linear(param_ti(gi,EXP_T_MOD));tf_linear(param_ti(gi,PARAM_MOD_CC));):(

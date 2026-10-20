@@ -1294,7 +1294,7 @@ local(idx,b,count,j,x,y,prevx,prevy,nextx,nexty,t,bend,amount,mapped,found)
         t=max(0,min(1,(value/127-prevx)/(nextx-prevx)));
         bend=max(-1,min(1,mem[b+1+2*EXP_POINTS+j-1]));
         // Same bounded curvature family as existing expression curves.
-        bend>0 ? t=t^(1+4*bend) : bend<0 ? t=1-(1-t)^(1-4*bend);
+        bend>0 ? t=pow(t,1+4*bend) : bend<0 ? t=1-pow(1-t,1-4*bend);
         mapped=127*(prevy+(nexty-prevy)*t);found=1;
       );
       prevx=nextx;prevy=nexty;j+=1;

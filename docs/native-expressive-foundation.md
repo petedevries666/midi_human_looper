@@ -40,8 +40,7 @@ playable instrument transformer. It does not modify the frozen REAPER JSFX.
    sustained/repeated notes, phrase loop boundaries and ECHOCITY interactions.
 2. Register stable module IDs / native descriptors and versioned patch schema
    with migrations. Capture fixed seed/iteration and active parameters per voice.
-3. Web module picker, compact HUMANIZER parameters and VELOCITY CURVES point
-   editor, transaction-safe Apply/Cancel and SAVE/LOAD/snapshots.
+3. Replace the offline LAB with registered Web modules in the real picker, transaction-safe Apply/Cancel and SAVE/LOAD/snapshots. The LAB can be used to audition UI ergonomics and export draft JSON only.
 4. Qualification: true synthetic JACK, queue overload and real Zynthian/Helix
    musician testing; do not claim live-ready before those gates.
 

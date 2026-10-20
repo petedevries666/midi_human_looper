@@ -922,7 +922,7 @@ function editExpressive(instrument,kind){
  const content=$('editor-content');
  content.replaceChildren(node('h2',`${instrument.name||'INSTRUMENT '+instrument.id} / ${kind==='humanizer'?'HUMANIZER':'VELOCITY CURVES'}`),
    node('p','DRAFT ONLY · This transformer is not registered in the MIDI engine yet. Editing and export are available, but playback, patch SAVE/LOAD and snapshots do not use these values.'),
-   editor.open(instrument.id,kind),button('CLOSE',()=>dialog.close()));
+   editor.open(instrument.id,kind),button('CLOSE',()=>{dialog.close();renderedModel='';if(latest)render(latest);}));
  dialog.dataset.kind='expressive';
  showEditor(dialog);
 }

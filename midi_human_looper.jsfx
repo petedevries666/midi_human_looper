@@ -809,19 +809,19 @@ function param_addr(gi,kind)
 function param_min(kind)
 (kind==0 ? 0.2 : kind==5 ? 0.25 : kind==6 ? 0.02 : kind==7 ? -48 : kind==14 ? 0.5 : kind==15 ? 0.2 : kind==17 ? 0.2 : kind==26 ? -1 : 0;);
 function param_max(kind)
-(kind==0 ? 3 : kind==3 ? 1 : kind==4 ? 2 : kind==5 ? 16 : kind==6 ? 1 : kind==7 ? 48 : kind==8 ? 3 : kind==11 ? 3 : kind==12 ? 1 : kind==14 ? 2 : kind==15 ? 1 : kind==16 ? 1 : kind==17 ? 3 : kind==18 ? 1 : kind==19 ? 1 : kind==20 ? 2 : kind==21 ? 1 : kind==22 ? 16 : kind==23 ? 16 : kind==24 ? 1 : kind==25 ? 1 : kind==26 ? 1 : 127;);
+(kind==0 ? 3 : kind==3 ? 1 : kind==4 ? 2 : kind==5 ? 16 : kind==6 ? 1 : kind==7 ? 48 : kind==8 ? 3 : kind==11 ? 3 : kind==12 ? 1 : kind==14 ? 2 : kind==15 ? 1 : kind==16 ? 1 : kind==17 ? 3 : kind==18 ? 1 : kind==19 ? 1 : kind==20 ? 2 : kind==21 ? 1 : kind==22 ? 16 : kind==23 ? 16 : kind==24 ? 1 : kind==25 ? 1 : kind==26 || kind==27 ? 1 : 127;);
 function param_step(kind)
-(kind==0 ? 0.01 : kind==5 ? 0.25 : kind==6 ? 0.01 : kind==14 ? 0.01 : kind==15 ? 0.01 : kind==16 ? 0.001 : kind==17 ? 0.01 : kind==25 ? 0.001 : kind==26 ? 0.001 : 1;);
+(kind==0 ? 0.01 : kind==5 ? 0.25 : kind==6 ? 0.01 : kind==14 ? 0.01 : kind==15 ? 0.01 : kind==16 ? 0.001 : kind==17 ? 0.01 : kind==25 ? 0.001 : kind==26 ? 0.001 : kind==27 ? 0.01 : 1;);
 function param_name(kind)
 (kind==EXP_T_VEL ? "VELOCITY" : kind==EXP_T_LEVEL ? "VOLUME" : kind==EXP_T_MOD ? "MOD LEVEL" :
  kind==EXP_T_ARP_ON ? "ARP ENABLED" : kind==EXP_T_ARP_MODE ? "MODE" : kind==EXP_T_ARP_RATE ? "RATE" :
- kind==EXP_T_ARP_GATE ? "GATE" : kind==PARAM_TRANSPOSE ? "SEMITONES" : kind==PARAM_RANGE_MODE ? "RANGE MODE" :
+ kind==EXP_T_ARP_GATE ? "GATE" : kind==27 ? "CURVE AMOUNT" : kind==PARAM_TRANSPOSE ? "SEMITONES" : kind==PARAM_RANGE_MODE ? "RANGE MODE" :
  kind==PARAM_RANGE_LOW ? "LOW NOTE" : kind==PARAM_RANGE_HIGH ? "HIGH NOTE" : kind==PARAM_NOTE_MODE ? "NOTE MODE" :
  kind==PARAM_ARP_HOLD ? "HOLD" : "CC NUMBER";);
 function param_editor_kind(typ,row)
 (typ==1 ? PARAM_TRANSPOSE : typ==2 ? PARAM_RANGE_MODE+row : typ==3 ? PARAM_NOTE_MODE :
  typ==4 ? EXP_T_VEL : typ==5 ? (row==0 ? EXP_T_ARP_MODE : row==1 ? EXP_T_ARP_RATE : row==2 ? EXP_T_ARP_GATE : row==3 ? PARAM_ARP_HOLD : EXP_T_ARP_ON) :
- typ==6 ? (row==0 ? EXP_T_MOD : PARAM_MOD_CC) : -1;);
+ typ==6 ? (row==0 ? EXP_T_MOD : PARAM_MOD_CC) : typ==7 ? 27 : -1;);
 function param_discrete(kind)
 (kind!=EXP_T_VEL && kind!=EXP_T_ARP_RATE && kind!=EXP_T_ARP_GATE;);
 function param_scale(kind,pos)
@@ -1279,7 +1279,7 @@ local(k,c,code,typ,b,mode,lo,hi)
 function tf_velocity_curve(gi,code,value)
 local(idx,b,count,j,x,y,prevx,prevy,nextx,nexty,t,bend,amount,mapped,found)
 (
-  idx=cc_index(gi,code);b=tf_record(idx)+1;
+  idx=cc_index(gi,code);b=cc_cfg(idx)+4;
   count=max(0,min(EXP_POINTS,floor(mem[b]+.5)));
   amount=max(0,min(1,mem[cc_cfg(idx)+2]));
   mapped=value;found=0;

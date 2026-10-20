@@ -7,6 +7,11 @@ on:
     paths:
       - 'headless/native_expressive_transformers.hpp'
       - 'headless/native_expressive_live.hpp'
+      - 'headless/native_capacity.py'
+      - 'modules/catalog.json'
+      - 'headless/parameter_registry.hpp'
+      - 'headless/server.py'
+      - 'midi_human_looper.jsfx'
       - 'headless/expressive_patch.py'
       - 'headless/web/expressive-lab.js'
       - 'headless/web/app.js'
@@ -28,6 +33,11 @@ jobs:
           /tmp/mbmf-native-expressive
       - name: Validate versioned editor patch
         run: python3 -m unittest discover -s tests -p 'test_expressive_patch.py' -v
+      - name: Generate native velocity curve engine
+        run: |
+          python3 headless/native_capacity.py /tmp/mbmf-native-velocity.jsfx
+          grep -q 'function tf_velocity_curve' /tmp/mbmf-native-velocity.jsfx
+          python3 -m unittest discover -s tests -p 'test_module_registry.py' -v
       - name: Check isolated Web editor syntax
         run: |
           node --check headless/web/expressive-lab.js

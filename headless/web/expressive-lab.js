@@ -2,16 +2,19 @@
 // Offline expressive editor LAB. Deliberately isolated from the production
 // transformer picker until native engine registration and ownership are proven.
 (()=>{
- const root=document.getElementById('expressive-lab');
- if(!root)return;
+ const drafts=new Map();
+ window.MBMF_EXPRESSIVE={open(instrumentId,kind){
+ const root=document.createElement('div');
+ const key=instrumentId+':'+kind;
+ const saved=drafts.get(key);
  const make=(tag,label)=>{const el=document.createElement(tag);if(label!=null)el.textContent=label;return el;};
  const status=make('p','LOCAL PREVIEW ONLY · not connected to the MIDI engine');
  status.setAttribute('role','status');
- const human={version:1,type:'humanizer',enabled:false,timingMs:0,biasMs:0,
+ const human=saved?.human?structuredClone(saved.human):{version:1,type:'humanizer',enabled:false,timingMs:0,biasMs:0,
    velocityPercent:0,distribution:'gaussian',variation:'fixed',scope:'group',seed:1};
- const curve={version:1,type:'velocity_curves',enabled:true,amount:100,points:[[1,1],[127,127]]};
+ const curve=saved?.curve?structuredClone(saved.curve):{version:1,type:'velocity_curves',enabled:true,amount:100,points:[[1,1],[127,127]]};
  const layout=make('div');layout.className='expressive-lab-layout';
- const heading=make('h3','HUMANIZER');layout.append(heading);
+ const heading=make('h3','HUMANIZER');if(kind==='humanizer')layout.append(heading);
  const number=(label,key,min,max,step)=>{
   const row=make('label',label+' '),field=make('input');field.type='number';
   field.min=min;field.max=max;field.step=step;field.value=human[key];field.setAttribute('aria-label',label);
@@ -20,7 +23,7 @@
    if(!Number.isFinite(v)||v<min||v>max){field.value=human[key];status.textContent=label+' : valeur hors limites';return;}
    human[key]=v;update();
   });
-  row.append(field);layout.append(row);
+  row.append(field);if(kind==='humanizer')layout.append(row);
  };
  const choice=(label,key,values)=>{
   const row=make('label',label+' '),field=make('select');
@@ -38,14 +41,14 @@
  choice('DISTRIBUTION','distribution',['gaussian','uniform']);
  choice('VARIATION','variation',['fixed','evolving']);
  choice('SCOPE','scope',['group','notes']);
- layout.append(make('h3','VELOCITY CURVES'));
+ if(kind==='velocity_curves')layout.append(make('h3','VELOCITY CURVES'));
  const amountLabel=make('label','AMOUNT % '),amount=make('input');
  amount.type='number';amount.min=0;amount.max=100;amount.step=1;amount.value=100;
  amount.addEventListener('change',()=>{
   const v=Number(amount.value);if(!Number.isFinite(v)||v<0||v>100){amount.value=curve.amount;return;}
   curve.amount=v;update();
  });
- amountLabel.append(amount);layout.append(amountLabel);
+ amountLabel.append(amount);if(kind==='velocity_curves')layout.append(amountLabel);
  const presets=make('div');
  const preview=make('svg');preview.setAttribute('viewBox','0 0 260 260');
  preview.setAttribute('role','img');preview.setAttribute('aria-label','Velocity response 1 to 127');
@@ -127,6 +130,10 @@
   const url=URL.createObjectURL(blob),a=make('a');a.href=url;a.download='mbmf-expressive-draft.json';
   a.click();URL.revokeObjectURL(url);status.textContent='Exported local JSON · NOT APPLIED';
  });controls.append(download);
- layout.append(presets,preview,pointsList,controls,patch,status);
- root.append(layout);update();
+ if(kind==='velocity_curves')layout.append(presets,preview,pointsList);
+ layout.append(controls,patch,status);
+ const save=make('button','KEEP DRAFT');save.type='button';
+ save.addEventListener('click',()=>{drafts.set(key,{human:structuredClone(human),curve:structuredClone(curve)});status.textContent='Draft kept for this instrument in this browser session. NOT SAVED TO PATCH / NOT ACTIVE IN ENGINE.';});
+ layout.append(save);root.append(layout);update();return root;
+ },has(instrumentId,kind){return drafts.has(instrumentId+':'+kind);}};
 })();

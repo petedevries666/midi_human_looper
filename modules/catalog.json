@@ -1,6 +1,10 @@
 {
   "contractVersion": 1,
-  "nativeParameterOverrides": {"velocity": {"max": 8}},
+  "nativeParameterOverrides": {
+    "velocity": {
+      "max": 8
+    }
+  },
   "parameters": [
     {
       "id": "velocity",
@@ -11,7 +15,7 @@
       "max": 3,
       "default": 1,
       "step": 0.01,
-      "unit": "\u00d7",
+      "unit": "×",
       "normalizedConversion": "linear_quantized",
       "assignmentEligible": true,
       "curveSupport": true,
@@ -106,7 +110,7 @@
       "max": 16,
       "default": 4,
       "step": 0.25,
-      "unit": "\u00d7",
+      "unit": "×",
       "normalizedConversion": "linear_quantized",
       "assignmentEligible": true,
       "curveSupport": true,
@@ -470,7 +474,7 @@
       "default": 1,
       "step": 0.01,
       "valueType": "float",
-      "unit": "\u00d7",
+      "unit": "×",
       "normalizedConversion": "log_ratio",
       "assignmentEligible": true,
       "curveSupport": true,
@@ -485,7 +489,7 @@
       "default": 0.8,
       "step": 0.01,
       "valueType": "float",
-      "unit": "\u00d7",
+      "unit": "×",
       "normalizedConversion": "linear_quantized",
       "assignmentEligible": true,
       "curveSupport": true,
@@ -515,7 +519,7 @@
       "max": 3,
       "default": 1,
       "step": 0.01,
-      "unit": "\u00d7",
+      "unit": "×",
       "normalizedConversion": "linear_quantized",
       "assignmentEligible": true,
       "curveSupport": true,
@@ -714,6 +718,21 @@
       "assignmentEligible": true,
       "nativeOnly": true,
       "engineField": "host_pan"
+    },
+    {
+      "id": "velocity_curve_amount",
+      "engineKind": 27,
+      "label": "CURVE AMOUNT",
+      "valueType": "float",
+      "min": 0,
+      "max": 1,
+      "default": 1,
+      "step": 0.01,
+      "unit": "",
+      "normalizedConversion": "linear_quantized",
+      "assignmentEligible": true,
+      "curveSupport": false,
+      "serializationVersion": 1
     }
   ],
   "modules": [
@@ -783,6 +802,25 @@
       "scope": "instrument",
       "parameters": [
         "velocity"
+      ],
+      "serializationVersion": 1,
+      "migration": "legacy_schema_1_to_7",
+      "processingStage": "ordered_note",
+      "orderingConstraints": {
+        "maxPerInstrument": 6,
+        "noteLifecycle": "owned"
+      },
+      "stateResetHook": "existing_jsfx_reset",
+      "panicHook": "reset_note_runtime",
+      "bypassSupported": true
+    },
+    {
+      "typeId": "velocity_curves",
+      "engineType": 7,
+      "label": "VELOCITY CURVES",
+      "scope": "instrument",
+      "parameters": [
+        "velocity_curve_amount"
       ],
       "serializationVersion": 1,
       "migration": "legacy_schema_1_to_7",

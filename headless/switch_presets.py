@@ -148,7 +148,7 @@ class Store:
  def current(self):
   state=self.control.request()
   if state.get('activeNotes') or state.get('instances') or state.get('chainRunning') or state.get('chainArmed') or state.get('chainRecording') or state.get('movements',{}).get('active') or state.get('switchLearn',{}).get('target') or state.get('controllerLearn',{}).get('target'):raise ValueError('Stop MBMF and release keys before editing switch presets')
-  p=self.control.request(op=4,revision=state['revision'],session=state['engineSessionId'])
+  p=self.control.request(op=4,arg=1,revision=state['revision'],session=state['engineSessionId'])
   if p.get('format')!='MIDI_HUMAN_LOOPER_PATCH':raise ValueError('Engine configuration changed')
   return state,p
  def inventory(self):
@@ -255,9 +255,10 @@ class Store:
    except Exception:
     if native_changed:
      old=plan['oldConfig'];s=list(old['settings']);s[11]=len(old['sequence']);lh=old['longHold'];wire=s+[n-1 for n in old['sequence']]+[0]*(64-len(old['sequence']))+[ord(c) for c in old['name']]+[0]*(16-len(old['name']))+[lh[k] for k in ('milliseconds','action','target')]
-     fresh=self.control.request()
-     if plan.get('oldPatch'):self.control.request(op=5,arg=1,target=plan['oldPatch']['schema'],patch=plan['oldPatch'],revision=fresh['revision'],session=fresh['engineSessionId'])
-     else:self.control.request(op=41,target=plan['owner'],settings=wire,revision=fresh['revision'],session=fresh['engineSessionId'])
+     fresh,_=self.current()
+     if plan.get('oldPatch'):restored=self.control.request(op=5,arg=1,target=plan['oldPatch']['schema'],patch=plan['oldPatch'],revision=fresh['revision'],session=fresh['engineSessionId'])
+     else:restored=self.control.request(op=41,target=plan['owner'],settings=wire,revision=fresh['revision'],session=fresh['engineSessionId'])
+     if restored.get('status')!='ok':raise RuntimeError('Preset rollback refused; recovery journal retained')
     for name in written:
      if plan['files'][name]['old'] is None:Path(name).unlink(missing_ok=True)
      else:atomic_json(name,plan['files'][name]['old'])

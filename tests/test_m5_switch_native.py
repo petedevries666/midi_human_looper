@@ -5,6 +5,8 @@ import unittest
 from unittest.mock import patch as mock_patch
 from pathlib import Path
 import copy
+import os
+import tempfile
 import switch_presets
 
 
@@ -19,7 +21,7 @@ class NewSwitchNative(HeadlessTests):
         self.assertEqual(self.call()['switches'][-1]['conductor']['result'],0)
         self.command('panic')
         c=Control(self.sock);state=self.call()
-        patch=c.request(op=4,revision=state['revision'],session=state['engineSessionId'])
+        patch=c.request(op=4,arg=1,revision=state['revision'],session=state['engineSessionId'])
         result=c.request(op=5,arg=1,target=patch['schema'],patch=patch,revision=state['revision'],session=state['engineSessionId'])
         self.assertEqual(result['status'],'ok')
         again=next(s for s in self.call()['switches'] if s['id']==new['id'])
@@ -53,6 +55,25 @@ class NewSwitchNative(HeadlessTests):
         self.assertEqual(applied['settings'][12],2)
         self.assertEqual(applied['name'],'UTIL STOP')
 
+class NewSwitchExpanded(NewSwitchNative):
+    @classmethod
+    def setUpClass(cls):
+        from native_capacity import build_source
+        cls.source_temp=tempfile.TemporaryDirectory(prefix='m5-expanded-source-')
+        source=Path(cls.source_temp.name)/'native.jsfx'
+        source.write_text(build_source((Path(__file__).resolve().parents[1]/'midi_human_looper.jsfx').read_text(encoding='utf-8')),encoding='utf-8')
+        try:
+            with mock_patch.dict(os.environ,HEADLESS_SOURCE=str(source)):
+                super().setUpClass()
+        except Exception:
+            cls.source_temp.cleanup()
+            raise
+
+    @classmethod
+    def tearDownClass(cls):
+        try:super().tearDownClass()
+        finally:cls.source_temp.cleanup()
+
 if __name__=='__main__':
-    suite=unittest.TestSuite([NewSwitchNative('test_create_empty_conductor_and_recall_preserves_it')])
+    suite=unittest.TestSuite(cls('test_create_empty_conductor_and_recall_preserves_it') for cls in (NewSwitchNative,NewSwitchExpanded))
     sys.exit(not unittest.TextTestRunner(verbosity=2).run(suite).wasSuccessful())

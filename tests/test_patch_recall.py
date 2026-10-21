@@ -122,5 +122,18 @@ class RecallTests(unittest.TestCase):
   self.service.midi_event(0,bytes([0xce,2,0]));self.assertEqual(self.service.pending,('recall',2))
   self.service.midi_event(255,bytes([0xce,3,0]));self.assertEqual(self.service.pending,('recall',2))
   self.service.midi_event(0,bytes([0xce,1,0]));self.assertIsNone(self.service.pending)
+ def test_completed_midi_recall_is_idempotent_but_manual_reload_is_explicit(self):
+  self.service.settings.update(enabled=True,channel=3,withSnapshot=False)
+  self.service.recall(2);self.service.phase='ready'
+  count=len(self.control.calls)
+  self.assertTrue(self.service.midi_event(1,bytes([0xc2,2])))
+  self.assertIsNone(self.service.pending);self.assertEqual(len(self.control.calls),count)
+  self.service.request(dict(operation='recall',slot=2));self.assertEqual(self.service.pending,('recall',2))
+ def test_failed_or_changed_selection_does_not_suppress_midi_retry(self):
+  self.service.settings.update(enabled=True,channel=3,withSnapshot=False)
+  self.service.recall(2);self.service.phase='failed'
+  self.service.midi_event(1,bytes([0xc2,2]));self.assertEqual(self.service.pending,('recall',2))
+  self.service.pending=None;self.service.phase='ready';self.service.selected=1
+  self.service.midi_event(1,bytes([0xc2,2]));self.assertEqual(self.service.pending,('recall',2))
 
 if __name__=='__main__':unittest.main()

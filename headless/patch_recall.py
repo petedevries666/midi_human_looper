@@ -20,6 +20,7 @@ class RecallService:
         self.manager=state_manager;self.directory=Path(directory);self.library=Path(library);self.entries=entries
         self.path=self.directory/'patch-recall.json';self.lock=threading.RLock();self.wake=threading.Event()
         self.pending=None;self.active=None;self.phase='ready';self.error='';self.selected=0
+        self.last_recalled=None
         self.settings=dict(version=1,enabled=False,channel=16,withSnapshot=True,links={})
         if self.path.exists():
             saved=json.loads(self.path.read_text());self.validate(saved);self.settings=saved
@@ -67,6 +68,8 @@ class RecallService:
         # Restoring a snapshot must not recursively trigger another request.
         if 0<event[1]<128 and not (device==0xff and self.phase in ('snapshot','restore')):
             with self.lock:
+                controls=[entry['control'] for entry in self.entries.values()]
+                if self.active is None and self.pending is None and self.phase=='ready' and len(controls)==1 and self.last_recalled==(event[1],controls[0]) and self.selected==event[1]:return True
                 if self.active==('recall',event[1]):self.pending=None
                 else:self.pending=('recall',event[1]);self.wake.set()
         return True
@@ -182,6 +185,7 @@ class RecallService:
                     time.sleep(.1)
                 else:raise ValueError('Restored MBMF engine not ready')
             self.phase='restore';self.load_patch(patch,slot,link['bindings'] if link else {})
+            self.last_recalled=(slot,self.one_entry()['control'])
         except Exception as error:
             try:
                 if path and not self.manager.load_snapshot(str(recovery)):raise ValueError('Previous Zynthian rig could not be restored')

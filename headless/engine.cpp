@@ -619,12 +619,12 @@ struct Model {
             k > 0 && k < 12 ? (k < 7 ? k : int(*tfTypes[i][k])) : 0;
         v.transformerOn[j] = code > 0;
         if (k <= 0 || k >= 12 || v.transformerTypes[j] < 1 ||
-            v.transformerTypes[j] > 6) {
+            v.transformerTypes[j] > 7) {
           v.parameterCounts[j] = 0;
           continue;
         }
         int type = v.transformerTypes[j];
-        if (k >= 7 && (type == 1 || type == 2 || type == 4)) v.serialPitch = true;
+        if (k >= 7 && (type == 1 || type == 2 || type == 4 || type == 7)) v.serialPitch = true;
         v.parameterCounts[j] = performance::parameterCount(type);
         for (int r = 0; r < v.parameterCounts[j]; ++r) {
           v.transformerValues[j][r] = *values[i][k][r];
@@ -2921,7 +2921,7 @@ int main(int argc, char **argv) {
               for (int j = 0; j < inst.transformerCount; ++j)
                 if (inst.transformerTypes[j] == request.note)
                   duplicate = true;
-              if (request.note < 1 || request.note > 6 ||
+              if (request.note < 1 || request.note > 7 ||
                   inst.transformerCount >= 6 ||
                   ((request.note == 3 || request.note == 5) && duplicate))
                 reply.status = 3;

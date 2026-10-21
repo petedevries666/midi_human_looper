@@ -3,8 +3,8 @@
 #include <algorithm>
 #include <cmath>
 namespace performance {
-constexpr int parameterCount(int type) { return type==1 ? 1 : type==2 ? 3 : type==3 ? 1 : type==4 ? 1 : type==5 ? 5 : type==6 ? 2 : 0; }
-constexpr int parameterKind(int type,int row) { return type==1 && row==0 ? 7 : type==2 && row==0 ? 8 : type==2 && row==1 ? 9 : type==2 && row==2 ? 10 : type==3 && row==0 ? 11 : type==4 && row==0 ? 0 : type==5 && row==0 ? 4 : type==5 && row==1 ? 5 : type==5 && row==2 ? 6 : type==5 && row==3 ? 12 : type==5 && row==4 ? 3 : type==6 && row==0 ? 2 : type==6 && row==1 ? 13 : -1; }
+constexpr int parameterCount(int type) { return type==1 ? 1 : type==2 ? 3 : type==3 ? 1 : type==4 ? 1 : type==5 ? 5 : type==6 ? 2 : type==7 ? 1 : 0; }
+constexpr int parameterKind(int type,int row) { return type==1 && row==0 ? 7 : type==2 && row==0 ? 8 : type==2 && row==1 ? 9 : type==2 && row==2 ? 10 : type==3 && row==0 ? 11 : type==4 && row==0 ? 0 : type==5 && row==0 ? 4 : type==5 && row==1 ? 5 : type==5 && row==2 ? 6 : type==5 && row==3 ? 12 : type==5 && row==4 ? 3 : type==6 && row==0 ? 2 : type==6 && row==1 ? 13 : type==7 && row==0 ? 27 : -1; }
 constexpr bool discrete(int kind) { return kind==3 || kind==4 || kind==8 || kind==11 || kind==12 || kind==13 || kind==18 || kind==19 || kind==20 || kind==21 || kind==22 || kind==23 || kind==24; }
 constexpr bool binned(int kind) { return kind==3 || kind==4 || kind==8 || kind==11 || kind==12 || kind==18 || kind==19 || kind==20 || kind==21 || kind==22 || kind==23 || kind==24; }
 constexpr bool phraseKind(int kind) { return kind==14 || kind==15 || kind==17 || kind==18 || kind==19 || kind==20; }
@@ -37,9 +37,10 @@ static constexpr Parameter parameters[]={
   {0,1,1,1}, // 24: transformer_enabled
   {0,1,0.001,3}, // 25: host_volume
   {-1,1,0.001,3}, // 26: host_pan
+  {0,1,0.01,0}, // 27: velocity_curve_amount
 };
 inline double physical(int kind,double x) {
-  if(kind<0 || kind>=27) return 0;
+  if(kind<0 || kind>=28) return 0;
   const auto &p=parameters[kind]; x=std::max(0.,std::min(1.,x));
   if(p.conversion==2) return std::pow(2.,2*x-1);
   if(p.conversion==3) return p.low+(p.high-p.low)*x;

@@ -87,7 +87,9 @@ def run(output, performance=False):
                     locator.click(button='right')
                     page.get_by_role('menuitem',name='EDIT',exact=True).click()
                 def open_conductor():
+                    page.wait_for_timeout(850)  # Existing post-context-menu click suppression.
                     page.locator('[data-switch-id="1"] .switch-mode').click()
+                    page.locator('#editor[open]').wait_for()
                     if not page.locator('.conductor-editor').count():
                         page.get_by_role('button',name='APPLY & OPEN CONDUCTOR',exact=True).click()
                     page.locator('.conductor-editor').wait_for()

@@ -524,7 +524,15 @@ class Handler(BaseHTTPRequestHandler):
                 if any(type(v) is not int for v in (target,gesture,kind,snapshot)) or not 1<=target<=16777215 or not 0<=gesture<=2 or not 0<=kind<=7 or not 0<=snapshot<=16777215:raise ValueError()
                 args=dict(op=28,target=target,arg=gesture,ch=kind,module=snapshot)
             elif action=='switch_add':
-                args=dict(op=51)
+                from switch_model import add_switch
+                with self.server.control.lock:
+                    patch=self.server.control.request(op=4,arg=1,revision=revision,session=session)
+                    if patch.get('format')!='MIDI_HUMAN_LOOPER_PATCH':
+                        self.respond(409,patch);return
+                    patch,identity=add_switch(patch)
+                    result=self.server.control.request(op=5,arg=1,target=patch['schema'],revision=revision,session=session,patch=patch)
+                if result.get('status')=='ok':result['switchId']=identity
+                self.respond(200 if result.get('status')=='ok' else 409,result);return
             elif action=='switch_commit':
                 target=data.get('switchId');settings=data.get('settings');sequence=data.get('sequence');name=data.get('name','')
                 if type(target) is not int or not 1<=target<=16777215 or not isinstance(settings,list) or len(settings)!=18 or any(type(v) is not int for v in settings) or not isinstance(sequence,list) or len(sequence)>64 or any(type(v) is not int or not 1<=v<=128 for v in sequence) or not isinstance(name,str) or len(name)>16 or any(not 32<=ord(c)<127 for c in name):raise ValueError()

@@ -1,0 +1,36 @@
+--- a/zyngine/zynthian_engine_audio_mixer.py
++++ b/zyngine/zynthian_engine_audio_mixer.py
+@@ -329,15 +329,18 @@
+         if channel >= self.MAX_NUM_CHANNELS:
+             channel = self.MAX_NUM_CHANNELS - 1
+         self.lib_zynmixer.setSolo(channel, solo)
+-        if update:
+-            self.zctrls[channel]['solo'].set_value(solo, False)
++        if channel == self.MAX_NUM_CHANNELS - 1:
++            solo = 0
++            self.zctrls[channel]['solo'].set_value(0, False)
++        if update:
++            self.zctrls[channel]['solo'].set_value(0 if channel == self.MAX_NUM_CHANNELS - 1 else solo, False)
+         zynsigman.send(zynsigman.S_AUDIO_MIXER, self.SS_ZCTRL_SET_VALUE,
+                        chan=channel, symbol="solo", value=solo)
+ 
+         if channel == self.MAX_NUM_CHANNELS - 1:
+             # Main strip solo clears all chain solo
+-            for i in range(0, self.MAX_NUM_CHANNELS - 2):
+-                self.zctrls[i]['solo'].set_value(solo, 0)
++            for i in range(0, self.MAX_NUM_CHANNELS - 1):
++                self.zctrls[i]['solo'].set_value(0, False)
+                 zynsigman.send(
+                     zynsigman.S_AUDIO_MIXER, self.SS_ZCTRL_SET_VALUE, chan=i, symbol="solo", value=0)
+ 
+@@ -621,6 +624,10 @@
+         for chan, zctrls in enumerate(self.zctrls):
+             key = 'chan_{:02d}'.format(chan)
+             for symbol, zctrl in zctrls.items():
++                # Main SOLO is a clear-all command, not persisted channel state.
++                if symbol == 'solo' and chan == self.MAX_NUM_CHANNELS - 1:
++                    zctrl.set_value(0, False)
++                    continue
+                 try:
+                     if zctrl.is_toggle:
+                         zctrl.set_value(state[key][symbol] & 1, True)

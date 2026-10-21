@@ -235,3 +235,8 @@ dialog[data-contextual][open]{position:relative;inset:auto;width:100%;max-width:
 .chain-recall-row strong{color:#ddd}.chain-recall-program{color:#e6d62a}
 .chain-recall-row small,.chain-recall-help{color:#aaa;font-size:11px;line-height:1.45}
 .chain-recall-state{display:block}.chain-recall-row button{align-self:start;min-height:32px}
+.block-drag-handle{position:absolute;right:3px;top:3px;width:25px;height:25px;padding:0;cursor:grab;touch-action:none;z-index:2;font-size:19px;opacity:.7}
+[data-block-id]{position:relative;padding-right:31px!important}
+[data-block-id]>.block-drag-handle:active{cursor:grabbing;opacity:1}
+.block-dragging{outline:2px solid var(--yellow);opacity:.7}
+.card-context-menu button:disabled{opacity:.4;cursor:default}

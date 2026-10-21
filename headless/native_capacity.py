@@ -22,6 +22,8 @@ def build_source(source):
             raise ValueError('Native capacity source contract changed: '+old[:72])
         source = source.replace(old, new)
     change('IO_SCHEMA = 7;', 'IO_SCHEMA = 8;')
+    # Native VELOCITY has a wider gain; frozen REAPER bounds remain unchanged.
+    change('kind==0 ? 3 : kind==3 ?', 'kind==0 ? 8 : kind==3 ?')
     change('LAYERS = 16;', 'LAYERS = 128;')
     change('2+12*SW_STRIDE', '2+60*SW_STRIDE')
     change('12*SW_RT_STRIDE', '60*SW_RT_STRIDE')
@@ -145,7 +147,9 @@ NATIVE_SNAPSHOT_PARAMETER_BASE=CONDUCTOR_BASE-12000;native_snapshot_pending=0;
     # RESET/STOP+RESET reset both the legacy traversal and native Conductor.
     change('mem[r+10]=-1;);', 'mem[r+10]=-1;mem[CONDUCTOR_BASE+si*8+3]=-1;mem[CONDUCTOR_BASE+si*8+4]=0;mem[CONDUCTOR_BASE+si*8+5]=0;mem[CONDUCTOR_BASE+si*8+6]=0;mem[r+22]=0;mem[r+27]=0;mem[r+29]=0;mem[r+31]=0;);')
     from native_arp import extend
-    return extend(source)
+    source = extend(source)
+    from native_echo_sources import extend as echo_sources
+    return echo_sources(source)
 
 def constants(source):
     """Resolve numeric allocation declarations, never execute EEL code."""

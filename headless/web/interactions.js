@@ -10,12 +10,12 @@ function openCardMenu(card,actions,x,y){
  menu.querySelector('button:not(:disabled)')?.focus();
 }
 function cardActions(card,actions,onactivate=null){
- card.tabIndex=0;card.title='Clic droit / appui long : EDIT · DELETE';let timer=null,start=null,suppressUntil=0;
+ card.tabIndex=0;card.title='Clic droit / appui long : actions du bloc';let timer=null,start=null,suppressUntil=0;
  const menu=(x,y)=>{suppressUntil=Date.now()+800;openCardMenu(card,typeof actions==='function'?actions():actions,x,y);};
  card.addEventListener('contextmenu',e=>{e.preventDefault();e.stopPropagation();menu(e.clientX,e.clientY);});
  card.addEventListener('keydown',e=>{if(e.target!==card)return;if(e.key==='ContextMenu'||(e.shiftKey&&e.key==='F10')){e.preventDefault();const r=card.getBoundingClientRect();menu(r.left,r.bottom);}else if(onactivate&&(e.key==='Enter'||e.key===' ')){e.preventDefault();onactivate();}});
  const cancel=()=>{clearTimeout(timer);timer=null;};
- card.addEventListener('pointerdown',e=>{if(e.pointerType!=='touch'||e.target.closest('button,input,select,a'))return;start=[e.clientX,e.clientY];timer=setTimeout(()=>{timer=null;menu(...start);},600);});
+ card.addEventListener('pointerdown',e=>{if(e.pointerType!=='touch'||(e.target!==card&&e.target.closest('button,input,select,a')))return;start=[e.clientX,e.clientY];timer=setTimeout(()=>{timer=null;menu(...start);},600);});
  card.addEventListener('pointermove',e=>{if(start&&Math.hypot(e.clientX-start[0],e.clientY-start[1])>8)cancel();});
  for(const edge of ['pointerup','pointercancel','lostpointercapture'])card.addEventListener(edge,cancel);
  card.addEventListener('click',e=>{if(Date.now()<suppressUntil){e.preventDefault();e.stopImmediatePropagation();return;}if(onactivate&&!e.target.closest('button,input,select,a'))onactivate();},true);

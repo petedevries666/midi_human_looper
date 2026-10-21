@@ -3,6 +3,17 @@ let revision=1, engineSession=null, pending=false, renderedModel='', latest=null
 // Next insertion type is an editor choice, not a musical parameter. Preserve it
 // by stable instrument ID when a pending native response rebuilds the rows.
 const transformerChoices=new Map();
+const transformerAdds=new Map();
+function settleTransformerAdds(s){
+ const ready=[];
+ for(const [id,addition] of transformerAdds){
+  const instrument=s.instruments.find(i=>i.id===id);
+  if(!instrument){transformerAdds.delete(id);continue;}
+  const created=instrument.transformers.find(t=>t.type===addition.type&&!addition.before.has(t.id));
+  if(created){transformerAdds.delete(id);ready.push([instrument,created]);}
+ }
+ return ready;
+}
 let hostChains=null,hostChainsBusy=false;
 async function refreshHostChains(){
  if(document.hidden)return;
@@ -146,6 +157,55 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape'){if(document.querySe
 function showEditor(dialog,docked=false,kind=''){if(kind)dialog.dataset.kind=kind;else delete dialog.dataset.kind;if(docked){dialog.dataset.contextual='true';if(kind==='module'){$('module-editor-dock').append(dialog);$('module-editor-section').open=true;}else document.querySelector('main').append(dialog);dialog.show();dialog.scrollIntoView({block:'nearest'});}else{document.querySelector('main').append(dialog);delete dialog.dataset.contextual;dialog.showModal();}}
 document.addEventListener('pointerdown',e=>{const d=$('editor');if(d.open&&d.dataset.contextual&&!d.contains(e.target)&&!e.target.closest('.module')&&!e.target.closest('.group-layout-controls')&&!e.target.closest('#assignment-menu')&&!e.target.closest('#mapping-editor-section'))d.close();});
 function editInstrument(i){const d=descriptor(0);if(!d)return;edit(d,i,d.parameters.map(id=>{const p=catalog.parameters.find(p=>p.id===id),canonical=parameter({enabled:21,input:22,output:23}[id]);const display=canonical?{...p,valueType:canonical.valueType,choices:canonical.choices}:p;return {descriptor:display,value:i[p.engineField],assignment:0};}),null);}
+function echoUnits(){
+ const extension=latest?.echocity,wire=extension?.configuration;
+ const width=extension?.version===1?13:14;
+ if(![1,2].includes(extension?.version)||!Array.isArray(wire)||wire[0]!==extension.version||!Number.isInteger(wire[1])||wire[1]<0||wire[1]>8||wire.length!==2+width*wire[1])return null;
+ return Array.from({length:wire[1]},(_,j)=>{const row=wire.slice(2+j*width,2+(j+1)*width);if(width===13)row.push(1-row[5]);return row;});
+}
+async function commitEcho(instrumentId,unit,expectedRevision=revision){
+ const units=echoUnits();if(!units){$('error').textContent='Format ECHOCITY indisponible ; configuration conservée.';return false;}
+ const next=units.filter(v=>v[0]!==instrumentId);if(unit)next.push(unit);next.sort((a,b)=>a[0]-b[0]);
+ return command({action:'echocity_commit',expectedRevision,echocity:{version:2,configuration:[2,next.length,...next.flat()]}});
+}
+async function editEcho(instrument){
+ const dialog=$('editor');if(dialog.open){if(dialog.dataset.kind!=='module')return;if(await window.mbmfModuleFlush?.()===false)return;dialog.close();}
+ const units=echoUnits();if(!units)return;
+ const draft=[...(units.find(v=>v[0]===instrument.id)||[instrument.id,1,0,250,1,.5,.7,1,1,4,0,0,1,1])];
+ const session=engineSession,rev=revision,content=$('editor-content');let applying=false;
+ selectedModule={instrumentId:instrument.id,moduleId:'ECHOCITY'};
+ for(const card of document.querySelectorAll('.module'))card.classList.toggle('selected',Number(card.dataset.instrumentId)===instrument.id&&card.dataset.moduleId==='ECHOCITY');
+ content.replaceChildren(node('h2',`${instrument.name||'INSTRUMENT '+instrument.id} / ECHOCITY`),node('p','Dernier dans la chaîne : répète les notes de l’instrument, ARP compris.'));
+ const inputs=new Map();
+ const fields=[
+  [2,'TEMPS',null,null,null,['ms','beats']], [3,'INTERVALLE',.1,draft[2]?64:60000,.1],
+  [4,'PREMIER ÉCHO',0,16,.1], [9,'RÉPÉTITIONS',1,32,1],
+  [13,'DRY',0,1,.01], [5,'WET',0,1,.01], [6,'DÉCROISSANCE',0,1,.01],
+  [7,'GATE',0,4,.01], [8,'DÉCROISSANCE GATE',0,1,.01],
+  [10,'PAS DE HAUTEUR',-48,48,1], [11,'PING-PONG',null,null,null,['OFF','ON']],
+  [12,'AUTRE CANAL',null,null,null,Array.from({length:16},(_,i)=>String(i+1))]
+ ];
+ for(const [index,label,min,max,step,choices] of fields){
+  const row=node('label',label,'parameter'),input=node(choices?'select':'input');input.setAttribute('aria-label',`ECHOCITY ${label}`);
+  if(choices)choices.forEach((text,value)=>{const option=node('option',text);option.value=value;input.append(option);});
+  else{input.type='number';input.min=min;input.max=max;input.step=step;}
+  input.value=draft[index];input.oninput=()=>{draft[index]=Number(input.value);
+    if(index===2){const interval=inputs.get(3);interval.max=draft[2]?64:60000;interval.min=draft[2] ? .001 : .1;interval.step=draft[2] ? .001 : .1;interval.nextElementSibling.textContent=draft[2]?'beats':'ms';if(draft[3]>Number(interval.max)){draft[3]=.25;interval.value=draft[3];}}};
+  row.append(input,node('span',index===3?(draft[2]?'beats':'ms'):index===10?'st':index===4?'×':' '));content.append(row);inputs.set(index,input);
+ }
+ if(draft[2]){inputs.get(3).min=.001;inputs.get(3).step=.001;}
+ const error=node('p');error.setAttribute('role','alert');
+ const apply=button('APPLIQUER',async()=>{
+  if(applying)return;if(engineSession!==session){error.textContent='Moteur redémarré ; rouvrir ECHOCITY.';return;}
+  for(const input of inputs.values())if(!input.reportValidity())return;
+  applying=true;apply.disabled=true;
+  try{if(await commitEcho(instrument.id,draft,rev)){dialog.close();renderedModel='';render(latest);}else error.textContent=$('error').textContent==='invalid'?'Relâcher les notes pour le premier ajout, puis réessayer.':$('error').textContent;}
+  finally{applying=false;apply.disabled=false;}
+ });
+ content.append(error,apply,button('CANCEL',()=>{if(!applying)dialog.close();}));
+ window.mbmfModuleFlush=async()=>!applying;dialog.onclick=null;dialog.oncancel=e=>{if(applying)e.preventDefault();};
+ showEditor(dialog,true,'module');
+}
 async function editModule(i,tf){
  if(!catalog&&!await loadDescriptors())return;
  if(!descriptor(tf.type)){$('error').textContent='Type de transformateur indisponible ; reconnecter les modules.';return;}
@@ -392,8 +452,9 @@ function render(s){
   if(!catalog){latest=s;revision=s.revision;engineSession=s.engineSessionId;$('connection').textContent='CONNECTED · Chargement des modules…';if(!descriptorRetry)loadDescriptors();return;}
   if(s.status==='ok'&&['token required','invalid token'].includes($('error').textContent))$('error').textContent='';
   if(engineSession===s.engineSessionId&&s.revision<revision)return;
-  if(engineSession!==s.engineSessionId){transformerChoices.clear();$('mapping-editor').close();}
+  if(engineSession!==s.engineSessionId){transformerChoices.clear();transformerAdds.clear();$('mapping-editor').close();}
   for(const id of transformerChoices.keys())if(!s.instruments.some(i=>i.id===id))transformerChoices.delete(id);
+  for(const [instrument,created] of settleTransformerAdds(s)){const session=s.engineSessionId;setTimeout(()=>{if(engineSession===session&&!$('editor').open)editModule(instrument,created);},0);}
   engineSession=s.engineSessionId;revision=s.revision;latest=s;
   $('connection').textContent='CONNECTED · Engine running';
   $('stop-native').hidden=!s.chainMode;paintPhraseStates(s);paintEffectiveRails(s);paintConductorRuntime(s);if(typeof refreshMovements==='function')refreshMovements(s);
@@ -412,13 +473,15 @@ function render(s){
   $('snapshots').replaceChildren(...(s.snapshots||[]).map((r,index)=>{
     const row=node('div',undefined,'snapshot-row');row.dataset.snapshotId=r.id;window.MBMF_TILES?.decorate(row,'SNAPSHOT',r.id);const name=node('input');name.value=r.name;name.maxLength=48;name.setAttribute('data-snapshot-name','');name.setAttribute('aria-label','Snapshot name');name.onchange=()=>{if(snapshotSession!==engineSession){$('error').textContent='Engine restarted; reopen the snapshot controls.';return;}if(name.value!==r.name)command({action:'snapshot_rename',snapshotId:r.id,name:name.value});};row.append(name,node('small','','snapshot-feedback'));
     const more=node('details');more.className='snapshot-actions';more.append(node('summary','•••'));const menu=node('div',undefined,'snapshot-menu');more.append(menu);
-    for(const [label,action] of [['RECALL','snapshot_recall'],['MORPH','snapshot_morph'],['UPDATE','snapshot_update'],['DUPLICATE','snapshot_duplicate'],['↑','snapshot_move'],['↓','snapshot_move'],['DELETE','snapshot_delete']]) {
+    for(const [label,action] of [['RECALL','snapshot_recall'],['MORPH','snapshot_morph'],['UPDATE','snapshot_update'],['DUPLICATE','snapshot_duplicate'],['DELETE','snapshot_delete']]) {
       const control=button(label,()=>{if(snapshotSession!==engineSession){$('error').textContent='Engine restarted; reopen the snapshot controls.';return;}if(action==='snapshot_delete'&&!confirm('Delete this snapshot?'))return;more.open=false;command({action,snapshotId:r.id,direction:label==='↓'?'down':'up'});});
       control.disabled=(label==='↑'&&index===0)||(label==='↓'&&index===(s.snapshots||[]).length-1);
       (['RECALL','MORPH','UPDATE'].includes(label)?row:menu).append(control);
     }
     menu.prepend(button('EDIT',()=>{more.open=false;const current=latest?.snapshots?.find(v=>v.id===r.id);if(current&&snapshotSession===engineSession)editSnapshot(current);}));
     row.append(more);
+    movableBlock(row,'snapshot',r.id);
+    cardActions(row,()=>[{label:'EDIT',run:()=>editSnapshot(r)},blockCopyAction('snapshot',r.id),{label:'DELETE',run:()=>{if(confirm('Delete this snapshot?'))command({action:'snapshot_delete',snapshotId:r.id});}},...blockMoveActions(row,'snapshot')]);
     return row;
   }));
   }
@@ -427,9 +490,12 @@ function render(s){
     if(feedback)feedback.textContent=`${r.id===s.selectedSnapshotId?'SELECTED · ':''}${r.dirty?'MODIFIED':''}${r.id===s.selectedSnapshotId&&s.snapshotSkippedTargets?` · PARTIAL (${s.snapshotSkippedTargets} missing)`:''}${r.id===s.targetSnapshotId?` · MORPH ${Math.round(s.morphProgress*100)}%`:''}`;
   }
   renderAB(s);
+  applyBlockLayout('snapshot');
+  applyBlockLayout('switch');applyBlockLayout('movement');
+  emptyBlockActions($('capture-snapshot'),'snapshot');
   if(!document.activeElement?.closest('#controllers .name-input'))renderControllers(s);
-  if(uiPointerHeld||document.activeElement?.tagName==='SELECT'||document.activeElement?.classList.contains('name-input')||document.activeElement?.type==='range'||document.querySelector('[data-live-release=held]'))return;
-  const model=JSON.stringify([s.controllerEngine,s.controllerLearn,s.phrases.map(p=>({...p,state:undefined,events:0})),s.instruments.map(i=>({...i,hostMixer:undefined})),s.switches.map(v=>({...v,step:0,actionCount:0,lastAction:0,result:0,conductor:v.conductor?.steps||0,supercharge:undefined})),s.snapshotActions,s.switchLearn]);if(model===renderedModel)return;renderedModel=model;
+  if(blockDragging||uiPointerHeld||document.activeElement?.tagName==='SELECT'||document.activeElement?.classList.contains('name-input')||document.activeElement?.type==='range'||document.querySelector('[data-live-release=held]'))return;
+  const model=JSON.stringify([[...transformerAdds].map(([id,p])=>[id,p.type]),s.echocityAvailable,s.echocity,s.controllerEngine,s.controllerLearn,s.phrases.map(p=>({...p,state:undefined,events:0})),s.instruments.map(i=>({...i,hostMixer:undefined})),s.switches.map(v=>({...v,step:0,actionCount:0,lastAction:0,result:0,conductor:v.conductor?.steps||0,supercharge:undefined})),s.snapshotActions,s.switchLearn]);if(model===renderedModel)return;renderedModel=model;
   compactPhrases(s);
   paintPhraseStates(s);
   $('instruments').replaceChildren(...s.instruments.map(compactInstrument));
@@ -441,7 +507,7 @@ function render(s){
     const title=node('strong',sw.name||`SWITCH ${sw.id}`,'switch-name'),snap=button('SNAPSHOTS',()=>editSwitchSnapshots(sw));snap.replaceChildren();const switchIcon=node('img');switchIcon.src='/assets/footswitch.png';switchIcon.alt='';switchIcon.width=31;switchIcon.height=28;snap.append(switchIcon);snap.classList.add('switch-snapshot');
     const isConductor=!!sw.conductor?.steps,mode=button(isConductor?'CONDUCTOR':'ACTION',()=>isConductor?editConductor(sw):editSwitchSequence(sw));mode.classList.add('switch-mode');
     n.append(title,node('small',`${sw.kind===1?'NOTE':sw.kind===2?'CC':'UNASSIGNED'} ${sw.number} · CH ${sw.channel}`,'switch-source'),node('small',`STEP ${sw.conductor?.steps?sw.conductor.step:sw.step} / ${sw.conductor?.steps||sw.length}`,'step'),mode,snap);
-    cardActions(n,[{label:'EDIT',run:()=>editSwitchSequence(sw)},{label:'DELETE',run:async()=>{if(confirm(`Delete ${sw.name||'SWITCH '+sw.id} and its Conductor? Phrase and Movement sources stay available.`))await command({action:'switch_delete',switchId:sw.id});}}]);
+    cardActions(n,()=>[{label:'EDIT',run:()=>editSwitchSequence(sw)},blockCopyAction('switch',sw.id),{label:'DELETE',run:async()=>{if(confirm(`Delete ${sw.name||'SWITCH '+sw.id} and its Conductor? Phrase and Movement sources stay available.`))await command({action:'switch_delete',switchId:sw.id});}},...blockMoveActions(n,'switch')]);
     const meter=node('output','','charge-meter');meter.hidden=true;n.append(meter);
     const test=button('TEST',()=>{});test.dataset.switchTest=String(sw.id);test.dataset.valid='1';test.setAttribute('aria-label',`TEST Smart Switch ${sw.id}`);test.title='Comme la pédale : clic court, double clic ou maintien. Relâcher déclenche RELEASE. Espace / Entrée également.';
     test.textContent='▶';test.classList.add('switch-trigger');
@@ -453,6 +519,9 @@ function render(s){
   const columns=window.innerWidth>=1000?4:window.innerWidth>=600?2:1,spaces=full?0:Math.min(columns-s.switches.length%columns,(s.switchCapacity||16)-s.switches.length);
   const additions=[add];for(let slot=1;slot<spaces;slot++){const extra=button('+ SMART SWITCH',()=>command({action:'switch_add'}));extra.textContent='+';extra.classList.add('switch-add');window.MBMF_TILES?.decorate(extra,'SMART_SWITCH',`add:${slot}`,true);additions.push(extra);}
   $('switches').replaceChildren(...switchCards,...additions);
+  for(const n of switchCards)movableBlock(n,'switch',n.dataset.switchId);
+  for(const n of additions)emptyBlockActions(n,'switch');
+  applyBlockLayout('switch');
 }
 let tileResizeTimer;window.addEventListener('resize',()=>{clearTimeout(tileResizeTimer);tileResizeTimer=setTimeout(()=>{if(latest){renderedModel='';render(latest);}},150);});
 const heldTests=new Set();
@@ -518,7 +587,7 @@ async function patch(action){
   if(action==='copy'){patchClipboard=data.clipboardId;$('patch-status').textContent='PATCH COPIED';}
   else if(action==='save'){$('patch-status').textContent='PATCH SAVED';loadedPatchSlot=slot;}
   else if(action==='export')$('patch-status').textContent=`EXPORTED ${data.file}`;
-  else{loadedPatchSlot=slot;selectedModule=null;$('mapping-editor').close();renderedModel='';renderedSnapshots='';renderedControllers='';movementRevision=-1;render(data);$('patch-status').textContent=action==='paste'?'PATCH PASTED · SAVE pour conserver':data.emptySlot?'EMPTY SLOT · NEW PATCH · SAVE pour conserver':'PATCH LOADED';}
+  else{loadedPatchSlot=slot;selectedModule=null;transformerAdds.clear();$('mapping-editor').close();renderedModel='';renderedSnapshots='';renderedControllers='';movementRevision=-1;render(data);$('patch-status').textContent=action==='paste'?'PATCH PASTED · SAVE pour conserver':data.emptySlot?'EMPTY SLOT · NEW PATCH · SAVE pour conserver':'PATCH LOADED';}
   $('error').textContent='';
  }catch(e){$('error').textContent=e.message;$('patch-status').textContent=e.message;if(action==='load')$('patch-slot').value=previous;}
  finally{setPending(false);$('paste-patch').disabled=!patchClipboard;await refresh();await refreshPatchSlots();}
@@ -839,21 +908,38 @@ function compactPhrases(s){
     const notices=[...row.children].filter(n=>!cells.includes(n)&&n.tagName==='SMALL'&&!n.textContent.endsWith(' events'));
     const grouped=node('div',undefined,'phrase-rails');grouped.append(...cells.slice(8,11));row.replaceChildren(...cells.slice(0,8),grouped,...cells.slice(11));row.querySelector('.phrase-number').title=`Phrase ${p.id} · ${p.events} source events`;row.querySelector('.phrase-number').setAttribute('aria-label',row.querySelector('.phrase-number').title);for(const notice of notices){notice.classList.add('phrase-alert');row.append(notice);}const reassign=find('REASSIGN');if(reassign){reassign.classList.add('phrase-alert');row.append(reassign);}
     const state=node('small',p.state||'IDLE','phrase-state');row.querySelector('.editable-name').append(state);
+    cardActions(row,()=>[{label:'EDIT',run:()=>phraseOptions(p.id)},...(p.events?[blockCopyAction('phrase',p.id)]:[]),...blockPasteActions('phrase',p.id,!!p.events),{label:'DELETE',disabled:!p.events,run:()=>{if(confirm(`Effacer le MIDI de PHRASE ${p.id} ? Son emplacement et ses liens restent en place.`))command({action:'phrase_clear',phraseId:p.id});}}]);
     return row;
   }));
 }
 // A blank is a transactional editor draft, not an unsupported engine type.
+function transformerAddProblem(i,type){
+ if((i.transformers||[]).length>=6)return 'Chaîne complète : 6 transformateurs sur 6. Supprimer un bloc pour en ajouter un autre.';
+ if([3,5].includes(type)&&(i.transformers||[]).some(t=>t.type===type))return `${descriptor(type)?.label||'Ce transformateur'} est déjà présent dans cette chaîne.`;
+ return '';
+}
+async function addTransformerAndEdit(i,type){
+ if(transformerAdds.has(i.id))return false;
+ const current=latest.instruments.find(v=>v.id===i.id);if(!current)return;
+ const problem=transformerAddProblem(current,type);if(problem){$('error').textContent=problem;return;}
+ if($('editor').open){if($('editor').dataset.kind!=='module')return false;if(await window.mbmfModuleFlush?.()===false)return false;$('editor').close();}
+ transformerAdds.set(i.id,{type,before:new Set(current.transformers.map(t=>t.id))});
+ const accepted=await command({action:'module_structure',instrumentId:i.id,operation:'add',engineType:type});
+ if(!accepted){transformerAdds.delete(i.id);renderedModel='';if(latest)render(latest);}
+ else if(transformerAdds.has(i.id)){
+  renderedModel='';render(latest);
+ }
+ return accepted;
+}
 function addEmptyTransformer(i){
  const dialog=$('editor');if(dialog.open)return;const session=engineSession;
  const content=$('editor-content');content.replaceChildren(node('h2',`${i.name||'INSTRUMENT '+i.id} / EMPTY TRANSFORMER`));
  const select=node('select');select.setAttribute('aria-label','Blank Transformer type');
  const blank=node('option','CHOOSE TYPE');blank.value='';select.append(blank);
- for(const d of catalog.modules.filter(m=>m.engineType>0&&(catalog.runtimeCapabilities?.transformerTypes||[1,2,3,4,5,6]).includes(m.engineType))){const o=node('option',d.label);o.value=d.engineType;select.append(o);}
+ for(const d of catalog.modules.filter(m=>m.engineType>0&&(catalog.runtimeCapabilities?.transformerTypes||[1,2,3,4,5,6]).includes(m.engineType))){const o=node('option',d.label);o.value=d.engineType;o.disabled=!!transformerAddProblem(i,d.engineType);select.append(o);}
  const error=node('p');error.setAttribute('role','alert');
- const done=button('DONE',async()=>{if(session!==engineSession){error.textContent='Engine restarted; CANCEL and reopen.';return;}const before=new Set(latest.instruments.find(v=>v.id===i.id)?.transformers.map(t=>t.id)||[]);
-  if(await command({action:'module_structure',instrumentId:i.id,operation:'add',engineType:Number(select.value)})){
-   const instrument=latest.instruments.find(v=>v.id===i.id),module=instrument?.transformers.find(t=>!before.has(t.id));dialog.close();if(module)await editModule(instrument,module);
-  }else error.textContent=$('error').textContent;
+ const done=button('DONE',async()=>{if(session!==engineSession){error.textContent='Engine restarted; CANCEL and reopen.';return;}
+  const type=Number(select.value);dialog.close();await addTransformerAndEdit(i,type);
  });done.disabled=true;select.onchange=()=>done.disabled=!select.value;
  content.append(select,error,done,button('CANCEL',()=>dialog.close()));showEditor(dialog);select.focus();
 }
@@ -888,14 +974,30 @@ function compactInstrument(i){
       if(operation==='bypass')card.append(button(label,run));else actions.push({label:operation==='up'?'MOVE UP':operation==='down'?'MOVE DOWN':'DELETE',run});
     }cardActions(card,actions,()=>editModule(i,tf));card.querySelector('[aria-label="BYPASS"]')?.setAttribute('aria-pressed',String(!tf.enabled));chain.append(card);
   }
+  if(latest?.echocityAvailable){
+    const unit=echoUnits()?.find(v=>v[0]===i.id);
+    if(unit){const card=node('article',undefined,'module');card.dataset.instrumentId=i.id;card.dataset.moduleId='ECHOCITY';
+      card.classList.toggle('bypassed',!unit[1]);card.classList.toggle('selected',selectedModule?.instrumentId===i.id&&selectedModule.moduleId==='ECHOCITY');
+      window.MBMF_TILES?.decorate(card,'TRANSFORMER','echo:'+i.id);
+      card.append(node('strong','ECHOCITY'),node('small',`${unit[9]} × ${unit[3]} ${unit[2]?'beats':'ms'} · DRY ${Math.round(unit[13]*100)}% · WET ${Math.round(unit[5]*100)}%`));
+      card.append(button('BYPASS',()=>{const changed=[...unit];changed[1]=changed[1]?0:1;return commitEcho(i.id,changed);}));
+      cardActions(card,[{label:'EDIT',run:()=>editEcho(i)},{label:'DELETE',run:async()=>{if(confirm('Supprimer ECHOCITY ?')&&await commitEcho(i.id,null)){if($('editor').open)$('editor').close();}}}],()=>editEcho(i));chain.append(card);
+    }
+  }
   const select=node('select');select.setAttribute('aria-label',`Transformer type for Instrument ${i.id}`);
   const blank=node('option','+ ADD EMPTY TRANSFORMER');blank.value='empty';select.append(blank);
-  for(const d of catalog?.modules.filter(m=>m.engineType>0&&(catalog.runtimeCapabilities?.transformerTypes||[1,2,3,4,5,6]).includes(m.engineType))||[]){const option=node('option',d.label);option.value=d.engineType;select.append(option);}
+  blank.disabled=(i.transformers||[]).length>=6;
+  for(const d of catalog?.modules.filter(m=>m.engineType>0&&(catalog.runtimeCapabilities?.transformerTypes||[1,2,3,4,5,6]).includes(m.engineType))||[]){const option=node('option',d.label);option.value=d.engineType;option.disabled=!!transformerAddProblem(i,d.engineType);select.append(option);}
+  if(latest?.echocityAvailable){const option=node('option','ECHOCITY — FIN DE CHAÎNE');option.value='echo';option.disabled=!!echoUnits()?.some(v=>v[0]===i.id);select.append(option);}
   select.value=catalog?.modules.find(m=>m.engineType>0&&(catalog.runtimeCapabilities?.transformerTypes||[1,2,3,4,5,6]).includes(m.engineType))?.engineType??'empty';
   const chosen=transformerChoices.get(i.id);
   if([...select.options].some(option=>option.value===chosen))select.value=chosen;
   select.onchange=()=>transformerChoices.set(i.id,select.value);
-  chain.title=i.serialPitchOrder?'Serial pitch order · Velocity → Polyphony → ARP; CC separate':'Legacy stages: Transpose → Range → Velocity → Polyphony → ARP; CC separate';const addTransformer=button('ADD TRANSFORMER',async()=>{if(select.value==='empty'){addEmptyTransformer(i);return;}await command({action:'module_structure',instrumentId:i.id,operation:'add',engineType:Number(select.value)});});window.MBMF_TILES?.decorate(addTransformer,'TRANSFORMER','add:'+i.id,true);chain.append(select,addTransformer,button('EDIT',()=>editInstrument(i)));n.append(chain);return n;
+  if(select.selectedOptions[0]?.disabled)select.value=[...select.options].find(o=>!o.disabled)?.value||'empty';
+  chain.title=i.serialPitchOrder?'Serial pitch order · Velocity → Polyphony → ARP; CC separate':'Legacy stages: Transpose → Range → Velocity → Polyphony → ARP; CC separate';const addTransformer=button('ADD TRANSFORMER',async()=>{if(select.value==='echo'){await editEcho(i);return;}if(select.value==='empty'){addEmptyTransformer(i);return;}await addTransformerAndEdit(i,Number(select.value));});
+  const full=(i.transformers||[]).length>=6,waiting=transformerAdds.has(i.id),available=[...select.options].some(o=>!o.disabled);select.disabled=!available||waiting;addTransformer.disabled=!available||waiting;if(full){addTransformer.title=transformerAddProblem(i,0);chain.append(node('small','6 / 6 · chaîne complète'));}
+  if(waiting){const notice=node('small',`${descriptor(transformerAdds.get(i.id).type)?.label||'TRANSFORMATEUR'} · en attente du relâchement des notes`);notice.setAttribute('role','status');chain.append(notice);}
+  window.MBMF_TILES?.decorate(addTransformer,'TRANSFORMER','add:'+i.id,true);chain.append(select,addTransformer,button('EDIT',()=>editInstrument(i)));n.append(chain);return n;
 }
 
 $('add-instrument').onclick=()=>command({action:'instrument_add'});

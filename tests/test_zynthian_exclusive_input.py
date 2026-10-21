@@ -127,6 +127,34 @@ class ExclusiveInput(unittest.TestCase):
         self.configure()
         self.assert_virtual_never_enabled()
 
+    def test_disconnected_keyboard_does_not_mute_present_selected_helix(self):
+        self.set_ports([self.keyboard.name,self.ttymidi.name])
+        self.ctx.devices_in[0]=None
+        graph=self.configure()
+        self.assertEqual(graph['ZynMidiRouter:dev2_in'],{'mbh_1:midi_out'})
+        self.assertEqual(self.route(0,1),1)
+        self.assertEqual(self.route(1,1),0)
+        self.assertEqual(self.route(2,1),0)
+        self.assertFalse([c for c in self.api.calls if c[0]=='mode' and c[1]==0])
+        self.assertEqual(json.loads(self.path.read_text())['exclusive_midi_input_ports'],[self.keyboard.name,self.ttymidi.name])
+
+    def test_reconnected_selected_keyboard_rejoins_without_direct_synth_bypass(self):
+        self.set_ports([self.keyboard.name,self.ttymidi.name])
+        self.ctx.devices_in[0]=None;self.configure()
+        self.ctx.devices_in[0]=self.keyboard;graph=self.configure()
+        self.assertEqual(graph['ZynMidiRouter:dev2_in'],{'mbh_1:midi_out'})
+        for device in (0,1):
+            self.assertEqual(self.route(0,device),1)
+            self.assertEqual(self.route(1,device),0)
+            self.assertEqual(self.route(2,device),0)
+
+    def test_unselected_present_device_never_substitutes_missing_selected_one(self):
+        self.ctx.devices_in[0]=None
+        self.set_ports([self.keyboard.name]);self.configure()
+        self.assert_virtual_never_enabled()
+        self.assertEqual(self.route(1,1),1)
+        self.assertFalse([c for c in self.api.calls if c[0]=='mode' and c[1]==1])
+
     def test_no_transient_admission_on_invalid_config(self):
         self.path.write_text('{invalid')
         self.configure()
@@ -227,6 +255,41 @@ class ExclusiveInput(unittest.TestCase):
                           if (c[0]=='route' and c[2]==2) or (c[0]=='mode' and c[1]==2)])
         self.assertEqual(self.route(1,0),0,'unverified recycled graph keeps physical bypass isolated')
         self.assertIsNotNone(self.ctx._mbmf_exclusive)
+
+    def test_moved_virtual_source_retires_proven_disconnected_recycled_slot(self):
+        self.configure();self.api.calls.clear()
+        self.ctx.devices_in[2]=types.SimpleNamespace(name='unrelated:new_input')
+        self.ctx.devices_in[3]=self.virtual
+        self.ctx.jclient.get_all_connections=lambda port:[]
+        router.configure(self.ctx,{})
+        self.assertNotIn(2,self.ctx._mbmf_source_inputs)
+        self.assertIn(3,self.ctx._mbmf_source_inputs)
+        self.assertFalse([c for c in self.api.calls if (c[0]=='route' and c[2]==2) or (c[0] in ('mode','flags') and c[1]==2)])
+        self.assertEqual(self.route(1,3),1)
+        self.assertEqual(self.route(0,3),0)
+
+    def test_recycled_slot_with_live_virtual_jack_edge_stays_blocked(self):
+        self.configure();self.api.calls.clear()
+        self.ctx.devices_in[2]=types.SimpleNamespace(name='unrelated:new_input')
+        self.ctx.devices_in[3]=self.virtual
+        self.ctx.jclient.get_all_connections=lambda port:[self.virtual]
+        router.configure(self.ctx,{})
+        self.assertIn(2,self.ctx._mbmf_source_inputs)
+        self.assertEqual(self.route(1,3),0)
+        self.assertFalse([c for c in self.api.calls if (c[0]=='route' and c[2]==2) or (c[0] in ('mode','flags') and c[1]==2)])
+
+    def test_retired_relay_does_not_restore_flags_over_new_device(self):
+        self.configure();self.api.calls.clear()
+        relay=types.SimpleNamespace(allowed=(self.synth,))
+        self.ctx._mbmf_source_inputs[2]['learn_relay']=relay
+        self.ctx.state_manager.ctrldev_manager=types.SimpleNamespace(drivers={2:relay})
+        self.ctx.devices_in[2]=types.SimpleNamespace(name='unrelated:new_input')
+        self.ctx.devices_in[3]=self.virtual
+        self.ctx.jclient.get_all_connections=lambda port:[]
+        router.configure(self.ctx,{})
+        self.assertNotIn(2,self.ctx.state_manager.ctrldev_manager.drivers)
+        self.assertEqual(relay.allowed,())
+        self.assertFalse([c for c in self.api.calls if (c[0]=='route' and c[2]==2) or (c[0] in ('mode','flags') and c[1]==2)])
 
     def test_failed_physical_mode_restore_can_retry(self):
         self.configure();self.set_ports([])

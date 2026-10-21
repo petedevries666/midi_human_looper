@@ -22,7 +22,7 @@ from urllib.parse import urlsplit
 
 ROOT = Path(__file__).parent / 'web'
 
-PATCH_KEYS={'format','schema','work_mem_size','globals','memory','controllerEngine','globalSnapshots','conductor'}
+PATCH_KEYS={'format','schema','work_mem_size','globals','memory','controllerEngine','globalSnapshots','conductor','echocity'}
 def validate_patch_extensions(patch):
     if not isinstance(patch,dict) or set(patch)-PATCH_KEYS:
         raise ValueError('Unsupported patch fields preserved; refusing to discard configuration.')
@@ -31,6 +31,10 @@ def validate_patch_extensions(patch):
     if 'conductor' in patch:
         from conductor import decode as decode_conductor
         decode_conductor(patch['conductor'])
+    if 'echocity' in patch:
+        from echocity_config import decode as decode_echo
+        decode_echo(patch['echocity'])
+        if patch['schema']!=8:raise ValueError('ECHOCITY requires the native patch format')
     for name,versions in (('controllerEngine',(1,2)),('globalSnapshots',(1,2,3,4))):
         if name in patch and (not isinstance(patch[name],dict) or set(patch[name])!={'version','configuration'} or type(patch[name].get('version')) is not int or patch[name]['version'] not in versions):
             raise ValueError('Unsupported patch extension preserved; refusing to discard configuration.')
@@ -63,7 +67,7 @@ class Control:
                 self._observation_json=json.dumps(state,separators=(',',':')).encode()
             return self._observation_json
 
-    def request(self, op=0, target=0, arg=0, revision=1, ch=0, note=0, value=0, session=0, patch=None, parameters=None, module=0, binding=None, name=None, settings=None, inclusions=None, macro=None,instance=None, phrase=None):
+    def request(self, op=0, target=0, arg=0, revision=1, ch=0, note=0, value=0, session=0, patch=None, parameters=None, module=0, binding=None, name=None, settings=None, inclusions=None, macro=None,instance=None, phrase=None,echo=None):
         # One worker producer owns the engine's command queue; HTTP threads never
         # inspect live engine state. A timeout does not cancel an already executed TEST.
         with self.lock:
@@ -79,6 +83,10 @@ class Control:
             if inclusions is not None:line=line.rstrip('\n')+' include '+str(len(inclusions))+' '+ ' '.join(str(v) for a in inclusions for v in (a['instrumentId'],a['moduleId'],a['kind'],int(a['included'])))+'\n'
             if instance is not None:line=line.rstrip('\n')+' '+str(instance[0])+' '+str(instance[1])+'\n'
             if macro is not None:line=line.rstrip('\n')+' '+' '.join(format(v,'.17g') for v in macro)+'\n'
+            if echo is not None:
+                from echocity_config import decode as decode_echo
+                decode_echo(echo)
+                line=line.rstrip('\n')+' '+' '.join(format(v,'.17g') for v in echo['configuration'])+'\n'
             if parameters is not None:
                 line=line.rstrip('\n')+f' {module} {len(parameters)} '+ ' '.join(f"{p['kind']} {p['value']:.17g}" for p in parameters)+'\n'
             if binding is not None:line=line.rstrip('\n')+' '+' '.join(format(v,'.17g') for v in binding)+'\n'
@@ -103,6 +111,8 @@ class Control:
                     line=line.rstrip('\n')+' snapshots '+' '.join(format(v,'.17g') for v in snapshot_wire)+'\n'
             if patch is not None and 'conductor' in patch:
                 line=line.rstrip('\n')+' conductor '+str(len(patch['conductor']['configuration']))+' '+' '.join(str(v) for v in patch['conductor']['configuration'])+'\n'
+            if patch is not None and 'echocity' in patch:
+                line=line.rstrip('\n')+' echocity '+' '.join(format(v,'.17g') for v in patch['echocity']['configuration'])+'\n'
             with socket.socket(socket.AF_UNIX) as client:
                 client.settimeout(15)
                 client.connect(self.path)
@@ -299,6 +309,7 @@ class Handler(BaseHTTPRequestHandler):
             self.respond(200,asset.read_bytes(),types[asset.suffix]);return
         files = {'/': ('index.html', 'text/html; charset=utf-8'),
                  '/app.js': ('app.js', 'text/javascript; charset=utf-8'),
+                 '/block-tools.js': ('block-tools.js', 'text/javascript; charset=utf-8'),
                  '/conductor.js': ('conductor.js', 'text/javascript; charset=utf-8'),
                  '/movement.js': ('movement.js', 'text/javascript; charset=utf-8'),
                  '/update.js': ('update.js', 'text/javascript; charset=utf-8'),
@@ -372,6 +383,36 @@ class Handler(BaseHTTPRequestHandler):
         except (ValueError,KeyError,TypeError) as error:self.respond(422,{'error':str(error)})
         except OSError:self.respond(503,{'error':'Engine unavailable'})
 
+    def block_command(self):
+        from block_edit import capture, paste, KINDS
+        try:
+            length=int(self.headers.get('Content-Length','0'))
+            if not 0<length<=2048:raise ValueError('Invalid block command')
+            data=json.loads(self.rfile.read(length))
+            action=data.get('action');kind=data.get('kind')
+            if kind not in KINDS or action not in ('copy','paste'):raise ValueError('Invalid block operation')
+            revision=data.get('expectedRevision');session=data.get('expectedEngineSessionId')
+            if type(revision) is not int or not 1<=revision<2147483647 or type(session) is not int or not 1<=session<=9007199254740991:raise ValueError('Revision/session required')
+            with self.server.patch_lock,self.server.control.lock:
+                patch=self.server.control.request(op=4,arg=1,revision=revision,session=session)
+                if patch.get('format')!='MIDI_HUMAN_LOOPER_PATCH':
+                    self.respond(409,{'error':'STOP et relâcher les notes avant COPY / PASTE. Réessayer après la fin des échos.'});return
+                context=(session,self.server.switch_presets.read()['activeSlot'])
+                if action=='copy':
+                    clip=capture(patch,kind,data.get('source'))
+                    ident=os.urandom(12).hex()
+                    self.server.block_clipboards[kind]=(ident,context,clip)
+                    self.respond(200,{'clipboardId':ident,'kind':kind});return
+                stored=self.server.block_clipboards.get(kind)
+                if not stored or stored[0]!=data.get('clipboardId'):raise ValueError('COPY expiré ; copier à nouveau')
+                if data.get('mode')=='swap' and stored[1]!=context:raise ValueError('SWAP exige le patch source actuel ; copier à nouveau')
+                result,ident=paste(patch,stored[2],data.get('target'),data.get('mode','empty'))
+                reply=self.server.control.request(op=5,arg=1,target=result['schema'],revision=revision,session=session,patch=result)
+                if reply.get('status')!='ok':self.respond(409,reply);return
+                self.respond(200,{'status':'ok','kind':kind,'id':ident})
+        except (ValueError,KeyError,TypeError,StopIteration) as error:self.respond(422,{'error':str(error) or 'Block missing'})
+        except (OSError,RuntimeError) as error:self.respond(503,{'error':str(error)})
+
     def do_POST(self):
         if not self.allowed(api=True):
             return
@@ -387,6 +428,8 @@ class Handler(BaseHTTPRequestHandler):
             self.project_command(self.path.rsplit('/',1)[-1]);return
         if self.path == '/api/v1/phrase/midi':
             self.phrase_import();return
+        if self.path == '/api/v1/blocks':
+            self.block_command();return
         if self.path in ('/api/v1/patch/save','/api/v1/patch/load','/api/v1/patch/export','/api/v1/patch/copy','/api/v1/patch/paste','/api/v1/patch/rename'):
             self.patch_command();return
         if self.path != '/api/v1/command':
@@ -571,6 +614,10 @@ class Handler(BaseHTTPRequestHandler):
                 p=next((p for p in REGISTRY.parameters.values() if p['engineKind']==kind),None)
                 if not p or not p['min']<=value<=p['max'] or (kind!=14 and abs(value/p['step']-round(value/p['step']))>1e-6):raise ValueError()
                 args=dict(op=32,target=target,arg=kind,macro=[module,value])
+            elif action=='echocity_commit':
+                from echocity_config import decode as decode_echo
+                extension=data.get('echocity');decode_echo(extension)
+                args=dict(op=54,echo=extension)
             elif action=='module_structure':
                 target=data.get('instrumentId');module=data.get('moduleId',0);op=data.get('operation');type_=data.get('engineType',0)
                 if any(type(v) is not int or not 0<=v<=16777215 for v in (target,module,type_)) or not target or op not in ('add','delete','bypass','up','down'):raise ValueError()
@@ -772,6 +819,7 @@ def make_server(bind, port, path, token='',patch_dir=None,host_chain_socket=None
     server.bind_address, server.token, server.control = bind, token, Control(path)
     server.patch_dir=Path(patch_dir) if patch_dir else Path.home()/'.local/share/midi-human-looper'
     server.patch_lock=threading.RLock()
+    server.block_clipboards={}
     server.host_chain_socket=host_chain_socket
     from project_sync import ProjectStore
     server.projects=ProjectStore(server.patch_dir,server.control)

@@ -1,5 +1,6 @@
 {
   "contractVersion": 1,
+  "nativeParameterOverrides": {"velocity": {"max": 8}},
   "parameters": [
     {
       "id": "velocity",

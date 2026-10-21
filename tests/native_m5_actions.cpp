@@ -33,8 +33,8 @@ int main(int argc,char**argv){
  }
  {
   Host h(argv[1]);setup(h);conductor_install(h,actionModel("STOP",source,false,"HOLD"));h.midi(144,110,100);h.events();check(conductor_active(h)==1,"HOLD action does not execute on PRESS");
-  h.run("conductor_hold(0,0);");h.block();auto events=h.events();check(conductor_count(events,128,48)==1&&conductor_active(h)==0,"HOLD action executes once at its phase");
-  h.run("conductor_hold(0,0);");h.block();check(h.events().empty(),"repeated HOLD notification cannot repeat action");
+  h.run("mem[sw_rt(0)+1]=sw_clock-srate;");h.block();auto events=h.events();check(conductor_count(events,128,48)==1&&conductor_active(h)==0,"HOLD action executes once at its phase");
+  h.block();check(h.events().empty(),"repeated HOLD notification cannot repeat action");
  }
  {
   Host h(argv[1]);setup(h);conductor_install(h,actionModel("PAUSE",all));h.midi(144,110,100);check(h.events().empty(),"unsupported legacy action never falls back");check(conductor_active(h)==1,"unsupported action preserves notes");

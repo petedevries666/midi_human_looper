@@ -33,7 +33,8 @@ int main(int argc,char**argv){
   }
   check(conductor_active(h)==2,"two legitimate HOLD occurrences remain after wrap");
   h.eq("mem[NOTE_REF_BASE+2*128+48]",2,"both same-pitch HOLD owners are retained");
-  h.run("sw_stop_phrases();");h.block();auto events=h.events();
+  h.run("b=sw_cfg(1);mem[b]=1;mem[b+1]=1;mem[b+2]=1;mem[b+3]=0;mem[b+4]=111;mem[b+5]=0;mem[b+6]=0;mem[b+14]=SW_STOP;");
+  h.midi(144,111,100);auto events=h.events();
   std::cout<<"HOLD wrap STOP MIDI "<<conductor_events(events)<<std::endl;
   check(countMidi(events,130,48)==1,"STOP releases final shared owner exactly once");
   check(conductor_active(h)==0,"STOP retires both HOLD occurrences");

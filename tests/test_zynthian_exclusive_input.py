@@ -256,6 +256,41 @@ class ExclusiveInput(unittest.TestCase):
         self.assertEqual(self.route(1,0),0,'unverified recycled graph keeps physical bypass isolated')
         self.assertIsNotNone(self.ctx._mbmf_exclusive)
 
+    def test_moved_virtual_source_retires_proven_disconnected_recycled_slot(self):
+        self.configure();self.api.calls.clear()
+        self.ctx.devices_in[2]=types.SimpleNamespace(name='unrelated:new_input')
+        self.ctx.devices_in[3]=self.virtual
+        self.ctx.jclient.get_all_connections=lambda port:[]
+        router.configure(self.ctx,{})
+        self.assertNotIn(2,self.ctx._mbmf_source_inputs)
+        self.assertIn(3,self.ctx._mbmf_source_inputs)
+        self.assertFalse([c for c in self.api.calls if (c[0]=='route' and c[2]==2) or (c[0] in ('mode','flags') and c[1]==2)])
+        self.assertEqual(self.route(1,3),1)
+        self.assertEqual(self.route(0,3),0)
+
+    def test_recycled_slot_with_live_virtual_jack_edge_stays_blocked(self):
+        self.configure();self.api.calls.clear()
+        self.ctx.devices_in[2]=types.SimpleNamespace(name='unrelated:new_input')
+        self.ctx.devices_in[3]=self.virtual
+        self.ctx.jclient.get_all_connections=lambda port:[self.virtual]
+        router.configure(self.ctx,{})
+        self.assertIn(2,self.ctx._mbmf_source_inputs)
+        self.assertEqual(self.route(1,3),0)
+        self.assertFalse([c for c in self.api.calls if (c[0]=='route' and c[2]==2) or (c[0] in ('mode','flags') and c[1]==2)])
+
+    def test_retired_relay_does_not_restore_flags_over_new_device(self):
+        self.configure();self.api.calls.clear()
+        relay=types.SimpleNamespace(allowed=(self.synth,))
+        self.ctx._mbmf_source_inputs[2]['learn_relay']=relay
+        self.ctx.state_manager.ctrldev_manager=types.SimpleNamespace(drivers={2:relay})
+        self.ctx.devices_in[2]=types.SimpleNamespace(name='unrelated:new_input')
+        self.ctx.devices_in[3]=self.virtual
+        self.ctx.jclient.get_all_connections=lambda port:[]
+        router.configure(self.ctx,{})
+        self.assertNotIn(2,self.ctx.state_manager.ctrldev_manager.drivers)
+        self.assertEqual(relay.allowed,())
+        self.assertFalse([c for c in self.api.calls if (c[0]=='route' and c[2]==2) or (c[0] in ('mode','flags') and c[1]==2)])
+
     def test_failed_physical_mode_restore_can_retry(self):
         self.configure();self.set_ports([])
         original=self.api.zmip_set_flag_active_chain

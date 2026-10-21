@@ -59,7 +59,7 @@ inline std::vector<double> compile(const std::vector<unsigned>& bytes,double bas
     if(out[h+7]&&sw.object.count("advance")&&choice(sw.at("advance"),{"RELEASE"}))out[h+7]=2;
     unsigned stepStart=out.size();out.resize(out.size()+sw.at("steps").array.size()*80,0);unsigned stepIndex=0;
     for(const auto& step:sw.at("steps").array) {
-      std::array<double,80> record{};std::vector<double> admissions,heldAdmissions,longAdmissions,releaseAdmissions,chargeAdmissions,revealOptions;unsigned longMask=0;
+      std::array<double,80> record{};std::vector<double> admissions,heldAdmissions,longAdmissions,releaseAdmissions,chargeAdmissions,revealOptions,actions;unsigned longMask=0;
       record[0]=choice(step.at("transition"),{"INHERIT","IMMEDIATE","END_OF_PHRASE"});
       record[71]=choice(step.at("transition"),{"END_OF_PHRASE"})||(choice(step.at("transition"),{"INHERIT"})&&choice(sw.at("transition"),{"END_OF_PHRASE"}));
       unsigned n=0;
@@ -71,6 +71,29 @@ inline std::vector<double> compile(const std::vector<unsigned>& bytes,double bas
       }
       for(const auto& layer:step.at("layers").array) {
         const auto& b=layer.at("block");if(b.type=='z')continue;
+        if(choice(b.at("type"),{"ACTION"})){
+          const auto& target=b.at("target");unsigned op=0,kind=0,id=0;
+          if(choice(b.at("action"),{"STOP"}))op=1;
+          else if(choice(b.at("action"),{"RESET_CURSOR"}))op=3;
+          else if(choice(b.at("action"),{"RESET_SHUFFLE_BAG"}))op=4;
+          else if(choice(b.at("action"),{"STOP_RESET"}))op=5;
+          else if(choice(b.at("action"),{"PANIC"}))op=6;
+          if(choice(target.at("type"),{"PHRASE"})){
+            auto it=slots.find(target.at("sourceId").text);if(it==slots.end()){record[0]=0;++record[1];continue;}id=it->second;
+          }else if(choice(target.at("type"),{"MUTE_GROUP"})){kind=1;id=unsigned(target.at("id").number);}
+          else if(choice(target.at("type"),{"ALL_PHRASES"}))kind=2;
+          else{kind=3;id=SwitchCapacity;for(unsigned j=0;j<SwitchCapacity;++j)if(owners[j]==target.at("switchId").number)id=j;if(id==SwitchCapacity){record[0]=0;++record[1];continue;}}
+          if(!op||(op==5&&kind!=3)||(op==6&&kind!=2)||actions.size()>=128){record[0]=0;continue;}
+          unsigned phase=choice(b.at("trigger"),{"HOLD"})?1:0;
+          // Destructive global actions are barriers; self-reset may not leave
+          // pending phrase/MOVEMENT admissions in this step.
+          bool barrier=(op==1&&kind==2)||op==5||op==6||(kind==3&&id==si);
+          if(barrier)for(const auto& other:step.at("layers").array){const auto& x=other.at("block");if(x.type=='z'||&x==&b)continue;
+            unsigned xp=choice(x.at("type"),{"ACTION"})?(choice(x.at("trigger"),{"HOLD"})?1:0):(onHold(x)?1:onLongHold(x)?2:releaseBlock(x)?3:chargeBlock(x)?4:0);
+            if(xp==phase||(kind==3&&id==si))record[0]=0;
+          }
+          actions.insert(actions.end(),{double(phase),double(op),double(kind),double(id)});continue;
+        }
         if(choice(b.at("type"),{"MOVEMENT"})){
           auto it=movements.find(b.at("id").text);
           if(it==movements.end()){
@@ -111,6 +134,7 @@ inline std::vector<double> compile(const std::vector<unsigned>& bytes,double bas
       }
       record[75]=chargeAdmissions.size();record[77]=base+out.size();out.insert(out.end(),chargeAdmissions.begin(),chargeAdmissions.end());record[78]=base+out.size();
       out.insert(out.end(),{threshold,full,double(binding.size()/7)});out.insert(out.end(),binding.begin(),binding.end());
+      record[79]=base+out.size();out.push_back(actions.size()/4);out.insert(out.end(),actions.begin(),actions.end());
       std::copy(record.begin(),record.end(),out.begin()+stepStart+(stepIndex-1)*80);
 
     }

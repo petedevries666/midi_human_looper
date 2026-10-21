@@ -34,6 +34,7 @@ int main(int argc,char**argv){
   check(conductor_active(h)==2,"two legitimate HOLD occurrences remain after wrap");
   h.eq("mem[NOTE_REF_BASE+2*128+48]",2,"both same-pitch HOLD owners are retained");
   h.run("sw_stop_phrases();");h.block();auto events=h.events();
+  std::cout<<"HOLD wrap STOP MIDI "<<conductor_events(events)<<std::endl;
   check(countMidi(events,130,48)==1,"STOP releases final shared owner exactly once");
   check(conductor_active(h)==0,"STOP retires both HOLD occurrences");
   std::cout<<"PASS M5 HOLD wrap: "<<checks<<" checks\n";

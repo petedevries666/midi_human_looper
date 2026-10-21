@@ -2,6 +2,9 @@
 #include "native_test_host.hpp"
 #include "conductor_baseline_cases.hpp"
 #include "conductor_execution_cases.hpp"
+static unsigned countMidi(const std::vector<std::vector<int>>& events,int status,int pitch){
+  unsigned n=0;for(const auto&e:events)if(e.size()==3&&e[0]==status&&e[1]==pitch&&(status<144||e[2]>0))++n;return n;
+}
 
 static std::vector<unsigned> fiveSteps() {
   std::ostringstream s;
@@ -22,16 +25,16 @@ int main(int argc,char**argv){
   conductor_install(h,fiveSteps());
   for(unsigned step=0;step<6;++step){
     h.midi(144,110,100);auto events=h.events();unsigned pitch=step==5?48:step==4?49:48+step;
-    check(conductor_count(events,146,pitch)==1,"every step including 5-to-1 emits its actual MIDI attack");
+    check(countMidi(events,146,pitch)==1,"every step including 5-to-1 emits its actual MIDI attack");
     h.eq("mem[conductor_header(0)+3]",step%5,"five-step cursor wraps once");
     h.midi(128,110,0);events=h.events();
-    check(conductor_count(events,130,48)==0,"pedal release does not kill latched MASTER HOLD");
-    for(unsigned n=0;n<12;++n){h.block();events=h.events();check(conductor_count(events,130,48)==0,"recorded Off and natural boundary retain HOLD ownership");}
+    check(countMidi(events,130,48)==0,"pedal release does not kill latched MASTER HOLD");
+    for(unsigned n=0;n<12;++n){h.block();events=h.events();check(countMidi(events,130,48)==0,"recorded Off and natural boundary retain HOLD ownership");}
   }
   check(conductor_active(h)==2,"two legitimate HOLD occurrences remain after wrap");
   h.eq("mem[NOTE_REF_BASE+2*128+48]",2,"both same-pitch HOLD owners are retained");
   h.run("sw_stop_phrases();");h.block();auto events=h.events();
-  check(conductor_count(events,130,48)==1,"STOP releases final shared owner exactly once");
+  check(countMidi(events,130,48)==1,"STOP releases final shared owner exactly once");
   check(conductor_active(h)==0,"STOP retires both HOLD occurrences");
   std::cout<<"PASS M5 HOLD wrap: "<<checks<<" checks\n";
 }

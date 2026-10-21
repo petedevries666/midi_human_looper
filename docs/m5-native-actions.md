@@ -36,7 +36,15 @@ STOP followed by a fresh attack, held-pedal timing, conflicts and missing target
 Direct EEL calls outside an audio block are not used as MIDI output evidence:
 the host clears that output at the next processing block.
 
-PR #99's 397 native checks and the initial HOLD/action tests passed on run
-39587353854. Final expanded barrier/missing-target checks require their own run.
-Configuration persistence/legacy and physical performance qualification are
-reported separately. This is a tested subset, not completion of M5 unification.
+Final code validation: GitHub Actions run 39587720213 on commit
+ a0b7455b38a8dbbf74a72b64fa9792f07713ebcb passed:
+
+- 397 native PR #99 ownership/retrigger/lifecycle checks.
+- 110 five-step HOLD/group-zero wrap checks; terminal STOP trace [[130,48,0]].
+- 116 actual native action checks, including cross-phase barriers/missing targets.
+- 24 real native persistence tests and 5 legacy source/parameter tests.
+
+The PR50 ARP fixture predated already-shipped modes. The regression now pins
+all 13 existing modes while preserving the original three indices; production
+ARP behavior was not changed. Physical performance and editor qualification
+remain pending. This is a tested subset, not completion of M5 unification.

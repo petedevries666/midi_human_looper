@@ -37,6 +37,18 @@ class LegacyContract(unittest.TestCase):
         self.assertEqual(actual['contractVersion'],expected['contractVersion'])
         by_id={p['id']:p for p in actual['parameters']}
         for parameter in expected['parameters']:
+            if parameter['id'] == 'arp_mode':
+                # PR50 predates the shipped native random ARP additions. Keep
+                # original indices frozen and pin the explicit newer contract;
+                # M5 must not redefine either old or new choices.
+                parameter = copy.deepcopy(parameter)
+                self.assertEqual(parameter['choices'], ['RANDOM', 'UP', 'DOWN'])
+                parameter['max'] = 12
+                parameter['choices'] += [
+                    'RANDOM NO REPEAT', 'RANDOM BAG', 'RANDOM LOOP',
+                    'RANDOM WALK', 'RANDOM MUTATE', 'RANDOM WEIGHTED',
+                    'RANDOM CLIMB UP', 'RANDOM CLIMB DOWN',
+                    'RANDOM CLIMB UP / DOWN', 'RANDOM CLIMB DOWN / UP']
             self.assertEqual({key:by_id[parameter['id']][key] for key in parameter},parameter)
 
     def test_cross_host_sample_conversion_preserves_source_and_independence(self):

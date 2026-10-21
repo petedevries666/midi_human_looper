@@ -180,6 +180,27 @@ def run(output, performance=False):
                 page.locator('.conductor-add-menu').get_by_text('MOVEMENTS',exact=True).click()
                 page.get_by_role('button',name='MOVEMENT · FILTER RISE',exact=True).click()
                 capture('movement-layer-editor')
+                col=page.locator('.conductor-step').first
+                col.get_by_role('button',name='ADD LAYER',exact=True).click()
+                page.get_by_role('button',name='Add PHRASE STEP 1 LAYER 3',exact=True).click()
+                page.locator('.conductor-add-menu').get_by_text('ACTIONS',exact=True).click()
+                page.get_by_role('button',name='ACTION STOP',exact=True).click()
+                page.get_by_label('ACTION TARGET',exact=True).select_option('PHRASE')
+                page.get_by_label('ACTION TRIG',exact=True).select_option('HOLD')
+                capture('conductor-action-editor','[aria-label="ACTION TYPE"]')
+                page.get_by_label('ACTION TYPE',exact=True).select_option('RESET_CURSOR')
+                assert page.get_by_label('TARGET SWITCH',exact=True).input_value()=='1'
+                page.get_by_label('ACTION TYPE',exact=True).select_option('STOP')
+                page.get_by_label('ACTION TARGET',exact=True).select_option('PHRASE')
+                page.get_by_role('button',name='DONE',exact=True).click()
+                page.locator('#editor').wait_for(state='hidden')
+                saved=page.evaluate("fetch('/api/v1/conductor').then(r=>r.json())")['model']
+                action_block=next(v for v in saved['switches'] if v['switchId']==1)['steps'][0]['layers'][2]['block']
+                assert action_block['type']=='ACTION' and action_block['trigger']=='HOLD' and action_block['target']['type']=='PHRASE'
+                page.locator('[data-switch-id="1"]').get_by_role('button',name='CONDUCTOR',exact=True).click()
+                page.locator('.conductor-step').first.get_by_role('button',name='EDIT BLOCK',exact=True).last.click()
+                assert page.get_by_label('ACTION TRIG',exact=True).input_value()=='HOLD'
+
                 page.get_by_role('button',name='CANCEL',exact=True).click()
                 movement_model=page.evaluate("fetch('/api/v1/conductor').then(r=>r.json())")['model']
                 api.command('conductor_commit',conductor=dict(version=1,sources=movement_model['sources'],switches=[]))

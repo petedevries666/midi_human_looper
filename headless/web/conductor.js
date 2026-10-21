@@ -44,7 +44,7 @@ async function editConductor(sw){
 
  const source=b=>b?.type==='MOVEMENT'?model.movements?.find(s=>s.id===b.sourceId):model.sources.find(s=>s.id===b?.sourceId&&s.type===b?.type);
  const phrase=b=>latest.phrases.find(p=>p.id===source(b)?.slot);
- const label=b=>{if(b.type==='MOVEMENT'){const m=source(b);return m?`MOVEMENT · ${m.name}`:`MISSING · ${b.sourceId}`;}if(b.type!=='PHRASE')return `${b.type} · UNAVAILABLE · ${b.sourceId||''}`;const p=phrase(b);return p?`${String(p.id).padStart(2,'0')} · ${p.name||'PHRASE '+p.id}${p.events?'':' · EMPTY'}`:`MISSING · ${b.sourceId||b.type}`;};
+ const label=b=>{if(b.type==='ACTION')return `ACTION · ${b.action}`;if(b.type==='MOVEMENT'){const m=source(b);return m?`MOVEMENT · ${m.name}`:`MISSING · ${b.sourceId}`;}if(b.type!=='PHRASE')return `${b.type} · UNAVAILABLE · ${b.sourceId||''}`;const p=phrase(b);return p?`${String(p.id).padStart(2,'0')} · ${p.name||'PHRASE '+p.id}${p.events?'':' · EMPTY'}`:`MISSING · ${b.sourceId||b.type}`;};
  const mode=b=>b.overrides?.playMode?.mode==='OVERRIDE'?b.overrides.playMode.value:['LOOP','ONCE','HOLD'][phrase(b)?.mode]||'—';
  const ensure=s=>{if(!sequence.steps.includes(s))sequence.steps.push(s);};
  const action=(name,fn)=>{const control=button({'EDIT BLOCK':'EDIT','REMOVE BLOCK':'DELETE'}[name]||name,()=>{if(!committing)fn();});control.setAttribute('aria-label',name);control.title=name;return control;};
@@ -58,7 +58,11 @@ async function editConductor(sw){
   menu.append(category);
   const movements=node('details');movements.append(node('summary','MOVEMENTS'));movements.onpointerenter=()=>movements.open=true;movements.querySelector('summary').onclick=e=>{e.preventDefault();movements.open=true;};
   if(s.layers[0]!==l){for(const m of model.movements||[])movements.append(action(`MOVEMENT · ${m.name}`,()=>change(()=>{ensure(s);l.block={id:uuid(),type:'MOVEMENT',sourceId:m.id,overrides:{}};selected=s.id;})));if(!model.movements?.length)movements.append(node('small','Create a source in MOVEMENTS'));}else movements.append(node('small','LAYER 01 is PHRASE MASTER'));
-  menu.append(movements,action('CLOSE',removeMenu));anchor.parentElement.append(menu);
+  menu.append(movements);
+  if(s.layers[0]!==l){const actions=node('details');actions.append(node('summary','ACTIONS'));
+   for(const name of ['STOP','RESET_CURSOR','RESET_SHUFFLE_BAG','STOP_RESET','PANIC'])actions.append(action('ACTION '+name,()=>{change(()=>{ensure(s);l.block={id:uuid(),type:'ACTION',action:name,target:name.startsWith('RESET')||name==='STOP_RESET'?{type:'SWITCH',switchId:sw.id}:{type:'ALL_PHRASES'},trigger:'PRESS'};selected=s.id;});properties(s,l);}));menu.append(actions);
+  }
+  menu.append(action('CLOSE',removeMenu));anchor.parentElement.append(menu);
   menu.onkeydown=e=>{if(e.key==='Escape'){e.preventDefault();e.stopPropagation();removeMenu();anchor.focus();}};
   menu.querySelector('button')?.focus();
  }
@@ -115,6 +119,21 @@ async function editConductor(sw){
  function properties(s,l){
   editing=l.id;side.replaceChildren();const b=l.block;
   side.append(node('h3',label(b)),node('small','LOCAL · source unchanged'));
+  if(b.type==='ACTION'){
+   const select=(title,current,options,update)=>{const row=node('label',title,'conductor-option'),input=node('select');input.setAttribute('aria-label',title);
+    if(!options.some(([value])=>value===String(current)))options.unshift([String(current),'MISSING / PRESERVED · '+current]);
+    for(const [value,text] of options){const o=node('option',text);o.value=value;input.append(o);}input.value=current;input.onchange=()=>{checkpoint();update(input.value);paint();properties(s,l);};row.append(input);side.append(row);};
+   const names=['STOP','RESET_CURSOR','RESET_SHUFFLE_BAG','STOP_RESET','PANIC'];
+   select('ACTION TYPE',b.action,names.map(v=>[v,v]),value=>{b.action=value;b.target=value.startsWith('RESET')||value==='STOP_RESET'?{type:'SWITCH',switchId:sw.id}:{type:'ALL_PHRASES'};});
+   select('ACTION TRIG',b.trigger,[['PRESS','PRESS'],['HOLD','HOLD']],value=>b.trigger=value);
+   if(!names.includes(b.action)){side.append(node('p','Action conservée mais non exécutée par ce moteur.'));return;}
+   const types=b.action==='STOP'?['PHRASE','MUTE_GROUP','ALL_PHRASES']:b.action==='PANIC'?['ALL_PHRASES']:['SWITCH'];
+   select('ACTION TARGET',b.target.type,types.map(v=>[v,v]),type=>{b.target=type==='PHRASE'?{type,sourceId:model.sources[0]?.id||uuid()}:type==='MUTE_GROUP'?{type,id:1}:type==='SWITCH'?{type,switchId:sw.id}:{type};});
+   if(b.target.type==='PHRASE')select('TARGET PHRASE',b.target.sourceId,model.sources.filter(v=>v.type==='PHRASE').map(v=>[v.id,latest.phrases.find(p=>p.id===v.slot)?.name||'PHRASE '+v.slot]),value=>b.target.sourceId=value);
+   if(b.target.type==='SWITCH')select('TARGET SWITCH',String(b.target.switchId),latest.switches.map(v=>[String(v.id),v.name||'SWITCH '+v.id]),value=>b.target.switchId=Number(value));
+   if(b.target.type==='MUTE_GROUP'){const row=node('label','TARGET MUTE GROUP','conductor-option'),input=node('input');input.type='number';input.min=1;input.max=16777215;input.step=1;input.value=b.target.id;input.setAttribute('aria-label','TARGET MUTE GROUP');input.onchange=()=>{if(!input.checkValidity())return;checkpoint();b.target.id=Number(input.value);paint();properties(s,l);};row.append(input);side.append(row);}
+   side.append(node('small',b.action==='STOP'&&b.target.type!=='ALL_PHRASES'?'Arrête la cible avant les nouvelles phrases du step.':'STOP global, PANIC et RESET du switch courant doivent être seuls dans leur step.'),action('CLOSE PROPERTIES',()=>{editing=null;side.replaceChildren();}));return;
+  }
   if(b.type==='PHRASE'||b.type==='MOVEMENT'){
    const row=node('label','TRIG','conductor-option'),policy=node('select'),value=node('select');row.title='Trigger gesture';policy.setAttribute('aria-label','TRIGGER inheritance');value.setAttribute('aria-label','TRIGGER override');
    for(const name of ['INHERIT','OVERRIDE']){const o=node('option',name);o.value=name;policy.append(o);}for(const name of ['PRESS','HOLD','LONG_HOLD','RELEASE','SUPERCHARGE_RELEASE']){const o=node('option',name.replace('_',' '));o.value=name;value.append(o);}policy.value=b.overrides.trigger?.mode||'INHERIT';value.value=b.overrides.trigger?.value||'PRESS';value.disabled=policy.value!=='OVERRIDE';
@@ -199,7 +218,7 @@ async function editConductor(sw){
    }
    s.layers.forEach((l,li)=>{
     const cell=node('div',undefined,'conductor-layer');cell.dataset.layerId=l.id;cell.append(node('small',li===0?'01 MASTER':String(li+1).padStart(2,'0')));
-    if(l.block){const b=l.block;cell.dataset.blockId=b.id;cell.classList.toggle('missing-source',!source(b));cell.append(node('strong',label(b)),node('output',b.type==='PHRASE'?`${mode(b)} · ${b.overrides?.trigger?.value||'PRESS'}${b.overrides.entry?.mode==='OVERRIDE'&&b.overrides.entry.value==='REVEAL'?' · REVEAL '+(b.overrides.release?.value||'LATCH'):''}`:b.type==='MOVEMENT'?`${b.overrides?.movementDuration?.mode==='OVERRIDE'?b.overrides.movementDuration.value:source(b)?.duration??'—'}s · ${b.overrides?.trigger?.value||'PRESS'} · ${(b.overrides?.movementPlayMode?.mode==='OVERRIDE'?b.overrides.movementPlayMode.value:source(b)?.playMode)==='GATED'?'MAINTENU':'ONE SHOT'}`:'UNSUPPORTED · preserved'));
+    if(l.block){const b=l.block;cell.dataset.blockId=b.id;cell.classList.toggle('missing-source',b.type!=='ACTION'&&!source(b));cell.append(node('strong',label(b)),node('output',b.type==='PHRASE'?`${mode(b)} · ${b.overrides?.trigger?.value||'PRESS'}${b.overrides.entry?.mode==='OVERRIDE'&&b.overrides.entry.value==='REVEAL'?' · REVEAL '+(b.overrides.release?.value||'LATCH'):''}`:b.type==='MOVEMENT'?`${b.overrides?.movementDuration?.mode==='OVERRIDE'?b.overrides.movementDuration.value:source(b)?.duration??'—'}s · ${b.overrides?.trigger?.value||'PRESS'} · ${(b.overrides?.movementPlayMode?.mode==='OVERRIDE'?b.overrides.movementPlayMode.value:source(b)?.playMode)==='GATED'?'MAINTENU':'ONE SHOT'}`:b.type==='ACTION'?`${b.trigger} · ${b.target.type}`:'UNSUPPORTED · preserved'));
      cell.append(action('EDIT BLOCK',()=>properties(s,l)),action('REMOVE BLOCK',()=>change(()=>l.block=null)),action('REPLACE BLOCK',()=>choose(s,l,cell.lastElementChild)));
     }else{const add=action(`Add PHRASE STEP ${index+1} LAYER ${li+1}`,()=>choose(s,l,add));add.textContent='+';add.className='conductor-add';cell.append(add,node('small','EMPTY'));}
     if(sequence.steps.includes(s)){

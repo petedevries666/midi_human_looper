@@ -71,3 +71,49 @@ UNSOLO ALL workaround and no assertion of a hardware fix from source reading.
 - B4/B5 gesture arbitration and five-step HOLD/group-zero wrap regression,
   incorporating PR #99 without conflating HOLD with ONCE.
 - Separate draft PRs, reproducible test evidence and hardware limitations.
+
+## Runtime trace and migration gate
+
+The frozen source's `conductor_press` waits on MASTER using both voice slot and
+instance serial; END_OF_PHRASE uses the next cycle boundary for looping voices,
+or source end for finite playback. `conductor_release_owned` preserves native
+latched HOLD except explicit all/cancellation and unrevealed/gated ownership.
+The original independent attack suppression can explain silent group-zero
+re-entry; PR #99 removes it. A five-step HOLD wrap MIDI trace is still needed
+before attributing this report solely to that fix. Do not delete HOLD retention.
+
+The document schema already accepts configuration-only ACTION blocks, but the
+native compiler marks them unsupported. Also, legacy RANDOM/REVERSE/PING-PONG
+and CLASSIFIED are not supported by this Conductor compiler, which accepts only
+SEQUENTIAL/INSTANT. Automatically converting every old switch now would break
+existing configurations. Keep the legacy executor until those paths have real
+native regression coverage; visual consolidation is not execution unification.
+
+Proposed action execution contract for the subsequent native implementation:
+
+1. Resolve all typed targets and reserve the entire phase before any output.
+   Unresolved or unsupported actions reject the phase without partial notes.
+2. Preserve MASTER voice+serial and boundary semantics. Empty MASTER stays empty;
+   an ordinary action or phrase never implicitly becomes the clock master.
+3. STOP/RESET act on previously existing owners, followed by admissions in layer
+   order, with output timestamps preserved. Self-reset or recall mixed with new
+   admissions is an explicit conflict, not an order-dependent surprise.
+4. PANIC and RECALL PATCH are exclusive barrier phases; reject coexistence with
+   phrase/MOVEMENT/MIDI admissions. Recall crosses a bounded host queue outside
+   the realtime callback and completes through the shared RecallService.
+5. No synchronous switch-to-switch invocation. Reject recursive references and
+   internal recall loops; raw PC on the reserved recall channel cannot implicitly
+   become a second local recall action.
+6. Gesture phases retain INSTANT versus CLASSIFIED intent. LONG_HOLD is additive
+   only where configured; never synthesize a second PRESS/step advancement. Gate
+   release targets captured ownership, not whichever step is current afterward.
+
+These are proposed implementation rules, not features already supported. The
+current Windows host has no native compiler or usable WSL installation, and the
+live Pi was not used for compilation or private engine runs. Real generated EEL
+and terminal-MIDI evidence is required before replacing the dual executors.
+
+Delivered incremental drafts: #100 recall/bank with 17 host and four dispatch
+fixtures plus UI-handler tests; #101 isolated upstream SOLO candidate (original
+three failures, candidate three passes); #102 panel cleanup (syntax only,
+visual validation outstanding). M5-B remains unimplemented, not silently closed.

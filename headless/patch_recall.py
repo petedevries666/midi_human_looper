@@ -78,7 +78,7 @@ class RecallService:
         snapshots=[];root=Path(self.manager.snapshot_dir)
         for path in sorted(root.glob('*/*.zss')):
             if not path.is_symlink() and not path.name.startswith('.'):
-                snapshots.append(dict(path=str(path.relative_to(root)),name=path.stem))
+                snapshots.append(dict(path=path.relative_to(root).as_posix(),name=path.stem))
         rows=[];chain_error=''
         if self.active is None and self.pending is None:
             try:rows=self.chain_saves.inventory()
@@ -193,7 +193,9 @@ class RecallService:
         journal=self.directory/'patch-pair-journal.json'
         if not journal.exists():return
         data=json.loads(journal.read_text());slot=slot_number(data['slot']);stage=self.directory/'patch-pair-stage'
-        if stage.is_symlink() or not data['snapshot'].startswith(f'MBMF/{slot:03}-') or set(data['existed'])-{'patch','snapshot','registry'}:raise ValueError('Invalid interrupted pair-save journal; originals preserved')
+        # Accept old journals for recovery, but write new pairs in the native bank.
+        prefixes=(f'MBMF/{slot:03}-',f'001-MBMF/{slot:03}-')
+        if stage.is_symlink() or not data['snapshot'].startswith(prefixes) or set(data['existed'])-{'patch','snapshot','registry'}:raise ValueError('Invalid interrupted pair-save journal; originals preserved')
         target=self.snapshot_path(data['snapshot'])
         for destination,name in ((self.library/f'patch{slot}.json','patch'),(target,'snapshot'),(self.path,'registry')):
             backup=stage/(name+'.old')
@@ -210,7 +212,7 @@ class RecallService:
         if patch.get('format')!='MIDI_HUMAN_LOOPER_PATCH':raise ValueError('Cannot export current patch')
         name=read(self.library).get(str(slot),'') or f'PATCH {slot:02}'
         safe=re.sub(r'[^\w .-]','_',name).strip(' .') or 'PATCH'
-        relative=f'MBMF/{slot:03}-{safe}.zss';target=self.snapshot_path(relative);target.parent.mkdir(exist_ok=True)
+        relative=f'001-MBMF/{slot:03}-{safe}.zss';target=self.snapshot_path(relative);target.parent.mkdir(exist_ok=True)
         old_link=self.settings['links'].get(str(slot))
         if target.exists() and (old_link is None or old_link['snapshot']!=relative):raise ValueError('A snapshot with that name already exists; link it explicitly or choose another patch name')
         stage=self.directory/'patch-pair-stage'

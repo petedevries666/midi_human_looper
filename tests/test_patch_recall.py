@@ -76,12 +76,33 @@ class RecallTests(unittest.TestCase):
   self.assertFalse(any(op==2 for op,_ in self.control.calls))
  def test_save_pair_and_rename_preserves_link(self):
   rename(self.library,127,'MONZTER','');self.service.save_pair(127)
-  link=self.service.settings['links']['127'];self.assertEqual(link['snapshot'],'MBMF/127-MONZTER.zss');self.assertEqual(checked_patch(self.library/'patch127.json')['memory'],[9]);self.assertTrue(self.service.snapshot_path(link['snapshot']).is_file())
+  link=self.service.settings['links']['127'];self.assertEqual(link['snapshot'],'001-MBMF/127-MONZTER.zss');self.assertEqual(checked_patch(self.library/'patch127.json')['memory'],[9]);self.assertTrue(self.service.snapshot_path(link['snapshot']).is_file())
   rename(self.library,127,'MONZTER NEW','MONZTER');self.assertEqual(self.service.settings['links']['127'],link);self.assertEqual(read(self.library)['127'],'MONZTER NEW')
  def test_save_pair_failure_preserves_previous_files(self):
   before=(self.library/'patch2.json').read_bytes();self.manager.save_snapshot=lambda p:False
   with self.assertRaises(ValueError):self.service.save_pair(2)
   self.assertEqual((self.library/'patch2.json').read_bytes(),before);self.assertNotIn('2',self.service.settings['links'])
+ def test_new_bank_visible_and_legacy_snapshot_preserved(self):
+  legacy=self.snapshots/'MBMF'/'002-old.zss';legacy.parent.mkdir();self.save(legacy)
+  original=legacy.read_bytes();self.service.request(dict(operation='link',slot=2,snapshot='MBMF/002-old.zss'))
+  self.service.recall(2);self.assertEqual(self.loads[-1],str(legacy))
+  self.service.save_pair(2);relative=self.service.settings['links']['2']['snapshot']
+  self.assertTrue(relative.startswith('001-MBMF/002-'))
+  self.assertEqual(legacy.read_bytes(),original)
+  self.assertIn(relative,[row['path'] for row in self.service.status()['snapshots']])
+ def test_new_bank_collision_preserves_unassociated_snapshot(self):
+  target=self.snapshots/'001-MBMF'/'002-PATCH 02.zss';target.parent.mkdir();target.write_text('unrelated')
+  before=(self.library/'patch2.json').read_bytes()
+  with self.assertRaisesRegex(ValueError,'already exists'):self.service.save_pair(2)
+  self.assertEqual(target.read_text(),'unrelated');self.assertEqual((self.library/'patch2.json').read_bytes(),before)
+ def test_legacy_journal_recovery_remains_supported(self):
+  stage=self.root/'patch-pair-stage';stage.mkdir()
+  legacy=self.snapshots/'MBMF'/'002-old.zss';legacy.parent.mkdir();legacy.write_text('partial')
+  (stage/'snapshot.old').write_text('original')
+  (stage/'patch.old').write_bytes((self.library/'patch2.json').read_bytes())
+  atomic_json(self.root/'patch-pair-journal.json',dict(slot=2,snapshot='MBMF/002-old.zss',existed=['patch','snapshot']))
+  self.service.recover_save();self.assertEqual(legacy.read_text(),'original')
+  self.assertFalse((self.root/'patch-pair-journal.json').exists())
  def test_interrupted_pair_save_rolls_back(self):
   self.service.save_pair(2);before=(self.library/'patch2.json').read_bytes();link=copy.deepcopy(self.service.settings['links']['2'])
   original=__import__('patch_recall').atomic_json

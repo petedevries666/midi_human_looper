@@ -39,5 +39,14 @@ int main(int argc,char**argv){
  {
   Host h(argv[1]);setup(h);conductor_install(h,actionModel("PAUSE",all));h.midi(144,110,100);check(h.events().empty(),"unsupported legacy action never falls back");check(conductor_active(h)==1,"unsupported action preserves notes");
  }
+ {
+  Host h(argv[1]);setup(h);conductor_install(h,actionModel("STOP",all,true,"HOLD"));h.midi(144,110,100);
+  check(h.events().empty(),"global STOP with other phase is an explicit barrier conflict");check(conductor_active(h)==1,"cross-phase conflict preserves original owner");
+ }
+ {
+  Host h(argv[1]);setup(h);auto missing="{\"type\":\"PHRASE\",\"sourceId\":\""+conductor_uuid(99)+"\"}";
+  conductor_install(h,actionModel("STOP",missing,true));h.midi(144,110,100);
+  check(h.events().empty(),"missing action target rejects new phrase atomically");check(conductor_active(h)==1,"missing target preserves original owner");
+ }
  printf("PASS %d actual native Conductor action checks\n",checks);
 }

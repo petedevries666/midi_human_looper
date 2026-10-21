@@ -89,8 +89,9 @@ inline std::vector<double> compile(const std::vector<unsigned>& bytes,double bas
           // pending phrase/MOVEMENT admissions in this step.
           bool barrier=(op==1&&kind==2)||op==5||op==6||(kind==3&&id==si);
           if(barrier)for(const auto& other:step.at("layers").array){const auto& x=other.at("block");if(x.type=='z'||&x==&b)continue;
-            unsigned xp=choice(x.at("type"),{"ACTION"})?(choice(x.at("trigger"),{"HOLD"})?1:0):(onHold(x)?1:onLongHold(x)?2:releaseBlock(x)?3:chargeBlock(x)?4:0);
-            if(xp==phase||(kind==3&&id==si))record[0]=0;
+            // STOP-all/PANIC clear pending gestures too; reject cross-phase
+            // companions instead of silently losing their later HOLD action.
+            record[0]=0;
           }
           actions.insert(actions.end(),{double(phase),double(op),double(kind),double(id)});continue;
         }

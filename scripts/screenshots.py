@@ -95,7 +95,9 @@ def run(output, performance=False):
                     page.locator('.conductor-editor').wait_for()
 
                 def capture(name,selector=None):
-                    if 'editor' in name and 'name-editor' not in name:page.locator('#editor').wait_for(state='visible')
+                    if name.startswith('controller-') and name in ('controller-editor','controller-advanced'):
+                        page.locator('#mapping-editor').wait_for(state='visible')
+                    elif 'editor' in name and 'name-editor' not in name:page.locator('#editor').wait_for(state='visible')
                     if performance and name not in ('phrases','instruments','transformer-editor'): return
                     if selector:
                         page.locator(selector).first.evaluate("e=>e.scrollIntoView({block:'start'})")
@@ -232,9 +234,10 @@ def run(output, performance=False):
                 page.get_by_role('slider',name='TEST SOURCE 101',exact=True).fill('96')
                 capture('controller-live-test','#controller-section')
                 page.get_by_role('button',name='ADD MAPPING',exact=True).click()
-                capture('controller-editor')
-                page.locator('#editor details summary').first.click()
-                capture('controller-advanced');page.keyboard.press('Escape')
+                capture('controller-editor','#mapping-editor')
+                page.locator('#mapping-editor details summary').first.click()
+                capture('controller-advanced','#mapping-editor')
+                page.locator('#mapping-editor').get_by_role('button',name='CANCEL',exact=True).click()
                 page.get_by_role('button',name='+ CAPTURE SNAPSHOT',exact=True).click()
                 page.locator('[data-snapshot-id]').first.wait_for()
                 page.get_by_role('button',name='+ CAPTURE SNAPSHOT',exact=True).click()

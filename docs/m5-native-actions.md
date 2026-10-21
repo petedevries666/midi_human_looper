@@ -23,7 +23,28 @@ Global STOP, STOP_RESET, PANIC and self-reset must be alone in the step, includi
 across gesture phases. These helpers clear pending gestures; allowing a PRESS
 barrier beside a HOLD layer would silently discard that layer. Conflicting
 steps are refused, not partially executed. Arbitrary MIDI, recall, pause/resume,
-legacy traversal migration and editor controls remain subsequent work.
+and legacy traversal migration remain subsequent work.
+
+## Switch creation and editor
+
+New switches created through the Web receive one empty Conductor step. Existing
+switches, sources and shared phrase/controller settings remain unchanged. Both
+schema 7 and schema 8 patch layouts are supported without editing the frozen JSFX.
+The dedicated Conductor editor offers ACTION blocks on non-MASTER layers, with
+explicit action, trigger and destination fields.
+
+An existing utility preset may replace only the exact empty default Conductor,
+after the normal preset preview. Authored steps remain protected. This compatibility
+path retains the existing utility executor: automatic migration of legacy traversal
+and gesture behavior is not yet proven equivalent. A failed library write restores
+the previous native configuration; guarded captures prevent activation during play.
+If native rollback is refused, its recovery journal is retained and failure is
+reported, rather than claiming successful restoration.
+
+The native creation/preset test exercises both schemas, empty-step recall,
+successful utility application and an injected library-write failure with rollback.
+Web visual qualification is still pending; the following older run is evidence
+for the engine subset only, not for the subsequently added editor or presets.
 
 ## Reproducible isolated validation
 

@@ -8,8 +8,8 @@ from conductor import encode
 
 
 def add_switch(patch):
-    if patch.get('schema') != 8:
-        raise ValueError('Native schema 8 required; original preserved')
+    if patch.get('schema') not in (7, 8):
+        raise ValueError('Schema 7 or 8 required; original preserved')
     result = copy.deepcopy(patch)
     c = layout(result)
     mem = result['memory']

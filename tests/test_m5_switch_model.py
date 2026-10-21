@@ -3,9 +3,22 @@ import unittest
 from test_block_edit import fixture, model, switches
 from switch_model import add_switch
 from native_capacity import layout
+from switch_presets import apply_config,empty_conductor_ids
 
 
 class NewSwitch(unittest.TestCase):
+    def test_existing_utility_preset_can_replace_only_blank_default(self):
+        before,identity=add_switch(fixture())
+        cfg=copy.deepcopy(switches(before)[2]['config'])
+        cfg['settings'][1]=0
+        after,resolved,warnings,errors=apply_config(before,identity,cfg)
+        self.assertFalse(errors)
+        self.assertTrue(warnings)
+        self.assertIn(identity,empty_conductor_ids(before))
+        self.assertNotIn(identity,{s['switchId'] for s in model(after)['switches']})
+        self.assertEqual(switches(after)[identity]['config']['sequence'],cfg['sequence'])
+        with self.assertRaisesRegex(ValueError,'CONDUCTOR'):apply_config(before,1,cfg)
+
     def test_new_switch_is_one_empty_step_and_preserves_existing_data(self):
         before=fixture(); original=copy.deepcopy(before)
         after, identity=add_switch(before)

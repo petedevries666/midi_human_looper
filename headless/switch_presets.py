@@ -2,7 +2,7 @@
 import copy,hashlib,json,math,re,secrets,threading,time,uuid
 from pathlib import Path
 from project_sync import atomic_json
-from conductor import decode as decode_conductor
+from conductor import decode as decode_conductor, encode as encode_conductor
 from controller_config import decode as decode_controllers
 
 FIELDS=(0,2,3,4,12,13,6,7,8,9,10,11,14,15,16,17,18,19)
@@ -42,6 +42,19 @@ def switches(patch):
 
 def conductor_ids(patch):
  return {s['switchId'] for s in decode_conductor(patch['conductor'])['switches']} if patch.get('conductor') else set()
+
+def empty_conductor_ids(patch):
+ # Only the exact blank default is replaceable by an existing utility preset.
+ if not patch.get('conductor'):return set()
+ result=set()
+ for sw in decode_conductor(patch['conductor'])['switches']:
+  if set(sw)!={'switchId','traversal','transition','gesture','steps'}:continue
+  if (sw['traversal'],sw['transition'],sw['gesture'])!=('SEQUENTIAL','IMMEDIATE','INSTANT'):continue
+  steps=sw['steps']
+  if len(steps)!=1 or set(steps[0])!={'id','transition','layers'} or steps[0]['transition']!='INHERIT':continue
+  layers=steps[0]['layers']
+  if len(layers)==1 and layers[0]['block'] is None:result.add(sw['switchId'])
+ return result
 
 def snapshot_bound(patch,owner):
  wire=patch.get('globalSnapshots',{}).get('configuration',[])
@@ -86,7 +99,10 @@ def metadata(config,patch,owner):
 def apply_config(patch,owner,config,refs=None,resolutions=None):
  result=copy.deepcopy(patch);sw=switches(result);refs=refs or {};resolutions=resolutions or {};warnings=[];errors=[]
  if owner not in sw:raise ValueError('Destination switch missing')
- if owner in conductor_ids(result):raise ValueError('This switch owns a CONDUCTOR; preset application refused')
+ if owner in conductor_ids(result):
+  if owner not in empty_conductor_ids(result):raise ValueError('This switch owns a CONDUCTOR; preset application refused')
+  document=decode_conductor(result['conductor']);document['switches']=[s for s in document['switches'] if s['switchId']!=owner];result['conductor']=encode_conductor(document)
+  warnings.append('Replace the empty default Conductor with this utility preset; existing gestures retained')
  if snapshot_bound(result,owner):raise ValueError('SNAP has priority on this switch; use another switch or clear its SNAP actions first')
  config=validate_config(config);s=config['settings'];modules=module_targets(result)
  for i,key in enumerate(GESTURES):
@@ -143,7 +159,7 @@ class Store:
     if not path.exists():continue
     try:
      if path.stat().st_size>134217728:raise ValueError('Saved patch oversized')
-     p=json.loads(path.read_text());owners=conductor_ids(p)
+     p=json.loads(path.read_text());owners=conductor_ids(p)-empty_conductor_ids(p)
      saved.append(dict(slot=slot,switches=[dict(id=k,name=v['config']['name'],conductor=k in owners,snapshot=snapshot_bound(p,k)) for k,v in switches(p).items()],modules=module_targets(p)))
     except (ValueError,KeyError,TypeError) as error:saved.append(dict(slot=slot,switches=[],modules=[],error=str(error)))
    try:
@@ -162,7 +178,7 @@ class Store:
    ident=request.get('presetId');preset=data['presets'].get(ident);files={};summary=[];warnings=[];errors=[];current_config=None;current_owner=owner
    if operation in ('save','update'):
     config=validate_config(request.get('config'));name=text(request.get('name'),64)
-    if owner in conductor_ids(patch):raise ValueError('Save only switches without a CONDUCTOR')
+    if owner in conductor_ids(patch)-empty_conductor_ids(patch):raise ValueError('Save only switches without a CONDUCTOR')
     if snapshot_bound(patch,owner):raise ValueError('SNAP actions use patch-specific snapshots; save a classic switch instead')
     if operation=='save':ident=str(uuid.uuid4())
     elif not preset:raise ValueError('Preset missing')
@@ -207,7 +223,12 @@ class Store:
     names=('NONE','NEXT PHRASE','STOP PHRASES','RESET SEQUENCE','RESET ALL','STOP + RESET','PANIC','TOGGLE MODULE','ENABLE MODULE','DISABLE MODULE')
     summary.append(' / '.join(k.upper().replace('_',' ')+': '+names[s[12+i] if i<3 else lh['action']] for i,k in enumerate(GESTURES)))
    data['revision']+=1;token=secrets.token_hex(16);self.plans={k:v for k,v in self.plans.items() if v['expires']>time.monotonic()}
-   self.plans[token]=dict(expires=time.monotonic()+180,oldLibrary=self.read(),library=data,files=files,config=current_config,owner=current_owner,oldConfig=switches(patch)[current_owner]['config'],revision=state['revision'],session=state['engineSessionId'],errors=errors)
+   old_patch=new_patch=None
+   if current_config and current_owner in empty_conductor_ids(patch):
+    old_patch=patch
+    new_patch,_,_,conversion_errors=apply_config(patch,current_owner,current_config,metadata(current_config,patch,current_owner))
+    errors+=conversion_errors
+   self.plans[token]=dict(oldPatch=old_patch,newPatch=new_patch,expires=time.monotonic()+180,oldLibrary=self.read(),library=data,files=files,config=current_config,owner=current_owner,oldConfig=switches(patch)[current_owner]['config'],revision=state['revision'],session=state['engineSessionId'],errors=errors)
    return dict(previewId=token,summary=summary,warnings=warnings,errors=errors,presetId=ident)
  def execute(self,token):
   with self.lock,self.control.lock:
@@ -225,14 +246,18 @@ class Store:
     config=plan['config']
     if config:
      s=list(config['settings']);s[11]=len(config['sequence']);lh=config['longHold'];wire=s+[n-1 for n in config['sequence']]+[0]*(64-len(config['sequence']))+[ord(c) for c in config['name']]+[0]*(16-len(config['name']))+[lh[k] for k in ('milliseconds','action','target')]
-     result=self.control.request(op=41,target=plan['owner'],settings=wire,revision=state['revision'],session=state['engineSessionId'])
+     if plan.get('newPatch'):
+      result=self.control.request(op=5,arg=1,target=plan['newPatch']['schema'],patch=plan['newPatch'],revision=state['revision'],session=state['engineSessionId'])
+     else:result=self.control.request(op=41,target=plan['owner'],settings=wire,revision=state['revision'],session=state['engineSessionId'])
      if result.get('status')!='ok':raise ValueError('Engine refused preset; saved patches restored')
      native_changed=True
     atomic_json(self.path,plan['library']);self.active_slot=plan['library']['activeSlot'];journal.unlink();return dict(status='ok',library=plan['library'])
    except Exception:
     if native_changed:
      old=plan['oldConfig'];s=list(old['settings']);s[11]=len(old['sequence']);lh=old['longHold'];wire=s+[n-1 for n in old['sequence']]+[0]*(64-len(old['sequence']))+[ord(c) for c in old['name']]+[0]*(16-len(old['name']))+[lh[k] for k in ('milliseconds','action','target')]
-     fresh=self.control.request();self.control.request(op=41,target=plan['owner'],settings=wire,revision=fresh['revision'],session=fresh['engineSessionId'])
+     fresh=self.control.request()
+     if plan.get('oldPatch'):self.control.request(op=5,arg=1,target=plan['oldPatch']['schema'],patch=plan['oldPatch'],revision=fresh['revision'],session=fresh['engineSessionId'])
+     else:self.control.request(op=41,target=plan['owner'],settings=wire,revision=fresh['revision'],session=fresh['engineSessionId'])
     for name in written:
      if plan['files'][name]['old'] is None:Path(name).unlink(missing_ok=True)
      else:atomic_json(name,plan['files'][name]['old'])
@@ -266,3 +291,4 @@ class Store:
     out,_,_,errors=apply_config(out,int(owner),preset['config'],preset.get('references'))
     if errors:raise ValueError('; '.join(errors))
    return out
+

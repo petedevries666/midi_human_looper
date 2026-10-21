@@ -1,0 +1,36 @@
+name: M5 isolated native regressions
+on:
+  pull_request:
+    paths:
+      - 'headless/**'
+      - 'tests/**'
+      - 'scripts/m5-hold-wrap-test.sh'
+      - '.github/workflows/m5-native.yml'
+permissions:
+  contents: read
+concurrency:
+  group: m5-native-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+jobs:
+  native:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Build isolated native dependencies and engine
+        env:
+          BUILD_JOBS: 2
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libfontconfig1-dev libfreetype6-dev
+          bash scripts/headless-setup.sh
+      - name: Execute real EEL ownership and HOLD wrap regressions
+        run: |
+          bash scripts/once-retrigger-test.sh
+          bash scripts/m5-hold-wrap-test.sh
+      - name: Run Conductor configuration regressions
+        run: |
+          python3 tests/test_conductor_persistence.py
+          python3 tests/test_conductor_legacy_contract.py

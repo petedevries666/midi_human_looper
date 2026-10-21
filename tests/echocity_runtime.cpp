@@ -43,7 +43,7 @@ int main(){
  {
   Runtime r(8000);Output out;auto emit=[&](auto...args){return out(args...);};r.configure(settings());
   CHECK(r.source(edge(true),0,120,emit));CHECK(r.source(edge(true,Origin::Phrase,99),0,120,emit));
-  CHECK(r.source({SourceAction::StopPhrases,{},0,0},10,120,emit));CHECK(r.sources()==1 && r.pending()==2 && out.count==1);
+  CHECK(r.source({SourceAction::StopPhrases,{},0,0},10,120,emit));CHECK(r.sources()==1 && r.pending()==2 && out.count==2);
   CHECK(r.source(edge(false),20,120,emit));r.render(0,256,emit);CHECK(!r.sources()&&!r.pending());
  }
  {

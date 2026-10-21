@@ -3,7 +3,8 @@
 #include "echocity_wire.hpp"
 namespace echocity {
 // Terminal instrument effect. Logical dry notes and delayed voices share one
-// output ledger; only delayed attacks retrigger a held physical MIDI pitch.
+// output ledger. Phrase dry attacks remain audible as repeated Note Ons;
+// delayed attacks retain their existing explicit Off/On retrigger policy.
 class Runtime {
   using Scheduler=native_notes::Scheduler<256,2048>;
   using Outputs=native_notes::Outputs<4096>;
@@ -65,7 +66,7 @@ public:
         velocity=result.dryVelocity;if(!result.ok)++rejected;break;
       }
       const Outputs::Routed note{0,e.key.channel,e.key.pitch,uint8_t(velocity)};
-      if(velocity && !outputs.attackBatch(token,&note,1,[&](const Outputs::Routed *batch,size_t count){return count==1 && emit(sample,true,batch[0].channel,batch[0].pitch,batch[0].velocity,false);})){failed=true;scheduler.cancelSource(token,sample,[&](const Event&v){return voice(v,emit);});releaseDry(token,sample,emit);return false;}
+      if(velocity && !outputs.attackBatch(token,&note,1,[&](const Outputs::Routed *batch,size_t count){return count==1 && emit(sample,true,batch[0].channel,batch[0].pitch,batch[0].velocity,false);},false,e.key.origin==Origin::Phrase && e.key.instance!=0)){failed=true;scheduler.cancelSource(token,sample,[&](const Event&v){return voice(v,emit);});releaseDry(token,sample,emit);return false;}
       return true;
     }
     if(e.action==SourceAction::Off){

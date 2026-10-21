@@ -245,7 +245,7 @@ class RecallService:
             self.phase='preflight';self.error=''
             try:
                 from patch_lock import library_lock
-                with library_lock(self.library):
+                with library_lock(self.library,wait=True):
                     if job[0]=='recall':self.recall(job[1])
                     elif job[0]=='save_chain':
                         self.phase='saving_chain';self.chain_saves.save(job[1])

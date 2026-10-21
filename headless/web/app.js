@@ -584,6 +584,7 @@ async function patch(action){
  setPending(true);$('patch-status').textContent='…';
  try{
   const data=await request(`/api/v1/patch/${action}`,{slot,expectedRevision:revision,expectedEngineSessionId:engineSession,...(action==='paste'?{clipboardId:patchClipboard}:{})});
+  if(data.status==='queued'){$('patch-status').textContent='RAPPEL EN ATTENTE · PATCH + SNAPSHOT selon configuration';return;}
   if(action==='copy'){patchClipboard=data.clipboardId;$('patch-status').textContent='PATCH COPIED';}
   else if(action==='save'){$('patch-status').textContent='PATCH SAVED';loadedPatchSlot=slot;}
   else if(action==='export')$('patch-status').textContent=`EXPORTED ${data.file}`;

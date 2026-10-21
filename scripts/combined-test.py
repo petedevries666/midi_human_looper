@@ -51,6 +51,7 @@ try:
     run([sys.executable,'tests/test_conductor_legacy_contract.py'])
     run([sys.executable,'tests/test_conductor_persistence.py'])
     run([sys.executable,'tests/test_movement_persistence.py'])
+    run(['scripts/once-retrigger-test.sh'])
     run(['scripts/movement-test.sh'])
     run(['scripts/movement-test.sh'],{'SANITIZE':'1'})
     run(['scripts/realtime-trace-test.sh'])

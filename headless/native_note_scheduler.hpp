@@ -274,7 +274,9 @@ public:
   struct Routed {uint32_t branch=0;uint8_t channel=0,pitch=0,velocity=0;bool retrigger=false;};
   // The emitter reserves the whole physical batch atomically before committing.
   // No first-half chord may escape if the downstream queue cannot accept it.
-  template<class EmitBatch> bool attackBatch(Token voice,const Routed *notes,size_t length,EmitBatch emit,bool retrigger=false){
+  // repeatAttack emits another On without an Off, retaining earlier leases.
+  // retrigger keeps the explicit Off/On policy used by delayed echo voices.
+  template<class EmitBatch> bool attackBatch(Token voice,const Routed *notes,size_t length,EmitBatch emit,bool retrigger=false,bool repeatAttack=false){
     constexpr size_t maxFanout=16;
     if(!voice || !notes || !length || length>maxFanout || length>Capacity)return false;
     std::array<size_t,maxFanout> free{};size_t available=0;
@@ -283,7 +285,7 @@ public:
       if(n.channel>15 || n.pitch>127 || !n.velocity || n.velocity>127)return false;
       for(size_t k=0;k<j;++k)if(notes[k].branch==n.branch)return false;
       for(const auto &v:leases)if(v.used && v.voice==voice && v.branch==n.branch)return false;
-      if(!held[n.channel*128+n.pitch] || retrigger){
+      if(!held[n.channel*128+n.pitch] || retrigger || repeatAttack){
         bool duplicate=false;for(size_t k=0;k<attacks;++k)if(physical[k].channel==n.channel && physical[k].pitch==n.pitch)duplicate=true;
         if(!duplicate){physical[attacks]=n;physical[attacks++].retrigger=retrigger && held[n.channel*128+n.pitch]>0;}
       }

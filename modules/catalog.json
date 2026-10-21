@@ -1,6 +1,6 @@
 {
   "contractVersion": 1,
-  "nativeParameterOverrides": {"velocity": {"max": 8}},
+  "nativeParameterOverrides": {"velocity": {"max": 8}, "phrase_velocity_decay": {"max": 2}},
   "parameters": [
     {
       "id": "velocity",

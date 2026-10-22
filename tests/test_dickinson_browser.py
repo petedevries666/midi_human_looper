@@ -25,12 +25,15 @@ try:
   saved=json.loads((api.server.patch_dir/'patch1.json').read_text())
   assert (saved['nativeArp']['configuration'][3],saved['nativeArp']['configuration'][4])==(4,1),('saved native ARP',saved.get('nativeArp'))
   api.cmd('parameter_set',targetId=1,moduleId=arp['id'],kind=27,value=1)
+  expected_revision=api.control.request()['revision']
+  page.wait_for_function('(expected)=>revision===expected',expected_revision)
   sent=[];original_request=api.server.control.request
   def capture_load(*args,**kwargs):
    if kwargs.get('op')==5:sent.append(kwargs.get('patch'))
    return original_request(*args,**kwargs)
   api.server.control.request=capture_load
   page.get_by_role('button',name='LOAD PATCH',exact=True).click();page.wait_for_function('()=>!pending')
+  assert not page.locator('#error').inner_text(),page.locator('#error').inner_text()
   assert sent and sent[-1].get('nativeArp')==saved['nativeArp'],('load carrier',sent[-1].get('nativeArp') if sent else None)
   api.server.control.request=original_request
   assert (values()[27],values()[28])==(4,1),('native state after LOAD',values())

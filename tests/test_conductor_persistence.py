@@ -156,6 +156,15 @@ class ConductorPersistence(HeadlessTests):
         self.command('instrument_route',instrumentId=1,field='level',value=73)
         self.call(dict(protocolVersion=1,action='conductor_commit',conductor=self.model,expectedRevision=old['revision']),expected=409)
         self.assertIsNone(self.data()['model'])
+    def test_action_phase_triggers_are_validated_and_round_trip(self):
+        for trigger in ('PRESS','HOLD','LONG_HOLD','RELEASE','SUPERCHARGE_RELEASE'):
+            model=copy.deepcopy(self.model)
+            layer=model['switches'][0]['steps'][0]['layers'][1]
+            layer['block']=dict(id=uid(),type='ACTION',action='STOP',
+                                target=dict(type='ALL_PHRASES'),trigger=trigger)
+            self.assertEqual(conductor.validate(model),model)
+            self.assertEqual(conductor.decode(conductor.encode(model)),model)
+
     def test_two_switches_shared_source_actions_no_autoplay(self):
         other=copy.deepcopy(self.model['switches'][0]);other['switchId']=2
         for st in other['steps']:

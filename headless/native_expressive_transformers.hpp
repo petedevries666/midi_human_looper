@@ -293,6 +293,16 @@ public:
       return (!instrument||k.instrument==instrument)&&(!module||ownerModule==module);
     },emit);
   }
+  // Mirrors a downstream channel-mode clear already emitted by the host.
+  void channelCleared(unsigned channel){
+    if(channel>15)return;
+    for(size_t i=0;i<N;++i)if(voices[i].used&&voices[i].key.channel==channel){
+      remove(uint32_t(i),voices[i].token.generation);
+      if(reserved>=voices[i].reservations)reserved-=voices[i].reservations;
+      voices[i]=Voice{};
+    }
+    for(unsigned pitch=0;pitch<128;++pitch)physicalOwners[channel*128+pitch]=0;
+  }
   // Only after successful physical all-notes-off recovery.
   void recovered(){voices.fill(Voice{});dueCount=0;physicalOwners.fill(0);reserved=0;recoveryNeeded=false;}
 };

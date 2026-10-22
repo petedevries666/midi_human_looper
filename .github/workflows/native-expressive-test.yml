@@ -21,3 +21,5 @@ jobs:
         run: |
           g++ -std=c++17 -O1 -g -fsanitize=address,undefined -fno-omit-frame-pointer -Wall -Wextra -Werror -pedantic -Iheadless tests/native_expressive_transformers.cpp -o /tmp/mbmf-native-expressive-asan
           /tmp/mbmf-native-expressive-asan
+      - name: Validate versioned patch codec
+        run: python3 tests/test_native_expressive_config.py

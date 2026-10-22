@@ -86,6 +86,27 @@ try:
   assert api.call()['instruments'][0]['level']==2,'bend and multipoint curve must change native scaling'
   page.wait_for_function("""() => document.querySelector('[data-instrument-id="1"] input[aria-label="VOLUME Instrument 1"]').value==='2'""")
   emitted=api.call()['lastEvent'];assert emitted[1:]==[176,7,2],f'named controller curve must emit actual instrument CC7 volume: {emitted}'
+  # Reopening a mapped slider and changing its base value must leave its
+  # controller curve editable and committed. The cyan marker follows the live
+  # effective output while the slider thumb continues to represent the base.
+  live=page.locator('[data-instrument-id="1"] [data-modulation-live]')
+  page.wait_for_function("""() => {const m=document.querySelector('[data-instrument-id="1"] [data-modulation-live]');return m&&!m.hidden&&m.style.left!==''}""")
+  before_live=float(live.evaluate("(e)=>parseFloat(e.style.left)"))
+  api.command('midi_cc',channel=2,number=21,value=96)
+  page.wait_for_function("""before => {const m=document.querySelector('[data-instrument-id="1"] [data-modulation-live]');return m&&!m.hidden&&Math.abs(parseFloat(m.style.left)-before)>1}""",before_live)
+  rail=page.get_by_role('slider',name='VOLUME Instrument 1',exact=True)
+  rail.click()
+  page.get_by_label('Controller source',exact=True).wait_for()
+  page.evaluate("""() => {const e=document.querySelector('[data-instrument-id="1"] input[aria-label="VOLUME Instrument 1"]');e.value='80';e.dispatchEvent(new Event('input',{bubbles:true}));e.dispatchEvent(new Event('change',{bubbles:true}));}""")
+  page.wait_for_function("""() => document.querySelector('[data-instrument-id="1"] input[aria-label="VOLUME Instrument 1"]').value==='80'""")
+  page.get_by_role('button',name='DONE',exact=True).click()
+  page.locator('#mapping-editor').wait_for(state='hidden')
+  from controller_config import decode
+  after_base_edit=decode(api.call()['controllerEngine'])
+  assert len(after_base_edit['mappings'])==1,'editing the base slider must preserve its controller assignment'
+  assert after_base_edit['mappings'][0]['points'][1][1]==.25,'editing the base slider must preserve the response curve'
+  api.command('panic');api.patch('save');api.patch('load')
+  from controller_config import decode
   api.command('panic');api.patch('save');api.patch('load')
   from controller_config import decode
   config=decode(api.call()['controllerEngine']);assert config['sources'][0]['name']=='EXP 1 CODIE'

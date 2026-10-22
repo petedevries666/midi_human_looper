@@ -166,7 +166,7 @@ int main(){
   assert(saved[0].humanizer.timingMs==15.5&&saved[0].humanizer.liveLookaheadMs==80);
   assert(saved[0].curve.count==3&&saved[0].curve.points[1].x==64&&saved[0].curve.points[1].y==127);
   const auto savedJson=configurationJson(saved);
-  assert(savedJson.find("\\\"version\\\":1")!=std::string::npos);
+  assert(savedJson.find("\"version\":1")!=std::string::npos);
   std::istringstream invalidWire("1 1 1 10 1 15.5 -2 50 1 1 1 42 80 11 1 50 3 1 1 1 127 127 1");
   assert(!readConfiguration(invalidWire,saved));
   std::cout << "native expressive stream and config tests PASS\n";

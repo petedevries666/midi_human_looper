@@ -3446,7 +3446,7 @@ int main(int argc, char **argv) {
           // post-routing point. ORIGINAL and ambiguous shared channels pass
           // through until the source bridge can provide an instrument ID.
           int instrument=-1;
-          for(unsigned k=0;k<8;++k)if(*model.inst[k][0]>.5&&unsigned(*model.inst[k][4])==channel+1){if(instrument!=-1){instrument=-2;break;}instrument=int(k);}
+          for(unsigned k=0;k<8;++k)if(*model.inst[k][0]>.5&&*model.inst[k][2]>.5&&unsigned(*model.inst[k][4])==channel+1){if(instrument!=-1){instrument=-2;break;}instrument=int(k);}
           const expressive::InstrumentSettings *setting=nullptr;
           if(instrument>=0){const unsigned id=unsigned(*model.inst[instrument][1]);for(const auto &candidate:expressiveSettings)if(candidate.instrument==id){setting=&candidate;break;}}
           if(!setting || !((setting->humanizerModule&&setting->humanizer.enabled)||(setting->curveModule&&setting->curve.enabled))){if(!copyExpressive(src))break;continue;}

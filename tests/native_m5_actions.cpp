@@ -12,12 +12,12 @@ int main(int argc,char**argv){
  check(argc==2,"generated source required");
  const std::string all="{\"type\":\"ALL_PHRASES\"}",self="{\"type\":\"SWITCH\",\"switchId\":1}",source="{\"type\":\"PHRASE\",\"sourceId\":\""+conductor_uuid(1)+"\"}";
  for(const auto& item:{std::pair<const char*,unsigned>{"LONG_HOLD",2},{"RELEASE",3},{"SUPERCHARGE_RELEASE",4}}){
-  Host h(argv[1]);setup(h);conductor_install(h,actionModel("STOP",all,false,item.first));
-  h.run("phrase_admit_independent(0,0);");h.block();h.events();check(conductor_active(h)==1,"trigger phase fixture starts with one owned phrase");
-  h.midi(144,110,100);h.events();check(conductor_active(h)==1,"later-phase ACTION does not execute on PRESS");
+  Host h(argv[1]);setup(h);conductor_install(h,actionModel("RESET_CURSOR",self,false,item.first));
+  h.run("mem[conductor_header(0)+3]=-1;");
+  h.midi(144,110,100);h.events();h.eq("mem[conductor_header(0)+3]",0,"later-phase ACTION does not execute on PRESS");
   if(item.second==4)h.eq("mem[mem[mem[conductor_header(0)+2]+78]]",600,"SUPERCHARGE RELEASE action enables the configured charge threshold");
-  h.run("conductor_apply(0,0,"+std::to_string(item.second)+");");h.block();auto events=h.events();
-  check(conductor_count(events,128,48)==1&&conductor_active(h)==0,"ACTION executes only at its selected LONG HOLD or RELEASE phase");
+  h.run("conductor_apply(0,0,"+std::to_string(item.second)+");");h.block();h.events();
+  h.eq("mem[conductor_header(0)+3]",-1,"ACTION executes only at its selected LONG HOLD or RELEASE phase");
  }
 
  for(const char* action:{"STOP","PANIC","STOP_RESET"}){

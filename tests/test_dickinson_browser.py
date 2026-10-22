@@ -39,7 +39,7 @@ try:
   # Give the live-stream assertion a deterministic, measurable positive delay.
   humanizer.get_by_role('button',name='EDIT',exact=True).click()
   page.get_by_label('TIMING RANGE · ms',exact=True).fill('0')
-  page.get_by_label('TIMING BIAS · ms',exact=True).fill('100')
+  page.get_by_label('TIMING BIAS · ms',exact=True).fill('250')
   page.get_by_role('button',name='APPLY',exact=True).click()
   page.wait_for_function('()=>!document.querySelector("#expressive-editor").open')
   page.get_by_role('button',name='SAVE PATCH',exact=True).click();page.get_by_text('PATCH SAVED',exact=True).wait_for()
@@ -49,6 +49,7 @@ try:
   # Verify the actual engine emits the curved velocity through the routed MIDI output.
   api.cmd('parameter_set',targetId=1,moduleId=0,kind=23,value=1)
   state=api.control.request()
+  assert state['expressivePending']==0,('no pending expressive event before test',state['expressivePending'])
   reply=api.control.request(op=3,ch=0,note=56,value=56,revision=state['revision'],session=state['engineSessionId'])
   assert reply['status']=='ok',('test MIDI input',reply)
   delayed=api.wait(lambda s:s['expressivePending']>0)

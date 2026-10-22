@@ -133,6 +133,8 @@ struct Snapshot {
   bool echoAvailable=false;
   unsigned echoPending=0,echoSources=0;
   uint64_t echoRejected=0;
+  uint64_t expressiveRejected=0,expressiveClamped=0;
+  unsigned expressivePending=0;
   unsigned switchLearnTarget=0;bool switchLearnConflict=false;
   uint64_t samples = 0, blocks = 0, midi = 0, late = 0, last_sample = 0;
   int revision = 1;
@@ -697,6 +699,7 @@ static std::string json(const Reply &r) {
     << ",\"echocityAvailable\":" << (s.echoAvailable?"true":"false")
     << ",\"echocity\":" << echocity::json(s.echoConfig)
     << ",\"echocityPending\":" << s.echoPending << ",\"echocitySources\":" << s.echoSources
+    << ",\"expressivePending\":" << s.expressivePending << ",\"expressiveRejected\":" << s.expressiveRejected << ",\"expressiveClamped\":" << s.expressiveClamped
     << ",\"nativeExpressive\":" << expressive::configurationJson(s.expressiveConfig)
     << ",\"echocityRejected\":" << s.echoRejected
     << ",\"chainFrameGap\":" << s.chainFrameGap << ",\"chainClockGap\":" << s.chainClockGap
@@ -3409,6 +3412,7 @@ int main(int argc, char **argv) {
         if(removed)echoRuntime.configure(alive);
       }
       state.echoConfig=echoRuntime.configuration();state.echoPending=echoRuntime.pending();state.echoSources=echoRuntime.sources();state.echoRejected=echoRuntime.rejected;
+      state.expressivePending=unsigned(expressiveStream->pending());state.expressiveRejected=expressiveStream->rejected;state.expressiveClamped=expressiveStream->clamped;
       outputCount=movementOutputCount;
       // Apply per-instrument HUMANIZER and VELOCITY CURVES after the native
       // transformer chain and before JACK. Disabled modules take the exact
@@ -3513,7 +3517,7 @@ int main(int argc, char **argv) {
         state.late = xruns.load(std::memory_order_relaxed);
       drainPanic();
       if(recovering&&expressiveStream->recoveryNeeded)expressiveStream->recovered();
-      state.pendingOutput = outputWrite - outputRead + panicSweep.remaining();
+      state.pendingOutput = outputWrite - outputRead + panicSweep.remaining() + expressiveStream->pending();
       outputPending.store(state.pendingOutput, std::memory_order_release);
       if (muted)
         finalAcknowledged.store(true, std::memory_order_release);

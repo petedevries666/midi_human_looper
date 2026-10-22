@@ -169,5 +169,10 @@ int main(){
   assert(savedJson.find("\"version\":1")!=std::string::npos);
   std::istringstream invalidWire("1 1 1 10 1 15.5 -2 50 1 1 1 42 80 11 1 50 3 1 1 1 127 127 1");
   assert(!readConfiguration(invalidWire,saved));
+  Humanizer grouped;grouped.enabled=true;grouped.timingMs=100;grouped.scope=Scope::Group;
+  Identity chordA=id,chordB=id;chordA.group=77;chordB.group=77;chordA.instance=chordB.instance=77;chordA.note=60;chordB.note=64;
+  assert(delay(grouped,chordA,48000)==delay(grouped,chordB,48000));
+  grouped.scope=Scope::Notes;chordA.instance=100;chordB.instance=101;
+  assert(delay(grouped,chordA,48000)!=delay(grouped,chordB,48000));
   std::cout << "native expressive stream and config tests PASS\n";
 }

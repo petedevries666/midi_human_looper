@@ -1,4 +1,6 @@
 #include "../headless/native_expressive_transformers.hpp"
+#include "../headless/native_expressive_config.hpp"
+#include <sstream>
 #include <cassert>
 #include <vector>
 #include <iostream>
@@ -156,5 +158,16 @@ int main(){
   assert(bounded.schedule(key,44,700,800,0,80,id,h,straight));
   assert(!bounded.schedule(key,44,900,1000,0,80,id,h,straight));
   assert(bounded.rejected==1);
-  std::cout << "native expressive pair test PASS\n";
+  expressive::Configuration saved{};
+  std::istringstream wire("1 1 1 10 1 15.5 -2 50 1 1 1 42 80 11 1 50 3 1 1 64 127 127 1");
+  assert(readConfiguration(wire,saved));
+  assert(saved[0].instrument==1&&saved[0].humanizerModule==10&&saved[0].curveModule==11);
+  assert(saved[0].humanizer.enabled&&saved[0].curve.enabled);
+  assert(saved[0].humanizer.timingMs==15.5&&saved[0].humanizer.liveLookaheadMs==80);
+  assert(saved[0].curve.count==3&&saved[0].curve.points[1].x==64&&saved[0].curve.points[1].y==127);
+  const auto savedJson=configurationJson(saved);
+  assert(savedJson.find("\\\"version\\\":1")!=std::string::npos);
+  std::istringstream invalidWire("1 1 1 10 1 15.5 -2 50 1 1 1 42 80 11 1 50 3 1 1 1 127 127 1");
+  assert(!readConfiguration(invalidWire,saved));
+  std::cout << "native expressive stream and config tests PASS\n";
 }

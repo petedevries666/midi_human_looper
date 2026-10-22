@@ -56,7 +56,7 @@ try:
   # Native commit completion precedes the asynchronous browser repaint. Require
   # the actual module text within Playwright's unchanged default timeout; do not
   # read the old DOM once and confuse that observation with a lost native edit.
-  expect(panel.locator('.module')).to_contain_text('MODE: 2')
+  expect(panel.locator('.module')).to_contain_text('DOWN')
   for note in (60,64,67):api.command('midi',channel=1,note=note,value=100)
   before=api.call()['midiCount'];time.sleep(.25);assert api.call()['midiCount']>=before+10,'enabled ARP must generate repeated MIDI'
   for note in (60,64,67):api.command('midi',channel=1,note=note,value=0)

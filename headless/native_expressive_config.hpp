@@ -23,9 +23,9 @@ inline bool readConfiguration(std::istream&in,Configuration&out){
   if(!(in>>version)||version!=1||!(in>>count)||count>out.size())return false;
   Configuration next{};
   for(unsigned j=0;j<count;++j){
-    auto&s=next[j];unsigned enabled=0,feel=0,variation=0,scope=0,points=0;
+    auto&s=next[j];unsigned humanizerEnabled=0,curveEnabled=0,feel=0,variation=0,scope=0,points=0;
     if(!(in>>s.instrument>>s.humanizerModule)||!s.instrument||s.instrument>16777215||
-       s.humanizerModule>16777215||!(in>>enabled)||enabled>1||
+       s.humanizerModule>16777215||!(in>>humanizerEnabled)||humanizerEnabled>1||
        !finiteNumber(in,s.humanizer.timingMs,0,2000)||
        !finiteNumber(in,s.humanizer.biasMs,-2000,2000)||
        !finiteNumber(in,s.humanizer.velocityPercent,0,100)||
@@ -33,12 +33,12 @@ inline bool readConfiguration(std::istream&in,Configuration&out){
        feel>1||variation>1||scope>1||
        !finiteNumber(in,s.humanizer.liveLookaheadMs,0,2000)||
        !(in>>s.curveModule)||s.curveModule>16777215||
-       !(in>>enabled)||enabled>1||
+       !(in>>curveEnabled)||curveEnabled>1||
        !finiteNumber(in,s.curve.amount,0,100)||
        !(in>>points)||points<2||points>s.curve.points.size())return false;
-    s.humanizer.enabled=enabled;s.humanizer.feel=Feel(feel);
+    s.humanizer.enabled=humanizerEnabled;s.humanizer.feel=Feel(feel);
     s.humanizer.variation=Variation(variation);s.humanizer.scope=Scope(scope);
-    s.curve.enabled=enabled;s.curve.count=points;
+    s.curve.enabled=curveEnabled;s.curve.count=points;
     for(unsigned k=0;k<points;++k){
       unsigned x=0,y=0;if(!(in>>x>>y)||x<1||x>127||y<1||y>127)return false;
       s.curve.points[k]={uint8_t(x),uint8_t(y)};

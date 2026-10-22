@@ -20,6 +20,7 @@ class RecallService:
         self.manager=state_manager;self.directory=Path(directory);self.library=Path(library);self.entries=entries
         self.path=self.directory/'patch-recall.json';self.lock=threading.RLock();self.wake=threading.Event()
         self.pending=None;self.active=None;self.phase='ready';self.error='';self.selected=0
+        self.last_recalled=None
         self.settings=dict(version=1,enabled=False,channel=16,withSnapshot=True,links={})
         if self.path.exists():
             saved=json.loads(self.path.read_text());self.validate(saved);self.settings=saved
@@ -67,6 +68,8 @@ class RecallService:
         # Restoring a snapshot must not recursively trigger another request.
         if 0<event[1]<128 and not (device==0xff and self.phase in ('snapshot','restore')):
             with self.lock:
+                controls=[entry['control'] for entry in self.entries.values()]
+                if self.active is None and self.pending is None and self.phase=='ready' and len(controls)==1 and self.last_recalled==(event[1],controls[0]) and self.selected==event[1]:return True
                 if self.active==('recall',event[1]):self.pending=None
                 else:self.pending=('recall',event[1]);self.wake.set()
         return True
@@ -78,12 +81,13 @@ class RecallService:
         snapshots=[];root=Path(self.manager.snapshot_dir)
         for path in sorted(root.glob('*/*.zss')):
             if not path.is_symlink() and not path.name.startswith('.'):
-                snapshots.append(dict(path=str(path.relative_to(root)),name=path.stem))
+                snapshots.append(dict(path=path.relative_to(root).as_posix(),name=path.stem))
         rows=[];chain_error=''
         if self.active is None and self.pending is None:
             try:rows=self.chain_saves.inventory()
             except (ValueError,OSError,KeyError,TypeError) as error:chain_error=str(error)
-        return dict(settings=copy.deepcopy(self.settings),phase='queued' if self.pending and not self.active else self.phase,lastError=self.error,selectedSlot=self.selected,snapshots=snapshots,chainRecalls=rows,chainSaveError=chain_error)
+        phase='queued' if self.pending and not self.active else 'preflight' if self.active and self.phase=='ready' else self.phase
+        return dict(settings=copy.deepcopy(self.settings),phase=phase,lastError=self.error,selectedSlot=self.selected,snapshots=snapshots,chainRecalls=rows,chainSaveError=chain_error)
 
     def request(self,request):
         action=request.get('operation')
@@ -182,6 +186,7 @@ class RecallService:
                     time.sleep(.1)
                 else:raise ValueError('Restored MBMF engine not ready')
             self.phase='restore';self.load_patch(patch,slot,link['bindings'] if link else {})
+            self.last_recalled=(slot,self.one_entry()['control'])
         except Exception as error:
             try:
                 if path and not self.manager.load_snapshot(str(recovery)):raise ValueError('Previous Zynthian rig could not be restored')
@@ -193,7 +198,9 @@ class RecallService:
         journal=self.directory/'patch-pair-journal.json'
         if not journal.exists():return
         data=json.loads(journal.read_text());slot=slot_number(data['slot']);stage=self.directory/'patch-pair-stage'
-        if stage.is_symlink() or not data['snapshot'].startswith(f'MBMF/{slot:03}-') or set(data['existed'])-{'patch','snapshot','registry'}:raise ValueError('Invalid interrupted pair-save journal; originals preserved')
+        # Accept old journals for recovery, but write new pairs in the native bank.
+        prefixes=(f'MBMF/{slot:03}-',f'001-MBMF/{slot:03}-')
+        if stage.is_symlink() or not data['snapshot'].startswith(prefixes) or set(data['existed'])-{'patch','snapshot','registry'}:raise ValueError('Invalid interrupted pair-save journal; originals preserved')
         target=self.snapshot_path(data['snapshot'])
         for destination,name in ((self.library/f'patch{slot}.json','patch'),(target,'snapshot'),(self.path,'registry')):
             backup=stage/(name+'.old')
@@ -210,7 +217,7 @@ class RecallService:
         if patch.get('format')!='MIDI_HUMAN_LOOPER_PATCH':raise ValueError('Cannot export current patch')
         name=read(self.library).get(str(slot),'') or f'PATCH {slot:02}'
         safe=re.sub(r'[^\w .-]','_',name).strip(' .') or 'PATCH'
-        relative=f'MBMF/{slot:03}-{safe}.zss';target=self.snapshot_path(relative);target.parent.mkdir(exist_ok=True)
+        relative=f'001-MBMF/{slot:03}-{safe}.zss';target=self.snapshot_path(relative);target.parent.mkdir(exist_ok=True)
         old_link=self.settings['links'].get(str(slot))
         if target.exists() and (old_link is None or old_link['snapshot']!=relative):raise ValueError('A snapshot with that name already exists; link it explicitly or choose another patch name')
         stage=self.directory/'patch-pair-stage'
@@ -238,12 +245,13 @@ class RecallService:
     def run(self):
         while True:
             self.wake.wait();self.wake.clear()
-            with self.lock:job=self.pending;self.pending=None;self.active=job
+            with self.lock:
+                job=self.pending;self.pending=None;self.active=job
+                if job is not None:self.phase='preflight';self.error=''
             if job is None:continue
-            self.phase='preflight';self.error=''
             try:
                 from patch_lock import library_lock
-                with library_lock(self.library):
+                with library_lock(self.library,wait=True):
                     if job[0]=='recall':self.recall(job[1])
                     elif job[0]=='save_chain':
                         self.phase='saving_chain';self.chain_saves.save(job[1])

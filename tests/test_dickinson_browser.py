@@ -51,6 +51,8 @@ try:
   state=api.control.request()
   reply=api.control.request(op=3,ch=0,note=56,value=56,revision=state['revision'],session=state['engineSessionId'])
   assert reply['status']=='ok',('test MIDI input',reply)
+  delayed=api.wait(lambda s:s['expressivePending']>0)
+  assert delayed['expressivePending']>0,('HUMANIZER must hold the live attack for its positive bias',delayed)
   emitted=api.wait(lambda s:s['lastEvent'][2]==56 and s['lastEvent'][3]==109)
   assert emitted['lastEvent'][1]&240==144 and emitted['lastEvent'][3]==109,('curved native MIDI',emitted['lastEvent'])
   page.get_by_role('button',name='PANIC',exact=True).click();api.wait(lambda s:s['activeNotes']==0)

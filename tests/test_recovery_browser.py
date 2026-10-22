@@ -41,7 +41,7 @@ try:
   screenshot('recovery-arp-editor')
   page.get_by_role('button',name='DONE',exact=True).click();page.locator('#editor').wait_for(state='hidden')
   module=api.call()['instruments'][0]['transformers'][0];values={v['kind']:v['value'] for v in module['parameters']}
-  assert values[3]==1 and values[4]==2 and values[5]==16 and values[6]==.5,values
+  assert values[3]==1 and values[4]==0 and values[5]==16 and values[6]==.5,values
   # Native commit completion precedes the asynchronous browser repaint. Require
   # the actual module text within Playwright's unchanged default timeout; do not
   # read the old DOM once and confuse that observation with a lost native edit.

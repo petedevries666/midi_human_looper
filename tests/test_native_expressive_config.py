@@ -20,7 +20,7 @@ class NativeExpressiveConfigTests(unittest.TestCase):
         with self.assertRaises(ValueError):decode(d)
 
     def test_reject_nonmonotone_curve(self):
-        d=valid();d['configuration'][-4]=64
+        d=valid();d['configuration'][-4]=1
         with self.assertRaises(ValueError):decode(d)
 
     def test_reject_bad_live_latency_and_old_schema(self):

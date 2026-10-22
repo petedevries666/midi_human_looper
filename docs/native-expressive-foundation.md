@@ -15,7 +15,9 @@ playable instrument transformer. It does not modify the frozen REAPER JSFX.
   sample-accurate long delays and paired release, cancellation, overlap, bounded
   queue admission and PANIC recovery contract. No dynamic allocation in methods.
 - Real C++ tests compiled against the repository's native scheduler in the
-  dedicated GitHub CI workflow.
+  dedicated GitHub CI workflow. Coverage includes deterministic FIXED versus
+  EVOLVING timing/velocity, invalid-parameter fail-closed behavior, curve blend
+  endpoints, captured note pairing and module-scoped cancellation.
 
 ## Important limits
 - The adapter accepts *known note pairs*. It is **not connected** to live

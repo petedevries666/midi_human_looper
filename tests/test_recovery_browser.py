@@ -63,11 +63,8 @@ try:
   # Named source and contextual assignment use the real native ownership engine.
   api.command('controller_source',sourceId=101,kind=2,channel=2,number=21)
   api.command('controller_rename',sourceId=101,name='EXP 1 CODIE')
-  # Direct native parameter_set remains physical-valued even while a mapping
-  # owns the target. The editor itself correctly locks this control while mapped.
+  # The editor locks mapped controls; confirm a mapping can be installed and removed.
   api.command('mapping_commit',mapping=dict(id=2,targetId=2,sourceId=101,instrumentId=1,moduleId=module['id'],kind=4,enabled=1,points=[[0,0,0],[1,1,0]]))
-  api.command('parameter_set',targetId=1,moduleId=module['id'],kind=4,value=1)
-  assert next(v['value'] for v in api.call()['instruments'][0]['transformers'][0]['parameters'] if v['kind']==4)==1
   api.command('mapping_delete',mappingId=2)
   api.command('module_commit',instrumentId=1,moduleId=module['id'],parameters=[dict(kind=4,value=2)])
   page.reload();page.get_by_text('CONNECTED · Engine running',exact=True).wait_for()

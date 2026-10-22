@@ -136,7 +136,7 @@ inline bool validDocument(const std::vector<unsigned> &bytes){
         for(unsigned i=0;i<layers.array.size();++i){
           const auto &layer=layers.array[i];fields(layer,{"id","block"});unique(layer.at("id"));const auto &b=layer.at("block");if(b.type=='z')continue;
           if(choice(b.at("type"),{"ACTION"})){
-            fields(b,{"id","type","action","target","trigger"});unique(b.at("id"));require(i>0&&choice(b.at("action"),{"STOP","PAUSE","RESUME","RESET_CURSOR","RESET_SHUFFLE_BAG","STOP_RESET","PANIC"})&&choice(b.at("trigger"),{"PRESS","HOLD"}));
+            fields(b,{"id","type","action","target","trigger"});unique(b.at("id"));require(i>0&&choice(b.at("action"),{"STOP","PAUSE","RESUME","RESET_CURSOR","RESET_SHUFFLE_BAG","STOP_RESET","PANIC"})&&choice(b.at("trigger"),{"PRESS","HOLD","LONG_HOLD","RELEASE","SUPERCHARGE_RELEASE"}));
             const auto &t=b.at("target");
             if(choice(t.at("type"),{"PHRASE"})){fields(t,{"type","sourceId"});uuid(t.at("sourceId"));}
             else if(choice(t.at("type"),{"MUTE_GROUP"})){fields(t,{"type","id"});require(integer(t.at("id"),1,16777215));}

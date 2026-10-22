@@ -125,7 +125,7 @@ async function editConductor(sw){
     for(const [value,text] of options){const o=node('option',text);o.value=value;input.append(o);}input.value=current;input.onchange=()=>{checkpoint();update(input.value);paint();properties(s,l);};row.append(input);side.append(row);};
    const names=['STOP','RESET_CURSOR','RESET_SHUFFLE_BAG','STOP_RESET','PANIC'];
    select('ACTION TYPE',b.action,names.map(v=>[v,v]),value=>{b.action=value;b.target=value.startsWith('RESET')||value==='STOP_RESET'?{type:'SWITCH',switchId:sw.id}:{type:'ALL_PHRASES'};});
-   select('ACTION TRIG',b.trigger,[['PRESS','PRESS'],['HOLD','HOLD']],value=>b.trigger=value);
+   select('ACTION TRIG',b.trigger,[['PRESS','PRESS'],['HOLD','HOLD'],['LONG_HOLD','LONG HOLD'],['RELEASE','RELEASE'],['SUPERCHARGE_RELEASE','SUPERCHARGE RELEASE']],value=>b.trigger=value);
    if(!names.includes(b.action)){side.append(node('p','Action conservée mais non exécutée par ce moteur.'));return;}
    const types=b.action==='STOP'?['PHRASE','MUTE_GROUP','ALL_PHRASES']:b.action==='PANIC'?['ALL_PHRASES']:['SWITCH'];
    select('ACTION TARGET',b.target.type,types.map(v=>[v,v]),type=>{b.target=type==='PHRASE'?{type,sourceId:model.sources[0]?.id||uuid()}:type==='MUTE_GROUP'?{type,id:1}:type==='SWITCH'?{type,switchId:sw.id}:{type};});

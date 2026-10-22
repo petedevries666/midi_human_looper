@@ -1,10 +1,10 @@
 # V2 DICKINSON release-candidate ledger
 
-Status: integration planning. No installation, Pi change, merge to `main`, or physical qualification. Resume from the first unchecked item below; do not repeat the repository audit.
+Status: integration source selection and merge staging. No installation, Pi change, merge to `main`, or physical qualification. Resume from the first unchecked item below; do not repeat the repository audit.
 
 ## Baseline and selection (2026-10-23)
 
-- RC branch: `integration/v2-dickinson-rc`, forked from Harris-safe PR #107 at `b4cb5e0eeb32fe58c8e829b8b0b635ecb2cd8f4a`. The upstream base is PR #92 (`fa7e1ac851458f02f1774f5ba67611e2158d3bd9`), itself part of the earlier native/Zynthian stack. Keep the REAPER JSFX frozen except for the already-reviewed shared ARP range correction in #107.
+- RC branch: `integration/v2-dickinson-rc`, initially forked from Harris-safe PR #107 at `b4cb5e0eeb32fe58c8e829b8b0b635ecb2cd8f4a`; the selected full-feature source tree is now PR #103 at `51b8892f25adef305cd61e13256c84a32a3d9741`, an ancestor chain through #93/#97/#98/#99. The upstream base is PR #92 (`fa7e1ac851458f02f1774f5ba67611e2158d3bd9`), itself part of the earlier native/Zynthian stack. Keep the REAPER JSFX frozen. The #107 shared ARP range edit is deliberately excluded because #103 fixes the native enum bridge without changing legacy EEL.
 - #107 already selects the non-ECHOCITY portions of #93 and the independent #100/#101/#102/#105 work: block copy/paste, Movement TEACH, MIDI source recovery, shared manual/MIDI recall, snapshot bank, SOLO proposal, Smart Switch panel and mapped-slider feedback. Do not transplant these again.
 - #97 (`f06b394746f9540b53c8e38d119fbfe1774a7f1f`) is the source for native ARP STEP MAX/ONCE and the stronger loaded-session Program Change rule. Reconcile its recall changes with #100 rather than installing a second recall service.
 - #99 (`071ff7572e43b24e54b832ac55bb814d7f575436`) is the source for ONCE retrigger/owned Note On and 200% velocity decay. It also changes ECHOCITY terminal ownership: isolate the common note-output contract before porting.
@@ -47,3 +47,9 @@ Reuse unchanged subsystem evidence. Before each new test, record changed file ha
 - [ ] Provide a versioned preflight/update procedure with mandatory backup of application checkout, configuration, patches and Zynthian snapshot references; refuse unmet prerequisites.
 - [ ] Provide a verified rollback procedure and a short manual musical acceptance checklist.
 - [ ] Record open limitations and hardware-only checks. Do not deploy or merge without the user's explicit approval.
+
+## Integration decision (2026-10-23)
+
+PR #103 is the full-feature source tree. It descends from #93 (ECHOCITY), #97 (ARP STEP MAX/ONCE and recall), #98 (HUMANIZER/VELOCITY CURVES), and #99 (ONCE retrigger/decay). PR #107 contributes later recall/SOLO/Smart Switch/mapped-slider work. Its non-ECHOCITY edits are overlaid onto #103; unchanged or already-present hunks are not reapplied. Conflict resolutions: retain #103's native-only ARP enum bridge and frozen JSFX; retain its current screenshot gesture flow and ECHOCITY-aware render model; add #107 mapped-slider regression to the existing recovery fixture. The code merge requires CI and visual evidence before this can be called an RC.
+
+The exact source commit currently running on the Pi remains unverified because remote SSH is unavailable from this sandbox. #93 is the repository's documented playable Harris 1.0 foundation; this integration preserves that lineage and does not deploy or claim hardware equivalence.

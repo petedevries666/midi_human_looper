@@ -809,7 +809,7 @@ function param_addr(gi,kind)
 function param_min(kind)
 (kind==0 ? 0.2 : kind==5 ? 0.25 : kind==6 ? 0.02 : kind==7 ? -48 : kind==14 ? 0.5 : kind==15 ? 0.2 : kind==17 ? 0.2 : kind==26 ? -1 : 0;);
 function param_max(kind)
-(kind==0 ? 3 : kind==3 ? 1 : kind==4 ? 12 : kind==5 ? 16 : kind==6 ? 1 : kind==7 ? 48 : kind==8 ? 3 : kind==11 ? 3 : kind==12 ? 1 : kind==14 ? 2 : kind==15 ? 1 : kind==16 ? 1 : kind==17 ? 3 : kind==18 ? 1 : kind==19 ? 1 : kind==20 ? 2 : kind==21 ? 1 : kind==22 ? 16 : kind==23 ? 16 : kind==24 ? 1 : kind==25 ? 1 : kind==26 ? 1 : 127;);
+(kind==0 ? 3 : kind==3 ? 1 : kind==4 ? 2 : kind==5 ? 16 : kind==6 ? 1 : kind==7 ? 48 : kind==8 ? 3 : kind==11 ? 3 : kind==12 ? 1 : kind==14 ? 2 : kind==15 ? 1 : kind==16 ? 1 : kind==17 ? 3 : kind==18 ? 1 : kind==19 ? 1 : kind==20 ? 2 : kind==21 ? 1 : kind==22 ? 16 : kind==23 ? 16 : kind==24 ? 1 : kind==25 ? 1 : kind==26 ? 1 : 127;);
 function param_step(kind)
 (kind==0 ? 0.01 : kind==5 ? 0.25 : kind==6 ? 0.01 : kind==14 ? 0.01 : kind==15 ? 0.01 : kind==16 ? 0.001 : kind==17 ? 0.01 : kind==25 ? 0.001 : kind==26 ? 0.001 : 1;);
 function param_name(kind)

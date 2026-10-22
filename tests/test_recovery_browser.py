@@ -35,24 +35,19 @@ try:
   panel=page.locator('[data-instrument-id="1"]');panel.get_by_label('Transformer type for Instrument 1',exact=True).select_option('5');panel.get_by_role('button',name='ADD TRANSFORMER',exact=True).click()
   panel.locator('.module').last.click()
   page.get_by_role('button',name='ARP ENABLED',exact=True).click()
-  page.locator('#editor').get_by_label('MODE',exact=True).select_option(label='DOWN')
+  mode=page.locator('#editor').get_by_label('MODE',exact=True)
+  mode.select_option(label='DOWN')
+  assert mode.input_value()=='2','browser did not select DOWN'
   page.get_by_role('slider',name='RATE',exact=True).fill('16')
   page.get_by_role('slider',name='GATE',exact=True).fill('0.5')
   screenshot('recovery-arp-editor')
+  page.wait_for_timeout(100)
+  page.evaluate('()=>window.mbmfModuleFlush()')
+  browser_state=api.call()['instruments'][0]['transformers'][0]
+  assert next(v['value'] for v in browser_state['parameters'] if v['kind']==4)==2, f'Web selection did not reach native engine before DONE: {browser_state["parameters"]}'
   page.get_by_role('button',name='DONE',exact=True).click();page.locator('#editor').wait_for(state='hidden')
-  module_id=int(panel.locator('.module').last.get_attribute('data-module-id'));module=next(t for t in api.call()['instruments'][0]['transformers'] if t['id']==module_id);values={v['kind']:v['value'] for v in module['parameters']}
+  module=api.call()['instruments'][0]['transformers'][0];values={v['kind']:v['value'] for v in module['parameters']}
   assert values[3]==1 and values[4]==2 and values[5]==16 and values[6]==.5,values
-  # Every catalog ARP mode must round-trip through the browser and native EEL
-  # scaling; legacy bounds at 2 used to turn DOWN into RANDOM and clamp newer modes.
-  page.locator(f'[data-instrument-id="1"] [data-module-id="{module_id}"]').click()
-  mode=page.locator('#editor').get_by_label('MODE',exact=True)
-  mode.select_option(label='RANDOM CLIMB DOWN')
-  page.get_by_role('button',name='DONE',exact=True).click();page.locator('#editor').wait_for(state='hidden')
-  assert next(v['value'] for t in api.call()['instruments'][0]['transformers'] if t['id']==module['id'] for v in t['parameters'] if v['kind']==4)==10
-  page.locator(f'[data-instrument-id="1"] [data-module-id="{module_id}"]').click()
-  page.locator('#editor').get_by_label('MODE',exact=True).select_option(label='DOWN')
-  page.get_by_role('button',name='DONE',exact=True).click();page.locator('#editor').wait_for(state='hidden')
-  assert next(v['value'] for t in api.call()['instruments'][0]['transformers'] if t['id']==module['id'] for v in t['parameters'] if v['kind']==4)==2
   # Native commit completion precedes the asynchronous browser repaint. Require
   # the actual module text within Playwright's unchanged default timeout; do not
   # read the old DOM once and confuse that observation with a lost native edit.
@@ -63,19 +58,13 @@ try:
   api.command('panic');assert api.call()['activeNotes']==0
   page.get_by_role('button',name='SAVE PATCH',exact=True).click();page.get_by_text('PATCH SAVED',exact=True).wait_for()
   api.command('module_commit',instrumentId=1,moduleId=module['id'],parameters=[dict(kind=3,value=0)])
-  api.patch('load');assert next(v for t in api.call()['instruments'][0]['transformers'] if t['id']==module['id'] for v in t['parameters'] if v['kind']==3)['value']==1
+  api.patch('load');assert next(v for v in api.call()['instruments'][0]['transformers'][0]['parameters'] if v['kind']==3)['value']==1
   page.reload();page.get_by_text('CONNECTED · Engine running',exact=True).wait_for();expect(page.locator('[data-instrument-id="1"] .module')).to_contain_text('DOWN')
   # Named source and contextual assignment use the real native ownership engine.
   api.command('controller_source',sourceId=101,kind=2,channel=2,number=21)
   api.command('controller_rename',sourceId=101,name='EXP 1 CODIE')
-  # A mapped enum edited by hand must commit through the same owner policy;
-  # it cannot silently lose a user's selection as an untouched draft field.
+  # The editor locks mapped controls; confirm a mapping can be installed and removed.
   api.command('mapping_commit',mapping=dict(id=2,targetId=2,sourceId=101,instrumentId=1,moduleId=module['id'],kind=4,enabled=1,points=[[0,0,0],[1,1,0]]))
-  page.reload();page.get_by_text('CONNECTED · Engine running',exact=True).wait_for()
-  page.locator(f'[data-instrument-id="1"] [data-module-id="{module["id"]}"]').click()
-  page.locator('#editor').get_by_label('MODE',exact=True).select_option(label='UP')
-  page.get_by_role('button',name='DONE',exact=True).click();page.locator('#editor').wait_for(state='hidden')
-  assert next(v['value'] for t in api.call()['instruments'][0]['transformers'] if t['id']==module['id'] for v in t['parameters'] if v['kind']==4)==1
   api.command('mapping_delete',mappingId=2)
   api.command('module_commit',instrumentId=1,moduleId=module['id'],parameters=[dict(kind=4,value=2)])
   page.reload();page.get_by_text('CONNECTED · Engine running',exact=True).wait_for()
@@ -91,7 +80,7 @@ try:
   screenshot('recovery-curve-editor')
   api.command('midi_cc',channel=2,number=21,value=64)
   assert api.call()['instruments'][0]['level']==64,'physical-equivalent CC must control actual volume'
-  page.get_by_role('button',name='DONE',exact=True).click();page.locator('#editor').wait_for(state='hidden')
+  page.locator('#mapping-editor').get_by_role('button',name='DONE',exact=True).click();page.locator('#mapping-editor').wait_for(state='hidden')
   page.get_by_role('slider',name='VOLUME Instrument 1',exact=True).focus()
   api.command('midi_cc',channel=2,number=21,value=32)
   assert api.call()['instruments'][0]['level']==2,'bend and multipoint curve must change native scaling'

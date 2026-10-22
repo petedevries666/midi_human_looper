@@ -10,7 +10,7 @@ constexpr bool binned(int kind) { return kind==3 || kind==4 || kind==8 || kind==
 constexpr bool phraseKind(int kind) { return kind==14 || kind==15 || kind==17 || kind==18 || kind==19 || kind==20; }
 struct Parameter { double low,high,step; int conversion; };
 static constexpr Parameter parameters[]={
-  {0.2,3,0.01,0}, // 0: velocity
+  {0.2,8,0.01,0}, // 0: velocity
   {0,127,1,0}, // 1: level
   {0,127,1,0}, // 2: mod_level
   {0,1,1,1}, // 3: arp_enabled
@@ -25,7 +25,7 @@ static constexpr Parameter parameters[]={
   {0,1,1,1}, // 12: arp_hold
   {0,127,1,0}, // 13: cc_number
   {0.5,2,0.01,2}, // 14: phrase_time_decay
-  {0.2,1,0.01,0}, // 15: phrase_velocity_decay
+  {0.2,2,0.01,0}, // 15: phrase_velocity_decay
   {0,1,0.001,3}, // 16: snapshot_ab
   {0.2,3,0.01,0}, // 17: phrase_base_velocity
   {0,1,1,1}, // 18: phrase_mute

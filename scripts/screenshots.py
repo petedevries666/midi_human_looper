@@ -83,8 +83,21 @@ def run(output, performance=False):
                 page.locator('[data-instrument-id="3"]').wait_for()
                 page.locator('[data-source-id]').wait_for(state='attached')
                 page.evaluate('document.fonts.ready')
+                def edit_card(locator):
+                    locator.click(button='right')
+                    page.get_by_role('menuitem',name='EDIT',exact=True).click()
+                def open_conductor():
+                    page.wait_for_timeout(850)  # Existing post-context-menu click suppression.
+                    page.locator('[data-switch-id="1"] .switch-mode').click()
+                    page.locator('#editor[open]').wait_for()
+                    if not page.locator('.conductor-editor').count():
+                        page.get_by_role('button',name='APPLY & OPEN CONDUCTOR',exact=True).click()
+                    page.locator('.conductor-editor').wait_for()
+
                 def capture(name,selector=None):
-                    if 'editor' in name and 'name-editor' not in name:page.locator('#editor').wait_for(state='visible')
+                    if name.startswith('controller-') and name in ('controller-editor','controller-advanced'):
+                        page.locator('#mapping-editor').wait_for(state='visible')
+                    elif 'editor' in name and 'name-editor' not in name:page.locator('#editor').wait_for(state='visible')
                     if performance and name not in ('phrases','instruments','transformer-editor'): return
                     if selector:
                         page.locator(selector).first.evaluate("e=>e.scrollIntoView({block:'start'})")
@@ -112,7 +125,7 @@ def run(output, performance=False):
                     page.reload();page.get_by_text('CONNECTED · Engine running',exact=True).wait_for()
                     page.locator('.transformers .module').first.wait_for()
                     capture('instruments','#instruments')
-                    page.locator('.transformers .module').first.get_by_role('button',name='EDIT',exact=True).click()
+                    page.locator('.transformers .module').first.click()
                     page.locator('#editor').wait_for(state='visible');capture('transformer-editor')
                     page.keyboard.press('Escape')
                     tf=api.call()['instruments'][0]['transformers'][0]
@@ -126,19 +139,12 @@ def run(output, performance=False):
                 page.locator('#runtime-update > summary').click()
                 capture('snapshots','#snapshots-section')
                 capture('smart-switches','#switches')
-                switch_test=page.locator('[data-switch-id="1"] [data-switch-test]')
-            if switch_test.count():
-                # The updated UI uses one held-gesture test button instead of
-                # a details panel with separate PRESS/HOLD buttons.
-                switch_test.scroll_into_view_if_needed()
-            else:
-                page.locator('[data-switch-id="1"] .switch-test').evaluate('e=>e.open=true')
-                page.locator('[data-switch-id="1"]').get_by_role('button',name='TEST TAP',exact=True).click()
-                page.locator('.switch-test-feedback').first.wait_for(state='visible');capture('smart-switch-test','#switches')
+                page.get_by_role('button',name='TEST Smart Switch 1',exact=True).click()
+                capture('smart-switch-test','#switches')
                 api.command('panic')
-                page.locator('[data-switch-id="1"]').get_by_role('button',name='OPTIONS',exact=True).click()
+                edit_card(page.locator('[data-switch-id="1"]'))
                 capture('smart-switch-editor');page.keyboard.press('Escape')
-                page.locator('[data-switch-id="1"]').get_by_role('button',name='CONDUCTOR',exact=True).click()
+                open_conductor()
                 page.locator('.conductor-editor').wait_for()
                 capture('conductor-empty-editor')
                 page.get_by_role('button',name='Add PHRASE STEP 1 LAYER 1',exact=True).click()
@@ -180,12 +186,33 @@ def run(output, performance=False):
                 page.get_by_role('button',name='DONE',exact=True).click()
                 page.locator('#editor').wait_for(state='hidden')
                 capture('movement-library','#movement-section')
-                page.locator('[data-switch-id="1"]').get_by_role('button',name='CONDUCTOR',exact=True).click()
+                open_conductor()
                 page.locator('.conductor-editor').wait_for()
                 page.get_by_role('button',name='Add PHRASE STEP 1 LAYER 2',exact=True).click()
                 page.locator('.conductor-add-menu').get_by_text('MOVEMENTS',exact=True).click()
                 page.get_by_role('button',name='MOVEMENT · FILTER RISE',exact=True).click()
                 capture('movement-layer-editor')
+                col=page.locator('.conductor-step').first
+                col.get_by_role('button',name='ADD LAYER',exact=True).click()
+                page.get_by_role('button',name='Add PHRASE STEP 1 LAYER 3',exact=True).click()
+                page.locator('.conductor-add-menu').get_by_text('ACTIONS',exact=True).click()
+                page.get_by_role('button',name='ACTION STOP',exact=True).click()
+                page.get_by_label('ACTION TARGET',exact=True).select_option('PHRASE')
+                page.get_by_label('ACTION TRIG',exact=True).select_option('HOLD')
+                capture('conductor-action-editor','[aria-label="ACTION TYPE"]')
+                page.get_by_label('ACTION TYPE',exact=True).select_option('RESET_CURSOR')
+                assert page.get_by_label('TARGET SWITCH',exact=True).input_value()=='1'
+                page.get_by_label('ACTION TYPE',exact=True).select_option('STOP')
+                page.get_by_label('ACTION TARGET',exact=True).select_option('PHRASE')
+                page.get_by_role('button',name='DONE',exact=True).click()
+                page.locator('#editor').wait_for(state='hidden')
+                saved=page.evaluate("fetch('/api/v1/conductor').then(r=>r.json())")['model']
+                action_block=next(v for v in saved['switches'] if v['switchId']==1)['steps'][0]['layers'][2]['block']
+                assert action_block['type']=='ACTION' and action_block['trigger']=='HOLD' and action_block['target']['type']=='PHRASE'
+                open_conductor()
+                page.locator('.conductor-step').first.get_by_role('button',name='EDIT BLOCK',exact=True).last.click()
+                assert page.get_by_label('ACTION TRIG',exact=True).input_value()=='HOLD'
+
                 page.get_by_role('button',name='CANCEL',exact=True).click()
                 movement_model=page.evaluate("fetch('/api/v1/conductor').then(r=>r.json())")['model']
                 api.command('conductor_commit',conductor=dict(version=1,sources=movement_model['sources'],switches=[]))
@@ -207,17 +234,18 @@ def run(output, performance=False):
                 page.get_by_role('slider',name='TEST SOURCE 101',exact=True).fill('96')
                 capture('controller-live-test','#controller-section')
                 page.get_by_role('button',name='ADD MAPPING',exact=True).click()
-                capture('controller-editor')
-                page.locator('#editor details summary').first.click()
-                capture('controller-advanced');page.keyboard.press('Escape')
+                capture('controller-editor','#mapping-editor')
+                page.locator('#mapping-editor details summary').first.click()
+                capture('controller-advanced','#mapping-editor')
+                page.locator('#mapping-editor').get_by_role('button',name='CANCEL',exact=True).click()
                 page.get_by_role('button',name='+ CAPTURE SNAPSHOT',exact=True).click()
                 page.locator('[data-snapshot-id]').first.wait_for()
                 page.get_by_role('button',name='+ CAPTURE SNAPSHOT',exact=True).click()
                 page.wait_for_function('() => document.querySelectorAll("[data-snapshot-id]").length===2')
                 capture('snapshot-manager','#snapshots-section')
-                page.locator('#snapshots details summary').first.click()
+                page.locator('[data-snapshot-id]').first.click(button='right')
                 capture('snapshot-menu','#snapshots-section')
-                page.locator('#snapshots').get_by_role('button',name='EDIT',exact=True).first.click()
+                page.get_by_role('menuitem',name='EDIT',exact=True).click()
                 capture('snapshot-editor');page.keyboard.press('Escape')
                 page.get_by_text('MANUAL A/B MORPH',exact=True).click()
                 page.get_by_role('button',name='CONFIGURE A/B',exact=True).click()
@@ -234,7 +262,7 @@ def run(output, performance=False):
                 page.get_by_text('CONNECTED · Engine running',exact=True).wait_for()
                 instrument.locator('.module').wait_for()
                 capture('transformer-chain','#instruments')
-                instrument.locator('.module').get_by_role('button',name='EDIT',exact=True).click()
+                instrument.locator('.module').click()
                 capture('transformer-editor');page.keyboard.press('Escape')
                 tf=api.call()['instruments'][0]['transformers'][0]
                 api.command('module_structure',instrumentId=1,moduleId=tf['id'],operation='delete')
@@ -277,6 +305,11 @@ def run(output, performance=False):
             temporary=destination/(artifact.name+'.tmp')
             shutil.copyfile(artifact,temporary)
             temporary.replace(destination/artifact.name)
+    except Exception:
+        failure_dir=ROOT/'.build/screenshot-failures'
+        shutil.copytree(output,failure_dir,dirs_exist_ok=True)
+        (failure_dir/'partial-manifest.json').write_text(json.dumps({'artifacts':artifacts,'complete':False},indent=2))
+        raise
     finally:
         if started:
             HeadlessTests.tearDownClass()

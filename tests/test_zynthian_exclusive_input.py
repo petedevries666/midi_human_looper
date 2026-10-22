@@ -127,6 +127,34 @@ class ExclusiveInput(unittest.TestCase):
         self.configure()
         self.assert_virtual_never_enabled()
 
+    def test_disconnected_keyboard_does_not_mute_present_selected_helix(self):
+        self.set_ports([self.keyboard.name,self.ttymidi.name])
+        self.ctx.devices_in[0]=None
+        graph=self.configure()
+        self.assertEqual(graph['ZynMidiRouter:dev2_in'],{'mbh_1:midi_out'})
+        self.assertEqual(self.route(0,1),1)
+        self.assertEqual(self.route(1,1),0)
+        self.assertEqual(self.route(2,1),0)
+        self.assertFalse([c for c in self.api.calls if c[0]=='mode' and c[1]==0])
+        self.assertEqual(json.loads(self.path.read_text())['exclusive_midi_input_ports'],[self.keyboard.name,self.ttymidi.name])
+
+    def test_reconnected_selected_keyboard_rejoins_without_direct_synth_bypass(self):
+        self.set_ports([self.keyboard.name,self.ttymidi.name])
+        self.ctx.devices_in[0]=None;self.configure()
+        self.ctx.devices_in[0]=self.keyboard;graph=self.configure()
+        self.assertEqual(graph['ZynMidiRouter:dev2_in'],{'mbh_1:midi_out'})
+        for device in (0,1):
+            self.assertEqual(self.route(0,device),1)
+            self.assertEqual(self.route(1,device),0)
+            self.assertEqual(self.route(2,device),0)
+
+    def test_unselected_present_device_never_substitutes_missing_selected_one(self):
+        self.ctx.devices_in[0]=None
+        self.set_ports([self.keyboard.name]);self.configure()
+        self.assert_virtual_never_enabled()
+        self.assertEqual(self.route(1,1),1)
+        self.assertFalse([c for c in self.api.calls if c[0]=='mode' and c[1]==1])
+
     def test_no_transient_admission_on_invalid_config(self):
         self.path.write_text('{invalid')
         self.configure()

@@ -9,6 +9,7 @@
 #include "realtime_trace.hpp"
 #include "parameter_registry.hpp"
 #include "panic_sweep.hpp"
+#include "echocity_runtime.hpp"
 #include "snapshot_wire.hpp"
 #include "ysfx.hpp"
 #include <algorithm>
@@ -70,6 +71,7 @@ struct ParameterChange {
   double value = 0;
 };
 struct RequestFields {
+  echocity::Configurations echoConfig{};
   uint64_t id = 0, session = 0, instanceId=0, instanceGeneration=0;
   int op = 0, target = 0, arg = 0, revision = 1, ch = 0, note = 0, value = 0;
   int module = 0, count = 0;
@@ -120,6 +122,10 @@ struct Phrase {
   int mute = 0, solo = 0, triggerNote = -1, triggerChannel = 0, outputChannel = 0;
 };
 struct Snapshot {
+  echocity::Configurations echoConfig{};
+  bool echoAvailable=false;
+  unsigned echoPending=0,echoSources=0;
+  uint64_t echoRejected=0;
   unsigned switchLearnTarget=0;bool switchLearnConflict=false;
   uint64_t samples = 0, blocks = 0, midi = 0, late = 0, last_sample = 0;
   int revision = 1;
@@ -656,6 +662,10 @@ static std::string json(const Reply &r) {
     << ",\"status\":" << quote(status[r.status])
     << ",\"backend\":" << quote(s.backend ? "jack" : "mock")
     << ",\"buildRevision\":" << quote(MBMF_BUILD_REVISION)
+    << ",\"echocityAvailable\":" << (s.echoAvailable?"true":"false")
+    << ",\"echocity\":" << echocity::json(s.echoConfig)
+    << ",\"echocityPending\":" << s.echoPending << ",\"echocitySources\":" << s.echoSources
+    << ",\"echocityRejected\":" << s.echoRejected
     << ",\"chainFrameGap\":" << s.chainFrameGap << ",\"chainClockGap\":" << s.chainClockGap
     << ",\"chainTimingVersion\":" << s.chainTimingVersion
     << ",\"chainCaptureMode\":" << quote(s.chainGridCapture?"two-bar-grid":"free-time")
@@ -1010,7 +1020,7 @@ static void control(int listener, Queue<Request, 8> &commands,
                     PatchModel &patch, Model &model,
                     controller::Host &controllers,
                     performance::Snapshots &performanceSnapshots,
-                    const std::function<bool(int, int, int)> &conflicts, movement::Runtime &movements) {
+                    const std::function<bool(int, int, int)> &conflicts, movement::Runtime &movements,echocity::Runtime &echoRuntime) {
   std::vector<unsigned> conductorConfiguration; // worker-owned, never live MIDI state
   auto installConductor=[&](const std::vector<unsigned>& bytes){
     std::array<unsigned,64> owners{};
@@ -1065,7 +1075,7 @@ static void control(int listener, Queue<Request, 8> &commands,
                       request.arg >> request.revision >> request.ch >>
                       request.note >> request.value) &&
                  request.id > 0 && request.id <= 9007199254740991ULL &&
-                 request.op >= 0 && (request.op <= 53) && request.arg >= 0 &&
+                 request.op >= 0 && (request.op <= 54) && request.arg >= 0 &&
                  request.arg <= (request.op == 1 ? 5 : request.op == 13   ? 5
                                  : request.op == 40 ? 7
                                  : request.op == 15 || request.op == 34 ? 3
@@ -1105,6 +1115,9 @@ static void control(int listener, Queue<Request, 8> &commands,
       for(unsigned j=82;j<98;++j)valid=valid && (v[j]==0 || (v[j]>=32 && v[j]<127));
       input>>std::ws;
       if(!input.eof()){request.hasLongHold=true;valid=valid&&bool(input>>request.switchSettings[98]>>request.switchSettings[99]>>request.switchSettings[100]);valid=valid&&(v[98]==0||(v[98]>v[8]&&v[98]<=30000))&&v[99]>=0&&v[99]<=9&&v[100]>=0&&(v[99]>=7?v[100]<48:v[100]<=int(model.switchCapacity));}
+      if(input>>extra)valid=false;
+    } else if(valid && request.op==54){
+      valid=echocity::read(input,request.echoConfig);
       if(input>>extra)valid=false;
     } else if (valid && request.op == 35) {
       valid = request.target >= 0 && request.target < int(model.phraseCapacity) && request.arg >= 0 && request.arg <= 2;
@@ -1158,6 +1171,10 @@ static void control(int listener, Queue<Request, 8> &commands,
               valid=valid&&source.at("slot").number<=model.phraseCapacity;
           }
           if (!(input>>marker)) marker.clear();
+        }
+        if(valid && marker=="echocity"){
+          valid=echocity::read(input,request.echoConfig);
+          if(!(input>>marker))marker.clear();
         }
         if (!marker.empty()) valid=false;
       }
@@ -1350,6 +1367,7 @@ static void control(int listener, Queue<Request, 8> &commands,
           paused.store(false,std::memory_order_release);
         } else if(reply.status==0 && request.op==42){
           patch.load(patch.schema,patch.factory);patch.guardedReady=false;conductorConfiguration.clear();installConductor(conductorConfiguration);
+          echoRuntime.configure(echocity::Configurations{},true);
           send_line(fd,json(reply),shutdown);
         } else if (reply.status == 0 && request.op == 4) {
           auto document =
@@ -1362,6 +1380,7 @@ static void control(int listener, Queue<Request, 8> &commands,
                                     performanceSnapshots.configuration()));
           if (!conductorConfiguration.empty())
             document.insert(document.find_last_of('}'),",\"conductor\":"+conductor::json(conductorConfiguration));
+          if(reply.state.echoAvailable)document.insert(document.find_last_of('}'),",\"echocity\":"+echocity::json(reply.state.echoConfig));
           paused.store(false, std::memory_order_release);
           send_line(fd, document, shutdown);
         } else {
@@ -1376,6 +1395,10 @@ static void control(int listener, Queue<Request, 8> &commands,
               previous[9 + j] = *patch.memory[j];
             patch.load(unsigned(request.target), patchValues);
             bool collision = false;
+            for(const auto &c:request.echoConfig)if(c.id){
+              bool found=false;for(unsigned j=0;j<8;++j)found|=*model.inst[j][1]==c.instrument && *model.inst[j][0]>.5;
+              if(!reply.state.echoAvailable || !found)collision=true;
+            }
             for (auto &source : request.controllerConfig.sources)
               if (source.id && source.kind &&
                   conflicts(source.kind, source.channel, source.number))
@@ -1391,6 +1414,7 @@ static void control(int listener, Queue<Request, 8> &commands,
           }
           if (reply.status == 0 && request.op == 5) {
             installConductor(pendingConductor);
+            echoRuntime.configure(request.echoConfig,true);
             conductorConfiguration.swap(pendingConductor);
             performanceSnapshots.restore(request.snapshotConfig);
             model.abPosition = performanceSnapshots.ab.position;
@@ -1808,6 +1832,22 @@ int main(int argc, char **argv) {
     double performanceMorphAt = 0, performanceMorphSeconds = 0;
     unsigned performanceSkipped = 0;
     Snapshot state;
+    std::unique_ptr<echocity::Runtime> echoStorage(new echocity::Runtime(sampleRate));
+    auto &echoRuntime=*echoStorage;
+    std::unique_ptr<echocity::SourceJournal<>> echoJournal(new echocity::SourceJournal<>());
+    auto echoHost=NSEEL_VM_regvar(fx->vm.get(),"native_echo_sources");
+    auto echoRead=NSEEL_VM_regvar(fx->vm.get(),"native_echo_read");
+    auto echoWrite=NSEEL_VM_regvar(fx->vm.get(),"native_echo_write");
+    auto echoOverflow=NSEEL_VM_regvar(fx->vm.get(),"native_echo_overflow");
+    bool echoProtocol=false,echoRecovering=false;
+    auto echoCapacity=ysfx_find_var(fx,"NATIVE_ECHO_SOURCE_CAP");
+    state.echoAvailable=chainMode && model.schema==8 && echoCapacity && *echoCapacity==8192;
+    std::unique_ptr<std::array<EEL_F*,8192*6>> echoCells(new std::array<EEL_F*,8192*6>());
+    if(state.echoAvailable)for(unsigned j=0;j<echoCells->size();++j)(*echoCells)[j]=cell(fx,29000000+j);
+    if(state.echoAvailable)ysfx_set_midi_capacity(fx,524288,false);
+    std::array<unsigned,8192> echoOrders{};
+    std::unique_ptr<std::array<echocity::SourceEvent,16384>> echoTimeline(new std::array<echocity::SourceEvent,16384>());
+    volatile echocity::SourceEvent *echoWarm=echoTimeline->data();for(unsigned j=0;j<echoTimeline->size();++j)echoWarm[j].order=0;
     state.backend = useJack;
     state.sampleRate = sampleRate;
     state.blockSize = blockSize;
@@ -2249,6 +2289,10 @@ int main(int argc, char **argv) {
         if (complete) { held.fill(false); state.active = 0; }
       };
       bool recovering = overflowRecovery;
+      if(echoRecovering && !panicSweep.remaining()){
+        echoRuntime.recovered();echoRecovering=false;*echoRead=*echoWrite=*echoOverflow=0;
+        held.fill(false);state.active=0;
+      }
       overflowRecovery = false;
       if (outBuffer) {
         jack_midi_clear_buffer(outBuffer);
@@ -2280,7 +2324,7 @@ int main(int argc, char **argv) {
         state.midiReceived+=n;
         for (unsigned i = 0; i < n; ++i) {
           jack_midi_event_t e;
-          if (jack_midi_event_get(&e, in, i) || muted || recovering ||
+          if (jack_midi_event_get(&e, in, i) || muted || recovering || echoRecovering ||
               loading.load(std::memory_order_acquire)) {
             ++state.midiDropped;
           } else {
@@ -2423,6 +2467,14 @@ int main(int argc, char **argv) {
               auto &v=model.switchFields[slot];*v[0]=1;*v[4]=std::min(127,60+slot);*v[7]=300;*v[8]=800;*v[12]=127;*v[14]=1;*v[17]=slot;*v[18]=slot;*v[19]=slot;*v[20]=1;*v[21]=next;
               *cell(fx,unsigned(variable(fx,"DS_CFG_BASE"))+1)=next+1;*target=slot;NSEEL_code_execute(switchReset);++state.revision;}
           }else reply.status=3;
+        }
+        else if(request.op==54){
+          if(!state.echoAvailable || (!echoProtocol && state.active))reply.status=3;
+          for(const auto &c:request.echoConfig)if(c.id){bool found=false;
+            for(unsigned j=0;j<8;++j)found|=*model.inst[j][0]>.5 && *model.inst[j][1]==c.instrument;
+            if(!found)reply.status=2;
+          }
+          if(!reply.status){echoRuntime.configure(request.echoConfig);++state.revision;}
         }
         else if(request.op==53){
           if(request.value>16)reply.status=3;
@@ -2635,7 +2687,25 @@ int main(int argc, char **argv) {
               }
               controllers.recall(b.instrument, b.module, b.kind,
                                  performance::normalized(b.kind, value));
-              applyBinding(b, performance::normalized(b.kind, value));
+              // parameter_set already carries the physical value selected in
+              // the editor. Re-scaling an enum through the legacy EEL bounds
+              // can change it (for example ARP DOWN=2 becomes RANDOM when the
+              // native registry has a wider enum range). Reuse the same safe
+              // typed EEL edit path as module_commit so active-note deferral
+              // and transformer ownership remain intact.
+              unsigned instrumentIndex;
+              int code, row;
+              if (b.module && b.kind < 14 &&
+                  model.resolve(b, instrumentIndex, code, row, true)) {
+                *editI = instrumentIndex;
+                *editCode = code;
+                *editKind = b.kind;
+                *editRow = row;
+                *editValue = value;
+                NSEEL_code_execute(edit);
+              } else {
+                applyBinding(b, performance::normalized(b.kind, value));
+              }
             }
           } else if (request.op == 30) {
             performance::AB config;
@@ -3005,6 +3075,7 @@ int main(int argc, char **argv) {
             reply.status = 2;
         } else if (request.op == 2) {
           if(chainMode)panicSweep.begin();
+          if(echoProtocol){echoRuntime.configure(echoRuntime.configuration(),true);echoRecovering=true;}
           state.switchLearnTarget=0;state.switchLearnConflict=false;chain.cancel();
           *snapHostRead = *snapHostWrite;
           performanceMorphSeconds = 0;
@@ -3084,6 +3155,9 @@ int main(int argc, char **argv) {
         time.time_signature[0] = 4;
         time.time_signature[1] = 4;
         ysfx_set_time_info(fx, &time);
+      }
+      if(state.echoAvailable && !echoProtocol && echoRuntime.hasConfiguration()){
+        echoProtocol=true;*echoHost=1;*echoRead=*echoWrite=*echoOverflow=0;
       }
       trace.mark(3);
       movements.render(state.samples+frames,emitMovement,applyMovement,false,true);
@@ -3180,16 +3254,24 @@ int main(int argc, char **argv) {
       }
       *snapHostRead = *snapHostWrite = 0;
       for(unsigned j=0;j<movementPhysicalCount;++j){auto &p=movementPhysical[j];addControl(p.offset,0,1,p.ch,p.value,p.cc);}
-      unsigned outputCount=0;
+      unsigned outputCount=0,nativeOrdinal=0;
+      if(echoProtocol)echoOrders.fill(0);
       ysfx_midi_event_t event{};
       while(ysfx_receive_midi(fx,&event)){
+        ++nativeOrdinal;
+        if(echoProtocol && event.bus!=15 && event.size==3 && ((event.data[0]&240)==128 || (event.data[0]&240)==144))continue;
         if(outputCount>=8192||event.size>256){if(event.bus!=15){++state.midiGenerated;++state.midiDropped;}++state.outputOverflow;overflowRecovery=true;continue;}
-        auto &m=(*outputBatch)[outputCount];m.size=event.size;m.offset=std::min(event.offset,frames-1);m.order=(outputCount+1)*4;m.bus=event.bus;
+        auto &m=(*outputBatch)[outputCount];m.size=event.size;m.offset=std::min(event.offset,frames-1);m.order=nativeOrdinal*4;m.bus=event.bus;
         std::memcpy(m.data.data(),event.data,event.size);(*outputOrder)[outputCount]=outputCount;
         if(event.bus==15){
           if(m.size!=17||m.data[0]!=240||m.data[1]!=125||m.data[2]!=77||m.data[16]!=247){++state.outputOverflow;overflowRecovery=true;m.size=0;}
           else{
             uint64_t id=0;unsigned mask=0;for(int k=7;k>=0;--k)id=id*128+m.data[5+k];for(int k=2;k>=0;--k)mask=mask*128+m.data[13+k];
+            if(m.data[3]==18){
+              if(!echoProtocol || id>=echoOrders.size() || m.data[4] || mask){++state.outputOverflow;overflowRecovery=true;}
+              else echoOrders[id]=m.order;
+              continue;
+            }
             addControl(m.offset,m.order,m.data[3],m.data[4],id,mask);m.size=0;
           }
         }else if(m.size==3&&(m.data[0]&240)==176)addControl(m.offset,m.order,2,m.data[0]&15,m.data[2],m.data[1]);
@@ -3229,6 +3311,52 @@ int main(int argc, char **argv) {
       generatedAt=UINT64_MAX;generatedOrder=0;
       movements.render(state.samples+frames,emitMovement,applyMovement);
       reveals.render(state.samples+frames,emitControlled);reveals.collectIdle();
+      if(echoProtocol){
+        unsigned echoOrder=0;
+        auto emitEcho=[&](uint64_t sample,bool on,uint8_t ch,uint8_t pitch,uint8_t velocity,bool retrigger){
+          const unsigned needed=on && retrigger?2:1;
+          if(movementOutputCount+needed>outputBatch->size())return false;
+          const unsigned offset=unsigned(std::min<uint64_t>(frames-1,sample>state.samples?sample-state.samples:0));
+          for(unsigned k=0;k<needed;++k){auto &m=(*outputBatch)[movementOutputCount++];m.size=3;m.offset=offset;m.bus=0;m.order=echoOrder;
+            const bool attack=on && (!retrigger || k==1);m.data[0]=uint8_t((attack?144:128)|ch);m.data[1]=pitch;m.data[2]=attack?velocity:0;
+          }
+          return true;
+        };
+        echoRuntime.begin(state.samples,emitEcho);
+        unsigned echoCount=0;
+        for(unsigned j=0;j<movementOutputCount;++j){auto &m=(*outputBatch)[j];m.order=m.order*4+2;
+          if(m.size==3 && (m.data[0]&240)==176 && (m.data[1]==120 || m.data[1]==123)){
+            auto &e=(*echoTimeline)[echoCount];e=echocity::SourceEvent{};e.action=echocity::SourceAction::ChannelClear;
+            e.key.channel=m.data[0]&15;e.offset=m.offset;e.order=m.order;e.sequence=echoCount;++echoCount;
+          }
+        }
+        const bool validJournal=echoRecovering || (!*model.instanceFault && !overflowRecovery && echoJournal->consume(*echoRead,*echoWrite,*echoOverflow,frames,
+          [&](size_t j){return *(*echoCells)[j];},[&](const echocity::SourceEvent&e){
+            auto &target=(*echoTimeline)[echoCount];target=e;target.order=echoOrders[e.journalIndex]?echoOrders[e.journalIndex]*4+2:1;target.sequence=echoCount;++echoCount;
+          }));
+        if(validJournal && !echoRecovering){
+          std::sort(echoTimeline->begin(),echoTimeline->begin()+echoCount,[](const echocity::SourceEvent&a,const echocity::SourceEvent&b){
+            if(a.offset!=b.offset)return a.offset<b.offset;if(a.order!=b.order)return a.order<b.order;return a.sequence<b.sequence;
+          });
+          uint64_t cursor=state.samples;
+          for(unsigned j=0;j<echoCount;++j){const auto &e=(*echoTimeline)[j];const uint64_t sample=state.samples+e.offset;
+            echoOrder=0;if(sample>=cursor){echoRuntime.render(cursor,unsigned(sample-cursor+1),emitEcho);cursor=sample+1;}
+            echoOrder=e.order;echoRuntime.source(e,sample,chainMode?chain.bpm:bpm,emitEcho);
+            echoOrder=e.order+1;echoRuntime.render(sample,1,emitEcho);
+          }
+          echoOrder=0;if(cursor<state.samples+frames)echoRuntime.render(cursor,unsigned(state.samples+frames-cursor),emitEcho);
+        }
+        if(validJournal)*echoRead=*echoWrite=0;
+        if(!echoRecovering && (!validJournal || echoRuntime.failed)){
+          echoRuntime.cancel(state.samples+frames-1,[](const native_notes::SourceKey&){return true;},emitEcho);
+          overflowRecovery=true;panicSweep.begin();echoRecovering=true;*echoRead=*echoWrite=*echoOverflow=0;
+        }
+        auto alive=echoRuntime.configuration();bool removed=false;
+        for(auto &c:alive)if(c.id){bool found=false;for(unsigned j=0;j<8;++j)found|=*model.inst[j][0]>.5 && *model.inst[j][1]==c.instrument;
+          if(!found){c=echocity::Configuration{};removed=true;}}
+        if(removed)echoRuntime.configure(alive);
+      }
+      state.echoConfig=echoRuntime.configuration();state.echoPending=echoRuntime.pending();state.echoSources=echoRuntime.sources();state.echoRejected=echoRuntime.rejected;
       outputCount=movementOutputCount;bool outputSorted=true;
       for(unsigned j=1;j<outputCount;++j){const auto &a=(*outputBatch)[j-1],&b=(*outputBatch)[j];if(a.offset>b.offset||(a.offset==b.offset&&a.order>b.order)){outputSorted=false;break;}}
       for(unsigned j=0;j<outputCount;++j)(*outputOrder)[j]=j;
@@ -3350,7 +3478,7 @@ int main(int argc, char **argv) {
     io = std::thread(control, listener, std::ref(commands), std::ref(replies),
                      std::ref(shutdown), std::ref(paused), std::ref(loading),
                      std::ref(patch), std::ref(model), std::ref(controllers),
-                     std::ref(*performanceSnapshots), std::cref(conflicts), std::ref(movements));
+                     std::ref(*performanceSnapshots), std::cref(conflicts), std::ref(movements),std::ref(echoRuntime));
     while (running) {
       if (!useJack)
         process(blockSize);

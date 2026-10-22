@@ -32,6 +32,6 @@ for dependency in fontconfig freetype2;do
 done
 compiler_flags=(-O2)
 if [[ ${SANITIZE:-0} == 1 ]];then compiler_flags=(-O1 -g -fsanitize=address,undefined -fno-omit-frame-pointer);fi
-c++ -std=c++11 "${compiler_flags[@]}" -fsigned-char -DSWELL_LICE_GDI "-DMBMF_BUILD_REVISION=\"$build_revision\"" -I"$YSFX_SOURCE/include" -I"$YSFX_SOURCE/sources" -I"$YSFX_SOURCE/thirdparty/WDL/source" headless/engine.cpp "$YSFX_BUILD/libysfx.a" "${jack_flags[@]}" "${graphics_flags[@]}" -ldl -lpthread -o "$HEADLESS_BINARY"
+c++ -std=c++17 "${compiler_flags[@]}" -fsigned-char -DSWELL_LICE_GDI "-DMBMF_BUILD_REVISION=\"$build_revision\"" -I"$YSFX_SOURCE/include" -I"$YSFX_SOURCE/sources" -I"$YSFX_SOURCE/thirdparty/WDL/source" headless/engine.cpp "$YSFX_BUILD/libysfx.a" "${jack_flags[@]}" "${graphics_flags[@]}" -ldl -lpthread -o "$HEADLESS_BINARY"
 "$HEADLESS_BINARY" --queue-test
 printf 'Built %s on %s (%s bits)\n' "$HEADLESS_BINARY" "$(uname -m)" "$(getconf LONG_BIT)"

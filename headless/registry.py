@@ -6,7 +6,9 @@ class Registry:
         if document.get('contractVersion')!=1:raise ValueError('unsupported contract')
         self.curve_presets=document.get("curvePresets",[]);
         self.parameters={};self.modules={};self.engine_types={}
-        for p in document['parameters']:
+        overrides=document.get('nativeParameterOverrides',{})
+        for base in document['parameters']:
+            p=dict(base,**overrides.get(base['id'],{}))
             if p['id'] in self.parameters or p['valueType'] not in ('float','int','enum','toggle') or not p['min']<=p['default']<=p['max'] or p['min']>=p['max'] or p['step']<=0:raise ValueError('invalid parameter')
             if "choices" in p and (p["valueType"] not in ("enum","toggle") or p["min"]!=0 or not isinstance(p["choices"],list) or len(p["choices"])!=p["max"]+1 or any(not isinstance(label,str) or not label for label in p["choices"])):raise ValueError("invalid parameter choices")
             self.parameters[p['id']]=dict(p)

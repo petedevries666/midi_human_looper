@@ -10,9 +10,10 @@ effect implementation.
 - Bounded Gaussian or uniform timing; FIXED or EVOLVING deterministic draws.
 - GROUP keeps a chord together; NOTES gives its notes independent offsets.
 - Velocity variation is an independent 0–100% draw.
-- Live negative offsets need explicit lookahead. The stream adds the chosen
-  lookahead latency and timing offset; if the resulting event would be in the
-  past, it is clamped to the current arrival sample. The default lookahead is 0.
+- Negative offsets need explicit output lookahead. The same final output stream
+  serves live input and phrase playback, so its chosen lookahead is added as
+  latency to every routed source. If the resulting event would be in the past,
+  it is clamped to the current sample. The default lookahead is 0.
 - One offset is captured at Note On and reused for its Note Off, preserving note
   duration and Note-Off velocity. Voices are paired oldest-first for overlapping
   identical notes.

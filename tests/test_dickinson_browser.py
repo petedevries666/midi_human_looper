@@ -35,7 +35,7 @@ try:
   page.get_by_role('button',name='APPLY',exact=True).click()
   page.wait_for_function('()=>!document.querySelector("#expressive-editor").open')
   expressive=api.control.request()['nativeExpressive']['configuration']
-  assert expressive[2:4]==[1,1] and expressive[5]==37 and expressive[14]==75 and expressive[15]==3,('expressive configuration',expressive)
+  assert expressive[2:4]==[1,1] and expressive[4]==1 and expressive[5]==37 and expressive[15]==75 and expressive[16]==3,('expressive configuration',expressive)
   page.get_by_role('button',name='SAVE PATCH',exact=True).click();page.get_by_text('PATCH SAVED',exact=True).wait_for()
   saved=json.loads((api.server.patch_dir/'patch1.json').read_text())
   assert (saved['nativeArp']['configuration'][3],saved['nativeArp']['configuration'][4])==(4,1),('saved native ARP',saved.get('nativeArp'))

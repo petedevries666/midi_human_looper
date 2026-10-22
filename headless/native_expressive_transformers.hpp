@@ -1,6 +1,6 @@
 #pragma once
-// Native experimental pair-based HUMANIZER and VELOCITY CURVES foundation.
-// NOT installed in a Zynthian chain until an instrument bridge is qualified.
+// Native HUMANIZER and VELOCITY CURVES processing for the routed MIDI stream.
+// The host activates these modules only for uniquely identified instrument outputs.
 #include "native_note_scheduler.hpp"
 #include <array>
 #include <algorithm>

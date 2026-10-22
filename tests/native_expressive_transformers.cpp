@@ -103,6 +103,43 @@ int main(){
   scoped.render(5000,1024,scopedReceive);
   assert(scopedMidi.size()==4 && !scopedMidi.back().on && scopedMidi.back().pitch==61);
   assert(scoped.active()==0 && scoped.sounding()==0);
+  // Streaming live adapter accepts On before Off, applies one captured
+  // lookahead+bias shift to both events, and preserves release velocity.
+  StreamRuntime<4> stream(48000);
+  Humanizer live;live.enabled=true;live.biasMs=25;live.liveLookaheadMs=10;
+  std::vector<Midi> streamMidi;
+  auto streamReceive=[&](uint64_t s,bool on,uint8_t ch,uint8_t p,uint8_t v){
+    streamMidi.push_back({s,on,ch,p,v});return true;
+  };
+  assert(stream.attack(key,44,1000,100,id,live,straight,streamReceive));
+  assert(stream.release(key,2000,37,streamReceive));
+  assert(streamMidi.empty() && stream.pending()==2);
+  stream.render(1000,512,streamReceive);assert(streamMidi.empty());
+  stream.render(2680,512,streamReceive);
+  assert(streamMidi.size()==1 && streamMidi[0].on && streamMidi[0].t==2680 && streamMidi[0].vel==100);
+  stream.render(3680,512,streamReceive);
+  assert(streamMidi.size()==2 && !streamMidi[1].on && streamMidi[1].t==3680 && streamMidi[1].vel==37);
+  assert(stream.active()==0 && stream.sounding()==0);
+  // Overlapping identical pitches retain ownership until the final release.
+  StreamRuntime<4> overlap(48000);live.enabled=false;streamMidi.clear();
+  assert(overlap.attack(key,44,100,90,id,live,straight,streamReceive));
+  assert(overlap.attack(key,44,150,80,id,live,straight,streamReceive));
+  overlap.render(100,128,streamReceive);
+  assert(overlap.release(key,200,11,streamReceive));
+  assert(overlap.release(key,250,22,streamReceive));
+  overlap.render(200,512,streamReceive);
+  assert(streamMidi.size()==2 && streamMidi[0].on && !streamMidi[1].on && streamMidi[1].vel==22);
+  // Instrument+module cancellation releases only the selected sounding voice.
+  StreamRuntime<4> scopedStream(48000);streamMidi.clear();
+  native_notes::SourceKey otherInstrument=key;otherInstrument.instrument=2;otherInstrument.pitch=61;
+  assert(scopedStream.attack(key,44,1000,90,id,live,straight,streamReceive));
+  assert(scopedStream.attack(otherInstrument,45,1000,80,id,live,straight,streamReceive));
+  scopedStream.render(1000,512,streamReceive);assert(streamMidi.size()==2);
+  assert(scopedStream.cancel(1600,1,44,streamReceive));
+  scopedStream.render(1600,1,streamReceive);
+  assert(streamMidi.size()==3 && !streamMidi.back().on && streamMidi.back().pitch==60);
+  assert(scopedStream.active()==1 && scopedStream.sounding()==1);
+  scopedStream.recovered();assert(scopedStream.active()==0 && scopedStream.pending()==0);
   PairRuntime<2,3> bounded(48000);
   assert(bounded.schedule(key,44,500,600,0,80,id,h,straight));
   assert(bounded.schedule(key,44,700,800,0,80,id,h,straight));

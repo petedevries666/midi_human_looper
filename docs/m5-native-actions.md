@@ -6,7 +6,7 @@ STOP/PANIC helpers before the new bounded dispatcher.
 
 ## Supported subset
 
-Non-MASTER ACTION layers accept PRESS or HOLD. STOP targets a phrase, a mute
+Non-MASTER ACTION layers accept PRESS or HOLD only. LONG_HOLD and RELEASE action triggers are rejected explicitly rather than being flattened to PRESS; their runtime phases are not implemented in this dispatcher. STOP targets a phrase, a mute
 group or all phrases. RESET_CURSOR and RESET_SHUFFLE_BAG target a switch.
 STOP_RESET targets a switch (global phrase stop, then that cursor reset).
 PANIC targets all phrases. PAUSE/RESUME remain preserved configuration but
@@ -43,8 +43,8 @@ reported, rather than claiming successful restoration.
 
 ## Reproducible isolated validation
 
-GitHub Actions run 39726868688 passed on code commit
-dd025919898cd4fc92708ebeedd30c5b340964b3. The workflow built pinned ysfx and the
+GitHub Actions run 39745792263 passed on head commit
+13147f88be682c98b579c4f60acdd877b47b8188. It also tests that LONG_HOLD and RELEASE are rejected as unsupported ACTION triggers, not reinterpreted as PRESS. The workflow built pinned ysfx and the
 real generated engine without a JACK daemon, Zynthian service, saved user patch
 or musical port. It passed the HOLD/group-zero ownership regressions, typed
 native action tests, switch creation and preset rollback tests, legacy contracts,

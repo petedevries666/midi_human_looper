@@ -7,8 +7,10 @@ effect implementation.
 ## HUMANIZER
 
 - Timing range: 0–2000 ms, with signed bias from −2000 to +2000 ms.
-- Bounded Gaussian or uniform timing; FIXED or EVOLVING deterministic draws.
-- GROUP keeps a chord together; NOTES gives its notes independent offsets.
+- Bounded Gaussian or uniform timing; FIXED draws repeat by instrument/channel or
+  pitch, while EVOLVING draws include the routed onset and audio-block index.
+- GROUP gives attacks on one channel a shared offset; NOTES gives pitches
+  independent offsets. Simultaneous chord notes remain coherent in either mode.
 - Velocity variation is an independent 0–100% draw.
 - Negative offsets need explicit output lookahead. The same final output stream
   serves live input and phrase playback, so its chosen lookahead is added as

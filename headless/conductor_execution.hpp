@@ -59,7 +59,7 @@ inline std::vector<double> compile(const std::vector<unsigned>& bytes,double bas
     if(out[h+7]&&sw.object.count("advance")&&choice(sw.at("advance"),{"RELEASE"}))out[h+7]=2;
     unsigned stepStart=out.size();out.resize(out.size()+sw.at("steps").array.size()*80,0);unsigned stepIndex=0;
     for(const auto& step:sw.at("steps").array) {
-      std::array<double,80> record{};std::vector<double> admissions,heldAdmissions,longAdmissions,releaseAdmissions,chargeAdmissions,revealOptions,actions;unsigned longMask=0;
+      std::array<double,80> record{};std::vector<double> admissions,heldAdmissions,longAdmissions,releaseAdmissions,chargeAdmissions,revealOptions,actions;unsigned longMask=0;bool chargeAction=false;
       record[0]=choice(step.at("transition"),{"INHERIT","IMMEDIATE","END_OF_PHRASE"});
       record[71]=choice(step.at("transition"),{"END_OF_PHRASE"})||(choice(step.at("transition"),{"INHERIT"})&&choice(sw.at("transition"),{"END_OF_PHRASE"}));
       unsigned n=0;
@@ -86,6 +86,7 @@ inline std::vector<double> compile(const std::vector<unsigned>& bytes,double bas
           if(!op||(op==5&&kind!=3)||(op==6&&kind!=2)||actions.size()>=128){record[0]=0;continue;}
           const auto &trigger=b.at("trigger");
           unsigned phase=choice(trigger,{"HOLD"})?1:choice(trigger,{"LONG_HOLD"})?2:choice(trigger,{"RELEASE"})?3:choice(trigger,{"SUPERCHARGE_RELEASE"})?4:0;
+          if(phase==4)chargeAction=true;
           // Destructive global actions are barriers; self-reset may not leave
           // pending phrase/MOVEMENT admissions in this step.
           bool barrier=(op==1&&kind==2)||op==5||op==6||(kind==3&&id==si);
@@ -127,7 +128,7 @@ inline std::vector<double> compile(const std::vector<unsigned>& bytes,double bas
       record[74]=releaseAdmissions.size();record[75]=chargeAdmissions.size();record[76]=base+out.size();out.insert(out.end(),releaseAdmissions.begin(),releaseAdmissions.end());record[77]=base+out.size();out.insert(out.end(),chargeAdmissions.begin(),chargeAdmissions.end());
       record[78]=base+out.size();std::vector<double> binding;
       double patchThreshold=root.object.count("supercharge")?root.at("supercharge").at("thresholdMs").number:600,patchFull=root.object.count("supercharge")?root.at("supercharge").at("fullMs").number:2000;
-      double threshold=(record[73]>0||!chargeAdmissions.empty())?patchThreshold:-1,full=patchFull;
+      double threshold=(record[73]>0||!chargeAdmissions.empty()||chargeAction)?patchThreshold:-1,full=patchFull;
       if(step.object.count("supercharge")){
         const auto &c=step.at("supercharge");threshold=c.object.count("thresholdMs")?c.at("thresholdMs").number:patchThreshold;full=c.object.count("fullMs")?c.at("fullMs").number:patchFull;
         unsigned chargeIndex=0;for(const auto &a:c.at("bindings").array){if(a.object.count("target")){auto it=movements.find("charge:"+step.at("id").text+":"+std::to_string(chargeIndex));if(it!=movements.end())chargeAdmissions.push_back(it->second);++chargeIndex;continue;}++chargeIndex;unsigned row=0;for(const auto &l:step.at("layers").array){const auto &b=l.at("block");if(b.type=='z'||!choice(b.at("type"),{"PHRASE"})||!supportedBlock(b))continue;auto it=slots.find(b.at("sourceId").text);if(it==slots.end()||(groups[it->second]&&winners[groups[it->second]]!=it->second))continue;

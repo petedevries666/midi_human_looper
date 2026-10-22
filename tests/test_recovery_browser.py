@@ -70,7 +70,12 @@ try:
   page.locator('[data-instrument-id="1"] .module').click()
   page.get_by_label('MODE',exact=True).select_option(label='UP')
   page.get_by_role('button',name='DONE',exact=True).click();page.locator('#editor').wait_for(state='hidden')
-  assert next(v['value'] for v in api.call()['instruments'][0]['transformers'][0]['parameters'] if v['kind']==4)==1
+  deadline=time.monotonic()+3
+  while time.monotonic()<deadline:
+   selected=next(v['value'] for v in api.call()['instruments'][0]['transformers'][0]['parameters'] if v['kind']==4)
+   if selected==1:break
+   time.sleep(.025)
+  assert selected==1,f'hand edit must preserve mapped enum choice; native value={selected}'
   api.command('mapping_delete',mappingId=2)
   api.command('module_commit',instrumentId=1,moduleId=module['id'],parameters=[dict(kind=4,value=2)])
   page.reload();page.get_by_text('CONNECTED · Engine running',exact=True).wait_for()

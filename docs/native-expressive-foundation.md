@@ -1,59 +1,65 @@
-# Native extreme HUMANIZER + VELOCITY CURVES: first coding increment
+# Native HUMANIZER and VELOCITY CURVES
 
-Branch based on PR #93, issue #94. This is a **C++ runtime foundation**, not yet a
-playable instrument transformer. It does not modify the frozen REAPER JSFX.
+This PR connects the native expressive stream to routed MIDI output and adds an
+editor per instrument. It does not change the frozen REAPER JSFX or the ECHOCITY
+effect implementation.
 
-## Implemented
-- Deterministic signed timing modulation, -2000 to +2000 ms bias, 0..2000 ms
-  jitter, bounded Gaussian/uniform distributions, FIXED/EVOLVING random seed and
-  coherent GROUP versus dispersed NOTES timing.
-- Velocity variation 0..100%, independent random stream and untouched velocity
-  zero; 16-point velocity response curves, inverted shapes, linear interpolation
-  and 0..100% AMOUNT.
-- `PairRuntime` reuses the native-note scheduler and output ledger for
-  complete recorded pairs. `StreamRuntime` additionally accepts a live Note On
-  before its Note Off, captures one shift per voice, pairs overlapping equal
-  pitches oldest-first, preserves Note-Off velocity, handles module/instrument
-  cancellation and downstream channel clears, and uses fixed preallocated event
-  storage. Both have bounded admission and explicit PANIC recovery contracts.
-  `liveLookaheadMs` makes live latency explicit; without enough lookahead a
-  negative shift clamps to the arrival time and is never emitted in the past.
-- Real C++ tests compiled against the repository's native scheduler in the
-  dedicated GitHub CI workflow. Coverage includes deterministic FIXED versus
-  EVOLVING timing/velocity, invalid-parameter fail-closed behavior, curve blend
-  endpoints, streaming Note On/Off pairing, release velocity, equal-pitch overlap,
-  module-scoped cancellation and channel clear.
+## HUMANIZER
 
-## Important limits
-- The adapter accepts *known note pairs*. It is **not connected** to live
-  incoming MIDI, instrument transformers, phrases, snapshots or Zynthian synths.
-  No Web editor, module descriptor, Controller mapping or patch persistence yet.
-- Live Note Off is not known at Note On time, so the production adapter must
-  acquire voice identity and seal delayed releases safely. Do not pretend a
-  note-pair test is a live-recording proof.
-- Negative times are clamped to the currently available clock boundary;
-  actual lookahead requires a phrase pre-scheduler or explicit live latency.
-  No event can be emitted before it is received in real time.
-- The scheduler's maximum event horizon is 60 seconds. A pair beyond that
-  limit is rejected in full. Same channel/pitch instances are coalesced by
-  the existing output ledger, as in ECHOCITY.
-- An isolated PairRuntime must **not** be wired in series with ECHOCITY by
-  treating their output ledgers as independent physical MIDI ownership. Review
-  unified ownership and transformer continuation before engine integration.
+- Timing range: 0–2000 ms, with signed bias from −2000 to +2000 ms.
+- Bounded Gaussian or uniform timing; FIXED or EVOLVING deterministic draws.
+- GROUP keeps a chord together; NOTES gives its notes independent offsets.
+- Velocity variation is an independent 0–100% draw.
+- Live negative offsets need explicit lookahead. The stream adds the chosen
+  lookahead latency and timing offset; if the resulting event would be in the
+  past, it is clamped to the current arrival sample. The default lookahead is 0.
+- One offset is captured at Note On and reused for its Note Off, preserving note
+  duration and Note-Off velocity. Voices are paired oldest-first for overlapping
+  identical notes.
 
-## Required next PR slices
-1. Bridge to native source/voice lifecycle with a shared output ledger and
-   explicit transformer stage placement. Prove real JACK instrument playback,
-   sustained/repeated notes, phrase loop boundaries and ECHOCITY interactions.
-2. Register stable module IDs / native descriptors and versioned patch schema
-   with migrations. Capture fixed seed/iteration and active parameters per voice.
-3. Web module picker, compact HUMANIZER parameters and VELOCITY CURVES point
-   editor, transaction-safe Apply/Cancel and SAVE/LOAD/snapshots.
-4. Qualification: true synthetic JACK, queue overload and real Zynthian/Helix
-   musician testing; do not claim live-ready before those gates.
+## VELOCITY CURVES
 
-Repro:
-```sh
-g++ -std=c++17 -O2 -Wall -Wextra -Werror -pedantic -Iheadless tests/native_expressive_transformers.cpp -o /tmp/mbmf-native-expressive
-/tmp/mbmf-native-expressive
-```
+- Each instrument has a 1–127 input to 1–127 output response graph with up to 16
+  points. Input X must increase; output Y can rise, fall, flatten, or invert.
+- Linear interpolation is used between points.
+- AMOUNT blends the original velocity with the curve result from 0–100%.
+- Velocity-zero Note On is treated as a release; no zero-velocity attack is
+  generated. Note-Off status and release velocity pass through the native voice
+  ledger.
+- HUMANIZER velocity variation runs before the response curve.
+
+The Web editor offers SUBTLE, LOOSE and DESTROY starting presets, editable timing
+controls, and LINEAR, SOFT, HARD, INVERT and GATE curve shapes. APPLY commits the
+instrument configuration through the versioned schema-8 carrier. The same
+carrier is retained by native patch save/load and patch copy.
+
+## Runtime placement and limits
+
+The stream runs after the native transformer and routing output has been built,
+before the shared JACK output queue. It uses preallocated fixed-capacity voice
+and due-event storage. Delayed events continue to render on later silent blocks.
+PANIC, patch reload, module configuration changes and MIDI channel clear release
+or clear owned voices. Queue failure enters the host's existing MIDI recovery
+path; it does not knowingly leave a half-admitted pair.
+
+At present, an instrument must use an explicit MIDI OUT channel 1–16 to identify
+its post-routing stream. ORIGINAL output and duplicate explicit channel
+assignments pass through unchanged because the final MIDI packet has no
+unambiguous instrument identity in those cases. The engine exposes this via
+per-instrument controls; physical Zynthian/Helix qualification remains necessary.
+
+ECHOCITY itself is unchanged and remains disabled by default. When its runtime is
+active, expressive processing sees its final output stream, so deliberate
+HUMANIZER use can shift individual repeated notes. The effect's default behavior
+is unchanged while both expressive modules are bypassed.
+
+## Validation
+
+- Native expressive C++ tests exercise deterministic timing, velocity boundaries,
+  curve interpolation, live pairing, overlap, cancellation and channel clear
+  against the real native scheduler.
+- The Python patch-codec test validates round-trip and malformed patch carriers.
+- GitHub Actions builds the strict C++17 core, runs ASAN/UBSAN and checks the
+  editor syntax. The full DICKINSON engine workflow builds the actual engine.
+- This PR has not been installed on Zynthian. Confirm musical feel, routing,
+  controller assignment needs and callback load on the Pi before release.

@@ -111,7 +111,13 @@ try:
   page.evaluate("""() => {const e=document.querySelector('[data-instrument-id="1"] input[aria-label="VOLUME Instrument 1"]');e.value='80';e.dispatchEvent(new Event('input',{bubbles:true}));e.dispatchEvent(new Event('change',{bubbles:true}));}""")
   page.wait_for_function("""() => document.querySelector('[data-instrument-id="1"] input[aria-label="VOLUME Instrument 1"]').value==='80'""")
   page.get_by_role('button',name='DONE',exact=True).click()
-  page.locator('#mapping-editor').wait_for(state='hidden')
+  try:
+    page.locator('#mapping-editor').wait_for(state='hidden',timeout=5000)
+  except Exception:
+    print('MAPPING EDITOR ERROR:',page.locator('#mapping-editor [role="alert"]').all_text_contents(),flush=True)
+    print('APP ERROR:',page.locator('#error').all_text_contents(),flush=True)
+    print('MAPPING CONFIG:',api.call()['controllerEngine']['configuration'][:145],flush=True)
+    raise
   from controller_config import decode
   after_base_edit=decode(api.call()['controllerEngine'])
   assert len(after_base_edit['mappings'])==1,'editing the base slider must preserve its controller assignment'

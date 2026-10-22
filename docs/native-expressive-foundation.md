@@ -1,6 +1,6 @@
 # Native extreme HUMANIZER + VELOCITY CURVES: first coding increment
 
-Branch based on PR #93, issue #94. This is a **C++ foundation**, not yet a
+Branch based on PR #93, issue #94. This is a **C++ runtime foundation**, not yet a
 playable instrument transformer. It does not modify the frozen REAPER JSFX.
 
 ## Implemented
@@ -10,14 +10,19 @@ playable instrument transformer. It does not modify the frozen REAPER JSFX.
 - Velocity variation 0..100%, independent random stream and untouched velocity
   zero; 16-point velocity response curves, inverted shapes, linear interpolation
   and 0..100% AMOUNT.
-- `PairRuntime` reuses the shared native-note scheduler and captured output
-  ledger from ECHOCITY. Admits complete known note pairs atomically, supports
-  sample-accurate long delays and paired release, cancellation, overlap, bounded
-  queue admission and PANIC recovery contract. No dynamic allocation in methods.
+- `PairRuntime` reuses the native-note scheduler and output ledger for
+  complete recorded pairs. `StreamRuntime` additionally accepts a live Note On
+  before its Note Off, captures one shift per voice, pairs overlapping equal
+  pitches oldest-first, preserves Note-Off velocity, handles module/instrument
+  cancellation and downstream channel clears, and uses fixed preallocated event
+  storage. Both have bounded admission and explicit PANIC recovery contracts.
+  `liveLookaheadMs` makes live latency explicit; without enough lookahead a
+  negative shift clamps to the arrival time and is never emitted in the past.
 - Real C++ tests compiled against the repository's native scheduler in the
   dedicated GitHub CI workflow. Coverage includes deterministic FIXED versus
   EVOLVING timing/velocity, invalid-parameter fail-closed behavior, curve blend
-  endpoints, captured note pairing and module-scoped cancellation.
+  endpoints, streaming Note On/Off pairing, release velocity, equal-pitch overlap,
+  module-scoped cancellation and channel clear.
 
 ## Important limits
 - The adapter accepts *known note pairs*. It is **not connected** to live

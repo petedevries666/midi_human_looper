@@ -19,7 +19,7 @@ int main(int argc,char**argv){
   check(at!=std::string::npos,"valid PRESS action fixture has trigger");
   text.replace(at,original.size(),std::string("\"trigger\":\"")+trigger+"\"");
   std::vector<unsigned> invalid(text.begin(),text.end());
-  check(!conductor::validDocument(invalid),std::string(trigger)+" action is explicitly unsupported, not reinterpreted as PRESS");
+  check(!conductor::validDocument(invalid),"unsupported Conductor action trigger is rejected, not reinterpreted as PRESS");
  };
  rejectsTrigger("LONG_HOLD");
  rejectsTrigger("RELEASE");

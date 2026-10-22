@@ -8,15 +8,15 @@ from patch_names import rename,read
 
 def musical(value):return dict(format='MIDI_HUMAN_LOOPER_PATCH',schema=1,work_mem_size=1,memory=[value],globals=[0]*9)
 class Control:
- def __init__(self,session=1):self.session=session;self.revision=1;self.patch=musical(9);self.reservation=0;self.calls=[]
+ def __init__(self,session=1):self.session=session;self.revision=1;self.patch=musical(9);self.reservation=0;self.calls=[];self.loaded=0
  def request(self,op=0,**kw):
   self.calls.append((op,kw))
   if op==4:return copy.deepcopy(self.patch)
   if op==5:
-   assert kw['session']==self.session;self.patch=copy.deepcopy(kw['patch'])
+   assert kw['session']==self.session;self.patch=copy.deepcopy(kw['patch']);self.loaded=kw.get('loaded_slot',0)
   if op==53:self.reservation=kw['value']
   if op:self.revision+=1
-  return dict(status='ok',revision=self.revision,engineSessionId=self.session,activeNotes=0,instances=0,chainRunning=False,chainRecording=False,chainArmed=False)
+  return dict(status='ok',revision=self.revision,engineSessionId=self.session,loadedPatchSlot=self.loaded,activeNotes=0,instances=0,chainRunning=False,chainRecording=False,chainArmed=False)
 class Links:
  def __init__(self):self.bindings={'1':'chain-a'}
  def snapshot(self):return dict(self.bindings)
@@ -45,8 +45,8 @@ class RecallTests(unittest.TestCase):
   self.service.settings.update(enabled=True,channel=3)
   self.assertFalse(self.service.midi_event(1,bytes([0xc1,1])))
   self.assertTrue(self.service.midi_event(1,bytes([0xc2,0])));self.assertIsNone(self.service.pending)
-  for n in (1,4,127):self.assertTrue(self.service.midi_event(1,bytes([0xc2,n])));self.assertEqual(self.service.pending,('recall',n))
-  self.assertTrue(self.service.midi_event(1,bytes([0xc2,2,0])));self.assertEqual(self.service.pending,('recall',2))
+  for n in (1,4,127):self.assertTrue(self.service.midi_event(1,bytes([0xc2,n])));self.assertEqual(self.service.pending,('midi_recall',n))
+  self.assertTrue(self.service.midi_event(1,bytes([0xc2,2,0])));self.assertEqual(self.service.pending,('midi_recall',2))
   self.service.settings['enabled']=False;self.assertFalse(self.service.midi_event(1,bytes([0xc2,1])))
  def test_all_channels_and_hook_prevents_second_dispatch(self):
   called=[];self.manager.ctrldev_manager.midi_event=lambda d,e:called.append(e) or False;self.service.install_midi_hook()
@@ -97,9 +97,29 @@ class RecallTests(unittest.TestCase):
   for n in (0,128,True,'1'):
    with self.assertRaises(ValueError):slot_number(n)
  def test_latest_external_request_survives_snapshot_loading(self):
-  self.service.settings.update(enabled=True,channel=15);self.service.phase='snapshot';self.service.active=('recall',1)
-  self.service.midi_event(0,bytes([0xce,2,0]));self.assertEqual(self.service.pending,('recall',2))
-  self.service.midi_event(255,bytes([0xce,3,0]));self.assertEqual(self.service.pending,('recall',2))
-  self.service.midi_event(0,bytes([0xce,1,0]));self.assertIsNone(self.service.pending)
+  self.service.settings.update(enabled=True,channel=15);self.service.phase='snapshot';self.service.active=('midi_recall',1)
+  self.service.midi_event(0,bytes([0xce,2,0]));self.assertEqual(self.service.pending,('midi_recall',2))
+  self.service.midi_event(255,bytes([0xce,3,0]));self.assertEqual(self.service.pending,('midi_recall',2))
+  self.service.midi_event(0,bytes([0xce,1,0]));self.assertEqual(self.service.pending,('midi_recall',1))
+
+ def test_same_loaded_pc_preserves_unsaved_state_without_io_or_stop(self):
+  self.control.loaded=2;self.control.patch=musical(987);self.service.selected=127
+  self.service.settings.update(enabled=True,channel=3,withSnapshot=True)
+  (self.library/'patch2.json').unlink() # Loaded identity wins even if saved slot vanished.
+  for _ in range(20):
+   self.service.midi_event(1,bytes([0xc2,2]));job=self.service.pending;self.service.pending=None
+   self.service.recall(job[1],midi=True)
+  self.assertEqual(self.control.patch['memory'],[987]);self.assertEqual(self.loads,[])
+  self.assertEqual({op for op,_ in self.control.calls},{0})
+ def test_explicit_recall_is_not_pc_noop(self):
+  self.control.loaded=2;self.control.patch=musical(987);self.service.settings['withSnapshot']=False
+  self.service.recall(2);self.assertEqual(self.control.patch['memory'],[2]);self.assertTrue(any(op==2 for op,_ in self.control.calls))
+ def test_restart_does_not_trust_persisted_selection(self):
+  self.service.selected=2;self.service.settings['withSnapshot']=False
+  self.service.recall(2,midi=True);self.assertEqual(self.control.loaded,2)
+ def test_latest_pc_returns_to_actual_old_patch_during_loading(self):
+  self.control.loaded=2;self.service.active=('midi_recall',1);self.service.phase='snapshot';self.service.settings.update(enabled=True,channel=3)
+  for n in (3,1,2):self.service.midi_event(1,bytes([0xc2,n]))
+  self.assertEqual(self.service.pending,('midi_recall',2))
 
 if __name__=='__main__':unittest.main()

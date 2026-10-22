@@ -1,0 +1,51 @@
+name: DICKINSON ARP and recall regressions
+on:
+  pull_request:
+    paths:
+      - 'headless/**'
+      - 'modules/catalog.json'
+      - 'tests/dickinson_arp.cpp'
+      - 'tests/native_random_arp.cpp'
+      - 'tests/test_dickinson*'
+      - 'tests/test_native_arp_config.py'
+      - 'tests/test_patch_recall.py'
+      - 'tests/test_module_registry.py'
+      - 'scripts/dickinson-arp-test.sh'
+      - '.github/workflows/dickinson-arp.yml'
+permissions:
+  contents: read
+concurrency:
+  group: dickinson-arp-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+jobs:
+  arp-recall:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Install native dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libfontconfig1-dev libfreetype6-dev
+      - name: Build isolated native engine
+        env:
+          BUILD_JOBS: 2
+        run: bash scripts/headless-setup.sh
+      - name: Exercise actual EEL ARP traversal
+        run: bash scripts/dickinson-arp-test.sh
+      - name: Run persistence and parameter compatibility tests
+        run: |
+          python3 -m py_compile headless/native_arp.py headless/native_arp_config.py headless/patch_recall.py
+          python3 tests/test_native_arp_config.py
+          python3 tests/test_patch_recall.py
+          python3 tests/test_module_registry.py
+      - name: Run native API and patch recall integration
+        run: python3 tests/test_dickinson_native.py
+      - name: Prepare isolated browser
+        run: |
+          bash scripts/screenshots-setup.sh
+          .build/browser-venv/bin/python -m playwright install-deps chromium
+      - name: Verify native editor, save/load and cancel
+        run: .build/browser-venv/bin/python tests/test_dickinson_browser.py

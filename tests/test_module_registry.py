@@ -21,7 +21,7 @@ class RegistryTests(unittest.TestCase):
    for row,id in enumerate(module['parameters']):
     p=REGISTRY.parameters[id]
     statements.append(f'static_assert(performance::parameterKind({type_},{row})=={p["engineKind"]},"stable identity");')
-    discrete=p['valueType'] in ('enum','toggle') or p['engineKind']==13
+    discrete=p['valueType'] in ('enum','toggle') or p['engineKind']==13 or p.get('snapshotSwitch')=='discrete'
     statements.append(f'static_assert(performance::discrete({p["engineKind"]})=={str(discrete).lower()},"switch policy");')
   with tempfile.TemporaryDirectory() as directory:
    source=Path(directory)/'registry.cpp';source.write_text('#include "headless/parameter_registry.hpp"\n'+'\n'.join(statements)+'\nint main(){}\n')
@@ -30,7 +30,7 @@ class RegistryTests(unittest.TestCase):
   root=Path(__file__).resolve().parents[1];statements=[]
   for p in REGISTRY.parameters.values():
    k=p['engineKind']
-   if not 0<=k<=24:continue
+   if not 0<=k<=28:continue
    for x in (-.1,0,.001,.003,.127,.249999,.25,.499999,.5,.500001,.75,.999,1,1.1):
     expected=REGISTRY.scale(p['id'],x)
     statements.append(f'if(std::abs(performance::physical({k},{x})-({expected:.17g}))>1e-8) return {k+1};')

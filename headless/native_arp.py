@@ -57,8 +57,8 @@ local(b,count,n,j,changed,idx,last,pos,pick,tmp,direction,remaining,delta,result
        n=rand(1)<.7?direction:-direction;
        remaining=n>0?count-1-idx:idx;
        remaining<=0?(n=-n;remaining=n>0?count-1-idx:idx;);
-       // STEP MAX = 2 held-note positions (native default).
-       delta=min(remaining,1+floor(rand(2)));
+       // STEP MAX is sampled at each step, without restarting the walk.
+       delta=min(remaining,1+floor(rand(max(1,min(4,mem[NATIVE_ARP_CONFIG_BASE+gi*2])))));
        pick=idx+n*delta;
      );
    );mem[b+3]=direction;
@@ -71,7 +71,7 @@ local(b,count,n,j,changed,idx,last,pos,pick,tmp,direction,remaining,delta,result
 def extend(source):
     anchor='function arp_process_instrument(gi)'
     if source.count(anchor)!=1:raise ValueError('ARP function contract changed')
-    source=source.replace(anchor,'memset(28000000,0,8192);\n'+EEL+'\n'+anchor)
+    source=source.replace(anchor,'NATIVE_ARP_CONFIG_BASE=28009000;native_ai=0;loop(8,mem[NATIVE_ARP_CONFIG_BASE+native_ai*2]=2;mem[NATIVE_ARP_CONFIG_BASE+native_ai*2+1]=0;native_ai+=1;);\nmemset(28000000,0,8192);\n'+EEL+'\n'+LIFECYCLE+'\n'+anchor)
     source=source.replace('sw_edit_target=-1;sw_preview_target=-1;sw_edit_new=0;', 'memset(28000000,0,8192);sw_edit_target=-1;sw_preview_target=-1;sw_edit_new=0;')
     old='mode==0 ? (\n          pick=floor(rand(held)); n=0;'
     if source.count(old)!=1:raise ValueError('ARP selector contract changed')
@@ -79,8 +79,51 @@ def extend(source):
     # Reset patterns when all sources disappear or the instrument is disabled.
     source=source.replace('held<=0 ? (arp_release_instrument(gi);','held<=0 ? (mem[28000000+gi*1024]=0;arp_release_instrument(gi);')
     source=source.replace(') : (arp_release_instrument(gi);mem[engine_addr(ARP_STEP_REMAIN_BASE,gi)]=0;);',') : (mem[28000000+gi*1024]=0;arp_release_instrument(gi);mem[engine_addr(ARP_STEP_REMAIN_BASE,gi)]=0;);')
+    source=source.replace('    held<=0 ? (', '    native_arp_observe(gi)?step_rem=0;\n    held<=0 ? (')
+    source=source.replace('          choice>=0 ? (', '          choice>=0 && !native_arp_done(gi) ? (')
+    source=source.replace('            gate_rem=step_rem+step_samples*gate;', '            gate_rem=step_rem+step_samples*gate;native_arp_emitted(gi,mode,choice,held);')
+    source=source.replace('      // Merge step and gate edges', '      native_arp_done(gi)?step_rem=100000000000000000000;\n      // Merge step and gate edges')
+    source=source.replace('          step_rem+=step_samples;', '          step_rem+=step_samples;native_arp_done(gi)?step_rem=100000000000000000000;')
+    source=source.replace('      gate_rem=max(0,gate_rem-samplesblock);', '      gate_rem=max(0,gate_rem-samplesblock);native_arp_done(gi)?step_rem=0;')
+    # New kinds deliberately bypass legacy expression TI pages; native Controller
+    # Engine and snapshot ownership remain authoritative for these parameters.
+    source=source.replace('  ti=param_ti(gi,kind);\n  ti>=0 ? (', '  kind==27 || kind==28 ? mem[NATIVE_ARP_CONFIG_BASE+gi*2+kind-27]=max(kind==27?1:0,min(kind==27?4:1,floor(value+.5))) : (\n  ti=param_ti(gi,kind);\n  ti>=0 ? (')
+    source=source.replace('function param_expression_tick()', ');\nfunction param_expression_tick()')
     # Legacy EEL bounds remain frozen; widen only its generated native variant.
     import re
     source,n=re.subn(r'(function param_max\(kind\).*?kind==4\s*\?\s*)2\b',r'\g<1>12',source,count=1,flags=re.S)
     if n!=1:raise ValueError('ARP parameter bound contract changed')
     return source
+
+# Runtime-only per-instrument traversal state shares the existing scratch page.
+# 600=count emitted, 601=done, 602=far endpoint visited, 603=pool size,
+# 604=armed pool identity, 700..827=effective held pitches. No notes are queued.
+LIFECYCLE = r'''
+function native_arp_observe(gi)
+local(b,n,count,changed)
+(
+ b=28000000+gi*1024;count=0;changed=mem[b+604]!=1;
+ n=0;loop(128,mem[engine_addr(ARP_HELD_COUNT_BASE,gi*128+n)]>0?(
+   mem[b+700+count]!=n?changed=1;mem[b+700+count]=n;count+=1;
+ );n+=1;);
+ count!=mem[b+603]?changed=1;
+ changed?(
+   mem[b+600]=0;mem[b+601]=0;mem[b+602]=0;mem[b+603]=count;mem[b+604]=1;
+   mem[b]=0;mem[NATIVE_ARP_CONFIG_BASE+gi*2+1]>.5?(mem[engine_addr(ARP_CURSOR_BASE,gi)]=-1;mem[engine_addr(ARP_STEP_REMAIN_BASE,gi)]=0;);
+ );
+ count<=0?mem[b+604]=0;changed && mem[NATIVE_ARP_CONFIG_BASE+gi*2+1]>.5;
+);
+function native_arp_done(gi)
+(mem[NATIVE_ARP_CONFIG_BASE+gi*2+1]>.5 && mem[28000000+gi*1024+601]>.5;);
+function native_arp_emitted(gi,mode,choice,held)
+local(b,origin,far)
+(
+ b=28000000+gi*1024;mem[b+600]+=1;
+ mode>=9?(
+   origin=mem[b+700+((mode==10||mode==12)?held-1:0)];
+   far=mem[b+700+((mode==10||mode==12)?0:held-1)];
+   choice==far?mem[b+602]=1;
+   (held==1 || (mem[b+602] && choice==origin))?mem[b+601]=1;
+ ):(mem[b+600]>=(mode==5 || mode==7?8:held)?mem[b+601]=1;);
+);
+'''

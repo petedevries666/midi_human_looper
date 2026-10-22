@@ -22,7 +22,7 @@ from urllib.parse import urlsplit
 
 ROOT = Path(__file__).parent / 'web'
 
-PATCH_KEYS={'format','schema','work_mem_size','globals','memory','controllerEngine','globalSnapshots','conductor','echocity'}
+PATCH_KEYS={'format','schema','work_mem_size','globals','memory','controllerEngine','globalSnapshots','conductor','echocity','nativeArp'}
 def validate_patch_extensions(patch):
     if not isinstance(patch,dict) or set(patch)-PATCH_KEYS:
         raise ValueError('Unsupported patch fields preserved; refusing to discard configuration.')
@@ -31,6 +31,10 @@ def validate_patch_extensions(patch):
     if 'conductor' in patch:
         from conductor import decode as decode_conductor
         decode_conductor(patch['conductor'])
+    if 'nativeArp' in patch:
+        from native_arp_config import decode as decode_arp
+        decode_arp(patch['nativeArp'])
+        if patch['schema']!=8:raise ValueError('Native ARP requires schema 8')
     if 'echocity' in patch:
         from echocity_config import decode as decode_echo
         decode_echo(patch['echocity'])
@@ -67,7 +71,7 @@ class Control:
                 self._observation_json=json.dumps(state,separators=(',',':')).encode()
             return self._observation_json
 
-    def request(self, op=0, target=0, arg=0, revision=1, ch=0, note=0, value=0, session=0, patch=None, parameters=None, module=0, binding=None, name=None, settings=None, inclusions=None, macro=None,instance=None, phrase=None,echo=None):
+    def request(self, op=0, target=0, arg=0, revision=1, ch=0, note=0, value=0, session=0, patch=None, parameters=None, module=0, binding=None, name=None, settings=None, inclusions=None, macro=None,instance=None, phrase=None,echo=None,loaded_slot=0):
         # One worker producer owns the engine's command queue; HTTP threads never
         # inspect live engine state. A timeout does not cancel an already executed TEST.
         with self.lock:
@@ -113,6 +117,11 @@ class Control:
                 line=line.rstrip('\n')+' conductor '+str(len(patch['conductor']['configuration']))+' '+' '.join(str(v) for v in patch['conductor']['configuration'])+'\n'
             if patch is not None and 'echocity' in patch:
                 line=line.rstrip('\n')+' echocity '+' '.join(format(v,'.17g') for v in patch['echocity']['configuration'])+'\n'
+            if patch is not None and 'nativeArp' in patch:
+                line=line.rstrip('\n')+' native_arp '+' '.join(str(v) for v in patch['nativeArp']['configuration'])+'\n'
+            if patch is not None and op==5 and loaded_slot:
+                if type(loaded_slot) is not int or not 1<=loaded_slot<=127:raise ValueError('Invalid loaded patch identity')
+                line=line.rstrip('\n')+f' loaded_patch {loaded_slot}\n'
             with socket.socket(socket.AF_UNIX) as client:
                 client.settimeout(15)
                 client.connect(self.path)
@@ -407,7 +416,7 @@ class Handler(BaseHTTPRequestHandler):
                 if not stored or stored[0]!=data.get('clipboardId'):raise ValueError('COPY expiré ; copier à nouveau')
                 if data.get('mode')=='swap' and stored[1]!=context:raise ValueError('SWAP exige le patch source actuel ; copier à nouveau')
                 result,ident=paste(patch,stored[2],data.get('target'),data.get('mode','empty'))
-                reply=self.server.control.request(op=5,arg=1,target=result['schema'],revision=revision,session=session,patch=result)
+                reply=self.server.control.request(op=5,arg=1,target=result['schema'],revision=revision,session=session,patch=result,loaded_slot=self.server.control.request().get('loadedPatchSlot',0))
                 if reply.get('status')!='ok':self.respond(409,reply);return
                 self.respond(200,{'status':'ok','kind':kind,'id':ident})
         except (ValueError,KeyError,TypeError,StopIteration) as error:self.respond(422,{'error':str(error) or 'Block missing'})
@@ -458,7 +467,7 @@ class Handler(BaseHTTPRequestHandler):
                     patch=self.server.control.request(op=4,arg=1,revision=revision,session=session)
                     if patch.get('format')!='MIDI_HUMAN_LOOPER_PATCH':self.respond(409,{'error':'Stop MBMF and release keys before deleting a switch.'});return
                     patch=remove_switch(patch,data.get('switchId'))
-                    result=self.server.control.request(op=5,arg=1,target=patch['schema'],revision=revision,session=session,patch=patch)
+                    result=self.server.control.request(op=5,arg=1,target=patch['schema'],revision=revision,session=session,patch=patch,loaded_slot=self.server.control.request().get('loadedPatchSlot',0))
                 if result.get('status')=='ok':self.engine();return
                 self.respond(409,result);return
             if length>2048 and action not in ('snapshot_commit','conductor_commit'):
@@ -471,7 +480,7 @@ class Handler(BaseHTTPRequestHandler):
                     if patch.get('format')!='MIDI_HUMAN_LOOPER_PATCH':
                         self.respond(409,patch);return
                     patch['conductor']=extension
-                    result=self.server.control.request(op=5,target=patch['schema'],arg=1,revision=revision,session=session,patch=patch)
+                    result=self.server.control.request(op=5,target=patch['schema'],arg=1,revision=revision,session=session,patch=patch,loaded_slot=self.server.control.request().get('loadedPatchSlot',0))
                 self.respond(200 if result.get('status')=='ok' else 409,result);return
             if action in ('snapshot_capture','snapshot_update','snapshot_duplicate','snapshot_delete','snapshot_move','snapshot_rename','snapshot_recall','snapshot_morph','snapshot_commit'):
                 target=data.get('snapshotId',0)
@@ -637,7 +646,7 @@ class Handler(BaseHTTPRequestHandler):
                 args=dict(op=11,target=target,arg=values[0],ch=values[1],note=values[2],value=values[3])
             elif action=='module_commit':
                 target=data.get('instrumentId');module=data.get('moduleId');parameters=data.get('parameters')
-                if any(type(v) is not int or not 1<=v<=16777215 for v in (target,module)) or not isinstance(parameters,list) or not 1<=len(parameters)<=5:raise ValueError()
+                if any(type(v) is not int or not 1<=v<=16777215 for v in (target,module)) or not isinstance(parameters,list) or not 1<=len(parameters)<=7:raise ValueError()
                 seen=set()
                 for p in parameters:
                     if not isinstance(p,dict) or type(p.get('kind')) is not int or p['kind'] in seen or type(p.get('value')) not in (int,float) or not math.isfinite(p['value']):raise ValueError()
@@ -781,7 +790,7 @@ class Handler(BaseHTTPRequestHandler):
                 schema=patch.get('schema');memory=patch.get('memory');globals_=patch.get('globals')
                 if patch.get('format')!='MIDI_HUMAN_LOOPER_PATCH' or type(schema) is not int or not 1<=schema<=8 or not isinstance(memory,list) or patch.get('work_mem_size')!=len(memory) or not 0<len(memory)<=2000000 or not isinstance(globals_,list) or len(globals_)!=9:raise ValueError()
                 if any(type(x) not in (int,float) or not math.isfinite(x) for x in globals_+memory):raise ValueError()
-                result=self.server.control.request(op=5,target=schema,revision=rev,session=session,patch=patch)
+                result=self.server.control.request(op=5,target=schema,loaded_slot=slot,revision=rev,session=session,patch=patch)
                 if result.get('status')!='ok':self.respond(409 if result.get('status')=='conflict' else 400,result);return
                 self.server.switch_presets.on_patch(slot)
                 self.engine()

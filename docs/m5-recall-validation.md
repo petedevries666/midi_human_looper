@@ -19,11 +19,13 @@ service may require a status refresh; this is not a full musical-content hash.
 New pairs use 001-MBMF. Old snapshot references remain valid and old files are
 not moved or deleted. Both old/new journal formats recover failed pair writes.
 
-Executed: 17 host recall fixtures and four production HTTP handler dispatch
-tests; JavaScript syntax check; and a Linux subprocess regression proving that a
+Executed: 18 host recall fixtures, including a regression that an active worker
+is never reported ready, and four production HTTP handler dispatch tests;
+JavaScript syntax check; and a Linux subprocess regression proving that a
 nonblocking editor operation is refused while RecallService owns the lock and
 that the recall worker waits until the editor releases it. GitHub Actions run
-39738793051 passed this cross-process test. The fixtures still use synthetic
+39742090326 passed compilation, the cross-process lock test and all recall
+orchestration tests. The fixtures still use synthetic
 patches and host adapters, not a live Zynthian instrument engine. Engine
 recreation under asynchronous recall, real GUI reconnect/polling, five viewport
 captures and physical snapshot/bindings restoration remain unqualified. No

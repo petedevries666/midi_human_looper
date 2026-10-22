@@ -11,6 +11,17 @@ static void setup(Host&h){conductor_fixture(h);h.run("native_phrase_contract=2;n
 int main(int argc,char**argv){
  check(argc==2,"generated source required");
  const std::string all="{\"type\":\"ALL_PHRASES\"}",self="{\"type\":\"SWITCH\",\"switchId\":1}",source="{\"type\":\"PHRASE\",\"sourceId\":\""+conductor_uuid(1)+"\"}";
+ auto rejectsTrigger=[&](const char* trigger){
+  auto bytes=actionModel("STOP",all);
+  std::string text(bytes.begin(),bytes.end());
+  auto at=text.find("\\"trigger\\":\\"PRESS\\"");
+  check(at!=std::string::npos,"valid PRESS action fixture has trigger");
+  text.replace(at,18,std::string("\\"trigger\\":\\"")+trigger+"\\"");
+  std::vector<unsigned> invalid(text.begin(),text.end());
+  check(!conductor::validDocument(invalid),std::string(trigger)+" action is explicitly unsupported, not reinterpreted as PRESS");
+ };
+ rejectsTrigger("LONG_HOLD");
+ rejectsTrigger("RELEASE");
  for(const char* action:{"STOP","PANIC","STOP_RESET"}){
   Host h(argv[1]);setup(h);conductor_install(h,actionModel(action,std::string(action)=="STOP_RESET"?self:all));
   h.midi(144,110,100);auto events=h.events();check(conductor_count(events,128,48)==1,"action releases sounding phrase");check(conductor_active(h)==0,"action retires owners");

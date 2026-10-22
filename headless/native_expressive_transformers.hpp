@@ -272,7 +272,7 @@ public:
   }
   template<class Match,class Emit> bool cancel(uint64_t now,Match match,Emit emit){
     bool ok=true;
-    for(size_t i=0;i<N;++i){auto&v=voices[i];if(!v.used||!match(v.key,v.identity))continue;
+    for(size_t i=0;i<N;++i){auto&v=voices[i];if(!v.used||!match(v.key,v.identity,v.module))continue;
       const auto gen=v.token.generation;remove(uint32_t(i),gen);
       if(v.sounding){
         v.offQueued=false;v.held=false;
@@ -287,11 +287,8 @@ public:
     (void)now;return ok;
   }
   template<class Emit> bool cancel(uint64_t now,uint32_t instrument,uint32_t module,Emit emit){
-    return cancel(now,[&](const native_notes::SourceKey&k,const Identity&){
-      if(instrument&&k.instrument!=instrument)return false;
-      if(!module)return true;
-      for(const auto&v:voices)if(v.used&&v.key==k&&v.module==module)return true;
-      return false;
+    return cancel(now,[&](const native_notes::SourceKey&k,const Identity&,uint32_t ownerModule){
+      return (!instrument||k.instrument==instrument)&&(!module||ownerModule==module);
     },emit);
   }
   // Only after successful physical all-notes-off recovery.

@@ -42,6 +42,17 @@ try:
   page.get_by_role('button',name='DONE',exact=True).click();page.locator('#editor').wait_for(state='hidden')
   module_id=int(panel.locator('.module').last.get_attribute('data-module-id'));module=next(t for t in api.call()['instruments'][0]['transformers'] if t['id']==module_id);values={v['kind']:v['value'] for v in module['parameters']}
   assert values[3]==1 and values[4]==2 and values[5]==16 and values[6]==.5,values
+  # Every catalog ARP mode must round-trip through the browser and native EEL
+  # scaling; legacy bounds at 2 used to turn DOWN into RANDOM and clamp newer modes.
+  page.locator(f'[data-instrument-id="1"] [data-module-id="{module_id}"]').click()
+  mode=page.locator('#editor').get_by_label('MODE',exact=True)
+  mode.select_option(label='RANDOM CLIMB DOWN')
+  page.get_by_role('button',name='DONE',exact=True).click();page.locator('#editor').wait_for(state='hidden')
+  assert next(v['value'] for t in api.call()['instruments'][0]['transformers'] if t['id']==module['id'] for v in t['parameters'] if v['kind']==4)==10
+  page.locator(f'[data-instrument-id="1"] [data-module-id="{module_id}"]').click()
+  page.locator('#editor').get_by_label('MODE',exact=True).select_option(label='DOWN')
+  page.get_by_role('button',name='DONE',exact=True).click();page.locator('#editor').wait_for(state='hidden')
+  assert next(v['value'] for t in api.call()['instruments'][0]['transformers'] if t['id']==module['id'] for v in t['parameters'] if v['kind']==4)==2
   # Native commit completion precedes the asynchronous browser repaint. Require
   # the actual module text within Playwright's unchanged default timeout; do not
   # read the old DOM once and confuse that observation with a lost native edit.

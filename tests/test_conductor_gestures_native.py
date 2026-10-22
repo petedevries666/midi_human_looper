@@ -69,6 +69,27 @@ class Gestures(Execution):
             self.up()
         self.down();self.up();self.command('panic');self.commit();time.sleep(.3)
         self.assertFalse(self.call()['instances'])
+    def test_long_hold_layer_does_not_advance_conductor_twice(self):
+        settings=list(self.call()['switches'][0]['settings']);settings[8]=250
+        self.command('switch_commit',switchId=1,settings=settings,sequence=[],name='PRESS LONG HOLD',
+                     longHold={'milliseconds':500,'action':0,'target':0})
+        held=block(self.model['sources'][1]['id'])
+        held['overrides']['trigger']=dict(mode='OVERRIDE',value='LONG_HOLD')
+        self.model['switches'][0]['steps']=[step([block(self.model['sources'][0]['id']),held])]
+        self.commit();self.down()
+        self.wait_for(lambda:{i['phraseId'] for i in self.call()['instances']}=={1,2},
+                      'LONG_HOLD layer admission')
+        state=self.call();ids=[i['id'] for i in state['instances']]
+        self.assertEqual(state['switches'][0]['conductor']['step'],1,
+                         'LONG_HOLD uses the active step without advancing it twice')
+        time.sleep(.1);state=self.call()
+        self.assertEqual([i['id'] for i in state['instances']],ids,
+                         'LONG_HOLD executes its layer once and does not retrigger TAP')
+        self.assertEqual(state['switches'][0]['conductor']['step'],1)
+        self.up()
+        time.sleep(.1)
+        self.assertEqual([i['id'] for i in self.call()['instances']],ids)
+
 if __name__=='__main__':
-    suite=unittest.TestSuite(Gestures(n) for n in ('test_short_press_long_hold_and_load_stopped','test_test_hold_same_step_and_movement_one_shot','test_stop_panic_and_patch_replacement_cancel_pending','test_disabled_unassigned_hold_preview_includes_press','test_new_hold_preview_after_tap_advances_to_next_step'))
+    suite=unittest.TestSuite(Gestures(n) for n in ('test_short_press_long_hold_and_load_stopped','test_test_hold_same_step_and_movement_one_shot','test_stop_panic_and_patch_replacement_cancel_pending','test_disabled_unassigned_hold_preview_includes_press','test_new_hold_preview_after_tap_advances_to_next_step','test_long_hold_layer_does_not_advance_conductor_twice'))
     sys.exit(not unittest.TextTestRunner(verbosity=2).run(suite).wasSuccessful())

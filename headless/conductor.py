@@ -199,7 +199,7 @@ def validate(data):
                 if isinstance(block,dict) and block.get('type') == 'ACTION':
                     fields(block, ('id', 'type', 'action', 'target', 'trigger'))
                     unique(block['id'])
-                    if index == 0 or block['action'] not in ('STOP', 'PAUSE', 'RESUME', 'RESET_CURSOR', 'RESET_SHUFFLE_BAG', 'STOP_RESET', 'PANIC') or block['trigger'] not in ('PRESS', 'HOLD'):
+                    if index == 0 or block['action'] not in ('STOP', 'PAUSE', 'RESUME', 'RESET_CURSOR', 'RESET_SHUFFLE_BAG', 'STOP_RESET', 'PANIC') or block['trigger'] not in ('PRESS', 'HOLD', 'LONG_HOLD', 'RELEASE', 'SUPERCHARGE_RELEASE'):
                         raise ValueError('CONDUCTOR invalid action or LAYER')
                     target = block['target']
                     if not isinstance(target,dict): raise ValueError('CONDUCTOR action target required')

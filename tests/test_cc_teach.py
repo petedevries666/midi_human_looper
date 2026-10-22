@@ -22,6 +22,18 @@ class Teach(unittest.TestCase):
   for key,value in [('expectedRevision',6),('expectedEngineSessionId',8),('identity','old'),('inventoryRevision','old'),('moduleId',19),('instrumentId',True)]:
    with self.subTest(key=key),self.assertRaises(ValueError):self.links.teach_cc({**self.request,key:value})
   self.assertFalse(self.fixture.learns)
+ def movement_request(self):
+  return {k:v for k,v in self.request.items() if k!='moduleId'}|dict(action='teach_movement',channel=1,cc=11,value=82)
+ def test_movement_teach_uses_selected_channel_including_channel_two(self):
+  self.fixture.chain.midi_chan=1
+  self.status['bindings']['4']['destination']['channel']=2
+  result=self.links.teach_movement(self.movement_request()|dict(channel=2))
+  self.assertEqual(result,dict(status='taught',channel=2,cc=11,value=82))
+  self.assertEqual(self.fixture.learns[0][:2],(1,11));self.assertEqual(self.fixture.values,[82])
+ def test_movement_wrong_destination_reserved_cc_and_stale_context_refused(self):
+  for change in ({'channel':2},{'cc':0},{'cc':32},{'cc':64},{'cc':120},{'value':128},{'channel':True},{'identity':'old'},{'inventoryRevision':'old'},{'expectedEngineSessionId':8},{'expectedRevision':6}):
+   with self.subTest(change=change),self.assertRaises(ValueError):self.links.teach_movement(self.movement_request()|change)
+  self.assertFalse(self.fixture.learns)
  def test_bypass_disabled_instrument_wrong_module_and_reserved_cc_refused(self):
   original=copy.deepcopy(self.state)
   for change in ('bypass','instrument','type','cc'):

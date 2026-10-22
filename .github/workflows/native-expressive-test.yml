@@ -14,6 +14,7 @@ on:
       - 'headless/web/expressive.css'
       - 'headless/web/index.html'
       - 'tests/native_expressive_transformers.cpp'
+      - 'tests/test_dickinson_browser.py'
       - '.github/workflows/native-expressive-test.yml'
 jobs:
   native-expressive:
@@ -30,5 +31,7 @@ jobs:
           /tmp/mbmf-native-expressive-asan
       - name: Validate Web editor JavaScript
         run: node --check headless/web/expressive.js
+      - name: Validate browser suite Python syntax
+        run: python3 -m py_compile tests/test_dickinson_browser.py
       - name: Validate versioned patch codec
         run: python3 tests/test_native_expressive_config.py

@@ -36,9 +36,13 @@ try:
   panel.locator('.module').last.click()
   page.get_by_role('button',name='ARP ENABLED',exact=True).click()
   page.get_by_label('MODE',exact=True).select_option(label='DOWN')
+  assert page.get_by_label('MODE',exact=True).input_value()=='2','browser did not select DOWN'
   page.get_by_role('slider',name='RATE',exact=True).fill('16')
   page.get_by_role('slider',name='GATE',exact=True).fill('0.5')
   screenshot('recovery-arp-editor')
+  page.wait_for_timeout(100)
+  browser_state=api.call()['instruments'][0]['transformers'][0]
+  assert next(v['value'] for v in browser_state['parameters'] if v['kind']==4)==2, f'Web selection did not reach native engine before DONE: {browser_state["parameters"]}'
   page.get_by_role('button',name='DONE',exact=True).click();page.locator('#editor').wait_for(state='hidden')
   module=api.call()['instruments'][0]['transformers'][0];values={v['kind']:v['value'] for v in module['parameters']}
   assert values[3]==1 and values[4]==2 and values[5]==16 and values[6]==.5,values

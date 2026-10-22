@@ -654,11 +654,12 @@ function curveEditor(points,options={}){
 
   return root;
 }
+function mappingDefinitionFingerprint(mapping){if(!mapping)return 'null';const {base,...definition}=mapping;return JSON.stringify(definition);}
 function editMapping(existing){
   if(!catalog||!latest||$('mapping-editor').open)return;
   const {sources,mappings}=controllerConfiguration();if(!sources.length){$('error').textContent='Add a controller source first.';return;}
   const draft=structuredClone(existing||{id:freshId(mappings.map(m=>m.id)),sourceId:sources[0].id,enabled:1,points:[[0,0,0],[1,1,0]]});
-  const capturedSession=engineSession,mappingFingerprint=JSON.stringify(mappings.find(m=>m.id===draft.id)||null),dialog=$('mapping-editor'),content=$('mapping-editor-content');let committing=false;
+  const capturedSession=engineSession,mappingFingerprint=mappingDefinitionFingerprint(mappings.find(m=>m.id===draft.id)),dialog=$('mapping-editor'),content=$('mapping-editor-content');let committing=false;
   dialog.dataset.mappingId=draft.id;
   const dismiss=()=>{if(!committing)dialog.close();};content.replaceChildren(node('h2',`${parameter(draft.kind)?.label||'MODULATION'} / ${sources.find(s=>s.id===draft.sourceId)?.name||'CONTROLLER'}`),button('×',dismiss));
   const source=node('select');source.setAttribute('aria-label','Controller source');for(const s of sources){const o=node('option',s.name||`SOURCE ${s.id}`);o.value=s.id;source.append(o);}source.value=draft.sourceId;content.append(source);
@@ -671,7 +672,7 @@ function editMapping(existing){
   const error=node('p','');error.setAttribute('role','alert');content.append(error);
   const done=button('DONE',async()=>{if(committing)return;const t=targets[Number(target.value)];if(!t){error.textContent='No eligible target';return;}Object.assign(draft,t);delete draft.label;draft.sourceId=Number(source.value);const same=mappings.find(m=>m.instrumentId===t.instrumentId&&m.moduleId===t.moduleId&&m.kind===t.kind);draft.targetId=same?.targetId||freshId(mappings.map(m=>m.targetId));
     committing=true;dialog.dataset.committing='true';done.disabled=cancel.disabled=true;
-    try{if(engineSession!==capturedSession||JSON.stringify(controllerConfiguration().mappings.find(m=>m.id===draft.id)||null)!==mappingFingerprint)throw new Error('Cette assignation a changé pendant l’édition. Annule puis rouvre sa courbe.');render(await request('/api/v1/command',{protocolVersion:1,expectedRevision:revision,expectedEngineSessionId:capturedSession,action:'mapping_commit',mapping:draft}));dialog.close();}catch(e){error.textContent=e.message;}finally{committing=false;dialog.dataset.committing='false';done.disabled=cancel.disabled=false;}});
+    try{await commandQueue;const current=controllerConfiguration().mappings.find(m=>m.id===draft.id);if(engineSession!==capturedSession||mappingDefinitionFingerprint(current)!==mappingFingerprint)throw new Error('Cette assignation a changé pendant l’édition. Annule puis rouvre sa courbe.');if(current)draft.base=current.base;render(await request('/api/v1/command',{protocolVersion:1,expectedRevision:revision,expectedEngineSessionId:capturedSession,action:'mapping_commit',mapping:draft}));dialog.close();}catch(e){error.textContent=e.message;}finally{committing=false;dialog.dataset.committing='false';done.disabled=cancel.disabled=false;}});
   const cancel=button('CANCEL',dismiss);content.append(done,cancel);dialog.oncancel=e=>{e.preventDefault();dismiss();};dialog.dataset.contextual='true';$('mapping-editor-section').open=true;dialog.show();dialog.scrollIntoView({block:'nearest'});
 }
 function descriptorForMapping(){return catalog.modules.find(m=>m.typeId==='controller_mapping');}

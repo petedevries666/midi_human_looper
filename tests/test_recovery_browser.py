@@ -112,15 +112,14 @@ try:
   page.wait_for_function("""() => document.querySelector('[data-instrument-id="1"] input[aria-label="VOLUME Instrument 1"]').value==='80'""")
   page.get_by_role('button',name='DONE',exact=True).click()
   try:
-    page.locator('#mapping-editor').wait_for(state='hidden',timeout=5000)
-  except Exception:
-    print('MAPPING EDITOR ERROR:',page.locator('#mapping-editor [role="alert"]').all_text_contents(),flush=True)
-    print('APP ERROR:',page.locator('#error').all_text_contents(),flush=True)
-    print('MAPPING CONFIG:',api.call()['controllerEngine']['configuration'][:145],flush=True)
-    raise
+    page.locator('#mapping-editor').wait_for(state='hidden',timeout=10000)
+  except Exception as exc:
+    message=page.locator('#mapping-editor [role="alert"]').all_text_contents()
+    raise AssertionError(f'mapped slider curve failed to save after base adjustment: {message}') from exc
   from controller_config import decode
   after_base_edit=decode(api.call()['controllerEngine'])
   assert len(after_base_edit['mappings'])==1,'editing the base slider must preserve its controller assignment'
+  assert abs(after_base_edit['mappings'][0]['base']-80/127)<1e-6,'curve save must retain the new base level'
   assert after_base_edit['mappings'][0]['points'][1][1]==.25,'editing the base slider must preserve the response curve'
   api.command('panic');api.patch('save');api.patch('load')
   from controller_config import decode

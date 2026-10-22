@@ -33,7 +33,7 @@ try:
    after_capture=api.call()['sampleClock'];assert after_capture>before_capture,'static capture must not pause native execution'
    evidence.append(dict(view=name,viewport=[1904,1032],file=path.name,checks=[],nativeClockAdvanced=True,capture='Actual observed native state; browser telemetry briefly suspended for static capture, engine continues'))
   panel=page.locator('[data-instrument-id="1"]');panel.get_by_label('Transformer type for Instrument 1',exact=True).select_option('5');panel.get_by_role('button',name='ADD TRANSFORMER',exact=True).click()
-  panel.locator('.module').last.get_by_role('button',name='EDIT',exact=True).click()
+  panel.locator('.module').last.click()
   page.get_by_role('button',name='ARP ENABLED',exact=True).click()
   page.get_by_label('MODE',exact=True).select_option(label='DOWN')
   page.get_by_role('slider',name='RATE',exact=True).fill('16')
@@ -61,7 +61,7 @@ try:
   # it cannot silently lose a user's selection as an untouched draft field.
   api.command('mapping_commit',mapping=dict(id=2,targetId=2,sourceId=101,instrumentId=1,moduleId=module['id'],kind=4,enabled=1,points=[[0,0,0],[1,1,0]]))
   page.reload();page.get_by_text('CONNECTED · Engine running',exact=True).wait_for()
-  page.locator('[data-instrument-id="1"] .module').get_by_role('button',name='EDIT',exact=True).click()
+  page.locator('[data-instrument-id="1"] .module').click()
   page.get_by_label('MODE',exact=True).select_option(label='UP')
   page.get_by_role('button',name='DONE',exact=True).click();page.locator('#editor').wait_for(state='hidden')
   assert next(v['value'] for v in api.call()['instruments'][0]['transformers'][0]['parameters'] if v['kind']==4)==1
@@ -149,7 +149,7 @@ try:
    page.reload();page.get_by_text('CONNECTED · Engine running',exact=True).wait_for()
    screenshot('recovery-performance','header')
    screenshot('recovery-instrument-chains','#instruments')
-   page.locator(f'[data-instrument-id="2"] [data-module-id="{configured[2,6]}"]').get_by_role('button',name='EDIT',exact=True).click()
+   page.locator(f'[data-instrument-id="2"] [data-module-id="{configured[2,6]}"]').click()
    screenshot('recovery-transformer-editor')
    page.keyboard.press('Escape')
   else:screenshot('recovery-performance','header')

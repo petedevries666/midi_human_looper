@@ -35,17 +35,17 @@ try:
   panel=page.locator('[data-instrument-id="1"]');panel.get_by_label('Transformer type for Instrument 1',exact=True).select_option('5');panel.get_by_role('button',name='ADD TRANSFORMER',exact=True).click()
   panel.locator('.module').last.click()
   page.get_by_role('button',name='ARP ENABLED',exact=True).click()
-  page.get_by_label('MODE',exact=True).select_option(label='DOWN')
+  page.get_by_label('MODE',exact=True).select_option(label='RANDOM CLIMB UP')
   page.get_by_role('slider',name='RATE',exact=True).fill('16')
   page.get_by_role('slider',name='GATE',exact=True).fill('0.5')
   screenshot('recovery-arp-editor')
   page.get_by_role('button',name='DONE',exact=True).click();page.locator('#editor').wait_for(state='hidden')
   module=api.call()['instruments'][0]['transformers'][0];values={v['kind']:v['value'] for v in module['parameters']}
-  assert values[3]==1 and values[4]==0 and values[5]==16 and values[6]==.5,values
+  assert values[3]==1 and values[4]==9 and values[5]==16 and values[6]==.5,values
   # Native commit completion precedes the asynchronous browser repaint. Require
   # the actual module text within Playwright's unchanged default timeout; do not
   # read the old DOM once and confuse that observation with a lost native edit.
-  expect(panel.locator('.module')).to_contain_text('DOWN')
+  expect(panel.locator('.module')).to_contain_text('MODE: 9')
   for note in (60,64,67):api.command('midi',channel=1,note=note,value=100)
   before=api.call()['midiCount'];time.sleep(.25);assert api.call()['midiCount']>=before+10,'enabled ARP must generate repeated MIDI'
   for note in (60,64,67):api.command('midi',channel=1,note=note,value=0)
@@ -53,7 +53,7 @@ try:
   page.get_by_role('button',name='SAVE PATCH',exact=True).click();page.get_by_text('PATCH SAVED',exact=True).wait_for()
   api.command('module_commit',instrumentId=1,moduleId=module['id'],parameters=[dict(kind=3,value=0)])
   api.patch('load');assert next(v for v in api.call()['instruments'][0]['transformers'][0]['parameters'] if v['kind']==3)['value']==1
-  page.reload();page.get_by_text('CONNECTED · Engine running',exact=True).wait_for();expect(page.locator('[data-instrument-id="1"] .module')).to_contain_text('DOWN')
+  page.reload();page.get_by_text('CONNECTED · Engine running',exact=True).wait_for();expect(page.locator('[data-instrument-id="1"] .module')).to_contain_text('MODE: 9')
   # Named source and contextual assignment use the real native ownership engine.
   api.command('controller_source',sourceId=101,kind=2,channel=2,number=21)
   api.command('controller_rename',sourceId=101,name='EXP 1 CODIE')

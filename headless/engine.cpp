@@ -3125,6 +3125,7 @@ int main(int argc, char **argv) {
           if (*ok != 1)
             reply.status = 2;
         } else if (request.op == 2) {
+          expressiveCancelPending=true;
           if(chainMode)panicSweep.begin();
           if(echoProtocol){echoRuntime.configure(echoRuntime.configuration(),true);echoRecovering=true;}
           state.switchLearnTarget=0;state.switchLearnConflict=false;chain.cancel();

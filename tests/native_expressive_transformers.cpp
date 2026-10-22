@@ -17,6 +17,9 @@ int main(){
   c.amount=50;assert(c.apply(1)==64);
   assert(c.apply(127)==64);
   auto bad=c;bad.points[1].x=1;assert(!bad.valid());
+  VelocityCurve gate;gate.count=4;gate.points[0]={1,1};gate.points[1]={55,1};gate.points[2]={56,127};gate.points[3]={127,127};
+  assert(gate.valid()&&gate.apply(55)==1&&gate.apply(56)==127);
+  gate.amount=75;assert(gate.apply(56)==109);
   Humanizer h;h.enabled=true;h.timingMs=2000;h.biasMs=2000;
   Identity id;id.instrument=1;id.group=7;id.note=1;
   const auto first=delay(h,id,48000);assert(first>=0 && first<=192000);

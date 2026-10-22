@@ -12,6 +12,7 @@
 #include "echocity_runtime.hpp"
 #include "snapshot_wire.hpp"
 #include "native_arp_config.hpp"
+#include "native_expressive_config.hpp"
 #include "ysfx.hpp"
 #include <algorithm>
 #include <array>
@@ -74,6 +75,7 @@ struct ParameterChange {
 struct RequestFields {
   echocity::Configurations echoConfig{};
   native_arp::Configuration arpConfig{};
+  expressive::Configuration expressiveConfig{};
   uint64_t id = 0, session = 0, instanceId=0, instanceGeneration=0;
   int op = 0, target = 0, arg = 0, revision = 1, ch = 0, note = 0, value = 0;
   int module = 0, count = 0;
@@ -127,6 +129,7 @@ struct Phrase {
 struct Snapshot {
   echocity::Configurations echoConfig{};
   native_arp::Configuration arpConfig{};
+  expressive::Configuration expressiveConfig{};
   bool echoAvailable=false;
   unsigned echoPending=0,echoSources=0;
   uint64_t echoRejected=0;
@@ -242,6 +245,10 @@ struct Model {
   double unassigned=0;
   std::array<std::array<double,2>,8> legacyArpDefaults{};
   std::array<std::array<double*,2>,8> arpValues{};
+  mutable expressive::Configuration expressiveSettings{};
+  expressive::Configuration expressiveConfiguration()const{return expressiveSettings;}
+  bool expressiveTargets(const expressive::Configuration&c)const{for(const auto&s:c)if(s.instrument){bool found=false;for(unsigned i=0;i<8;++i)found|=*inst[i][0]&&*inst[i][1]==s.instrument;if(!found)return false;}return true;}
+  void loadExpressive(const expressive::Configuration&c){expressiveSettings=c;}
   native_arp::Configuration arpConfiguration() const {
     native_arp::Configuration c{};unsigned n=0;for(unsigned i=0;i<8;++i)if(*inst[i][0])c[n++]={unsigned(*inst[i][1]),unsigned(*arpValues[i][0]),unsigned(*arpValues[i][1])};return c;
   }
@@ -576,6 +583,7 @@ struct Model {
   }
   void snapshot(Snapshot &s) const {
     s.arpConfig=arpConfiguration();
+    s.expressiveConfig=expressiveConfiguration();
     s.loadedPatchSlot=loadedPatchSlot.load(std::memory_order_acquire);
     s.phraseCapacity=phraseCapacity;s.switchCapacity=switchCapacity;s.schema=schema;
     s.instanceError=int(*instanceError);s.instanceRejected=uint64_t(*instanceRejected);
@@ -689,6 +697,7 @@ static std::string json(const Reply &r) {
     << ",\"echocityAvailable\":" << (s.echoAvailable?"true":"false")
     << ",\"echocity\":" << echocity::json(s.echoConfig)
     << ",\"echocityPending\":" << s.echoPending << ",\"echocitySources\":" << s.echoSources
+    << ",\"nativeExpressive\":" << expressive::configurationJson(s.expressiveConfig)
     << ",\"echocityRejected\":" << s.echoRejected
     << ",\"chainFrameGap\":" << s.chainFrameGap << ",\"chainClockGap\":" << s.chainClockGap
     << ",\"chainTimingVersion\":" << s.chainTimingVersion
@@ -1143,6 +1152,9 @@ static void control(int listener, Queue<Request, 8> &commands,
     } else if(valid && request.op==54){
       valid=echocity::read(input,request.echoConfig);
       if(input>>extra)valid=false;
+    } else if(valid && request.op==55){
+      valid=expressive::readConfiguration(input,request.expressiveConfig);
+      if(input>>extra)valid=false;
     } else if (valid && request.op == 35) {
       valid = request.target >= 0 && request.target < int(model.phraseCapacity) && request.arg >= 0 && request.arg <= 2;
       if (valid && request.arg == 1) {
@@ -1202,6 +1214,10 @@ static void control(int listener, Queue<Request, 8> &commands,
         }
         if(valid && marker=="native_arp"){
           valid=native_arp::read(input,request.arpConfig);
+          if(!(input>>marker))marker.clear();
+        }
+        if(valid && marker=="native_expressive"){
+          valid=expressive::readConfiguration(input,request.expressiveConfig);
           if(!(input>>marker))marker.clear();
         }
         if(valid && marker=="loaded_patch"){

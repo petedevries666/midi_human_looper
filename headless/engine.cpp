@@ -3451,9 +3451,10 @@ int main(int argc, char **argv) {
           if(instrument>=0){const unsigned id=unsigned(*model.inst[instrument][1]);for(const auto &candidate:expressiveSettings)if(candidate.instrument==id){setting=&candidate;break;}}
           if(!setting || !((setting->humanizerModule&&setting->humanizer.enabled)||(setting->curveModule&&setting->curve.enabled))){if(!copyExpressive(src))break;continue;}
           native_notes::SourceKey key{};key.instrument=setting->instrument;key.origin=native_notes::Origin::Live;key.instance=0;key.channel=uint8_t(channel);key.pitch=uint8_t(pitch);
-          expressive::Identity identity{};identity.instrument=setting->instrument;identity.iteration=uint32_t(state.blocks);identity.group=channel;identity.note=uint32_t(++expressiveIdentity);identity.instance=expressiveIdentity;
+          expressive::Identity identity{};identity.instrument=setting->instrument;identity.iteration=uint32_t(state.blocks);identity.note=uint32_t(++expressiveIdentity);
           auto humanizer=setting->humanizer;if(!setting->humanizerModule)humanizer.enabled=false;
           auto curve=setting->curve;if(!setting->curveModule)curve.enabled=false;
+          const uint64_t sourceSample=state.samples+src.offset;identity.group=uint32_t(sourceSample);identity.instance=humanizer.scope==expressive::Scope::Group?sourceSample:expressiveIdentity;
           if(kind==144&&velocity>0){
             const bool accepted=expressiveStream->attack(key,setting->humanizerModule?setting->humanizerModule:setting->curveModule,state.samples+src.offset,uint8_t(velocity),identity,humanizer,curve,[](uint64_t,bool,uint8_t,uint8_t,uint8_t){return true;});
             if(!accepted&&!copyExpressive(src))break;

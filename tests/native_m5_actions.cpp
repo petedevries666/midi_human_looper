@@ -15,6 +15,7 @@ int main(int argc,char**argv){
   Host h(argv[1]);setup(h);conductor_install(h,actionModel("STOP",all,false,item.first));
   h.run("phrase_admit_independent(0,0);");h.block();h.events();check(conductor_active(h)==1,"trigger phase fixture starts with one owned phrase");
   h.midi(144,110,100);h.events();check(conductor_active(h)==1,"later-phase ACTION does not execute on PRESS");
+  if(item.second==4)h.eq("mem[mem[mem[conductor_header(0)+2]+78]]",600,"SUPERCHARGE RELEASE action enables the configured charge threshold");
   h.run("conductor_apply(0,0,"+std::to_string(item.second)+");");h.block();auto events=h.events();
   check(conductor_count(events,128,48)==1&&conductor_active(h)==0,"ACTION executes only at its selected LONG HOLD or RELEASE phase");
  }

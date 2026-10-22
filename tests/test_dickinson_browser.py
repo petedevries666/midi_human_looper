@@ -22,6 +22,8 @@ try:
   page.get_by_role('button',name='DONE',exact=True).click();page.wait_for_function('()=>!document.querySelector("#editor").open')
   assert (values()[27],values()[28])==(4,1)
   page.get_by_role('button',name='SAVE PATCH',exact=True).click();page.get_by_text('PATCH SAVED',exact=True).wait_for()
+  saved=json.loads((api.server.patch_dir/'patch1.json').read_text())
+  assert (saved['nativeArp']['configuration'][3],saved['nativeArp']['configuration'][4])==(4,1),('saved native ARP',saved.get('nativeArp'))
   api.cmd('parameter_set',targetId=1,moduleId=arp['id'],kind=27,value=1)
   page.get_by_role('button',name='LOAD PATCH',exact=True).click();page.wait_for_function('()=>!pending')
   assert (values()[27],values()[28])==(4,1),('native state after LOAD',values())

@@ -86,7 +86,8 @@ class RecallService:
         if self.active is None and self.pending is None:
             try:rows=self.chain_saves.inventory()
             except (ValueError,OSError,KeyError,TypeError) as error:chain_error=str(error)
-        return dict(settings=copy.deepcopy(self.settings),phase='queued' if self.pending and not self.active else self.phase,lastError=self.error,selectedSlot=self.selected,snapshots=snapshots,chainRecalls=rows,chainSaveError=chain_error)
+        phase='queued' if self.pending and not self.active else 'preflight' if self.active and self.phase=='ready' else self.phase
+        return dict(settings=copy.deepcopy(self.settings),phase=phase,lastError=self.error,selectedSlot=self.selected,snapshots=snapshots,chainRecalls=rows,chainSaveError=chain_error)
 
     def request(self,request):
         action=request.get('operation')
@@ -244,9 +245,10 @@ class RecallService:
     def run(self):
         while True:
             self.wake.wait();self.wake.clear()
-            with self.lock:job=self.pending;self.pending=None;self.active=job
+            with self.lock:
+                job=self.pending;self.pending=None;self.active=job
+                if job is not None:self.phase='preflight';self.error=''
             if job is None:continue
-            self.phase='preflight';self.error=''
             try:
                 from patch_lock import library_lock
                 with library_lock(self.library,wait=True):

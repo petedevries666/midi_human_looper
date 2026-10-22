@@ -305,7 +305,7 @@ class Handler(BaseHTTPRequestHandler):
             # Native product identity is independent of the frozen REAPER JSFX.
             document['applicationVersion']='2.0.0'
             document['displayVersion']='V.2 DICKINSON'
-            document['runtimeCapabilities']={'transformerTypes':[1,2,3,4,5,6], 'humanizer':True, 'velocityCurves':True, 'echocity':False, 'nativePhrasePlayModes':[0,1,2], 'nativeHeldRelease':True,'nativeMovementPlayModes':['ONE_SHOT','GATED'],'nativeMovementCycleModes':['ONCE','LOOP','PING_PONG'],'conductorRelease':True,'supercharge':True,'nativeSmartSwitchGestures':['TAP','DOUBLE','HOLD','LONG_HOLD'],'configurableRevealCC':True,'switchPresetLibrary':True, 'phraseTransformers':False, 'snapshots':True, 'reaperSnapshots':False, 'ordering':'legacy-stages-or-serial-pitch'}
+            document['runtimeCapabilities']={'transformerTypes':[1,2,3,4,5,6], 'humanizer':True, 'velocityCurves':True, 'expressiveRouting':'UNIQUE_EXPLICIT_MIDI_OUT', 'echocity':False, 'nativePhrasePlayModes':[0,1,2], 'nativeHeldRelease':True,'nativeMovementPlayModes':['ONE_SHOT','GATED'],'nativeMovementCycleModes':['ONCE','LOOP','PING_PONG'],'conductorRelease':True,'supercharge':True,'nativeSmartSwitchGestures':['TAP','DOUBLE','HOLD','LONG_HOLD'],'configurableRevealCC':True,'switchPresetLibrary':True, 'phraseTransformers':False, 'snapshots':True, 'reaperSnapshots':False, 'ordering':'legacy-stages-or-serial-pitch'}
             self.respond(200,document);return
         if path.startswith('/api/v1/snapshot/'):
             try:

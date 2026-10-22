@@ -140,6 +140,17 @@ int main(){
   assert(streamMidi.size()==3 && !streamMidi.back().on && streamMidi.back().pitch==60);
   assert(scopedStream.active()==1 && scopedStream.sounding()==1);
   scopedStream.recovered();assert(scopedStream.active()==0 && scopedStream.pending()==0);
+  StreamRuntime<2> cleared(48000);streamMidi.clear();
+  native_notes::SourceKey ch2=key;ch2.channel=2;
+  assert(cleared.attack(key,44,1000,90,id,live,straight,streamReceive));
+  assert(cleared.attack(ch2,44,1000,80,id,live,straight,streamReceive));
+  cleared.render(1000,512,streamReceive);
+  assert(cleared.active()==2&&cleared.sounding()==2&&streamMidi.size()==2);
+  cleared.channelCleared(1);
+  assert(cleared.active()==1&&cleared.sounding()==1&&cleared.pending()==0);
+  assert(cleared.release(ch2,2000,13,streamReceive));
+  cleared.render(2000,512,streamReceive);
+  assert(streamMidi.size()==3&&!streamMidi.back().on&&streamMidi.back().pitch==60);
   PairRuntime<2,3> bounded(48000);
   assert(bounded.schedule(key,44,500,600,0,80,id,h,straight));
   assert(bounded.schedule(key,44,700,800,0,80,id,h,straight));

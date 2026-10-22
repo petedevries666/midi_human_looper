@@ -2687,7 +2687,25 @@ int main(int argc, char **argv) {
               }
               controllers.recall(b.instrument, b.module, b.kind,
                                  performance::normalized(b.kind, value));
-              applyBinding(b, performance::normalized(b.kind, value));
+              // parameter_set already carries the physical value selected in
+              // the editor. Re-scaling an enum through the legacy EEL bounds
+              // can change it (for example ARP DOWN=2 becomes RANDOM when the
+              // native registry has a wider enum range). Reuse the same safe
+              // typed EEL edit path as module_commit so active-note deferral
+              // and transformer ownership remain intact.
+              unsigned instrumentIndex;
+              int code, row;
+              if (b.module && b.kind < 14 &&
+                  model.resolve(b, instrumentIndex, code, row, true)) {
+                *editI = instrumentIndex;
+                *editCode = code;
+                *editKind = b.kind;
+                *editRow = row;
+                *editValue = value;
+                NSEEL_code_execute(edit);
+              } else {
+                applyBinding(b, performance::normalized(b.kind, value));
+              }
             }
           } else if (request.op == 30) {
             performance::AB config;

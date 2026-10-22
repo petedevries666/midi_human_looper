@@ -1893,6 +1893,8 @@ int main(int argc, char **argv) {
     Snapshot state;
     std::unique_ptr<echocity::Runtime> echoStorage(new echocity::Runtime(sampleRate));
     auto &echoRuntime=*echoStorage;
+    std::unique_ptr<expressive::StreamRuntime<256>> expressiveStream(
+        new expressive::StreamRuntime<256>(sampleRate));
     std::unique_ptr<echocity::SourceJournal<>> echoJournal(new echocity::SourceJournal<>());
     auto echoHost=NSEEL_VM_regvar(fx->vm.get(),"native_echo_sources");
     auto echoRead=NSEEL_VM_regvar(fx->vm.get(),"native_echo_read");
@@ -2236,6 +2238,8 @@ int main(int argc, char **argv) {
         new std::array<MidiPacket, 8192>());
     std::unique_ptr<std::array<unsigned, 8192>> outputOrder(
         new std::array<unsigned, 8192>());
+    std::unique_ptr<std::array<MidiPacket, 8192>> expressiveBatch(
+        new std::array<MidiPacket, 8192>());
     unsigned outputRead = 0, outputWrite = 0;
     std::atomic<unsigned> outputPending{0};
     std::atomic<bool> finalAcknowledged{false};
@@ -3403,7 +3407,56 @@ int main(int argc, char **argv) {
         if(removed)echoRuntime.configure(alive);
       }
       state.echoConfig=echoRuntime.configuration();state.echoPending=echoRuntime.pending();state.echoSources=echoRuntime.sources();state.echoRejected=echoRuntime.rejected;
-      outputCount=movementOutputCount;bool outputSorted=true;
+      outputCount=movementOutputCount;
+      // Apply per-instrument HUMANIZER and VELOCITY CURVES after the native
+      // transformer chain and before JACK. Disabled modules take the exact
+      // original packet path. The fixed stream table pairs overlapping voices
+      // and schedules attacks/releases without callback allocation or locks.
+      auto expressiveSettings=model.expressiveConfiguration();
+      bool expressiveActive=false;
+      for(const auto &setting:expressiveSettings)
+        expressiveActive|=setting.instrument &&
+          ((setting.humanizerModule && setting.humanizer.enabled) ||
+           (setting.curveModule && setting.curve.enabled));
+      if(expressiveActive && outputCount){
+        bool ordered=true;
+        for(unsigned j=1;j<outputCount;++j){const auto&a=(*outputBatch)[j-1],&b=(*outputBatch)[j];if(a.offset>b.offset||(a.offset==b.offset&&a.order>b.order)){ordered=false;break;}}
+        for(unsigned j=0;j<outputCount;++j)(*outputOrder)[j]=j;
+        if(!ordered)std::sort(outputOrder->begin(),outputOrder->begin()+outputCount,[&](unsigned a,unsigned b){const auto&x=(*outputBatch)[a];const auto&y=(*outputBatch)[b];return x.offset!=y.offset?x.offset<y.offset:(x.order!=y.order?x.order<y.order:a<b);});
+        unsigned expressiveCount=0;uint64_t expressiveIdentity=state.samples+state.blocks*uint64_t(frames);
+        auto copyExpressive=[&](const MidiPacket&src){if(expressiveCount>=expressiveBatch->size()){++state.outputOverflow;overflowRecovery=true;return false;}(*expressiveBatch)[expressiveCount++]=src;return true;};
+        for(unsigned j=0;j<outputCount;++j){const auto &src=(*outputBatch)[(*outputOrder)[j]];
+          if(src.size!=3 || ((src.data[0]&240)!=128 && (src.data[0]&240)!=144)){if(!copyExpressive(src))break;continue;}
+          const unsigned channel=src.data[0]&15,pitch=src.data[1]&127,kind=src.data[0]&240,velocity=src.data[2]&127;
+          // An explicit MIDI OUT channel identifies the instrument at this
+          // post-routing point. ORIGINAL and ambiguous shared channels pass
+          // through until the source bridge can provide an instrument ID.
+          int instrument=-1;
+          for(unsigned k=0;k<8;++k)if(*model.inst[k][0]>.5&&unsigned(*model.inst[k][4])==channel+1){if(instrument!=-1){instrument=-2;break;}instrument=int(k);}
+          const expressive::InstrumentSettings *setting=nullptr;
+          if(instrument>=0){const unsigned id=unsigned(*model.inst[instrument][1]);for(const auto &candidate:expressiveSettings)if(candidate.instrument==id){setting=&candidate;break;}}
+          if(!setting || !((setting->humanizerModule&&setting->humanizer.enabled)||(setting->curveModule&&setting->curve.enabled))){if(!copyExpressive(src))break;continue;}
+          native_notes::SourceKey key{};key.instrument=setting->instrument;key.origin=native_notes::Origin::Live;key.instance=0;key.channel=uint8_t(channel);key.pitch=uint8_t(pitch);
+          expressive::Identity identity{};identity.instrument=setting->instrument;identity.iteration=uint32_t(state.blocks);identity.group=channel;identity.note=uint32_t(++expressiveIdentity);identity.instance=expressiveIdentity;
+          auto humanizer=setting->humanizer;if(!setting->humanizerModule)humanizer.enabled=false;
+          auto curve=setting->curve;if(!setting->curveModule)curve.enabled=false;
+          if(kind==144&&velocity>0){
+            const bool accepted=expressiveStream->attack(key,setting->humanizerModule?setting->humanizerModule:setting->curveModule,state.samples+src.offset,uint8_t(velocity),identity,humanizer,curve,[](uint64_t,bool,uint8_t,uint8_t,uint8_t){return true;});
+            if(!accepted&&!copyExpressive(src))break;
+          }else{
+            const bool accepted=expressiveStream->release(key,state.samples+src.offset,uint8_t(velocity),[](uint64_t,bool,uint8_t,uint8_t,uint8_t){return true;});
+            if(!accepted&&!copyExpressive(src))break;
+          }
+        }
+        expressiveStream->render(state.samples,frames,[&](uint64_t sample,bool on,uint8_t ch,uint8_t pitch,uint8_t velocity){
+          if(expressiveCount>=expressiveBatch->size()){++state.outputOverflow;overflowRecovery=true;return false;}
+          auto &m=(*expressiveBatch)[expressiveCount++];m.size=3;m.offset=unsigned(std::min<uint64_t>(frames-1,sample>state.samples?sample-state.samples:0));m.bus=0;m.order=expressiveCount*4;m.data[0]=uint8_t((on?144:128)|ch);m.data[1]=pitch;m.data[2]=velocity;return true;
+        });
+        if(expressiveStream->recoveryNeeded){++state.outputOverflow;overflowRecovery=true;}
+        outputCount=expressiveCount;
+        for(unsigned j=0;j<outputCount;++j)(*outputBatch)[j]=(*expressiveBatch)[j];
+      }
+      bool outputSorted=true;
       for(unsigned j=1;j<outputCount;++j){const auto &a=(*outputBatch)[j-1],&b=(*outputBatch)[j];if(a.offset>b.offset||(a.offset==b.offset&&a.order>b.order)){outputSorted=false;break;}}
       for(unsigned j=0;j<outputCount;++j)(*outputOrder)[j]=j;
       trace.mark(7);

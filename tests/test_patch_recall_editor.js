@@ -32,5 +32,7 @@ const settle=()=>new Promise(resolve=>setImmediate(resolve));
  assert.equal(requests.at(-1).operation,'save_chain');assert.equal(requests.at(-1).chainId,1);assert.equal(requests.at(-1).slot,1);assert.equal(requests.at(-1).fingerprint,'a'.repeat(64));assert.equal(requests.at(-1).expectedEngineSessionId,5);
  assert.equal(element('pc-enabled').checked,false,'chain save must preserve unapplied recall settings');
  await interval();assert.equal(nodes.findLast(n=>n.attributes['aria-label']==='SAVE chaîne 2').disabled,true,'an unlinked chain stays disabled after another action');
+ data.phase='snapshot';await interval();data.phase='ready';await interval();assert.equal(element('patch-status').textContent,'PATCH RAPPELÉ');
+ data.phase='restore';await interval();data.phase='failed';data.lastError='Previous patch restored';await interval();assert.equal(element('patch-status').textContent,'Previous patch restored');
  console.log('PASS patch recall drafts, link/apply and scoped chain SAVE UI');
 })().catch(error=>{console.error(error);process.exitCode=1;});

@@ -126,6 +126,12 @@ def run(output, performance=False):
                 page.locator('#runtime-update > summary').click()
                 capture('snapshots','#snapshots-section')
                 capture('smart-switches','#switches')
+                switch_test=page.locator('[data-switch-id="1"] [data-switch-test]')
+            if switch_test.count():
+                # The updated UI uses one held-gesture test button instead of
+                # a details panel with separate PRESS/HOLD buttons.
+                switch_test.scroll_into_view_if_needed()
+            else:
                 page.locator('[data-switch-id="1"] .switch-test').evaluate('e=>e.open=true')
                 page.locator('[data-switch-id="1"]').get_by_role('button',name='TEST TAP',exact=True).click()
                 page.locator('.switch-test-feedback').first.wait_for(state='visible');capture('smart-switch-test','#switches')

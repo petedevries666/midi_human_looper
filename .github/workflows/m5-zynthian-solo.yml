@@ -1,0 +1,39 @@
+name: M5 Zynthian SOLO patch compatibility
+on:
+  pull_request:
+    paths:
+      - 'zynthian/patches/m5-mixer-solo-state.patch'
+      - 'tests/test_upstream_solo.py'
+      - 'docs/m5-zynthian-solo.md'
+      - '.github/workflows/m5-zynthian-solo.yml'
+permissions:
+  contents: read
+concurrency:
+  group: m5-zynthian-solo-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+jobs:
+  upstream-patch:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Fetch the exact inspected upstream revision
+        run: |
+          mkdir -p .build
+          git clone --filter=blob:none https://github.com/zynthian/zynthian-ui.git .build/zynthian-ui
+          git -C .build/zynthian-ui checkout --detach 37b776a126f48c2e214f016b081f1554513cbc24
+      - name: Confirm the original reproduces the regression
+        run: |
+          if python3 tests/test_upstream_solo.py .build/zynthian-ui/zyngine/zynthian_engine_audio_mixer.py; then
+            echo 'Expected the unpatched upstream methods to fail this regression harness.'
+            exit 1
+          else
+            echo 'Original upstream revision reproduces the reported state mismatch.'
+          fi
+      - name: Apply candidate and run the same state harness
+        run: |
+          git -C .build/zynthian-ui apply --check "$GITHUB_WORKSPACE/zynthian/patches/m5-mixer-solo-state.patch"
+          git -C .build/zynthian-ui apply "$GITHUB_WORKSPACE/zynthian/patches/m5-mixer-solo-state.patch"
+          python3 tests/test_upstream_solo.py .build/zynthian-ui/zyngine/zynthian_engine_audio_mixer.py

@@ -44,6 +44,7 @@
   if(settingsDirty)$('pc-status').textContent+=' · MODIFICATIONS EN ATTENTE : APPLIQUER';
   if(data.selectedSlot&&data.selectedSlot!==lastSlot){lastSlot=data.selectedSlot;$('patch-slot').value=data.selectedSlot;loadedPatchSlot=data.selectedSlot;model='';refreshPatchSlots();refreshHostChains();}
   if(lastPhase!==data.phase&&data.phase==='ready'){refresh();refreshPatchSlots();}
+  if(lastPhase!==data.phase&&lastPhase&&!['ready','failed'].includes(lastPhase))$('patch-status').textContent=data.phase==='failed'?data.lastError||'RAPPEL ÉCHOUÉ':data.phase==='ready'?'PATCH RAPPELÉ':$('pc-status').textContent;
   lastPhase=data.phase;
   paintChains(data);
  }

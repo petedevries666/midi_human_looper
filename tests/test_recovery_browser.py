@@ -35,17 +35,17 @@ try:
   panel=page.locator('[data-instrument-id="1"]');panel.get_by_label('Transformer type for Instrument 1',exact=True).select_option('5');panel.get_by_role('button',name='ADD TRANSFORMER',exact=True).click()
   panel.locator('.module').last.click()
   page.get_by_role('button',name='ARP ENABLED',exact=True).click()
-  page.locator('#editor').get_by_label('MODE',exact=True).select_option(label='RANDOM CLIMB UP')
+  page.locator('#editor').get_by_label('MODE',exact=True).select_option(label='DOWN')
   page.get_by_role('slider',name='RATE',exact=True).fill('16')
   page.get_by_role('slider',name='GATE',exact=True).fill('0.5')
   screenshot('recovery-arp-editor')
   page.get_by_role('button',name='DONE',exact=True).click();page.locator('#editor').wait_for(state='hidden')
   module_id=int(panel.locator('.module').last.get_attribute('data-module-id'));module=next(t for t in api.call()['instruments'][0]['transformers'] if t['id']==module_id);values={v['kind']:v['value'] for v in module['parameters']}
-  assert values[3]==1 and values[4]==9 and values[5]==16 and values[6]==.5,values
+  assert values[3]==1 and values[4]==2 and values[5]==16 and values[6]==.5,values
   # Native commit completion precedes the asynchronous browser repaint. Require
   # the actual module text within Playwright's unchanged default timeout; do not
   # read the old DOM once and confuse that observation with a lost native edit.
-  expect(panel.locator('.module')).to_contain_text('MODE: 9')
+  expect(panel.locator('.module')).to_contain_text('MODE: 2')
   for note in (60,64,67):api.command('midi',channel=1,note=note,value=100)
   before=api.call()['midiCount'];time.sleep(.25);assert api.call()['midiCount']>=before+10,'enabled ARP must generate repeated MIDI'
   for note in (60,64,67):api.command('midi',channel=1,note=note,value=0)

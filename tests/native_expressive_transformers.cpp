@@ -11,7 +11,9 @@ int main(){
   c.points[0]={1,127};c.points[1]={127,1};
   assert(c.valid() && c.apply(1)==127 && c.apply(127)==1 && c.apply(64)==64);
   c.amount=0;assert(c.apply(1)==1);
+  c.amount=100;assert(c.apply(1)==127);
   c.amount=50;assert(c.apply(1)==64);
+  assert(c.apply(127)==64);
   auto bad=c;bad.points[1].x=1;assert(!bad.valid());
   Humanizer h;h.enabled=true;h.timingMs=2000;h.biasMs=2000;
   Identity id;id.instrument=1;id.group=7;id.note=1;
@@ -20,6 +22,35 @@ int main(){
   assert(delay(h,id,48000)==delay(h,other,48000)); // GROUP
   h.scope=Scope::Notes;
   assert(delay(h,id,48000)!=delay(h,other,48000));
+  // FIXED is reproducible across repeated calls and ignores iteration;
+  // EVOLVING changes the deterministic stream per phrase iteration.
+  Humanizer reproducible=h;
+  reproducible.timingMs=500;
+  reproducible.biasMs=0;
+  reproducible.variation=Variation::Fixed;
+  auto later=id;later.iteration=99;
+  assert(delay(reproducible,id,48000)==delay(reproducible,id,48000));
+  assert(delay(reproducible,id,48000)==delay(reproducible,later,48000));
+  reproducible.variation=Variation::Evolving;
+  bool iterationChanged=false;
+  for(uint32_t iteration=1;iteration<64;++iteration){
+    later.iteration=iteration;
+    iterationChanged|=delay(reproducible,id,48000)!=delay(reproducible,later,48000);
+  }
+  assert(iterationChanged);
+  // The same independent variation rules apply to velocity.
+  reproducible.velocityPercent=100;
+  reproducible.variation=Variation::Fixed;
+  assert(velocity(reproducible,id,64)==velocity(reproducible,later,64));
+  reproducible.variation=Variation::Evolving;
+  bool velocityChanged=false;
+  for(uint32_t iteration=1;iteration<64;++iteration){
+    later.iteration=iteration;
+    velocityChanged|=velocity(reproducible,id,64)!=velocity(reproducible,later,64);
+  }
+  assert(velocityChanged);
+  auto invalidHumanizer=h;invalidHumanizer.biasMs=2001;
+  assert(!invalidHumanizer.valid() && delay(invalidHumanizer,id,48000)==0);
   h.timingMs=0;h.biasMs=1700;
   VelocityCurve straight;
   native_notes::SourceKey key;
@@ -53,6 +84,25 @@ int main(){
   assert(engine.cancel(130100,1,44,receive));
   assert(got.size()==2 && !got.back().on);
   engine.render(139000,2000,receive);assert(got.size()==2);
+  // Module-scoped cancellation releases only the matching captured voice.
+  PairRuntime<> scoped(48000);
+  std::vector<Midi> scopedMidi;
+  auto scopedReceive=[&](uint64_t s,bool on,uint8_t ch,uint8_t p,uint8_t v){
+    scopedMidi.push_back({s,on,ch,p,v});return true;
+  };
+  native_notes::SourceKey secondKey=key;
+  secondKey.instrument=2;secondKey.instance=456;secondKey.pitch=61;
+  h.enabled=false;
+  assert(scoped.schedule(key,44,1000,5000,0,90,id,h,straight));
+  assert(scoped.schedule(secondKey,45,1100,6000,0,80,id,h,straight));
+  scoped.render(1000,512,scopedReceive);
+  assert(scopedMidi.size()==2 && scopedMidi[0].on && scopedMidi[1].on);
+  assert(scoped.cancel(2000,1,44,scopedReceive));
+  assert(scopedMidi.size()==3 && !scopedMidi.back().on);
+  assert(scopedMidi.back().pitch==60);
+  scoped.render(5000,1024,scopedReceive);
+  assert(scopedMidi.size()==4 && !scopedMidi.back().on && scopedMidi.back().pitch==61);
+  assert(scoped.active()==0 && scoped.sounding()==0);
   PairRuntime<2,3> bounded(48000);
   assert(bounded.schedule(key,44,500,600,0,80,id,h,straight));
   assert(bounded.schedule(key,44,700,800,0,80,id,h,straight));

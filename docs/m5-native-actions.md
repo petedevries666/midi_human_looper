@@ -32,6 +32,10 @@ switches, sources and shared phrase/controller settings remain unchanged. Both
 schema 7 and schema 8 patch layouts are supported without editing the frozen JSFX.
 The dedicated Conductor editor offers ACTION blocks on non-MASTER layers, with
 explicit action, trigger and destination fields.
+The switch-level ADVANCE RELEASE option currently defers step admission until the
+pedal release; it is not a cursor-only advance after playing the current step on
+press. A press-play / release-advance sequence would be a distinct behavior and
+has not been implemented or hardware-qualified.
 
 An existing utility preset may replace only the exact empty default Conductor,
 after the normal preset preview. Authored steps remain protected. This compatibility
@@ -44,7 +48,7 @@ reported, rather than claiming successful restoration.
 ## Reproducible isolated validation
 
 GitHub Actions run 39745792263 passed on the earlier baseline commit
-13147f88be682c98b579c4f60acdd877b47b8188. The current run [39754637409](https://github.com/petedevries666/midi_human_looper/actions/runs/39754637409) passed isolated ACTION dispatch tests for LONG_HOLD, RELEASE, and SUPERCHARGE_RELEASE, including automatic arming of the charge threshold. The workflow built pinned ysfx and the
+13147f88be682c98b579c4f60acdd877b47b8188. The current run [39755803088](https://github.com/petedevries666/midi_human_looper/actions/runs/39755803088) passed isolated ACTION dispatch tests for LONG_HOLD, RELEASE, and SUPERCHARGE_RELEASE, including automatic arming of the charge threshold, plus Python carrier round-trip validation for all five trigger values. The workflow built pinned ysfx and the
 real generated engine without a JACK daemon, Zynthian service, saved user patch
 or musical port. It passed the HOLD/group-zero ownership regressions, typed
 native action tests, switch creation and preset rollback tests, legacy contracts,

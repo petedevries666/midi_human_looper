@@ -113,6 +113,11 @@ class RecallTests(unittest.TestCase):
   with patch('patch_recall.atomic_json',side_effect=fail_registry):
    with self.assertRaises(OSError):self.service.save_pair(2)
   self.assertEqual((self.library/'patch2.json').read_bytes(),before);self.assertEqual(self.service.settings['links']['2'],link)
+ def test_active_worker_is_never_reported_ready(self):
+  self.service.active=('recall',1)
+  self.service.phase='ready'
+  self.assertEqual(self.service.status()['phase'],'preflight')
+
  def test_slot_bounds(self):
   self.assertNotIn('error',self.service.status()) # Transport errors reserve this key.
   for n in (0,128,True,'1'):

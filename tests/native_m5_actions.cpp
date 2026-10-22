@@ -11,18 +11,14 @@ static void setup(Host&h){conductor_fixture(h);h.run("native_phrase_contract=2;n
 int main(int argc,char**argv){
  check(argc==2,"generated source required");
  const std::string all="{\"type\":\"ALL_PHRASES\"}",self="{\"type\":\"SWITCH\",\"switchId\":1}",source="{\"type\":\"PHRASE\",\"sourceId\":\""+conductor_uuid(1)+"\"}";
- auto rejectsTrigger=[&](const char* trigger){
-  auto bytes=actionModel("STOP",all);
-  std::string text(bytes.begin(),bytes.end());
-  const std::string original="\"trigger\":\"PRESS\"";
-  auto at=text.find(original);
-  check(at!=std::string::npos,"valid PRESS action fixture has trigger");
-  text.replace(at,original.size(),std::string("\"trigger\":\"")+trigger+"\"");
-  std::vector<unsigned> invalid(text.begin(),text.end());
-  check(!conductor::validDocument(invalid),"unsupported Conductor action trigger is rejected, not reinterpreted as PRESS");
- };
- rejectsTrigger("LONG_HOLD");
- rejectsTrigger("RELEASE");
+ for(const auto& item:{std::pair<const char*,unsigned>{"LONG_HOLD",2},{"RELEASE",3},{"SUPERCHARGE_RELEASE",4}}){
+  Host h(argv[1]);setup(h);conductor_install(h,actionModel("STOP",all,false,item.first));
+  h.run("phrase_admit_independent(0,0);");h.block();h.events();check(conductor_active(h)==1,"trigger phase fixture starts with one owned phrase");
+  h.midi(144,110,100);h.events();check(conductor_active(h)==1,"later-phase ACTION does not execute on PRESS");
+  h.run("conductor_apply(0,0,"+std::to_string(item.second)+");");h.block();auto events=h.events();
+  check(conductor_count(events,128,48)==1&&conductor_active(h)==0,"ACTION executes only at its selected LONG HOLD or RELEASE phase");
+ }
+
  for(const char* action:{"STOP","PANIC","STOP_RESET"}){
   Host h(argv[1]);setup(h);conductor_install(h,actionModel(action,std::string(action)=="STOP_RESET"?self:all));
   h.midi(144,110,100);auto events=h.events();check(conductor_count(events,128,48)==1,"action releases sounding phrase");check(conductor_active(h)==0,"action retires owners");

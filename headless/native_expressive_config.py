@@ -13,8 +13,7 @@ def decode(extension):
         raise ValueError('Invalid native expressive header')
     rows=[];seen=set();at=2
     for _ in range(wire[1]):
-        if len(wire)-at<16:raise ValueError('Truncated native expressive row')
-        ident,hid,hen,timing,bias,variation,feel,evolving,scope,seed,lookahead,cid,cen,amount,count=wire[at:at+15]
+        if len(wire)-at<15:raise ValueError('Truncated native expressive row')
         # Keep the wire order aligned with the native codec: velocity spread
         # precedes the three enum selectors.
         ident,hid,hen,timing,bias,velocity,feel,evolving,scope,seed,lookahead,cid,cen,amount,count=wire[at:at+15]

@@ -1895,6 +1895,7 @@ int main(int argc, char **argv) {
     auto &echoRuntime=*echoStorage;
     std::unique_ptr<expressive::StreamRuntime<256>> expressiveStream(
         new expressive::StreamRuntime<256>(sampleRate));
+    bool expressiveCancelPending=false;
     std::unique_ptr<echocity::SourceJournal<>> echoJournal(new echocity::SourceJournal<>());
     auto echoHost=NSEEL_VM_regvar(fx->vm.get(),"native_echo_sources");
     auto echoRead=NSEEL_VM_regvar(fx->vm.get(),"native_echo_read");
@@ -2541,7 +2542,7 @@ int main(int argc, char **argv) {
         }
         else if(request.op==55){
           if(!model.expressiveTargets(request.expressiveConfig))reply.status=2;
-          else{model.loadExpressive(request.expressiveConfig);++state.revision;}
+          else{model.loadExpressive(request.expressiveConfig);expressiveCancelPending=true;++state.revision;}
         }
         else if(request.op==53){
           if(request.value>16)reply.status=3;
@@ -3425,7 +3426,15 @@ int main(int argc, char **argv) {
         if(!ordered)std::sort(outputOrder->begin(),outputOrder->begin()+outputCount,[&](unsigned a,unsigned b){const auto&x=(*outputBatch)[a];const auto&y=(*outputBatch)[b];return x.offset!=y.offset?x.offset<y.offset:(x.order!=y.order?x.order<y.order:a<b);});
         unsigned expressiveCount=0;uint64_t expressiveIdentity=state.samples+state.blocks*uint64_t(frames);
         auto copyExpressive=[&](const MidiPacket&src){if(expressiveCount>=expressiveBatch->size()){++state.outputOverflow;overflowRecovery=true;return false;}(*expressiveBatch)[expressiveCount++]=src;return true;};
+        if(expressiveCancelPending){
+          if(!expressiveStream->cancel(state.samples,0,0,[&](uint64_t sample,bool on,uint8_t ch,uint8_t pitch,uint8_t velocity){
+            if(expressiveCount>=expressiveBatch->size()){++state.outputOverflow;overflowRecovery=true;return false;}
+            auto&m=(*expressiveBatch)[expressiveCount++];m.size=3;m.offset=unsigned(std::min<uint64_t>(frames-1,sample>state.samples?sample-state.samples:0));m.bus=0;m.order=expressiveCount*4;m.data[0]=uint8_t((on?144:128)|ch);m.data[1]=pitch;m.data[2]=velocity;return true;
+          })) {++state.outputOverflow;overflowRecovery=true;}
+          expressiveCancelPending=false;
+        }
         for(unsigned j=0;j<outputCount;++j){const auto &src=(*outputBatch)[(*outputOrder)[j]];
+          if(src.size==3 && (src.data[0]&240)==176 && (src.data[1]==120 || src.data[1]==123))expressiveStream->channelCleared(src.data[0]&15);
           if(src.size!=3 || ((src.data[0]&240)!=128 && (src.data[0]&240)!=144)){if(!copyExpressive(src))break;continue;}
           const unsigned channel=src.data[0]&15,pitch=src.data[1]&127,kind=src.data[0]&240,velocity=src.data[2]&127;
           // An explicit MIDI OUT channel identifies the instrument at this

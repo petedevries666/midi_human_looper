@@ -959,6 +959,7 @@ function compactInstrument(i){
   main.append(volume,...(pan?[pan]:[]),button('×',()=>{if(confirm(`Delete Instrument ${i.id} and its complete Transformer chain?`))command({action:'instrument_delete',instrumentId:i.id});}));n.append(main);
   if(link){const row=node('div',undefined,'host-chain-link');row.style.cssText='display:flex;align-items:center;gap:8px;flex-wrap:wrap';row.append(node('small',link.destination?`ZYNTHIAN · ${link.destination.name} · CH ${link.destination.channel}`:'ZYNTHIAN · DESTINATION MANQUANTE'),button('DÉLIER',()=>unlinkHostInstrument(i.id)));n.append(row);}
   if(latest?.nativePhraseContract>=2)n.append(node('small','OFF = silence · Canal d’entrée sans correspondance = silence'));
+  n.append(window.MBMF_EXPRESSIVE?.mount(i,latest,command));
   const chain=node('div',undefined,'transformers');
   for(const tf of i.transformers||[]){
     const card=node('article',undefined,'module');card.dataset.moduleId=tf.id;card.dataset.instrumentId=i.id;window.MBMF_TILES?.decorate(card,'TRANSFORMER',tf.id);card.classList.toggle('bypassed',!tf.enabled);card.classList.toggle('selected',selectedModule?.instrumentId===i.id&&selectedModule.moduleId===tf.id);

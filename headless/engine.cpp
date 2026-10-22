@@ -12,6 +12,7 @@
 #include "echocity_runtime.hpp"
 #include "snapshot_wire.hpp"
 #include "native_arp_config.hpp"
+#include "native_expressive_config.hpp"
 #include "ysfx.hpp"
 #include <algorithm>
 #include <array>
@@ -74,6 +75,7 @@ struct ParameterChange {
 struct RequestFields {
   echocity::Configurations echoConfig{};
   native_arp::Configuration arpConfig{};
+  expressive::Configuration expressiveConfig{};
   uint64_t id = 0, session = 0, instanceId=0, instanceGeneration=0;
   int op = 0, target = 0, arg = 0, revision = 1, ch = 0, note = 0, value = 0;
   int module = 0, count = 0;
@@ -127,9 +129,12 @@ struct Phrase {
 struct Snapshot {
   echocity::Configurations echoConfig{};
   native_arp::Configuration arpConfig{};
+  expressive::Configuration expressiveConfig{};
   bool echoAvailable=false;
   unsigned echoPending=0,echoSources=0;
   uint64_t echoRejected=0;
+  uint64_t expressiveRejected=0,expressiveClamped=0;
+  unsigned expressivePending=0;
   unsigned switchLearnTarget=0;bool switchLearnConflict=false;
   uint64_t samples = 0, blocks = 0, midi = 0, late = 0, last_sample = 0;
   int revision = 1;
@@ -242,6 +247,10 @@ struct Model {
   double unassigned=0;
   std::array<std::array<double,2>,8> legacyArpDefaults{};
   std::array<std::array<double*,2>,8> arpValues{};
+  mutable expressive::Configuration expressiveSettings{};
+  expressive::Configuration expressiveConfiguration()const{return expressiveSettings;}
+  bool expressiveTargets(const expressive::Configuration&c)const{for(const auto&s:c)if(s.instrument){bool found=false;for(unsigned i=0;i<8;++i)found|=*inst[i][0]&&*inst[i][1]==s.instrument;if(!found)return false;}return true;}
+  void loadExpressive(const expressive::Configuration&c){expressiveSettings=c;}
   native_arp::Configuration arpConfiguration() const {
     native_arp::Configuration c{};unsigned n=0;for(unsigned i=0;i<8;++i)if(*inst[i][0])c[n++]={unsigned(*inst[i][1]),unsigned(*arpValues[i][0]),unsigned(*arpValues[i][1])};return c;
   }
@@ -576,6 +585,7 @@ struct Model {
   }
   void snapshot(Snapshot &s) const {
     s.arpConfig=arpConfiguration();
+    s.expressiveConfig=expressiveConfiguration();
     s.loadedPatchSlot=loadedPatchSlot.load(std::memory_order_acquire);
     s.phraseCapacity=phraseCapacity;s.switchCapacity=switchCapacity;s.schema=schema;
     s.instanceError=int(*instanceError);s.instanceRejected=uint64_t(*instanceRejected);
@@ -689,6 +699,8 @@ static std::string json(const Reply &r) {
     << ",\"echocityAvailable\":" << (s.echoAvailable?"true":"false")
     << ",\"echocity\":" << echocity::json(s.echoConfig)
     << ",\"echocityPending\":" << s.echoPending << ",\"echocitySources\":" << s.echoSources
+    << ",\"expressivePending\":" << s.expressivePending << ",\"expressiveRejected\":" << s.expressiveRejected << ",\"expressiveClamped\":" << s.expressiveClamped
+    << ",\"nativeExpressive\":" << expressive::configurationJson(s.expressiveConfig)
     << ",\"echocityRejected\":" << s.echoRejected
     << ",\"chainFrameGap\":" << s.chainFrameGap << ",\"chainClockGap\":" << s.chainClockGap
     << ",\"chainTimingVersion\":" << s.chainTimingVersion
@@ -1143,6 +1155,9 @@ static void control(int listener, Queue<Request, 8> &commands,
     } else if(valid && request.op==54){
       valid=echocity::read(input,request.echoConfig);
       if(input>>extra)valid=false;
+    } else if(valid && request.op==55){
+      valid=expressive::readConfiguration(input,request.expressiveConfig);
+      if(input>>extra)valid=false;
     } else if (valid && request.op == 35) {
       valid = request.target >= 0 && request.target < int(model.phraseCapacity) && request.arg >= 0 && request.arg <= 2;
       if (valid && request.arg == 1) {
@@ -1202,6 +1217,10 @@ static void control(int listener, Queue<Request, 8> &commands,
         }
         if(valid && marker=="native_arp"){
           valid=native_arp::read(input,request.arpConfig);
+          if(!(input>>marker))marker.clear();
+        }
+        if(valid && marker=="native_expressive"){
+          valid=expressive::readConfiguration(input,request.expressiveConfig);
           if(!(input>>marker))marker.clear();
         }
         if(valid && marker=="loaded_patch"){
@@ -1401,6 +1420,7 @@ static void control(int listener, Queue<Request, 8> &commands,
           model.loadedPatchSlot.store(0,std::memory_order_release);reply.state.loadedPatchSlot=0;
           patch.load(patch.schema,patch.factory);patch.guardedReady=false;conductorConfiguration.clear();installConductor(conductorConfiguration);
           model.loadArp(native_arp::Configuration{});
+          model.loadArp(native_arp::Configuration{});model.loadExpressive(expressive::Configuration{});
           echoRuntime.configure(echocity::Configurations{},true);
           send_line(fd,json(reply),shutdown);
         } else if (reply.status == 0 && request.op == 4) {
@@ -1415,6 +1435,8 @@ static void control(int listener, Queue<Request, 8> &commands,
           if (!conductorConfiguration.empty())
             document.insert(document.find_last_of('}'),",\"conductor\":"+conductor::json(conductorConfiguration));
           if(model.schema==8)document.insert(document.find_last_of('}'),",\"nativeArp\":"+native_arp::json(model.arpConfiguration()));
+          if(model.schema==8)document.insert(document.find_last_of('}'),",\"nativeArp\":"+native_arp::json(model.arpConfiguration()));
+          if(model.schema==8)document.insert(document.find_last_of('}'),",\"nativeExpressive\":"+expressive::configurationJson(model.expressiveConfiguration()));
           if(reply.state.echoAvailable)document.insert(document.find_last_of('}'),",\"echocity\":"+echocity::json(reply.state.echoConfig));
           paused.store(false, std::memory_order_release);
           send_line(fd, document, shutdown);
@@ -1429,7 +1451,7 @@ static void control(int listener, Queue<Request, 8> &commands,
             for (unsigned j = 0; j < patch.memory.size(); ++j)
               previous[9 + j] = *patch.memory[j];
             patch.load(unsigned(request.target), patchValues);
-            bool collision = !model.arpTargets(request.arpConfig);
+            bool collision = !model.arpTargets(request.arpConfig)||!model.expressiveTargets(request.expressiveConfig);
             for(const auto &c:request.echoConfig)if(c.id){
               bool found=false;for(unsigned j=0;j<8;++j)found|=*model.inst[j][1]==c.instrument && *model.inst[j][0]>.5;
               if(!reply.state.echoAvailable || !found)collision=true;
@@ -1449,6 +1471,7 @@ static void control(int listener, Queue<Request, 8> &commands,
           }
           if (reply.status == 0 && request.op == 5) {
             model.loadArp(request.arpConfig);
+            model.loadArp(request.arpConfig);model.loadExpressive(request.expressiveConfig);
             model.loadedPatchSlot.store(request.loadedPatchSlot,std::memory_order_release);
             reply.state.loadedPatchSlot=request.loadedPatchSlot;
             installConductor(pendingConductor);
@@ -1873,6 +1896,9 @@ int main(int argc, char **argv) {
     Snapshot state;
     std::unique_ptr<echocity::Runtime> echoStorage(new echocity::Runtime(sampleRate));
     auto &echoRuntime=*echoStorage;
+    std::unique_ptr<expressive::StreamRuntime<256>> expressiveStream(
+        new expressive::StreamRuntime<256>(sampleRate));
+    bool expressiveCancelPending=false;
     std::unique_ptr<echocity::SourceJournal<>> echoJournal(new echocity::SourceJournal<>());
     auto echoHost=NSEEL_VM_regvar(fx->vm.get(),"native_echo_sources");
     auto echoRead=NSEEL_VM_regvar(fx->vm.get(),"native_echo_read");
@@ -2216,6 +2242,8 @@ int main(int argc, char **argv) {
         new std::array<MidiPacket, 8192>());
     std::unique_ptr<std::array<unsigned, 8192>> outputOrder(
         new std::array<unsigned, 8192>());
+    std::unique_ptr<std::array<MidiPacket, 8192>> expressiveBatch(
+        new std::array<MidiPacket, 8192>());
     unsigned outputRead = 0, outputWrite = 0;
     std::atomic<unsigned> outputPending{0};
     std::atomic<bool> finalAcknowledged{false};
@@ -2514,6 +2542,10 @@ int main(int argc, char **argv) {
             if(!found)reply.status=2;
           }
           if(!reply.status){echoRuntime.configure(request.echoConfig);++state.revision;}
+        }
+        else if(request.op==55){
+          if(!model.expressiveTargets(request.expressiveConfig))reply.status=2;
+          else{model.loadExpressive(request.expressiveConfig);expressiveCancelPending=true;++state.revision;}
         }
         else if(request.op==53){
           if(request.value>16)reply.status=3;
@@ -3096,6 +3128,7 @@ int main(int argc, char **argv) {
           if (*ok != 1)
             reply.status = 2;
         } else if (request.op == 2) {
+          expressiveCancelPending=true;
           if(chainMode)panicSweep.begin();
           if(echoProtocol){echoRuntime.configure(echoRuntime.configuration(),true);echoRecovering=true;}
           state.switchLearnTarget=0;state.switchLearnConflict=false;chain.cancel();
@@ -3379,7 +3412,66 @@ int main(int argc, char **argv) {
         if(removed)echoRuntime.configure(alive);
       }
       state.echoConfig=echoRuntime.configuration();state.echoPending=echoRuntime.pending();state.echoSources=echoRuntime.sources();state.echoRejected=echoRuntime.rejected;
-      outputCount=movementOutputCount;bool outputSorted=true;
+      state.expressivePending=unsigned(expressiveStream->pending());state.expressiveRejected=expressiveStream->rejected;state.expressiveClamped=expressiveStream->clamped;
+      outputCount=movementOutputCount;
+      // Apply per-instrument HUMANIZER and VELOCITY CURVES after the native
+      // transformer chain and before JACK. Disabled modules take the exact
+      // original packet path. The fixed stream table pairs overlapping voices
+      // and schedules attacks/releases without callback allocation or locks.
+      auto expressiveSettings=model.expressiveConfiguration();
+      bool expressiveActive=false;
+      for(const auto &setting:expressiveSettings)
+        expressiveActive|=setting.instrument &&
+          ((setting.humanizerModule && setting.humanizer.enabled) ||
+           (setting.curveModule && setting.curve.enabled));
+      if(expressiveActive || expressiveStream->pending() || expressiveCancelPending){
+        bool ordered=true;
+        for(unsigned j=1;j<outputCount;++j){const auto&a=(*outputBatch)[j-1],&b=(*outputBatch)[j];if(a.offset>b.offset||(a.offset==b.offset&&a.order>b.order)){ordered=false;break;}}
+        for(unsigned j=0;j<outputCount;++j)(*outputOrder)[j]=j;
+        if(!ordered)std::sort(outputOrder->begin(),outputOrder->begin()+outputCount,[&](unsigned a,unsigned b){const auto&x=(*outputBatch)[a];const auto&y=(*outputBatch)[b];return x.offset!=y.offset?x.offset<y.offset:(x.order!=y.order?x.order<y.order:a<b);});
+        unsigned expressiveCount=0;uint64_t expressiveIdentity=state.samples+state.blocks*uint64_t(frames);
+        auto copyExpressive=[&](const MidiPacket&src){if(expressiveCount>=expressiveBatch->size()){++state.outputOverflow;overflowRecovery=true;return false;}(*expressiveBatch)[expressiveCount++]=src;return true;};
+        if(expressiveCancelPending){
+          if(!expressiveStream->cancel(state.samples,0,0,[&](uint64_t sample,bool on,uint8_t ch,uint8_t pitch,uint8_t velocity){
+            if(expressiveCount>=expressiveBatch->size()){++state.outputOverflow;overflowRecovery=true;return false;}
+            auto&m=(*expressiveBatch)[expressiveCount++];m.size=3;m.offset=unsigned(std::min<uint64_t>(frames-1,sample>state.samples?sample-state.samples:0));m.bus=0;m.order=expressiveCount*4;m.data[0]=uint8_t((on?144:128)|ch);m.data[1]=pitch;m.data[2]=velocity;return true;
+          })) {++state.outputOverflow;overflowRecovery=true;}
+          expressiveCancelPending=false;
+        }
+        for(unsigned j=0;j<outputCount;++j){const auto &src=(*outputBatch)[(*outputOrder)[j]];
+          if(src.size==3 && (src.data[0]&240)==176 && (src.data[1]==120 || src.data[1]==123))expressiveStream->channelCleared(src.data[0]&15);
+          if(src.size!=3 || ((src.data[0]&240)!=128 && (src.data[0]&240)!=144)){if(!copyExpressive(src))break;continue;}
+          const unsigned channel=src.data[0]&15,pitch=src.data[1]&127,kind=src.data[0]&240,velocity=src.data[2]&127;
+          // An explicit MIDI OUT channel identifies the instrument at this
+          // post-routing point. ORIGINAL and ambiguous shared channels pass
+          // through until the source bridge can provide an instrument ID.
+          int instrument=-1;
+          for(unsigned k=0;k<8;++k)if(*model.inst[k][0]>.5&&unsigned(*model.inst[k][4])==channel+1){if(instrument!=-1){instrument=-2;break;}instrument=int(k);}
+          const expressive::InstrumentSettings *setting=nullptr;
+          if(instrument>=0){const unsigned id=unsigned(*model.inst[instrument][1]);for(const auto &candidate:expressiveSettings)if(candidate.instrument==id){setting=&candidate;break;}}
+          if(!setting || !((setting->humanizerModule&&setting->humanizer.enabled)||(setting->curveModule&&setting->curve.enabled))){if(!copyExpressive(src))break;continue;}
+          native_notes::SourceKey key{};key.instrument=setting->instrument;key.origin=native_notes::Origin::Live;key.instance=0;key.channel=uint8_t(channel);key.pitch=uint8_t(pitch);
+          expressive::Identity identity{};identity.instrument=setting->instrument;identity.iteration=uint32_t(state.blocks);identity.note=uint32_t(++expressiveIdentity);
+          auto humanizer=setting->humanizer;if(!setting->humanizerModule)humanizer.enabled=false;
+          auto curve=setting->curve;if(!setting->curveModule)curve.enabled=false;
+          const uint64_t sourceSample=state.samples+src.offset;identity.group=uint32_t(sourceSample);identity.instance=humanizer.scope==expressive::Scope::Group?sourceSample:expressiveIdentity;
+          if(kind==144&&velocity>0){
+            const bool accepted=expressiveStream->attack(key,setting->humanizerModule?setting->humanizerModule:setting->curveModule,state.samples+src.offset,uint8_t(velocity),identity,humanizer,curve,[](uint64_t,bool,uint8_t,uint8_t,uint8_t){return true;});
+            if(!accepted&&!copyExpressive(src))break;
+          }else{
+            const bool accepted=expressiveStream->release(key,state.samples+src.offset,uint8_t(velocity),[](uint64_t,bool,uint8_t,uint8_t,uint8_t){return true;});
+            if(!accepted&&!copyExpressive(src))break;
+          }
+        }
+        expressiveStream->render(state.samples,frames,[&](uint64_t sample,bool on,uint8_t ch,uint8_t pitch,uint8_t velocity){
+          if(expressiveCount>=expressiveBatch->size()){++state.outputOverflow;overflowRecovery=true;return false;}
+          auto &m=(*expressiveBatch)[expressiveCount++];m.size=3;m.offset=unsigned(std::min<uint64_t>(frames-1,sample>state.samples?sample-state.samples:0));m.bus=0;m.order=expressiveCount*4;m.data[0]=uint8_t((on?144:128)|ch);m.data[1]=pitch;m.data[2]=velocity;return true;
+        });
+        if(expressiveStream->recoveryNeeded){++state.outputOverflow;overflowRecovery=true;}
+        outputCount=expressiveCount;
+        for(unsigned j=0;j<outputCount;++j)(*outputBatch)[j]=(*expressiveBatch)[j];
+      }
+      bool outputSorted=true;
       for(unsigned j=1;j<outputCount;++j){const auto &a=(*outputBatch)[j-1],&b=(*outputBatch)[j];if(a.offset>b.offset||(a.offset==b.offset&&a.order>b.order)){outputSorted=false;break;}}
       for(unsigned j=0;j<outputCount;++j)(*outputOrder)[j]=j;
       trace.mark(7);
@@ -3425,7 +3517,8 @@ int main(int argc, char **argv) {
       if (useJack)
         state.late = xruns.load(std::memory_order_relaxed);
       drainPanic();
-      state.pendingOutput = outputWrite - outputRead + panicSweep.remaining();
+      if(recovering&&expressiveStream->recoveryNeeded)expressiveStream->recovered();
+      state.pendingOutput = outputWrite - outputRead + panicSweep.remaining() + expressiveStream->pending();
       outputPending.store(state.pendingOutput, std::memory_order_release);
       if (muted)
         finalAcknowledged.store(true, std::memory_order_release);

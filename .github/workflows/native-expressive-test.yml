@@ -1,0 +1,34 @@
+name: Native expressive core
+on:
+  push:
+    branches:
+      - feat/native-extreme-humanizer-velocity-curves
+  pull_request:
+    paths:
+      - 'headless/native_expressive_transformers.hpp'
+      - 'headless/native_expressive_config.hpp'
+      - 'headless/native_expressive_config.py'
+      - 'headless/engine.cpp'
+      - 'headless/server.py'
+      - 'headless/web/expressive.js'
+      - 'headless/web/expressive.css'
+      - 'headless/web/index.html'
+      - 'tests/native_expressive_transformers.cpp'
+      - '.github/workflows/native-expressive-test.yml'
+jobs:
+  native-expressive:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build strict C++17 test against real native scheduler
+        run: |
+          g++ -std=c++17 -O2 -Wall -Wextra -Werror -pedantic -Iheadless tests/native_expressive_transformers.cpp -o /tmp/mbmf-native-expressive
+          /tmp/mbmf-native-expressive
+      - name: Run ASAN and UBSAN
+        run: |
+          g++ -std=c++17 -O1 -g -fsanitize=address,undefined -fno-omit-frame-pointer -Wall -Wextra -Werror -pedantic -Iheadless tests/native_expressive_transformers.cpp -o /tmp/mbmf-native-expressive-asan
+          /tmp/mbmf-native-expressive-asan
+      - name: Validate Web editor JavaScript
+        run: node --check headless/web/expressive.js
+      - name: Validate versioned patch codec
+        run: python3 tests/test_native_expressive_config.py

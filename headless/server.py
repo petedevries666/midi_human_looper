@@ -22,7 +22,7 @@ from urllib.parse import urlsplit
 
 ROOT = Path(__file__).parent / 'web'
 
-PATCH_KEYS={'format','schema','work_mem_size','globals','memory','controllerEngine','globalSnapshots','conductor','echocity','nativeArp'}
+PATCH_KEYS={'format','schema','work_mem_size','globals','memory','controllerEngine','globalSnapshots','conductor','echocity','nativeArp','nativeExpressive'}
 def validate_patch_extensions(patch):
     if not isinstance(patch,dict) or set(patch)-PATCH_KEYS:
         raise ValueError('Unsupported patch fields preserved; refusing to discard configuration.')
@@ -35,6 +35,10 @@ def validate_patch_extensions(patch):
         from native_arp_config import decode as decode_arp
         decode_arp(patch['nativeArp'])
         if patch['schema']!=8:raise ValueError('Native ARP requires schema 8')
+    if 'nativeExpressive' in patch:
+        from native_expressive_config import decode as decode_expressive
+        decode_expressive(patch['nativeExpressive'])
+        if patch['schema']!=8:raise ValueError('Native expressive settings require schema 8')
     if 'echocity' in patch:
         from echocity_config import decode as decode_echo
         decode_echo(patch['echocity'])
@@ -71,7 +75,7 @@ class Control:
                 self._observation_json=json.dumps(state,separators=(',',':')).encode()
             return self._observation_json
 
-    def request(self, op=0, target=0, arg=0, revision=1, ch=0, note=0, value=0, session=0, patch=None, parameters=None, module=0, binding=None, name=None, settings=None, inclusions=None, macro=None,instance=None, phrase=None,echo=None,loaded_slot=0):
+    def request(self, op=0, target=0, arg=0, revision=1, ch=0, note=0, value=0, session=0, patch=None, parameters=None, module=0, binding=None, name=None, settings=None, inclusions=None, macro=None,instance=None, phrase=None,echo=None,expressive=None,loaded_slot=0):
         # One worker producer owns the engine's command queue; HTTP threads never
         # inspect live engine state. A timeout does not cancel an already executed TEST.
         with self.lock:
@@ -91,6 +95,12 @@ class Control:
                 from echocity_config import decode as decode_echo
                 decode_echo(echo)
                 line=line.rstrip('\n')+' '+' '.join(format(v,'.17g') for v in echo['configuration'])+'\n'
+            if expressive is not None:
+                from native_expressive_config import decode as decode_expressive
+                extension={'version':1,'configuration':expressive}
+                decode_expressive(extension)
+                values=' '.join(format(v,'.17g') for v in expressive)
+                line=line.rstrip('\n')+(' '+values if op==55 else ' native_expressive '+values)+'\n'
             if parameters is not None:
                 line=line.rstrip('\n')+f' {module} {len(parameters)} '+ ' '.join(f"{p['kind']} {p['value']:.17g}" for p in parameters)+'\n'
             if binding is not None:line=line.rstrip('\n')+' '+' '.join(format(v,'.17g') for v in binding)+'\n'
@@ -119,6 +129,8 @@ class Control:
                 line=line.rstrip('\n')+' echocity '+' '.join(format(v,'.17g') for v in patch['echocity']['configuration'])+'\n'
             if patch is not None and 'nativeArp' in patch:
                 line=line.rstrip('\n')+' native_arp '+' '.join(str(v) for v in patch['nativeArp']['configuration'])+'\n'
+            if patch is not None and 'nativeExpressive' in patch:
+                line=line.rstrip('\n')+' native_expressive '+' '.join(format(v,'.17g') for v in patch['nativeExpressive']['configuration'])+'\n'
             if patch is not None and op==5 and loaded_slot:
                 if type(loaded_slot) is not int or not 1<=loaded_slot<=127:raise ValueError('Invalid loaded patch identity')
                 line=line.rstrip('\n')+f' loaded_patch {loaded_slot}\n'
@@ -293,7 +305,7 @@ class Handler(BaseHTTPRequestHandler):
             # Native product identity is independent of the frozen REAPER JSFX.
             document['applicationVersion']='2.0.0'
             document['displayVersion']='V.2 DICKINSON'
-            document['runtimeCapabilities']={'transformerTypes':[1,2,3,4,5,6], 'humanizer':False, 'echocity':False, 'nativePhrasePlayModes':[0,1,2], 'nativeHeldRelease':True,'nativeMovementPlayModes':['ONE_SHOT','GATED'],'nativeMovementCycleModes':['ONCE','LOOP','PING_PONG'],'conductorRelease':True,'supercharge':True,'nativeSmartSwitchGestures':['TAP','DOUBLE','HOLD','LONG_HOLD'],'configurableRevealCC':True,'switchPresetLibrary':True, 'phraseTransformers':False, 'snapshots':True, 'reaperSnapshots':False, 'ordering':'legacy-stages-or-serial-pitch'}
+            document['runtimeCapabilities']={'transformerTypes':[1,2,3,4,5,6], 'humanizer':True, 'velocityCurves':True, 'echocity':False, 'nativePhrasePlayModes':[0,1,2], 'nativeHeldRelease':True,'nativeMovementPlayModes':['ONE_SHOT','GATED'],'nativeMovementCycleModes':['ONCE','LOOP','PING_PONG'],'conductorRelease':True,'supercharge':True,'nativeSmartSwitchGestures':['TAP','DOUBLE','HOLD','LONG_HOLD'],'configurableRevealCC':True,'switchPresetLibrary':True, 'phraseTransformers':False, 'snapshots':True, 'reaperSnapshots':False, 'ordering':'legacy-stages-or-serial-pitch'}
             self.respond(200,document);return
         if path.startswith('/api/v1/snapshot/'):
             try:
@@ -627,6 +639,10 @@ class Handler(BaseHTTPRequestHandler):
                 from echocity_config import decode as decode_echo
                 extension=data.get('echocity');decode_echo(extension)
                 args=dict(op=54,echo=extension)
+            elif action=='expressive_commit':
+                from native_expressive_config import decode as decode_expressive
+                extension=data.get('expressive');rows=decode_expressive(extension)
+                args=dict(op=55,expressive=extension['configuration'])
             elif action=='module_structure':
                 target=data.get('instrumentId');module=data.get('moduleId',0);op=data.get('operation');type_=data.get('engineType',0)
                 if any(type(v) is not int or not 0<=v<=16777215 for v in (target,module,type_)) or not target or op not in ('add','delete','bypass','up','down'):raise ValueError()

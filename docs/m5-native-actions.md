@@ -43,8 +43,8 @@ reported, rather than claiming successful restoration.
 
 ## Reproducible isolated validation
 
-GitHub Actions run 39745792263 passed on head commit
-13147f88be682c98b579c4f60acdd877b47b8188. Updated phase tests exercise ACTION dispatch at LONG_HOLD, RELEASE, and SUPERCHARGE_RELEASE and confirm those actions do not fire on PRESS. The workflow built pinned ysfx and the
+GitHub Actions run 39745792263 passed on the earlier baseline commit
+13147f88be682c98b579c4f60acdd877b47b8188. The current run 39754194000 includes isolated ACTION dispatch tests for LONG_HOLD, RELEASE, and SUPERCHARGE_RELEASE, including the charge threshold; its result is pending. The workflow built pinned ysfx and the
 real generated engine without a JACK daemon, Zynthian service, saved user patch
 or musical port. It passed the HOLD/group-zero ownership regressions, typed
 native action tests, switch creation and preset rollback tests, legacy contracts,

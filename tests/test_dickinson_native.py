@@ -44,7 +44,10 @@ class Dickinson(unittest.TestCase):
   self.cmd('snapshot_recall',snapshotId=snap)
   self.wait(lambda s:values()[27]==4 and values()[28]==1)
   patch=self.export();self.assertIn([1,4,1],[patch['nativeArp']['configuration'][i:i+3] for i in range(2,len(patch['nativeArp']['configuration']),3)])
-  self.load(patch);self.assertEqual(self.export()['nativeArp'],patch['nativeArp'])
+  self.cmd('parameter_set',targetId=1,moduleId=arp['id'],kind=27,value=1)
+  self.cmd('parameter_set',targetId=1,moduleId=arp['id'],kind=28,value=0)
+  self.load(patch);self.assertEqual((values()[27],values()[28]),(4,1),'native LOAD must restore saved ARP state')
+  self.assertEqual(self.export()['nativeArp'],patch['nativeArp'])
   old=dict(patch);old.pop('nativeArp');old.pop('globalSnapshots');self.load(old)
   self.assertEqual((values()[27],values()[28]),(2,0),'missing extension migrates old native patch neutrally')
   # Native worker rejects a well-shaped but missing stable destination atomically.

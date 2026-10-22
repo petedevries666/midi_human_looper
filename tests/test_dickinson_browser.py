@@ -24,6 +24,7 @@ try:
   page.get_by_role('button',name='SAVE PATCH',exact=True).click();page.get_by_text('PATCH SAVED',exact=True).wait_for()
   api.cmd('parameter_set',targetId=1,moduleId=arp['id'],kind=27,value=1)
   page.get_by_role('button',name='LOAD PATCH',exact=True).click();page.wait_for_function('()=>!pending')
+  assert (values()[27],values()[28])==(4,1),('native state after LOAD',values())
   page.reload();page.get_by_text('CONNECTED · Engine running',exact=True).wait_for();card.click()
   expect(page.get_by_role('slider',name='STEP MAX',exact=True)).to_have_value('4')
   expect(page.get_by_label('PLAYBACK',exact=True)).to_have_value('1')

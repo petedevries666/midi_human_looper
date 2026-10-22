@@ -104,7 +104,7 @@ try:
   page.wait_for_function("""() => {const m=document.querySelector('[data-instrument-id="1"] [data-modulation-live]');return m&&!m.hidden&&m.style.left!==''}""")
   before_live=float(live.evaluate("(e)=>parseFloat(e.style.left)"))
   api.command('midi_cc',channel=2,number=21,value=96)
-  page.wait_for_function("""before => {const m=document.querySelector('[data-instrument-id="1"] [data-modulation-live]');return m&&!m.hidden&&Math.abs(parseFloat(m.style.left)-before)>1}""",before_live)
+  page.wait_for_function("""before => {const m=document.querySelector('[data-instrument-id="1"] [data-modulation-live]');return m&&!m.hidden&&Math.abs(parseFloat(m.style.left)-before)>1}""",arg=before_live)
   rail=page.get_by_role('slider',name='VOLUME Instrument 1',exact=True)
   rail.click()
   page.get_by_label('Controller source',exact=True).wait_for()

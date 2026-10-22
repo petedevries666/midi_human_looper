@@ -1417,6 +1417,7 @@ static void control(int listener, Queue<Request, 8> &commands,
           model.loadedPatchSlot.store(0,std::memory_order_release);reply.state.loadedPatchSlot=0;
           patch.load(patch.schema,patch.factory);patch.guardedReady=false;conductorConfiguration.clear();installConductor(conductorConfiguration);
           model.loadArp(native_arp::Configuration{});
+          model.loadArp(native_arp::Configuration{});model.loadExpressive(expressive::Configuration{});
           echoRuntime.configure(echocity::Configurations{},true);
           send_line(fd,json(reply),shutdown);
         } else if (reply.status == 0 && request.op == 4) {
@@ -1431,6 +1432,8 @@ static void control(int listener, Queue<Request, 8> &commands,
           if (!conductorConfiguration.empty())
             document.insert(document.find_last_of('}'),",\"conductor\":"+conductor::json(conductorConfiguration));
           if(model.schema==8)document.insert(document.find_last_of('}'),",\"nativeArp\":"+native_arp::json(model.arpConfiguration()));
+          if(model.schema==8)document.insert(document.find_last_of('}'),",\"nativeArp\":"+native_arp::json(model.arpConfiguration()));
+          if(model.schema==8)document.insert(document.find_last_of('}'),",\"nativeExpressive\":"+expressive::configurationJson(model.expressiveConfiguration()));
           if(reply.state.echoAvailable)document.insert(document.find_last_of('}'),",\"echocity\":"+echocity::json(reply.state.echoConfig));
           paused.store(false, std::memory_order_release);
           send_line(fd, document, shutdown);
@@ -1445,7 +1448,7 @@ static void control(int listener, Queue<Request, 8> &commands,
             for (unsigned j = 0; j < patch.memory.size(); ++j)
               previous[9 + j] = *patch.memory[j];
             patch.load(unsigned(request.target), patchValues);
-            bool collision = !model.arpTargets(request.arpConfig);
+            bool collision = !model.arpTargets(request.arpConfig)||!model.expressiveTargets(request.expressiveConfig);
             for(const auto &c:request.echoConfig)if(c.id){
               bool found=false;for(unsigned j=0;j<8;++j)found|=*model.inst[j][1]==c.instrument && *model.inst[j][0]>.5;
               if(!reply.state.echoAvailable || !found)collision=true;
@@ -1465,6 +1468,7 @@ static void control(int listener, Queue<Request, 8> &commands,
           }
           if (reply.status == 0 && request.op == 5) {
             model.loadArp(request.arpConfig);
+            model.loadArp(request.arpConfig);model.loadExpressive(request.expressiveConfig);
             model.loadedPatchSlot.store(request.loadedPatchSlot,std::memory_order_release);
             reply.state.loadedPatchSlot=request.loadedPatchSlot;
             installConductor(pendingConductor);
@@ -2530,6 +2534,10 @@ int main(int argc, char **argv) {
             if(!found)reply.status=2;
           }
           if(!reply.status){echoRuntime.configure(request.echoConfig);++state.revision;}
+        }
+        else if(request.op==55){
+          if(!model.expressiveTargets(request.expressiveConfig))reply.status=2;
+          else{model.loadExpressive(request.expressiveConfig);++state.revision;}
         }
         else if(request.op==53){
           if(request.value>16)reply.status=3;

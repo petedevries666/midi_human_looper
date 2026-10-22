@@ -10,6 +10,8 @@ try:
  with sync_playwright() as p:
   browser=p.chromium.launch(headless=True,executable_path=os.environ.get('CHROMIUM_PATH','/usr/bin/chromium'),args=['--no-sandbox','--disable-gpu'])
   page=browser.new_page(viewport=dict(width=1904 if os.environ.get('SCREENSHOT_RECOVERY_DIR') else 1366,height=1032 if os.environ.get('SCREENSHOT_RECOVERY_DIR') else 768));page.goto(api.base);page.get_by_text('CONNECTED · Engine running',exact=True).wait_for()
+  parameter_posts=[]
+  page.on('request',lambda request: parameter_posts.append(request.post_data) if request.url.endswith('/api/v1/command') and request.post_data and 'parameter_set' in request.post_data else None)
   evidence=[]
   def screenshot(name,selector=None):
    if not os.environ.get('SCREENSHOT_RECOVERY_DIR'):return
@@ -35,14 +37,18 @@ try:
   panel=page.locator('[data-instrument-id="1"]');panel.get_by_label('Transformer type for Instrument 1',exact=True).select_option('5');panel.get_by_role('button',name='ADD TRANSFORMER',exact=True).click()
   panel.locator('.module').last.click()
   page.get_by_role('button',name='ARP ENABLED',exact=True).click()
-  page.get_by_label('MODE',exact=True).select_option(label='DOWN')
-  assert page.get_by_label('MODE',exact=True).input_value()=='2','browser did not select DOWN'
+  mode=page.locator('#editor').get_by_label('MODE',exact=True)
+  mode.evaluate("e=>e.addEventListener('change',()=>window.__modeChangeFired=true)")
+  mode.select_option(label='DOWN')
+  assert mode.input_value()=='2','browser did not select DOWN'
+  assert page.evaluate('()=>window.__modeChangeFired===true'),'DOWN selection did not dispatch change'
   page.get_by_role('slider',name='RATE',exact=True).fill('16')
   page.get_by_role('slider',name='GATE',exact=True).fill('0.5')
   screenshot('recovery-arp-editor')
   page.wait_for_timeout(100)
+  page.evaluate('()=>window.mbmfModuleFlush()')
   browser_state=api.call()['instruments'][0]['transformers'][0]
-  assert next(v['value'] for v in browser_state['parameters'] if v['kind']==4)==2, f'Web selection did not reach native engine before DONE: {browser_state["parameters"]}'
+  assert next(v['value'] for v in browser_state['parameters'] if v['kind']==4)==2, f'Web selection did not reach native engine before DONE: {browser_state["parameters"]}; posts={parameter_posts}'
   page.get_by_role('button',name='DONE',exact=True).click();page.locator('#editor').wait_for(state='hidden')
   module=api.call()['instruments'][0]['transformers'][0];values={v['kind']:v['value'] for v in module['parameters']}
   assert values[3]==1 and values[4]==2 and values[5]==16 and values[6]==.5,values

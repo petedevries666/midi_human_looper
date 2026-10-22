@@ -1,0 +1,26 @@
+name: M5 POSIX patch recall lock
+
+on:
+  pull_request:
+    paths:
+      - 'headless/patch_lock.py'
+      - 'tests/test_patch_lock.py'
+      - '.github/workflows/m5-recall-lock.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  posix-lock:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Compile lock implementation and regression
+        run: python -m py_compile headless/patch_lock.py tests/test_patch_lock.py
+      - name: Test process-level lock ownership and waiting
+        run: python tests/test_patch_lock.py -v

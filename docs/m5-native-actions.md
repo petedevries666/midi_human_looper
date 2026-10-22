@@ -41,31 +41,23 @@ the previous native configuration; guarded captures prevent activation during pl
 If native rollback is refused, its recovery journal is retained and failure is
 reported, rather than claiming successful restoration.
 
-The native creation/preset test exercises both schemas, empty-step recall,
-successful utility application and an injected library-write failure with rollback.
-Web visual qualification is still pending; the following older run is evidence
-for the engine subset only, not for the subsequently added editor or presets.
-
 ## Reproducible isolated validation
 
-GitHub Actions builds pinned ysfx and the real generated engine on Ubuntu;
-no JACK daemon, Zynthian service, saved user patch or musical port is used.
-Run scripts/once-retrigger-test.sh and scripts/m5-hold-wrap-test.sh.
-The latter tests real MIDI switch edges, five steps with independent group-zero
-HOLD re-entry, exact final shared-owner Note Off, STOP/PANIC/reset, targeted
-STOP followed by a fresh attack, held-pedal timing, conflicts and missing targets.
-Direct EEL calls outside an audio block are not used as MIDI output evidence:
-the host clears that output at the next processing block.
+GitHub Actions run 39725514176 passed on code commit
+0677cfd13207c0d3ab6998905dd0f5fe7acee036. The workflow built pinned ysfx and the
+real generated engine without a JACK daemon, Zynthian service, saved user patch
+or musical port. It passed the HOLD/group-zero ownership regressions, typed
+native action tests, switch creation and preset rollback tests, legacy contracts,
+and the recovery browser test. The workflow captured and automatically audited
+the native editor at 320×240, 800×480, 1366×768, 1440×900 and 1904×1032.
 
-Final code validation: GitHub Actions run 39587720213 on commit
- a0b7455b38a8dbbf74a72b64fa9792f07713ebcb passed:
+The screenshot files are retained in the
+`m5-real-native-screenshots` workflow artifact for that run. They have not yet
+been manually inspected or committed as repository PNG evidence, so visual
+qualification remains pending. Physical performance and Zynthian qualification
+also remain pending. This is a tested first slice, not completion of M5
+unification.
 
-- 397 native PR #99 ownership/retrigger/lifecycle checks.
-- 110 five-step HOLD/group-zero wrap checks; terminal STOP trace [[130,48,0]].
-- 116 actual native action checks, including cross-phase barriers/missing targets.
-- 24 real native persistence tests and 5 legacy source/parameter tests.
-
-The PR50 ARP fixture predated already-shipped modes. The regression now pins
-all 13 existing modes while preserving the original three indices; production
-ARP behavior was not changed. Physical performance and editor qualification
-remain pending. This is a tested subset, not completion of M5 unification.
+The PR50 ARP fixture predated already-shipped modes. The regression pins all 13
+existing modes while preserving the original three indices; production ARP
+behavior was not changed.

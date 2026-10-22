@@ -84,7 +84,8 @@ inline std::vector<double> compile(const std::vector<unsigned>& bytes,double bas
           else if(choice(target.at("type"),{"ALL_PHRASES"}))kind=2;
           else{kind=3;id=SwitchCapacity;for(unsigned j=0;j<SwitchCapacity;++j)if(owners[j]==target.at("switchId").number)id=j;if(id==SwitchCapacity){record[0]=0;++record[1];continue;}}
           if(!op||(op==5&&kind!=3)||(op==6&&kind!=2)||actions.size()>=128){record[0]=0;continue;}
-          unsigned phase=choice(b.at("trigger"),{"HOLD"})?1:0;
+          const auto &trigger=b.at("trigger");
+          unsigned phase=choice(trigger,{"HOLD"})?1:choice(trigger,{"LONG_HOLD"})?2:choice(trigger,{"RELEASE"})?3:choice(trigger,{"SUPERCHARGE_RELEASE"})?4:0;
           // Destructive global actions are barriers; self-reset may not leave
           // pending phrase/MOVEMENT admissions in this step.
           bool barrier=(op==1&&kind==2)||op==5||op==6||(kind==3&&id==si);

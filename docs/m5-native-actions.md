@@ -43,8 +43,8 @@ reported, rather than claiming successful restoration.
 
 ## Reproducible isolated validation
 
-GitHub Actions run 39725514176 passed on code commit
-0677cfd13207c0d3ab6998905dd0f5fe7acee036. The workflow built pinned ysfx and the
+GitHub Actions run 39726868688 passed on code commit
+dd025919898cd4fc92708ebeedd30c5b340964b3. The workflow built pinned ysfx and the
 real generated engine without a JACK daemon, Zynthian service, saved user patch
 or musical port. It passed the HOLD/group-zero ownership regressions, typed
 native action tests, switch creation and preset rollback tests, legacy contracts,

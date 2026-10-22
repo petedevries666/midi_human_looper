@@ -90,6 +90,36 @@ class Gestures(Execution):
         time.sleep(.1)
         self.assertEqual([i['id'] for i in self.call()['instances']],ids)
 
+    def test_group_zero_hold_wrap_retriggers_first_step(self):
+        sources=self.model['sources']
+        sources[0]['muteGroup']=0
+        first=block(sources[0]['id'])
+        first['overrides']['playMode']=dict(mode='OVERRIDE',value='HOLD')
+        self.model['switches'][0]['steps']=[
+            step([first]),
+            step([block(sources[1]['id'])]),
+            step([block(sources[2]['id'])]),
+            step([block(sources[3]['id'])]),
+            step([block(sources[3]['id'])]),
+        ]
+        self.commit()
+        for expected in range(1,6):
+            self.press()
+            state=self.call()
+            self.assertEqual(state['switches'][0]['conductor']['step'],expected)
+        before=self.call()
+        self.assertEqual(len(before['instances']),5)
+        first_id=before['instances'][0]['id']
+        self.press()
+        after=self.call()
+        self.assertEqual(after['switches'][0]['conductor']['step'],1,
+                         'five-step traversal wraps to the HOLD phrase')
+        self.assertEqual(len(after['instances']),6,
+                         'Mute Group 0 must allow the HOLD phrase to retrigger')
+        self.assertEqual(after['instances'][-1]['phraseId'],1)
+        self.assertNotEqual(after['instances'][-1]['id'],first_id,
+                            'the wrapped step creates one new phrase owner')
+
 if __name__=='__main__':
-    suite=unittest.TestSuite(Gestures(n) for n in ('test_short_press_long_hold_and_load_stopped','test_test_hold_same_step_and_movement_one_shot','test_stop_panic_and_patch_replacement_cancel_pending','test_disabled_unassigned_hold_preview_includes_press','test_new_hold_preview_after_tap_advances_to_next_step','test_long_hold_layer_does_not_advance_conductor_twice'))
+    suite=unittest.TestSuite(Gestures(n) for n in ('test_short_press_long_hold_and_load_stopped','test_test_hold_same_step_and_movement_one_shot','test_stop_panic_and_patch_replacement_cancel_pending','test_disabled_unassigned_hold_preview_includes_press','test_new_hold_preview_after_tap_advances_to_next_step','test_long_hold_layer_does_not_advance_conductor_twice','test_group_zero_hold_wrap_retriggers_first_step'))
     sys.exit(not unittest.TextTestRunner(verbosity=2).run(suite).wasSuccessful())

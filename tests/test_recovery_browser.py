@@ -64,7 +64,7 @@ try:
   page.get_by_role('button',name='SAVE PATCH',exact=True).click();page.get_by_text('PATCH SAVED',exact=True).wait_for()
   api.command('module_commit',instrumentId=1,moduleId=module['id'],parameters=[dict(kind=3,value=0)])
   api.patch('load');assert next(v for t in api.call()['instruments'][0]['transformers'] if t['id']==module['id'] for v in t['parameters'] if v['kind']==3)['value']==1
-  page.reload();page.get_by_text('CONNECTED · Engine running',exact=True).wait_for();expect(page.locator('[data-instrument-id="1"] .module')).to_contain_text('MODE: 9')
+  page.reload();page.get_by_text('CONNECTED · Engine running',exact=True).wait_for();expect(page.locator('[data-instrument-id="1"] .module')).to_contain_text('RANDOM CLIMB UP')
   # Named source and contextual assignment use the real native ownership engine.
   api.command('controller_source',sourceId=101,kind=2,channel=2,number=21)
   api.command('controller_rename',sourceId=101,name='EXP 1 CODIE')

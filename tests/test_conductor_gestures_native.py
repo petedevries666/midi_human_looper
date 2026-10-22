@@ -91,8 +91,9 @@ class Gestures(Execution):
         self.assertEqual([i['id'] for i in self.call()['instances']],ids)
 
     def test_group_zero_hold_wrap_retriggers_first_step(self):
+        self.model['version']=3
         sources=self.model['sources']
-        sources[0]['muteGroup']=0
+        for source in sources:source['muteGroup']=0
         first=block(sources[0]['id'])
         first['overrides']['playMode']=dict(mode='OVERRIDE',value='HOLD')
         self.model['switches'][0]['steps']=[

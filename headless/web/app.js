@@ -108,7 +108,7 @@ function bindModulation(control,binding){
  if(control.matches('input[type=range]'))control.addEventListener('click',()=>{if(!control.dataset.assignmentGesture)openAssignedCurve(binding);});
  control.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();e.stopPropagation();openAssignedCurve(binding);}});
  const mapping=mappingFor(binding),source=controllerConfiguration().sources.find(s=>s.id===mapping?.sourceId);
- if(mapping){control.classList.add('modulated');control.title=`${p.label} · ${source?.name||'SOURCE '+mapping.sourceId}`;if(control.matches('input[type=range]')){const curve=previewCurve(mapping.points);curve.dataset.modulationPreview='';curve.mbmfRail=control;curve.setAttribute('preserveAspectRatio','none');control.parentElement?.append(curve);requestAnimationFrame(positionModulationCurves);}}
+ if(mapping){control.classList.add('modulated');control.title=`${p.label} · ${source?.name||'SOURCE '+mapping.sourceId}`;if(control.matches('input[type=range]')){const curve=previewCurve(mapping.points);curve.dataset.modulationPreview='';curve.mbmfRail=control;curve.setAttribute('preserveAspectRatio','none');const marker=node('span',undefined,'rail-live-value');marker.dataset.modulationLive='';marker.setAttribute('aria-hidden','true');control.parentElement?.append(curve,marker);control.setModulationEffective=value=>{if(!Number.isFinite(value)){marker.hidden=true;return;}marker.hidden=false;const box=control.getBoundingClientRect(),root=control.parentElement.getBoundingClientRect(),pct=Math.max(0,Math.min(1,value));marker.style.left=(box.left-root.left+2+pct*Math.max(0,box.width-4))+'px';marker.style.top=(box.top-root.top+1)+'px';marker.title=p.label+' · contrôle effectif '+Math.round(pct*100)+'%';};}}
  const open=(x,y)=>assignmentMenu(binding,x,y);
  control.oncontextmenu=e=>{e.preventDefault();e.stopPropagation();open(e.clientX,e.clientY);};
  control.addEventListener('keydown',e=>{if(e.key==='ContextMenu'||(e.shiftKey&&e.key==='F10')){e.preventDefault();const r=control.getBoundingClientRect();open(r.left,r.bottom);}});
@@ -284,11 +284,13 @@ function editSwitchSequence(sw){
  const dialog=$('editor');if(dialog.open)return;const content=$('editor-content');content.replaceChildren(node('h2','SMART SWITCH / SEQUENCE'));
  const longHold={milliseconds:0,action:0,target:sw.slot??0,...sw.longHold};const settings=[...sw.settings],sequence=[...sw.sequence],session=engineSession,rev=revision;
  const name=node('input');name.value=sw.name;name.maxLength=16;name.setAttribute('aria-label','Smart Switch name');content.append(name);
+ content.append(button('MIDI LEARN',async()=>{if(!await command({action:'switch_commit',switchId:sw.id,settings,sequence,longHold,name:name.value}))return;if(await command({action:'switch_learn',switchId:sw.id}))dialog.close();else error.textContent=$('error').textContent;}));
  const choice=(label,index,options)=>{const row=node('label',label,'parameter'),select=node('select');select.setAttribute('aria-label',label);for(const [value,text] of options){const o=node('option',text);o.value=value;select.append(o);}select.value=settings[index];select.onchange=()=>settings[index]=Number(select.value);row.append(select);content.append(row);return select;};
  choice('ENABLED',0,[[0,'OFF'],[1,'ON']]);choice('TRAVERSAL',9,[[0,'FORWARD'],[1,'REVERSE'],[2,'PING-PONG'],[3,'RANDOM']]);choice('RESET ON RE-ENTRY',10,[[0,'CONTINUE'],[1,'RESTART']]);
- const list=node('div',undefined,'sequence-list');content.append(list);
+ const legacy=node('details');legacy.append(node('summary','LEGACY SEQUENCE · configurations existantes'));if(sequence.length&&!sw.conductor?.steps)content.append(legacy);
+ const list=node('div',undefined,'sequence-list');legacy.append(list);
  const paint=()=>{list.replaceChildren(...sequence.map((id,index)=>{const row=node('div',undefined,'sequence-step');row.append(node('span',`${index+1} → ${latest.phrases.find(p=>p.id===id)?.name||'PHRASE '+id}`));for(const [text,delta] of [['←',-1],['→',1]]){const b=button(text,()=>{const other=index+delta;[sequence[index],sequence[other]]=[sequence[other],sequence[index]];paint();});b.disabled=index+delta<0||index+delta>=sequence.length;row.append(b);}row.append(button('DELETE',()=>{sequence.splice(index,1);paint();}));return row;}));};paint();
- const phrase=node('select');phrase.setAttribute('aria-label','Sequence phrase');for(const p of latest.phrases){const o=node('option',`${p.id} · ${p.name||'PHRASE '+p.id}${p.events?'':' · EMPTY'}`);o.value=p.id;phrase.append(o);}content.append(phrase,button('ADD STEP',()=>{if(sequence.length<64){sequence.push(Number(phrase.value));paint();}}));
+ const phrase=node('select');phrase.setAttribute('aria-label','Sequence phrase');for(const p of latest.phrases){const o=node('option',`${p.id} · ${p.name||'PHRASE '+p.id}${p.events?'':' · EMPTY'}`);o.value=p.id;phrase.append(o);}legacy.append(phrase,button('ADD STEP',()=>{if(sequence.length<64){sequence.push(Number(phrase.value));paint();}}));
  const actions=[[0,'NONE'],[1,'NEXT PHRASE'],[2,'STOP PHRASES'],[3,'RESET SEQUENCE'],[4,'RESET ALL'],[5,'STOP + RESET'],[6,'PANIC']];
  for(const [index,label] of [[12,'TAP ACTION'],[13,'DOUBLE ACTION'],[14,'HOLD ACTION']]){
    // Preserve existing module actions without silently translating them.
@@ -309,7 +311,7 @@ function editSwitchSequence(sw){
  for(const [label,index,min,max] of [['MIDI CHANNEL (1–16)',2,1,16],['NOTE / CC',3,0,127],['CC PRESS',4,0,127],['CC RELEASE',5,0,127],['DOUBLE MS',7,50,2000],['HOLD MS',8,100,5000]]){const row=node('label',label,'parameter'),n=node('input');n.type='number';n.min=min;n.max=max;n.value=settings[index]+(index===2?1:0);n.setAttribute('aria-label',label);n.onchange=()=>settings[index]=Number(n.value)-(index===2?1:0);row.append(n);input.append(row);}
  const longTargetRow=node('label','LONG HOLD RESET TARGET','parameter'),longTarget=node('select');longTarget.setAttribute('aria-label','LONG HOLD RESET TARGET');for(const [value,title] of [...latest.switches.map(s=>[s.slot??s.id-1,s.name||`SWITCH ${s.id}`]),[latest.switchCapacity||16,'ALL SWITCHES']]){const o=node('option',title);o.value=String(value);longTarget.append(o);}longTarget.value=String(longHold.target);longTarget.onchange=()=>{longHold.target=Number(longTarget.value);longTarget.dataset.edited='1';};longTargetRow.hidden=![3,5].includes(longHold.action);longTargetRow.append(longTarget);input.append(longTargetRow);
  const longMsRow=node('label','LONG HOLD MS · 0 = OFF','parameter'),longMs=node('input');longMs.type='number';longMs.min=0;longMs.max=30000;longMs.step=50;longMs.value=longHold.milliseconds;longMs.setAttribute('aria-label','LONG HOLD MS');longMs.onchange=()=>longHold.milliseconds=Number(longMs.value);longMsRow.append(longMs);input.append(longMsRow);
- input.append(button('MIDI LEARN',async()=>{if(!await command({action:'switch_commit',switchId:sw.id,settings,sequence,longHold,name:name.value}))return;if(await command({action:'switch_learn',switchId:sw.id}))dialog.close();else error.textContent=$('error').textContent;}));
+ 
  content.append(node('small','LONG HOLD ajoute son action après HOLD. Son seuil doit être supérieur à HOLD. La source MIDI et les seuils font partie du preset.'));
  content.append(contextualHelp('Each NEXT gesture advances one step. Authored MIDI channels route the phrase to matching Instruments. LOOP layers continue until STOP; ONCE/HOLD retain their established lifecycle. RANDOM uses the existing shuffle bag. Empty steps remain valid and generate no notes.'));
  const error=node('p');error.setAttribute('role','alert');content.append(error);
@@ -387,7 +389,7 @@ function renderAB(s){
     if(mapping&&learn.target===mapping.sourceId){feedback.append(node('span',learn.conflict<0?' · Assigned to a legacy controller: cancel and choose another input.':learn.conflict>0?' · Already assigned: deliberate reassignment required.':' · Waiting for MIDI…'),button('CANCEL LEARN',()=>command({action:'controller_cancel',sourceId:mapping.sourceId})));if(learn.conflict>0)feedback.append(button('REASSIGN',()=>command({action:'controller_confirm',sourceId:mapping.sourceId})));}
   }
 }
-function paintEffectiveRails(s){paintHostVolumes();for(const rail of document.querySelectorAll('.tactile-slider input[type=range]')){const b=rail.mbmfBinding;if(!b||!rail.setEffective)continue;const p=[14,15,17].includes(b.kind)?s.phrases.find(p=>p.id===b.instrumentId):s.instruments.find(i=>i.id===b.instrumentId);if(!p)continue;const field={1:'level',14:'timeDecay',15:'velocityDecay',17:'baseVelocity'}[b.kind];if(field)rail.setEffective(p[field]);}}
+function paintEffectiveRails(s){paintHostVolumes();const mappings=controllerConfiguration(s).mappings;for(const rail of document.querySelectorAll('.tactile-slider input[type=range]')){const b=rail.mbmfBinding;if(!b)continue;const mapping=mappings.find(m=>m.instrumentId===b.instrumentId&&m.moduleId===b.moduleId&&m.kind===b.kind&&m.enabled);const runtime=mapping?s.controllerRuntime?.[mapping.slot]:null;rail.setModulationEffective?.(runtime?Number(runtime.effective):null);if(!rail.setEffective)continue;const p=[14,15,17].includes(b.kind)?s.phrases.find(p=>p.id===b.instrumentId):s.instruments.find(i=>i.id===b.instrumentId);if(!p)continue;const field={1:'level',14:'timeDecay',15:'velocityDecay',17:'baseVelocity'}[b.kind];if(field)rail.setEffective(p[field]);}}
 function render(s){
   if(!catalog){latest=s;revision=s.revision;engineSession=s.engineSessionId;$('connection').textContent='CONNECTED · Chargement des modules…';if(!descriptorRetry)loadDescriptors();return;}
   if(s.status==='ok'&&['token required','invalid token'].includes($('error').textContent))$('error').textContent='';
@@ -412,13 +414,15 @@ function render(s){
   $('snapshots').replaceChildren(...(s.snapshots||[]).map((r,index)=>{
     const row=node('div',undefined,'snapshot-row');row.dataset.snapshotId=r.id;window.MBMF_TILES?.decorate(row,'SNAPSHOT',r.id);const name=node('input');name.value=r.name;name.maxLength=48;name.setAttribute('data-snapshot-name','');name.setAttribute('aria-label','Snapshot name');name.onchange=()=>{if(snapshotSession!==engineSession){$('error').textContent='Engine restarted; reopen the snapshot controls.';return;}if(name.value!==r.name)command({action:'snapshot_rename',snapshotId:r.id,name:name.value});};row.append(name,node('small','','snapshot-feedback'));
     const more=node('details');more.className='snapshot-actions';more.append(node('summary','•••'));const menu=node('div',undefined,'snapshot-menu');more.append(menu);
-    for(const [label,action] of [['RECALL','snapshot_recall'],['MORPH','snapshot_morph'],['UPDATE','snapshot_update'],['DUPLICATE','snapshot_duplicate'],['↑','snapshot_move'],['↓','snapshot_move'],['DELETE','snapshot_delete']]) {
+    for(const [label,action] of [['RECALL','snapshot_recall'],['MORPH','snapshot_morph'],['UPDATE','snapshot_update'],['DUPLICATE','snapshot_duplicate'],['DELETE','snapshot_delete']]) {
       const control=button(label,()=>{if(snapshotSession!==engineSession){$('error').textContent='Engine restarted; reopen the snapshot controls.';return;}if(action==='snapshot_delete'&&!confirm('Delete this snapshot?'))return;more.open=false;command({action,snapshotId:r.id,direction:label==='↓'?'down':'up'});});
       control.disabled=(label==='↑'&&index===0)||(label==='↓'&&index===(s.snapshots||[]).length-1);
       (['RECALL','MORPH','UPDATE'].includes(label)?row:menu).append(control);
     }
     menu.prepend(button('EDIT',()=>{more.open=false;const current=latest?.snapshots?.find(v=>v.id===r.id);if(current&&snapshotSession===engineSession)editSnapshot(current);}));
     row.append(more);
+    movableBlock(row,'snapshot',r.id);
+    cardActions(row,()=>[{label:'EDIT',run:()=>editSnapshot(r)},blockCopyAction('snapshot',r.id),{label:'DELETE',run:()=>{if(confirm('Delete this snapshot?'))command({action:'snapshot_delete',snapshotId:r.id});}},...blockMoveActions(row,'snapshot')]);
     return row;
   }));
   }
@@ -427,9 +431,12 @@ function render(s){
     if(feedback)feedback.textContent=`${r.id===s.selectedSnapshotId?'SELECTED · ':''}${r.dirty?'MODIFIED':''}${r.id===s.selectedSnapshotId&&s.snapshotSkippedTargets?` · PARTIAL (${s.snapshotSkippedTargets} missing)`:''}${r.id===s.targetSnapshotId?` · MORPH ${Math.round(s.morphProgress*100)}%`:''}`;
   }
   renderAB(s);
+  applyBlockLayout('snapshot');
+  applyBlockLayout('switch');applyBlockLayout('movement');
+  emptyBlockActions($('capture-snapshot'),'snapshot');
   if(!document.activeElement?.closest('#controllers .name-input'))renderControllers(s);
-  if(uiPointerHeld||document.activeElement?.tagName==='SELECT'||document.activeElement?.classList.contains('name-input')||document.activeElement?.type==='range'||document.querySelector('[data-live-release=held]'))return;
-  const model=JSON.stringify([s.controllerEngine,s.controllerLearn,s.phrases.map(p=>({...p,state:undefined,events:0})),s.instruments.map(i=>({...i,hostMixer:undefined})),s.switches.map(v=>({...v,step:0,actionCount:0,lastAction:0,result:0,conductor:v.conductor?.steps||0,supercharge:undefined})),s.snapshotActions,s.switchLearn]);if(model===renderedModel)return;renderedModel=model;
+  if(blockDragging||uiPointerHeld||document.activeElement?.tagName==='SELECT'||document.activeElement?.classList.contains('name-input')||document.activeElement?.type==='range'||document.querySelector('[data-live-release=held]'))return;
+  $('instruments').replaceChildren(...s.instruments.map(compactInstrument));
   compactPhrases(s);
   paintPhraseStates(s);
   $('instruments').replaceChildren(...s.instruments.map(compactInstrument));
@@ -441,7 +448,7 @@ function render(s){
     const title=node('strong',sw.name||`SWITCH ${sw.id}`,'switch-name'),snap=button('SNAPSHOTS',()=>editSwitchSnapshots(sw));snap.replaceChildren();const switchIcon=node('img');switchIcon.src='/assets/footswitch.png';switchIcon.alt='';switchIcon.width=31;switchIcon.height=28;snap.append(switchIcon);snap.classList.add('switch-snapshot');
     const isConductor=!!sw.conductor?.steps,mode=button(isConductor?'CONDUCTOR':'ACTION',()=>isConductor?editConductor(sw):editSwitchSequence(sw));mode.classList.add('switch-mode');
     n.append(title,node('small',`${sw.kind===1?'NOTE':sw.kind===2?'CC':'UNASSIGNED'} ${sw.number} · CH ${sw.channel}`,'switch-source'),node('small',`STEP ${sw.conductor?.steps?sw.conductor.step:sw.step} / ${sw.conductor?.steps||sw.length}`,'step'),mode,snap);
-    cardActions(n,[{label:'EDIT',run:()=>editSwitchSequence(sw)},{label:'DELETE',run:async()=>{if(confirm(`Delete ${sw.name||'SWITCH '+sw.id} and its Conductor? Phrase and Movement sources stay available.`))await command({action:'switch_delete',switchId:sw.id});}}]);
+    cardActions(n,()=>[{label:'EDIT',run:()=>editSwitchSequence(sw)},blockCopyAction('switch',sw.id),{label:'DELETE',run:async()=>{if(confirm(`Delete ${sw.name||'SWITCH '+sw.id} and its Conductor? Phrase and Movement sources stay available.`))await command({action:'switch_delete',switchId:sw.id});}},...blockMoveActions(n,'switch')]);
     const meter=node('output','','charge-meter');meter.hidden=true;n.append(meter);
     const test=button('TEST',()=>{});test.dataset.switchTest=String(sw.id);test.dataset.valid='1';test.setAttribute('aria-label',`TEST Smart Switch ${sw.id}`);test.title='Comme la pédale : clic court, double clic ou maintien. Relâcher déclenche RELEASE. Espace / Entrée également.';
     test.textContent='▶';test.classList.add('switch-trigger');
@@ -453,6 +460,9 @@ function render(s){
   const columns=window.innerWidth>=1000?4:window.innerWidth>=600?2:1,spaces=full?0:Math.min(columns-s.switches.length%columns,(s.switchCapacity||16)-s.switches.length);
   const additions=[add];for(let slot=1;slot<spaces;slot++){const extra=button('+ SMART SWITCH',()=>command({action:'switch_add'}));extra.textContent='+';extra.classList.add('switch-add');window.MBMF_TILES?.decorate(extra,'SMART_SWITCH',`add:${slot}`,true);additions.push(extra);}
   $('switches').replaceChildren(...switchCards,...additions);
+  for(const n of switchCards)movableBlock(n,'switch',n.dataset.switchId);
+  for(const n of additions)emptyBlockActions(n,'switch');
+  applyBlockLayout('switch');
 }
 let tileResizeTimer;window.addEventListener('resize',()=>{clearTimeout(tileResizeTimer);tileResizeTimer=setTimeout(()=>{if(latest){renderedModel='';render(latest);}},150);});
 const heldTests=new Set();
@@ -515,6 +525,7 @@ async function patch(action){
  setPending(true);$('patch-status').textContent='…';
  try{
   const data=await request(`/api/v1/patch/${action}`,{slot,expectedRevision:revision,expectedEngineSessionId:engineSession,...(action==='paste'?{clipboardId:patchClipboard}:{})});
+  if(data.status==='queued'){$('patch-status').textContent='RAPPEL EN ATTENTE · PATCH + SNAPSHOT selon configuration';return;}
   if(action==='copy'){patchClipboard=data.clipboardId;$('patch-status').textContent='PATCH COPIED';}
   else if(action==='save'){$('patch-status').textContent='PATCH SAVED';loadedPatchSlot=slot;}
   else if(action==='export')$('patch-status').textContent=`EXPORTED ${data.file}`;
@@ -643,16 +654,17 @@ function curveEditor(points,options={}){
 
   return root;
 }
+function mappingDefinitionFingerprint(mapping){if(!mapping)return 'null';const {base,...definition}=mapping;return JSON.stringify(definition);}
 function editMapping(existing){
   if(!catalog||!latest||$('mapping-editor').open)return;
   const {sources,mappings}=controllerConfiguration();if(!sources.length){$('error').textContent='Add a controller source first.';return;}
   const draft=structuredClone(existing||{id:freshId(mappings.map(m=>m.id)),sourceId:sources[0].id,enabled:1,points:[[0,0,0],[1,1,0]]});
-  const capturedRevision=revision,capturedSession=engineSession,mappingFingerprint=JSON.stringify(mappings),dialog=$('mapping-editor'),content=$('mapping-editor-content');let committing=false;
+  const capturedSession=engineSession,mappingFingerprint=mappingDefinitionFingerprint(mappings.find(m=>m.id===draft.id)),dialog=$('mapping-editor'),content=$('mapping-editor-content');let committing=false;
   dialog.dataset.mappingId=draft.id;
   const dismiss=()=>{if(!committing)dialog.close();};content.replaceChildren(node('h2',`${parameter(draft.kind)?.label||'MODULATION'} / ${sources.find(s=>s.id===draft.sourceId)?.name||'CONTROLLER'}`),button('×',dismiss));
   const source=node('select');source.setAttribute('aria-label','Controller source');for(const s of sources){const o=node('option',s.name||`SOURCE ${s.id}`);o.value=s.id;source.append(o);}source.value=draft.sourceId;content.append(source);
   const target=node('select');target.setAttribute('aria-label','Controller target');
-  const targets=[{instrumentId:1,moduleId:0,kind:16,label:'GLOBAL SNAPSHOT A/B'}];for(const p of latest.phrases)for(const kind of [14,15,17,18,19,20])targets.push({instrumentId:p.id,moduleId:0,kind,label:`PHRASE ${p.id} / ${parameter(kind).label}`});for(const i of latest.instruments){for(const kind of [1,21,22,23,...(hostChains?.bindings[String(i.id)]?[25,26]:[])])targets.push({instrumentId:i.id,moduleId:0,kind,label:`I${i.id} / ${parameter(kind).label}`});for(const tf of i.transformers){targets.push({instrumentId:i.id,moduleId:tf.id,kind:24,label:`I${i.id} / ${tf.id} ON/OFF`});for(const p of tf.parameters)if(!p.assignment && parameter(p.kind)?.assignmentEligible)targets.push({instrumentId:i.id,moduleId:tf.id,kind:p.kind,label:`I${i.id} / ${tf.id} / ${parameter(p.kind).label}`});}}
+  const targets=[{instrumentId:1,moduleId:0,kind:16,label:'GLOBAL SNAPSHOT A/B'}];for(const p of latest.phrases)for(const kind of [14,15,17,18,19,20])targets.push({instrumentId:p.id,moduleId:0,kind,label:`PHRASE ${p.id} / ${parameter(kind).label}`});for(const i of latest.instruments){for(const kind of [1,21,22,23,...(hostChains?.bindings[String(i.id)]?[25,26]:[])])targets.push({instrumentId:i.id,moduleId:0,kind,label:`I${i.id} / ${parameter(kind).label}`});for(const tf of i.transformers){targets.push({instrumentId:i.id,moduleId:tf.id,kind:24,label:`I${i.id} / ${tf.id} ON/OFF`});for(const p of tf.parameters)if((!p.assignment||(draft.instrumentId===i.id&&draft.moduleId===tf.id&&draft.kind===p.kind))&&parameter(p.kind)?.assignmentEligible)targets.push({instrumentId:i.id,moduleId:tf.id,kind:p.kind,label:`I${i.id} / ${tf.id} / ${parameter(p.kind).label}`});}}
   targets.forEach((t,j)=>{const o=node('option',t.label);o.value=j;target.append(o);});let selection=targets.findIndex(t=>t.instrumentId===draft.instrumentId&&t.moduleId===draft.moduleId&&t.kind===draft.kind);target.value=selection<0?targets.findIndex(t=>t.kind===1):selection;content.append(target);
   const advanced=node('details');advanced.append(node('summary','ADVANCED OPTIONS'));
   const descriptor=descriptorForMapping();for(const id of descriptor.parameters){const p=catalog.parameters.find(p=>p.id===id),label=node('label',shortParameter(p.label),'parameter'),input=node(p.choices?'select':'input');if(p.choices){p.choices.forEach((text,value)=>{const option=node('option',text);option.value=value;input.append(option);});}else{input.type='number';input.min=p.min;input.max=p.max;input.step=p.step;}input.setAttribute('aria-label',p.label);input.value=draft[p.policyField]??p.default;draft[p.policyField]=Number(input.value);input.addEventListener('input',()=>draft[p.policyField]=Number(input.value));label.append(input,node('span',p.unit));(p.choices?content:advanced).append(label);}
@@ -660,7 +672,7 @@ function editMapping(existing){
   const error=node('p','');error.setAttribute('role','alert');content.append(error);
   const done=button('DONE',async()=>{if(committing)return;const t=targets[Number(target.value)];if(!t){error.textContent='No eligible target';return;}Object.assign(draft,t);delete draft.label;draft.sourceId=Number(source.value);const same=mappings.find(m=>m.instrumentId===t.instrumentId&&m.moduleId===t.moduleId&&m.kind===t.kind);draft.targetId=same?.targetId||freshId(mappings.map(m=>m.targetId));
     committing=true;dialog.dataset.committing='true';done.disabled=cancel.disabled=true;
-    try{if(engineSession!==capturedSession||JSON.stringify(controllerConfiguration().mappings)!==mappingFingerprint)throw new Error('Configuration changed. CANCEL and reopen.');render(await request('/api/v1/command',{protocolVersion:1,expectedRevision:revision,expectedEngineSessionId:capturedSession,action:'mapping_commit',mapping:draft}));dialog.close();}catch(e){error.textContent=e.message;}finally{committing=false;dialog.dataset.committing='false';done.disabled=cancel.disabled=false;}});
+    try{await commandQueue;const current=controllerConfiguration().mappings.find(m=>m.id===draft.id);if(engineSession!==capturedSession||mappingDefinitionFingerprint(current)!==mappingFingerprint)throw new Error('Cette assignation a changé pendant l’édition. Annule puis rouvre sa courbe.');if(current)draft.base=current.base;render(await request('/api/v1/command',{protocolVersion:1,expectedRevision:revision,expectedEngineSessionId:capturedSession,action:'mapping_commit',mapping:draft}));dialog.close();}catch(e){error.textContent=e.message;}finally{committing=false;dialog.dataset.committing='false';done.disabled=cancel.disabled=false;}});
   const cancel=button('CANCEL',dismiss);content.append(done,cancel);dialog.oncancel=e=>{e.preventDefault();dismiss();};dialog.dataset.contextual='true';$('mapping-editor-section').open=true;dialog.show();dialog.scrollIntoView({block:'nearest'});
 }
 function descriptorForMapping(){return catalog.modules.find(m=>m.typeId==='controller_mapping');}
@@ -839,6 +851,7 @@ function compactPhrases(s){
     const notices=[...row.children].filter(n=>!cells.includes(n)&&n.tagName==='SMALL'&&!n.textContent.endsWith(' events'));
     const grouped=node('div',undefined,'phrase-rails');grouped.append(...cells.slice(8,11));row.replaceChildren(...cells.slice(0,8),grouped,...cells.slice(11));row.querySelector('.phrase-number').title=`Phrase ${p.id} · ${p.events} source events`;row.querySelector('.phrase-number').setAttribute('aria-label',row.querySelector('.phrase-number').title);for(const notice of notices){notice.classList.add('phrase-alert');row.append(notice);}const reassign=find('REASSIGN');if(reassign){reassign.classList.add('phrase-alert');row.append(reassign);}
     const state=node('small',p.state||'IDLE','phrase-state');row.querySelector('.editable-name').append(state);
+    cardActions(row,()=>[{label:'EDIT',run:()=>phraseOptions(p.id)},...(p.events?[blockCopyAction('phrase',p.id)]:[]),...blockPasteActions('phrase',p.id,!!p.events),{label:'DELETE',disabled:!p.events,run:()=>{if(confirm(`Effacer le MIDI de PHRASE ${p.id} ? Son emplacement et ses liens restent en place.`))command({action:'phrase_clear',phraseId:p.id});}}]);
     return row;
   }));
 }

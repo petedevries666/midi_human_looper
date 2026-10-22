@@ -10,7 +10,7 @@ async function saveMovementModel(model,loaded){
 }
 async function refreshMovements(state){
  const running=state.movements?.running||[];for(const row of $('movements').children){const v=running.find(v=>v.id===row.dataset.movementId);row.classList.toggle('movement-active',!!v);const o=row.querySelector('.movement-state');if(o)o.textContent=v?`${Math.round(v.progress*100)}%`:'STOPPED';}
- if(uiPointerHeld||pending||movementLoading||(state.revision===movementRevision&&state.engineSessionId===movementSession))return;
+ if(blockDragging||uiPointerHeld||pending||movementLoading||(state.revision===movementRevision&&state.engineSessionId===movementSession))return;
  movementLoading=true;try{const loaded=await request('/api/v1/conductor');if(engineSession===loaded.engineSessionId){movementModel=loaded.model;movementRevision=loaded.revision;movementSession=loaded.engineSessionId;paintMovementLibrary();paintPhraseGroups();}}catch(e){}finally{movementLoading=false;}
 }
 function paintMovementLibrary(){
@@ -20,9 +20,11 @@ function paintMovementLibrary(){
   const play=button('\u25b6',()=>command({action:'movement_preview',movementId:m.id})),stop=button('\u25a0',()=>command({action:'movement_stop',movementId:m.id}));
   play.setAttribute('aria-label',`PREVIEW MOVEMENT ${m.name}`);stop.setAttribute('aria-label',`STOP MOVEMENT ${m.name}`);
   row.append(node('strong',m.name),preview,node('output','STOPPED','movement-state'),node('output',`${m.duration}s \u00b7 ${m.target.type==='CC'?`CH${m.target.channel} CC${m.target.number}`:'PARAM'}`),play,stop);
-  cardActions(row,[{label:'EDIT',run:()=>editMovement(m.id)},{label:'DELETE',run:async()=>{if(!confirm(`Delete ${m.name}? References will remain missing.`))return;try{const loaded=await request('/api/v1/conductor'),model=upgradeMovementModel(loaded.model);model.movements=model.movements.filter(v=>v.id!==m.id);await saveMovementModel(model,loaded);}catch(e){$('error').textContent=e.message;}}}]);
+  movableBlock(row,'movement',m.id);
+  cardActions(row,()=>[{label:'EDIT',run:()=>editMovement(m.id)},blockCopyAction('movement',m.id),{label:'DELETE',run:async()=>{if(!confirm(`Delete ${m.name}? References will remain missing.`))return;try{const loaded=await request('/api/v1/conductor'),model=upgradeMovementModel(loaded.model);model.movements=model.movements.filter(v=>v.id!==m.id);await saveMovementModel(model,loaded);}catch(e){$('error').textContent=e.message;}}},...blockMoveActions(row,'movement')]);
   if(m.playMode==='GATED'){bindHeldTest(play,{action:'movement_preview',movementId:m.id},{action:'movement_release',movementId:m.id});play.title='MAINTENIR pour jouer · relâcher pour RELEASE';}root.append(row);
  }
+ emptyBlockActions($('add-movement'),'movement');applyBlockLayout('movement');
 }
 async function editMovement(id=null){
  const dialog=$('editor');if(dialog.open)return;let loaded;try{loaded=await request('/api/v1/conductor');}catch(e){$('error').textContent=e.message;return;}
@@ -34,12 +36,29 @@ async function editMovement(id=null){
  const select=(values,value)=>{const i=node('select');for(const v of values){const o=node('option',v);o.value=v;i.append(o);}i.value=value;return i;};
  const name=row('NAME',input('text',draft.name));
  const kind=row('TARGET TYPE',select(['CC','PARAMETER'],draft.target.type));const targets=node('div',undefined,'movement-target');root.append(targets);
- const channel=input('number',draft.target.channel??1,1,16),number=input('number',draft.target.number??11,0,119);channel.step=number.step=1;
+ const channel=node('select'),number=input('number',draft.target.number??11,0,119);number.step=1;
+ for(let ch=1;ch<=16;ch++){const names=(latest.instruments||[]).filter(i=>i.output===ch).map(i=>i.name||`INSTRUMENT ${i.id}`);const option=node('option',`CH ${ch}${names.length?' · '+names.join(' / '):''}`);option.value=ch;channel.append(option);}channel.value=draft.target.channel??1;
  const parameters=node('select');parameters.setAttribute('aria-label','MOVEMENT PARAMETER');const eligible=[];
  for(const p of latest.phrases)for(const k of [14,15,17])eligible.push({type:'PARAMETER',instrumentId:p.id,moduleId:0,kind:k,label:`P${p.id} ${parameter(k).label}`});
  for(const i of latest.instruments){if(hostChains?.bindings[String(i.id)])for(const [kind,label] of [[25,'ZYNTHIAN VOL'],[26,'ZYNTHIAN PAN']])eligible.push({type:'PARAMETER',instrumentId:i.id,moduleId:0,kind,label:`I${i.id} ${label}`});eligible.push({type:'PARAMETER',instrumentId:i.id,moduleId:0,kind:1,label:`I${i.id} MIDI VOL`});for(const tf of i.transformers)for(const p of tf.parameters)if(!p.assignment)eligible.push({type:'PARAMETER',instrumentId:i.id,moduleId:tf.id,kind:p.kind,label:`I${i.id} ${tf.id} ${parameter(p.kind).label}`});}
  eligible.forEach((t,j)=>{const o=node('option',t.label);o.value=j;parameters.append(o);});parameters.value=Math.max(0,eligible.findIndex(t=>t.instrumentId===draft.target.instrumentId&&t.moduleId===draft.target.moduleId&&t.kind===draft.target.kind));
- function targetUI(){targets.replaceChildren();if(kind.value==='CC'){for(const [name,i] of [['CHANNEL',channel],['CC',number]]){const l=node('label',name);i.setAttribute('aria-label',name);l.append(i);targets.append(l);}targets.append(node('small','MAIN MIDI OUT'));}else targets.append(parameters);}
+ const teachStatus=node('output');teachStatus.setAttribute('role','status');
+ const teach=button('TEACH',async()=>{
+  teach.disabled=true;teachStatus.textContent='';
+  try{
+   const ch=Number(channel.value),cc=Number(number.value);
+   if(!Number.isInteger(cc)||cc<0||cc>119||[0,32,64].includes(cc))throw new Error('Choisir un CC de 1 à 119 hors CC32 et CC64 réservés');
+   await refreshHostChains();
+   const candidates=(latest.instruments||[]).filter(i=>i.output===ch&&hostChains?.bindings[String(i.id)]?.status==='synchronized');
+   const destinations=[...new Set(candidates.map(i=>hostChains.bindings[String(i.id)].identity))];
+   if(destinations.length!==1)throw new Error('Lier un seul instrument à la chaîne du canal choisi avant TEACH');
+   const instrument=candidates[0],link=hostChains.bindings[String(instrument.id)];
+   const result=await request('/api/v1/zynthian/chains',{action:'teach_movement',instrumentId:instrument.id,channel:ch,cc,value:Math.max(0,Math.min(127,Math.round(points[0][1]*127))),identity:link.identity,inventoryRevision:hostChains.inventoryRevision,expectedRevision:revision,expectedEngineSessionId:engineSession});
+   teachStatus.textContent=`Assigné dans Zynthian · CH ${result.channel} CC${result.cc}`;
+  }catch(e){teachStatus.textContent=e.message;}finally{teach.disabled=false;}
+ });
+ teach.title='Sur Zynthian : activer Learn et toucher le paramètre. TEACH utilise le canal et le CC choisis ici, sans lancer la courbe. DONE conserve ensuite les réglages du MOVEMENT.';
+ function targetUI(){targets.replaceChildren();if(kind.value==='CC'){for(const [name,i] of [['CHANNEL',channel],['CC',number]]){const l=node('label',name);i.setAttribute('aria-label',name);l.append(i);targets.append(l);}targets.append(node('small','MIDI OUT · canal choisi'),teach,teachStatus);}else targets.append(parameters);}
  kind.onchange=targetUI;targetUI();
  const duration=row('DURATION s',input('number',draft.duration,.001)),interpolation=row('INTERPOLATION',select(['LINEAR','HOLD'],draft.interpolation)),restart=row('RETRIGGER',select(['SOFT_RESTART','DIRECT'],draft.retrigger)),glide=row('GLIDE s',input('number',draft.glideSeconds,.001,60));
  glide.title='Durée du SOFT_RESTART : transition depuis la valeur courante du même canal + CC ou paramètre, y compris entre deux MOVEMENTS différents. Le dernier MOVEMENT impose son réglage.';

@@ -33,15 +33,26 @@ try:
    after_capture=api.call()['sampleClock'];assert after_capture>before_capture,'static capture must not pause native execution'
    evidence.append(dict(view=name,viewport=[1904,1032],file=path.name,checks=[],nativeClockAdvanced=True,capture='Actual observed native state; browser telemetry briefly suspended for static capture, engine continues'))
   panel=page.locator('[data-instrument-id="1"]');panel.get_by_label('Transformer type for Instrument 1',exact=True).select_option('5');panel.get_by_role('button',name='ADD TRANSFORMER',exact=True).click()
-  panel.locator('.module').last.get_by_role('button',name='EDIT',exact=True).click()
+  panel.locator('.module').last.click()
   page.get_by_role('button',name='ARP ENABLED',exact=True).click()
-  page.get_by_label('MODE',exact=True).select_option(label='DOWN')
+  page.locator('#editor').get_by_label('MODE',exact=True).select_option(label='DOWN')
   page.get_by_role('slider',name='RATE',exact=True).fill('16')
   page.get_by_role('slider',name='GATE',exact=True).fill('0.5')
   screenshot('recovery-arp-editor')
   page.get_by_role('button',name='DONE',exact=True).click();page.locator('#editor').wait_for(state='hidden')
-  module=api.call()['instruments'][0]['transformers'][0];values={v['kind']:v['value'] for v in module['parameters']}
+  module_id=int(panel.locator('.module').last.get_attribute('data-module-id'));module=next(t for t in api.call()['instruments'][0]['transformers'] if t['id']==module_id);values={v['kind']:v['value'] for v in module['parameters']}
   assert values[3]==1 and values[4]==2 and values[5]==16 and values[6]==.5,values
+  # Every catalog ARP mode must round-trip through the browser and native EEL
+  # scaling; legacy bounds at 2 used to turn DOWN into RANDOM and clamp newer modes.
+  page.locator(f'[data-instrument-id="1"] [data-module-id="{module_id}"]').click()
+  mode=page.locator('#editor').get_by_label('MODE',exact=True)
+  mode.select_option(label='RANDOM CLIMB DOWN')
+  page.get_by_role('button',name='DONE',exact=True).click();page.locator('#editor').wait_for(state='hidden')
+  assert next(v['value'] for t in api.call()['instruments'][0]['transformers'] if t['id']==module['id'] for v in t['parameters'] if v['kind']==4)==10
+  page.locator(f'[data-instrument-id="1"] [data-module-id="{module_id}"]').click()
+  page.locator('#editor').get_by_label('MODE',exact=True).select_option(label='DOWN')
+  page.get_by_role('button',name='DONE',exact=True).click();page.locator('#editor').wait_for(state='hidden')
+  assert next(v['value'] for t in api.call()['instruments'][0]['transformers'] if t['id']==module['id'] for v in t['parameters'] if v['kind']==4)==2
   # Native commit completion precedes the asynchronous browser repaint. Require
   # the actual module text within Playwright's unchanged default timeout; do not
   # read the old DOM once and confuse that observation with a lost native edit.
@@ -52,7 +63,7 @@ try:
   api.command('panic');assert api.call()['activeNotes']==0
   page.get_by_role('button',name='SAVE PATCH',exact=True).click();page.get_by_text('PATCH SAVED',exact=True).wait_for()
   api.command('module_commit',instrumentId=1,moduleId=module['id'],parameters=[dict(kind=3,value=0)])
-  api.patch('load');assert next(v for v in api.call()['instruments'][0]['transformers'][0]['parameters'] if v['kind']==3)['value']==1
+  api.patch('load');assert next(v for t in api.call()['instruments'][0]['transformers'] if t['id']==module['id'] for v in t['parameters'] if v['kind']==3)['value']==1
   page.reload();page.get_by_text('CONNECTED · Engine running',exact=True).wait_for();expect(page.locator('[data-instrument-id="1"] .module')).to_contain_text('DOWN')
   # Named source and contextual assignment use the real native ownership engine.
   api.command('controller_source',sourceId=101,kind=2,channel=2,number=21)
@@ -61,10 +72,10 @@ try:
   # it cannot silently lose a user's selection as an untouched draft field.
   api.command('mapping_commit',mapping=dict(id=2,targetId=2,sourceId=101,instrumentId=1,moduleId=module['id'],kind=4,enabled=1,points=[[0,0,0],[1,1,0]]))
   page.reload();page.get_by_text('CONNECTED · Engine running',exact=True).wait_for()
-  page.locator('[data-instrument-id="1"] .module').get_by_role('button',name='EDIT',exact=True).click()
-  page.get_by_label('MODE',exact=True).select_option(label='UP')
+  page.locator(f'[data-instrument-id="1"] [data-module-id="{module["id"]}"]').click()
+  page.locator('#editor').get_by_label('MODE',exact=True).select_option(label='UP')
   page.get_by_role('button',name='DONE',exact=True).click();page.locator('#editor').wait_for(state='hidden')
-  assert next(v['value'] for v in api.call()['instruments'][0]['transformers'][0]['parameters'] if v['kind']==4)==1
+  assert next(v['value'] for t in api.call()['instruments'][0]['transformers'] if t['id']==module['id'] for v in t['parameters'] if v['kind']==4)==1
   api.command('mapping_delete',mappingId=2)
   api.command('module_commit',instrumentId=1,moduleId=module['id'],parameters=[dict(kind=4,value=2)])
   page.reload();page.get_by_text('CONNECTED · Engine running',exact=True).wait_for()
@@ -86,6 +97,32 @@ try:
   assert api.call()['instruments'][0]['level']==2,'bend and multipoint curve must change native scaling'
   page.wait_for_function("""() => document.querySelector('[data-instrument-id="1"] input[aria-label="VOLUME Instrument 1"]').value==='2'""")
   emitted=api.call()['lastEvent'];assert emitted[1:]==[176,7,2],f'named controller curve must emit actual instrument CC7 volume: {emitted}'
+  # Reopening a mapped slider and changing its base value must leave its
+  # controller curve editable and committed. The cyan marker follows the live
+  # effective output while the slider thumb continues to represent the base.
+  live=page.locator('[data-instrument-id="1"] [data-modulation-live]')
+  page.wait_for_function("""() => {const m=document.querySelector('[data-instrument-id="1"] [data-modulation-live]');return m&&!m.hidden&&m.style.left!==''}""")
+  before_live=float(live.evaluate("(e)=>parseFloat(e.style.left)"))
+  api.command('midi_cc',channel=2,number=21,value=96)
+  page.wait_for_function("""before => {const m=document.querySelector('[data-instrument-id="1"] [data-modulation-live]');return m&&!m.hidden&&Math.abs(parseFloat(m.style.left)-before)>1}""",arg=before_live)
+  rail=page.get_by_role('slider',name='VOLUME Instrument 1',exact=True)
+  rail.click()
+  page.get_by_label('Controller source',exact=True).wait_for()
+  page.evaluate("""() => {const e=document.querySelector('[data-instrument-id="1"] input[aria-label="VOLUME Instrument 1"]');e.value='80';e.dispatchEvent(new Event('input',{bubbles:true}));e.dispatchEvent(new Event('change',{bubbles:true}));}""")
+  page.wait_for_function("""() => document.querySelector('[data-instrument-id="1"] input[aria-label="VOLUME Instrument 1"]').value==='80'""")
+  page.get_by_role('button',name='DONE',exact=True).click()
+  try:
+    page.locator('#mapping-editor').wait_for(state='hidden',timeout=10000)
+  except Exception as exc:
+    message=page.locator('#mapping-editor [role="alert"]').all_text_contents()
+    raise AssertionError(f'mapped slider curve failed to save after base adjustment: {message}') from exc
+  from controller_config import decode
+  after_base_edit=decode(api.call()['controllerEngine'])
+  assert len(after_base_edit['mappings'])==1,'editing the base slider must preserve its controller assignment'
+  assert abs(after_base_edit['mappings'][0]['base']-80/127)<1e-6,'curve save must retain the new base level'
+  assert after_base_edit['mappings'][0]['points'][1][1]==.25,'editing the base slider must preserve the response curve'
+  api.command('panic');api.patch('save');api.patch('load')
+  from controller_config import decode
   api.command('panic');api.patch('save');api.patch('load')
   from controller_config import decode
   config=decode(api.call()['controllerEngine']);assert config['sources'][0]['name']=='EXP 1 CODIE'
@@ -128,7 +165,7 @@ try:
    page.reload();page.get_by_text('CONNECTED · Engine running',exact=True).wait_for()
    screenshot('recovery-performance','header')
    screenshot('recovery-instrument-chains','#instruments')
-   page.locator(f'[data-instrument-id="2"] [data-module-id="{configured[2,6]}"]').get_by_role('button',name='EDIT',exact=True).click()
+   page.locator(f'[data-instrument-id="2"] [data-module-id="{configured[2,6]}"]').click()
    screenshot('recovery-transformer-editor')
    page.keyboard.press('Escape')
   else:screenshot('recovery-performance','header')

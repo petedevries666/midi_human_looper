@@ -143,6 +143,32 @@ class ChainLinks:
                     return dict(status='taught',channel=channel+1,cc=int(cc),value=round(value))
             raise ValueError('Relais MIDI de cette chaîne indisponible')
 
+    def teach_movement(self, request):
+        """Teach an explicit CC draft to the linked chain on that exact channel."""
+        ident,channel,cc,value=(request[k] for k in ('instrumentId','channel','cc','value'))
+        if any(type(v) is not int for v in (ident,channel,cc,value)) or ident<=0 or not 1<=channel<=16 or not 0<=cc<120 or cc in (0,32,64) or not 0<=value<=127:
+            raise ValueError('Canal / CC invalide : CC0, CC32 et CC64 réservés')
+        with self.lock:
+            status=self.status();binding=status['bindings'].get(str(ident))
+            if (status['engineSessionId']!=request['expectedEngineSessionId'] or status['engineRevision']!=request['expectedRevision']
+                or status['inventoryRevision']!=request['inventoryRevision'] or not binding
+                or binding['identity']!=request['identity'] or binding['status']!='synchronized'
+                or binding['destination']['channel']!=channel):
+                raise ValueError('Lier un instrument à la chaîne du canal choisi ; réessayer TEACH')
+            state=self.control.request()
+            if state['revision']!=request['expectedRevision'] or state['engineSessionId']!=request['expectedEngineSessionId']:
+                raise ValueError('Le réglage a changé ; réessayer TEACH')
+            chain=self.manager.chains.get(binding['destination']['chainId'])
+            state_manager=getattr(self.manager,'state_manager',None)
+            drivers=getattr(getattr(state_manager,'ctrldev_manager',None),'drivers',{})
+            from zyngine.zynthian_engine_mbh_router import LearnedCCRelay
+            for relay in list(drivers.values()):
+                if isinstance(relay,LearnedCCRelay) and chain in relay.allowed:
+                    relay.teach_cc(channel-1,cc,chain)
+                    relay.midi_event([0xb0|(channel-1),cc,value])
+                    return dict(status='taught',channel=channel,cc=cc,value=value)
+            raise ValueError('Relais MIDI de cette chaîne indisponible')
+
     def chain_pan(self, destination):return self.chain_mixer_value(destination, 'pan')
 
     def chain_mixer_value(self, destination, field):
@@ -318,6 +344,8 @@ class Bridge:
                         result = bridge.links.status()
                     elif set(request)=={'action','instrumentId','moduleId','identity','inventoryRevision','expectedRevision','expectedEngineSessionId'} and request['action']=='teach_cc':
                         result=bridge.links.teach_cc(request)
+                    elif set(request)=={'action','instrumentId','channel','cc','value','identity','inventoryRevision','expectedRevision','expectedEngineSessionId'} and request['action']=='teach_movement':
+                        result=bridge.links.teach_movement(request)
                     elif set(request)=={'action','inventoryRevision','expectedRevision','expectedEngineSessionId'} and request['action']=='relink_channels':
                         result=bridge.links.relink_channels(request['inventoryRevision'],request['expectedRevision'],request['expectedEngineSessionId'])
                     elif set(request)=={'action','instrumentId','identity','value','expectedPan','inventoryRevision','expectedEngineSessionId'} and request['action']=='pan':

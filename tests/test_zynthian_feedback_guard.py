@@ -17,6 +17,9 @@ class NativeAPI:
         self.calls = []
         self.bad_readback = None
         self.bad_mode = False
+        self.output_count = 43
+        self.flags = {}
+        self.cc_routes = {}
 
     def zmip_get_flag_active_chain(self, index):
         return 1 if self.bad_mode else self.modes.get(index, 1)
@@ -27,6 +30,8 @@ class NativeAPI:
         return 1
 
     def zmop_get_route_from(self, zmop, index):
+        if zmop >= self.output_count:
+            return -1
         if self.bad_readback == zmop:
             return 1
         return self.routes.get((zmop, index), 1)
@@ -34,6 +39,22 @@ class NativeAPI:
     def zmop_set_route_from(self, zmop, index, value):
         self.calls.append(('route', zmop, index, value))
         self.routes[(zmop, index)] = value
+        return 1
+
+    def zmip_get_flags(self, index):
+        return self.flags.get(index, 0)
+
+    def zmip_set_flags(self, index, value):
+        self.flags[index] = value
+        return 1
+
+    def zmop_get_cc_route(self, zmop, table):
+        for index, value in enumerate(self.cc_routes.get(zmop, [0] * 128)):
+            table[index] = value
+        return 1
+
+    def zmop_set_cc_route(self, zmop, table):
+        self.cc_routes[zmop] = list(table)
         return 1
 
 
@@ -68,7 +89,8 @@ class FeedbackGuard(unittest.TestCase):
             chain_manager=types.SimpleNamespace(chains=self.chains),
             jclient=types.SimpleNamespace(get_ports=lambda *args, **kw: [self.port]),
             hw_midi_src_ports=[], devices_in=[None, None, self.port],
-            devices_in_mode=[1, 1, 1], lib_zyncore=self.api)
+            devices_in_mode=[1, 1, 1], lib_zyncore=self.api,
+            state_manager=types.SimpleNamespace(get_max_num_zmops=lambda: 16))
 
     def test_synth_only_no_feedback_and_no_direct_jack_shortcuts(self):
         routes = {'mbh_1:midi_in': {'ZynMidiRouter:ch4_out'},
@@ -132,6 +154,13 @@ class FeedbackGuard(unittest.TestCase):
         self.assertEqual(self.api.routes[(7, 2)], 0,
                          'retired virtual routes must never be resurrected')
         self.assertEqual(self.ctx._mbmf_source_inputs, {})
+
+    def test_unbounded_native_matrix_blocks_source(self):
+        self.api.output_count = 257
+        routes = {}
+        router.configure(self.ctx, routes)
+        self.assertEqual(routes['ZynMidiRouter:dev2_in'], set())
+        self.assertFalse([call for call in self.api.calls if call[0] == 'route' and call[3] == 1])
 
     def test_unrelated_jack_routes_untouched(self):
         routes = {'synthv1:in': {'keyboard:out', 'other:out'}}

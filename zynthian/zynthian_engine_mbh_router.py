@@ -87,15 +87,32 @@ def _quarantine_virtual(context):
     # A removed chain can leave its JACK port and native slot alive for another
     # autoconnect pass. Do not forget its ownership just because sources() no
     # longer sees the processor. Never write a recycled unrelated device slot.
-    for index, record in owned.items():
+    for index, record in list(owned.items()):
         if index >= len(context.devices_in):
             logging.error('MBMF retired native slot unavailable; restore blocked')
             safe = False
         elif context.devices_in[index] is None:
             indices.add(index)
         elif context.devices_in[index].name != record['name']:
-            logging.error('MBMF native slot recycled; restore blocked pending graph reconciliation')
-            safe = False
+            # Oram may move MB to another input slot during USB hotplug or
+            # snapshot recall. Retire old ownership only after JACK proves no
+            # managed virtual source still feeds that recycled native input.
+            # Never restore modes/flags/routes over the unrelated new device.
+            try:
+                connections=context.jclient.get_all_connections(f'ZynMidiRouter:dev{index}_in')
+                if any(p.name in virtual for p in connections):
+                    raise RuntimeError('virtual edge still connected to recycled slot')
+                relay=record.get('learn_relay')
+                drivers=getattr(getattr(getattr(context,'state_manager',None),'ctrldev_manager',None),'drivers',{})
+                if relay is not None and drivers.get(index) is relay:
+                    # end() writes flags at the old index, now owned by someone
+                    # else. This relay has no external resources to release.
+                    relay.allowed=();del drivers[index]
+                del owned[index]
+                logging.warning('MBMF retired disconnected recycled native input %s',index)
+            except Exception:
+                logging.error('MBMF native slot recycled; restore blocked pending graph reconciliation')
+                safe = False
     for index in sorted(indices):
         destinations = set(range(count))
         destinations.update(owned.get(index, {}).get('routes', {}))

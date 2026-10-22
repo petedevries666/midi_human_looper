@@ -1,0 +1,45 @@
+name: M5 Smart Switch panel browser qualification
+on:
+  pull_request:
+    paths:
+      - 'headless/web/**'
+      - 'tests/test_recovery_browser.py'
+      - 'scripts/screenshots*'
+      - '.github/workflows/m5-switch-panel.yml'
+permissions:
+  contents: read
+concurrency:
+  group: m5-switch-panel-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+jobs:
+  switch-panel:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Install native build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libfontconfig1-dev libfreetype6-dev
+      - name: Build isolated native engine
+        env:
+          BUILD_JOBS: 2
+        run: bash scripts/headless-setup.sh
+      - name: Prepare isolated browser
+        run: |
+          bash scripts/screenshots-setup.sh
+          .build/browser-venv/bin/python -m playwright install-deps chromium
+      - name: Exercise editor and audit five viewport sizes
+        run: bash scripts/screenshots.sh
+      - name: Preserve browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: m5-switch-panel-screenshots
+          path: |
+            docs/screenshots/
+            .build/screenshot-failures/
+          if-no-files-found: warn
+          include-hidden-files: true

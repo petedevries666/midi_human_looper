@@ -46,9 +46,9 @@ inline double normalized(int kind,double v) {
 }
 } // namespace performance
 '''
-    # REAPER is frozen at three ARP modes. Native schema 8 widens its own EEL
-    # bounds during source generation; its C++ descriptors use the full catalog.
-    def eel_lookup(field,default):return cpp_expr([(f'kind=={k}',2 if k==4 and field=='max' else p[field]) for k,p in params.items() if p[field]!=default],default)
+    # Keep the EEL and C++ conversions aligned with the catalog. In particular,
+    # native ARP mode values extend through the random climb modes.
+    def eel_lookup(field,default):return cpp_expr([(f'kind=={k}',p[field]) for k,p in params.items() if p[field]!=default],default)
     eel='// Generated bounds: scripts/generate-parameters.py / modules/catalog.json\n'
     for name,field,default in [('param_min','min',0),('param_max','max',127),('param_step','step',1)]:eel+=f'function {name}(kind)\n({eel_lookup(field,default)};);\n'
     conv=lambda name:' || '.join(f'kind=={k}' for k,p in params.items() if p['normalizedConversion']==name)

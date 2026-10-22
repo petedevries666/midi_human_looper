@@ -16,7 +16,7 @@ struct Identity {
 };
 struct Humanizer {
   bool enabled=false;
-  double timingMs=0,biasMs=0,velocityPercent=0;
+  double timingMs=0,biasMs=0,velocityPercent=0,liveLookaheadMs=0;
   Feel feel=Feel::Gaussian;
   Variation variation=Variation::Fixed;
   Scope scope=Scope::Group;
@@ -25,6 +25,7 @@ struct Humanizer {
     return std::isfinite(timingMs) && timingMs>=0 && timingMs<=2000 &&
       std::isfinite(biasMs) && biasMs>=-2000 && biasMs<=2000 &&
       std::isfinite(velocityPercent) && velocityPercent>=0 && velocityPercent<=100 &&
+      std::isfinite(liveLookaheadMs) && liveLookaheadMs>=0 && liveLookaheadMs<=2000 &&
       unsigned(feel)<=1 && unsigned(variation)<=1 && unsigned(scope)<=1;
   }
 };
@@ -151,4 +152,143 @@ public:
   // Only after the host successfully transmitted global physical PANIC.
   void recovered(){queue.resetAfterPanic();outputs.resetAfterPanic();recoveryNeeded=false;}
 };
+/*
+ * Live source adapter. Unlike PairRuntime, this accepts the Note On before its
+ * Note Off exists and captures one deterministic shift for the whole voice.
+ * A fixed lookahead is an explicit live-latency choice; without enough lookahead
+ * negative timing is clamped at arrival, never emitted into the past.
+ */
+template<size_t N=256> class StreamRuntime {
+  static_assert(N>0,"Nonempty live voice table required");
+  struct Voice {
+    native_notes::SourceKey key{};
+    Identity identity{};
+    native_notes::Token token{};
+    uint64_t order=0,onDue=0;
+    int64_t shift=0;
+    uint8_t outputVelocity=0,offVelocity=0;
+    unsigned reservations=0;
+    bool used=false,held=false,sounding=false,offQueued=false;
+  };
+  struct Due {uint64_t sample=0,order=0;uint32_t slot=0;uint64_t generation=0;bool on=false;};
+  std::array<Voice,N> voices{};
+  std::array<Due,N*2> due{};
+  std::array<uint32_t,16*128> physicalOwners{};
+  size_t dueCount=0;
+  uint64_t generation=0,ordinal=0;
+  unsigned rate=0;
+  size_t reserved=0;
+  static bool before(const Due&a,const Due&b){return a.sample!=b.sample?a.sample<b.sample:a.order<b.order;}
+  int findFree()const{for(size_t i=0;i<N;++i)if(!voices[i].used)return int(i);return -1;}
+  bool push(const Due&e){
+    if(dueCount>=due.size())return false;
+    size_t i=dueCount++;while(i&&before(e,due[i-1])){due[i]=due[i-1];--i;}due[i]=e;return true;
+  }
+  Due pop(){Due e=due[0];for(size_t i=1;i<dueCount;++i)due[i-1]=due[i];--dueCount;return e;}
+  bool remove(uint32_t slot,uint64_t gen,bool onOnly=false,bool offOnly=false){
+    bool found=false;size_t n=0;
+    for(size_t i=0;i<dueCount;++i){
+      const auto&e=due[i];const bool match=e.slot==slot&&e.generation==gen&&(!onOnly||e.on)&&(!offOnly||!e.on);
+      if(match)found=true;else due[n++]=e;
+    }
+    dueCount=n;return found;
+  }
+  Voice* get(const Due&e){if(e.slot>=N)return nullptr;auto&v=voices[e.slot];return v.used&&v.token.generation==e.generation?&v:nullptr;}
+  template<class Emit> bool queueOff(uint32_t slot,Voice&v,uint64_t sample,Emit){
+    if(v.offQueued)return false;
+    if(!v.reservations)return false;
+    Due e{sample,++ordinal,slot,v.token.generation,false};
+    --v.reservations;--reserved;v.offQueued=true;v.held=false;
+    if(!push(e)){++v.reservations;++reserved;v.offQueued=false;v.held=true;return false;}
+    return true;
+  }
+public:
+  uint64_t rejected=0,unmatchedOffs=0,clamped=0,emitted=0;
+  bool recoveryNeeded=false;
+  explicit StreamRuntime(unsigned sampleRate):rate(sampleRate){}
+  size_t active()const{size_t n=0;for(const auto&v:voices)n+=v.used;return n;}
+  size_t sounding()const{size_t n=0;for(const auto&v:voices)n+=v.used&&v.sounding;return n;}
+  size_t pending()const{return dueCount;}
+  template<class Emit> bool attack(const native_notes::SourceKey&key,uint32_t module,uint64_t sample,uint8_t input,
+      const Identity&id,const Humanizer&h,const VelocityCurve&curve,Emit){
+    if(rate<8000||rate>384000||!module||!key.instrument||key.channel>15||key.pitch>127||
+       !input||input>127||!h.valid()||!curve.valid()||reserved+2>due.size()||
+       generation==UINT64_MAX||ordinal==UINT64_MAX){++rejected;return false;}
+    const int slot=findFree();if(slot<0){++rejected;return false;}
+    const int64_t shift=h.enabled?delay(h,id,rate):0;
+    const int64_t look=int64_t(std::llround((h.enabled?h.liveLookaheadMs:0)*rate/1000.));
+    int64_t effective=shift;
+    if(look>0 && effective>INT64_MAX-look){++rejected;return false;}
+    effective+=look;
+    if(effective<0){effective=0;++clamped;}
+    if(uint64_t(effective)>UINT64_MAX-sample){++rejected;return false;}
+    const auto token=native_notes::Token{uint32_t(slot),++generation,native_notes::TokenDomain::Voice};
+    auto&v=voices[size_t(slot)];v=Voice{};v.key=key;v.identity=id;v.token=token;v.order=++ordinal;
+    v.shift=int64_t(effective);v.onDue=sample+uint64_t(effective);v.outputVelocity=curve.apply(velocity(h,id,input));
+    v.held=true;v.used=true;v.reservations=2;reserved+=2;
+    Due e{v.onDue,++ordinal,uint32_t(slot),token.generation,true};--v.reservations;--reserved;
+    if(!push(e)){reserved-=v.reservations;v=Voice{};++rejected;return false;}
+    return true;
+  }
+  template<class Emit> bool release(const native_notes::SourceKey&key,uint64_t sample,uint8_t offVelocity,Emit){
+    int match=-1;uint64_t first=UINT64_MAX;
+    for(size_t i=0;i<N;++i){const auto&v=voices[i];if(v.used&&v.held&&v.key==key&&v.order<first){match=int(i);first=v.order;}}
+    if(match<0){++unmatchedOffs;return false;}
+    auto&v=voices[size_t(match)];
+    uint64_t dueSample=sample;
+    if(v.shift>0){if(uint64_t(v.shift)>UINT64_MAX-sample){++rejected;return false;}dueSample+=uint64_t(v.shift);}
+    if(dueSample<v.onDue){dueSample=v.onDue;++clamped;}
+    if(ordinal==UINT64_MAX){++rejected;return false;}
+    v.offVelocity=std::min<uint8_t>(offVelocity,127);
+    if(!v.reservations){++rejected;recoveryNeeded=true;return false;}
+    Due e{dueSample,++ordinal,uint32_t(match),v.token.generation,false};
+    --v.reservations;--reserved;v.offQueued=true;v.held=false;
+    if(!push(e)){++v.reservations;++reserved;v.offQueued=false;v.held=true;++rejected;return false;}
+    return true;
+  }
+  template<class Emit> void render(uint64_t start,uint32_t frames,Emit emit){
+    if(!frames)return;const uint64_t end=start+frames;
+    while(dueCount&&due[0].sample<end){
+      const Due event=due[0];Voice*v=get(event);if(!v){pop();continue;}
+      const uint64_t at=std::max(start,event.sample);
+      const unsigned channel=v->key.channel,pitch=v->key.pitch,key=channel*128+pitch;
+      if(event.on){
+        if(!v->outputVelocity){pop();v->used=false;continue;}
+        if(!physicalOwners[key]&&!emit(at,true,uint8_t(channel),uint8_t(pitch),v->outputVelocity)){
+          recoveryNeeded=true;break;
+        }
+        ++physicalOwners[key];v->sounding=true;++emitted;pop();
+      }else{
+        if(v->sounding&&physicalOwners[key]==1&&!emit(at,false,uint8_t(channel),uint8_t(pitch),v->offVelocity)){
+          recoveryNeeded=true;break;
+        }
+        if(v->sounding&&physicalOwners[key])--physicalOwners[key];
+        ++emitted;pop();v->sounding=false;v->used=false;
+        if(v->reservations){reserved-=v->reservations;v->reservations=0;}
+      }
+    }
+  }
+  template<class Match,class Emit> bool cancel(uint64_t now,Match match,Emit emit){
+    bool ok=true;
+    for(size_t i=0;i<N;++i){auto&v=voices[i];if(!v.used||!match(v.key,v.identity))continue;
+      const auto gen=v.token.generation;remove(uint32_t(i),gen);
+      if(v.sounding){
+        v.offQueued=false;v.held=false;
+        // Reuse a removed queued Note Off or the still-reserved release slot.
+        if(!v.reservations){++v.reservations;++reserved;}
+        if(!queueOff(uint32_t(i),v,now,emit)){ok=false;recoveryNeeded=true;}
+      }else{
+        if(reserved>=v.reservations)reserved-=v.reservations;
+        v=Voice{};
+      }
+    }
+    (void)now;return ok;
+  }
+  template<class Emit> bool cancel(uint64_t now,uint32_t instrument,uint32_t module,Emit emit){
+    return cancel(now,[&](const native_notes::SourceKey&k,const Identity&){return (!instrument||k.instrument==instrument)&&(!module||module);},emit);
+  }
+  // Only after successful physical all-notes-off recovery.
+  void recovered(){voices.fill(Voice{});dueCount=0;physicalOwners.fill(0);reserved=0;recoveryNeeded=false;}
+};
+
 }

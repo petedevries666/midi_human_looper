@@ -3419,7 +3419,7 @@ int main(int argc, char **argv) {
         expressiveActive|=setting.instrument &&
           ((setting.humanizerModule && setting.humanizer.enabled) ||
            (setting.curveModule && setting.curve.enabled));
-      if(expressiveActive && outputCount){
+      if(expressiveActive || expressiveStream->pending() || expressiveCancelPending){
         bool ordered=true;
         for(unsigned j=1;j<outputCount;++j){const auto&a=(*outputBatch)[j-1],&b=(*outputBatch)[j];if(a.offset>b.offset||(a.offset==b.offset&&a.order>b.order)){ordered=false;break;}}
         for(unsigned j=0;j<outputCount;++j)(*outputOrder)[j]=j;
@@ -3511,6 +3511,7 @@ int main(int argc, char **argv) {
       if (useJack)
         state.late = xruns.load(std::memory_order_relaxed);
       drainPanic();
+      if(recovering&&expressiveStream->recoveryNeeded)expressiveStream->recovered();
       state.pendingOutput = outputWrite - outputRead + panicSweep.remaining();
       outputPending.store(state.pendingOutput, std::memory_order_release);
       if (muted)

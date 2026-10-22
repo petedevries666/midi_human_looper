@@ -14,9 +14,10 @@ int main(int argc,char**argv){
  auto rejectsTrigger=[&](const char* trigger){
   auto bytes=actionModel("STOP",all);
   std::string text(bytes.begin(),bytes.end());
-  auto at=text.find("\\"trigger\\":\\"PRESS\\"");
+  const std::string original="\"trigger\":\"PRESS\"";
+  auto at=text.find(original);
   check(at!=std::string::npos,"valid PRESS action fixture has trigger");
-  text.replace(at,18,std::string("\\"trigger\\":\\"")+trigger+"\\"");
+  text.replace(at,original.size(),std::string("\"trigger\":\"")+trigger+"\"");
   std::vector<unsigned> invalid(text.begin(),text.end());
   check(!conductor::validDocument(invalid),std::string(trigger)+" action is explicitly unsupported, not reinterpreted as PRESS");
  };

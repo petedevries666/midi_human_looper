@@ -70,9 +70,19 @@ try:
   assert values()[27]==3
   page.get_by_role('button',name='CANCEL',exact=True).click();page.wait_for_function('()=>!document.querySelector("#editor").open')
   assert values()[27]==4
-  card.click()
   out=ROOT/'docs/screenshots/dickinson';out.mkdir(parents=True,exist_ok=True);artifacts=[]
-  for width,height in ((320,240),(800,480),(1366,768),(1440,900),(1904,1032)):
+  sizes=((320,240),(800,480),(1366,768),(1440,900),(1904,1032))
+  for view,locator in [('humanizer',humanizer),('velocity',curve)]:
+   locator.get_by_role('button',name='EDIT',exact=True).click()
+   for width,height in sizes:
+    page.set_viewport_size(dict(width=width,height=height));page.wait_for_timeout(200)
+    errors=page.evaluate(AUDIT);assert not errors,(view,width,errors)
+    page.locator('#expressive-editor').scroll_into_view_if_needed();page.wait_for_timeout(150)
+    path=out/(view+'-'+str(width)+'x'+str(height)+'.png');page.screenshot(path=str(path));verify_png(path,width,height)
+    artifacts.append(dict(file=str(path.relative_to(ROOT)),width=width,height=height,view=view,checks=errors))
+   page.get_by_role('button',name='CANCEL',exact=True).click()
+  card.click()
+  for width,height in sizes:
    page.set_viewport_size(dict(width=width,height=height));page.wait_for_timeout(200)
    errors=page.evaluate(AUDIT);assert not errors,(width,errors)
    page.get_by_label('PLAYBACK',exact=True).scroll_into_view_if_needed();page.wait_for_timeout(150)

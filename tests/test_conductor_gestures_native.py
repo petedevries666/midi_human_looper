@@ -69,6 +69,58 @@ class Gestures(Execution):
             self.up()
         self.down();self.up();self.command('panic');self.commit();time.sleep(.3)
         self.assertFalse(self.call()['instances'])
+    def test_long_hold_layer_does_not_advance_conductor_twice(self):
+        settings=list(self.call()['switches'][0]['settings']);settings[8]=250
+        self.command('switch_commit',switchId=1,settings=settings,sequence=[],name='PRESS LONG HOLD',
+                     longHold={'milliseconds':500,'action':0,'target':0})
+        held=block(self.model['sources'][1]['id'])
+        held['overrides']['trigger']=dict(mode='OVERRIDE',value='LONG_HOLD')
+        self.model['switches'][0]['steps']=[step([block(self.model['sources'][0]['id']),held])]
+        self.commit();self.down()
+        self.wait_for(lambda:{i['phraseId'] for i in self.call()['instances']}=={1,2},
+                      'LONG_HOLD layer admission')
+        state=self.call();ids=[i['id'] for i in state['instances']]
+        self.assertEqual(state['switches'][0]['conductor']['step'],1,
+                         'LONG_HOLD uses the active step without advancing it twice')
+        time.sleep(.1);state=self.call()
+        self.assertEqual([i['id'] for i in state['instances']],ids,
+                         'LONG_HOLD executes its layer once and does not retrigger TAP')
+        self.assertEqual(state['switches'][0]['conductor']['step'],1)
+        self.up()
+        time.sleep(.1)
+        self.assertEqual([i['id'] for i in self.call()['instances']],ids)
+
+    def test_group_zero_hold_wrap_retriggers_first_step(self):
+        self.model.update(version=3,movements=[],ccRate=25)
+        sources=self.model['sources']
+        for source in sources:source['muteGroup']=0
+        first=block(sources[0]['id'])
+        first['overrides']['playMode']=dict(mode='OVERRIDE',value='HOLD')
+        self.model['switches'][0]['steps']=[
+            step([first]),
+            step([block(sources[1]['id'])]),
+            step([block(sources[2]['id'])]),
+            step([block(sources[3]['id'])]),
+            step([block(sources[3]['id'])]),
+        ]
+        self.commit()
+        for expected in range(1,6):
+            self.press()
+            state=self.call()
+            self.assertEqual(state['switches'][0]['conductor']['step'],expected)
+        before=self.call()
+        self.assertEqual(len(before['instances']),5)
+        first_id=before['instances'][0]['id']
+        self.press()
+        after=self.call()
+        self.assertEqual(after['switches'][0]['conductor']['step'],1,
+                         'five-step traversal wraps to the HOLD phrase')
+        self.assertEqual(len(after['instances']),6,
+                         'Mute Group 0 must allow the HOLD phrase to retrigger')
+        self.assertEqual(after['instances'][-1]['phraseId'],1)
+        self.assertNotEqual(after['instances'][-1]['id'],first_id,
+                            'the wrapped step creates one new phrase owner')
+
 if __name__=='__main__':
-    suite=unittest.TestSuite(Gestures(n) for n in ('test_short_press_long_hold_and_load_stopped','test_test_hold_same_step_and_movement_one_shot','test_stop_panic_and_patch_replacement_cancel_pending','test_disabled_unassigned_hold_preview_includes_press','test_new_hold_preview_after_tap_advances_to_next_step'))
+    suite=unittest.TestSuite(Gestures(n) for n in ('test_short_press_long_hold_and_load_stopped','test_test_hold_same_step_and_movement_one_shot','test_stop_panic_and_patch_replacement_cancel_pending','test_disabled_unassigned_hold_preview_includes_press','test_new_hold_preview_after_tap_advances_to_next_step','test_long_hold_layer_does_not_advance_conductor_twice','test_group_zero_hold_wrap_retriggers_first_step'))
     sys.exit(not unittest.TextTestRunner(verbosity=2).run(suite).wasSuccessful())

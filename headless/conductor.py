@@ -199,7 +199,7 @@ def validate(data):
                 if isinstance(block,dict) and block.get('type') == 'ACTION':
                     fields(block, ('id', 'type', 'action', 'target', 'trigger'))
                     unique(block['id'])
-                    if index == 0 or block['action'] not in ('STOP', 'PAUSE', 'RESUME', 'RESET_CURSOR', 'RESET_SHUFFLE_BAG', 'STOP_RESET') or block['trigger'] not in ('PRESS', 'HOLD'):
+                    if index == 0 or block['action'] not in ('STOP', 'PAUSE', 'RESUME', 'RESET_CURSOR', 'RESET_SHUFFLE_BAG', 'STOP_RESET', 'PANIC') or block['trigger'] not in ('PRESS', 'HOLD', 'LONG_HOLD', 'RELEASE', 'SUPERCHARGE_RELEASE'):
                         raise ValueError('CONDUCTOR invalid action or LAYER')
                     target = block['target']
                     if not isinstance(target,dict): raise ValueError('CONDUCTOR action target required')
@@ -214,6 +214,7 @@ def validate(data):
                     else: raise ValueError('CONDUCTOR invalid action target')
                     if (block['action'] in ('RESET_CURSOR','RESET_SHUFFLE_BAG') and target['type'] != 'SWITCH') or (block['action'] in ('STOP','PAUSE','RESUME') and target['type'] == 'SWITCH'):
                         raise ValueError('CONDUCTOR incompatible action target')
+                    if block['action']=='PANIC' and target['type']!='ALL_PHRASES':raise ValueError('PANIC requires ALL_PHRASES')
                     continue
                 fields(block, ('id', 'type', 'sourceId', 'overrides'))
                 unique(block['id'])

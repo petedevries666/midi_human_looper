@@ -148,6 +148,8 @@ NATIVE_SNAPSHOT_PARAMETER_BASE=CONDUCTOR_BASE-12000;native_snapshot_pending=0;
     change('mem[r+10]=-1;);', 'mem[r+10]=-1;mem[CONDUCTOR_BASE+si*8+3]=-1;mem[CONDUCTOR_BASE+si*8+4]=0;mem[CONDUCTOR_BASE+si*8+5]=0;mem[CONDUCTOR_BASE+si*8+6]=0;mem[r+22]=0;mem[r+27]=0;mem[r+29]=0;mem[r+31]=0;);')
     from native_phrase_retrigger import extend as phrase_retrigger
     source = phrase_retrigger(source)
+    from native_conductor_actions import extend as conductor_actions
+    source = conductor_actions(source)
     from native_arp import extend
     source = extend(source)
     from native_echo_sources import extend as echo_sources

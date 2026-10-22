@@ -1,0 +1,67 @@
+name: M5 isolated native regressions
+on:
+  pull_request:
+    paths:
+      - 'headless/**'
+      - 'tests/**'
+      - 'scripts/m5-hold-wrap-test.sh'
+      - 'scripts/screenshots*'
+      - '.github/workflows/m5-native.yml'
+permissions:
+  contents: read
+concurrency:
+  group: m5-native-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+jobs:
+  native:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/cache@v4
+        with:
+          path: .build/ysfx
+          key: m5-ysfx-ubuntu24-8077347ccf4115567aed81400281dca57acbb0cc-v1
+      - name: Build isolated native dependencies and engine
+        env:
+          BUILD_JOBS: 2
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libfontconfig1-dev libfreetype6-dev
+          bash scripts/headless-setup.sh
+      - name: Execute real EEL ownership and HOLD wrap regressions
+        run: |
+          bash scripts/once-retrigger-test.sh
+          bash scripts/m5-hold-wrap-test.sh
+      - name: Run Conductor configuration regressions
+        env:
+          HEADLESS_BINARY: ${{ github.workspace }}/.build/midi-headless-engine
+        run: |
+          python3 -m venv .build/test-venv
+          .build/test-venv/bin/pip install mido==1.3.3
+          python3 tests/test_m5_switch_model.py
+          python3 tests/test_m5_switch_native.py
+          python3 tests/test_conductor_execution_native.py
+          python3 tests/test_conductor_persistence.py
+          python3 tests/test_conductor_gestures_native.py
+          python3 tests/test_conductor_reveal_native.py
+          .build/test-venv/bin/python tests/test_conductor_legacy_contract.py
+
+      - name: Prepare isolated browser
+        run: |
+          bash scripts/screenshots-setup.sh
+          .build/browser-venv/bin/python -m playwright install-deps chromium
+      - name: Capture and audit real native editor at five sizes
+        run: bash scripts/screenshots.sh
+      - name: Preserve visual evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: m5-real-native-screenshots
+          path: |
+            docs/screenshots/
+            .build/screenshot-failures/
+          if-no-files-found: warn
+          include-hidden-files: true

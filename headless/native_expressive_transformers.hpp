@@ -249,7 +249,9 @@ public:
     return true;
   }
   template<class Emit> void render(uint64_t start,uint32_t frames,Emit emit){
-    if(!frames)return;if(uint64_t(frames)>UINT64_MAX-start){recoveryNeeded=true;return;}const uint64_t end=start+frames;
+    if(!frames)return;
+    if(uint64_t(frames)>UINT64_MAX-start){recoveryNeeded=true;return;}
+    const uint64_t end=start+frames;
     while(dueCount&&due[0].sample<end){
       const Due event=due[0];Voice*v=get(event);if(!v){pop();continue;}
       const uint64_t at=std::max(start,event.sample);

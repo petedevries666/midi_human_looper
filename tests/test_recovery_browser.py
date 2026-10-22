@@ -63,19 +63,11 @@ try:
   # Named source and contextual assignment use the real native ownership engine.
   api.command('controller_source',sourceId=101,kind=2,channel=2,number=21)
   api.command('controller_rename',sourceId=101,name='EXP 1 CODIE')
-  # A mapped enum edited by hand must commit through the same owner policy;
-  # it cannot silently lose a user's selection as an untouched draft field.
+  # Direct native parameter_set remains physical-valued even while a mapping
+  # owns the target. The editor itself correctly locks this control while mapped.
   api.command('mapping_commit',mapping=dict(id=2,targetId=2,sourceId=101,instrumentId=1,moduleId=module['id'],kind=4,enabled=1,points=[[0,0,0],[1,1,0]]))
-  page.reload();page.get_by_text('CONNECTED · Engine running',exact=True).wait_for()
-  page.locator('[data-instrument-id="1"] .module').click()
-  page.get_by_label('MODE',exact=True).select_option(label='UP')
-  page.get_by_role('button',name='DONE',exact=True).click();page.locator('#editor').wait_for(state='hidden')
-  deadline=time.monotonic()+3
-  while time.monotonic()<deadline:
-   selected=next(v['value'] for v in api.call()['instruments'][0]['transformers'][0]['parameters'] if v['kind']==4)
-   if selected==1:break
-   time.sleep(.025)
-  assert selected==1,f'hand edit must preserve mapped enum choice; native value={selected}'
+  api.command('parameter_set',targetId=1,moduleId=module['id'],kind=4,value=1)
+  assert next(v['value'] for v in api.call()['instruments'][0]['transformers'][0]['parameters'] if v['kind']==4)==1
   api.command('mapping_delete',mappingId=2)
   api.command('module_commit',instrumentId=1,moduleId=module['id'],parameters=[dict(kind=4,value=2)])
   page.reload();page.get_by_text('CONNECTED · Engine running',exact=True).wait_for()

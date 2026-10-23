@@ -1,55 +1,44 @@
-# V2 DICKINSON release-candidate ledger
+# V2 DICKINSON RC integration and evidence ledger
 
-Status: integration source selection and merge staging. No installation, Pi change, merge to `main`, or physical qualification. Resume from the first unchecked item below; do not repeat the repository audit.
+Status (2026-10-23): source integration and isolated qualification complete on `integration/v2-dickinson-rc`. Draft PR #108 contains the candidate. No Pi installation, service restart, live routing change or merge to `main` has occurred. Hardware acceptance remains open.
 
-## Baseline and selection (2026-10-23)
+## Selected lineage and decisions
 
-- RC branch: `integration/v2-dickinson-rc`, initially forked from Harris-safe PR #107 at `b4cb5e0eeb32fe58c8e829b8b0b635ecb2cd8f4a`; the selected full-feature source tree is now PR #103 at `51b8892f25adef305cd61e13256c84a32a3d9741`, an ancestor chain through #93/#97/#98/#99. The upstream base is PR #92 (`fa7e1ac851458f02f1774f5ba67611e2158d3bd9`), itself part of the earlier native/Zynthian stack. Keep the REAPER JSFX frozen. The #107 shared ARP range edit is deliberately excluded because #103 fixes the native enum bridge without changing legacy EEL.
-- #107 already selects the non-ECHOCITY portions of #93 and the independent #100/#101/#102/#105 work: block copy/paste, Movement TEACH, MIDI source recovery, shared manual/MIDI recall, snapshot bank, SOLO proposal, Smart Switch panel and mapped-slider feedback. Do not transplant these again.
-- #97 (`f06b394746f9540b53c8e38d119fbfe1774a7f1f`) is the source for native ARP STEP MAX/ONCE and the stronger loaded-session Program Change rule. Reconcile its recall changes with #100 rather than installing a second recall service.
-- #99 (`071ff7572e43b24e54b832ac55bb814d7f575436`) is the source for ONCE retrigger/owned Note On and 200% velocity decay. It also changes ECHOCITY terminal ownership: isolate the common note-output contract before porting.
-- #103 (`51b8892f25adef305cd61e13256c84a32a3d9741`) is the source for the typed STOP/RESET/PANIC Conductor ACTION subset, after #99. Double tap remains a Smart Switch action gesture, not a Conductor advance gesture. Its RELEASE setting currently delays admission until release; cursor-only release advance is not implemented.
-- #98 (`9ee8feb651fcf7b23ff4badc46c27c2802c0f1c1`) is the preferred HUMANIZER/VELOCITY CURVES foundation: it adds host wiring, persistence and UI beyond the incomplete alternative #95/#96 foundations. It depends on #97 and on #93's shared output machinery. Its head has no successful full browser workflow. Do not label it hardware-qualified or fully playable in this RC until integrated and tested.
-- #93 (`040b15c3c807a884ca8d54e61ed5eafda1c34f75`) bundles playable ECHOCITY with unrelated work. #107 deliberately contains no `headless/echocity_*` or `native_note_scheduler.hpp` files; these cannot be assumed present merely because ECHOCITY Harris 1.0 is installed on the Pi. Identify the exact source/behavior of the user's Harris 1.0 before taking ECHOCITY code from #93. Preserve the existing audible DRY/WET behavior; do not import further ECHOCITY features or silently omit the effect from the final RC.
-- #106 is a design-only entry/exit and release-advance proposal; exclude it from runtime integration. #95/#96 are superseded foundations, not separate modules to merge. PAUSE/RESUME, recursive/recall Conductor ACTIONs, MASTER redesign, Freeze/Reverse and speculative transformer work remain excluded.
+- PR #103 (`51b8892f25adef305cd61e13256c84a32a3d9741`) is the full native foundation. It descends through #93 (playable ECHOCITY Harris), #97 (ARP STEP MAX/ONCE and Program Change), #98 (HUMANIZER/VELOCITY CURVES), and #99 (ONCE retrigger, velocity decay and note ownership). Its own scope adds typed Conductor STOP/RESET/PANIC actions and HOLD wrap.
+- PR #107 (`b4cb5e0eeb32fe58c8e829b8b0b635ecb2cd8f4a`) supplies later host and Web improvements: shared manual/MIDI recall, Zynthian SOLO fixture, Smart Switch panel, block copy/paste, Movement TEACH, source recovery and mapped-slider feedback. These were overlaid once onto #103. The duplicate #107 ARP-range edit was rejected in favor of #103's native-only enum bridge; `midi_human_looper.jsfx` remains byte-identical to #103.
+- PR #106 is design-only and excluded. #95/#96 are superseded HUMANIZER/VELOCITY CURVES foundations, not extra implementations. ECHOCITY remains the Harris 1.0 feature set; no Freeze/Reverse or other effect expansion was imported.
+- Relevant #103 native blobs (`midi_human_looper.jsfx`, `headless/engine.cpp`, `native_capacity.py`, `echocity_runtime.hpp`, `native_note_scheduler.hpp`, `native_arp.py`) are unchanged in the RC source merge. The only merge repair was a missing final newline in new files; this corrected the Zynthian SOLO patch application.
 
-## Integration order and risks
+## Validation matrix
 
-1. Verify the provenance of Harris 1.0 and establish its shared note scheduler/output contract on this branch without changing its musical parameters. This is the principal unresolved source-selection risk.
-2. Port #97 ARP STEP MAX/ONCE, native kinds 27/28 and `nativeArp` patch carrier; retain #107's ARP DOWN range fix. Compare matching-PC no-op semantics with #100 and keep one authoritative recall path.
-3. Port #99's non-duplicate retrigger/velocity-decay changes. Check repeated same-pitch On/Off ownership in dry, HOLD, LOOP, ONCE and any active ECHOCITY path; this is a shared MIDI-output risk.
-4. Port #103's typed ACTION subset onto the resulting engine. Keep legacy document/schema defaults and gesture arbitration; leave unsupported actions explicit.
-5. Port #98's expressive stage using its existing implementation. Integrate with the selected scheduler once, preserving note pairs, fixed-capacity admission and patch compatibility. Keep it opt-in/bypassed by default until target tests and hardware review.
-6. Resolve only observed conflicts; compare resulting registry kinds, patch-carrier versions and file-level source hashes. Commit each subsystem separately. No speculative broad refactor.
-
-## Evidence applicability and minimal additional checks
-
-| Subsystem | Existing evidence / tested commit | Applicability | Integration risk | Additional check / current status |
+| Subsystem | Existing evidence / tested commit | Applicability | Integration risk and incremental check | Final status |
 | --- | --- | --- | --- | --- |
-| #107 ARP DOWN and mapped slider | Browser workflows 39867107042 and prior 39866607059; `b4cb5e0e` and `de0e9d44` | Valid while relevant code remains unchanged | ARP kind expansion may interact with #97 | Targeted enum/STEP MAX round-trip after #97; current browser tests pass |
-| #107 routing, recall and SOLO fixture | M3 39867107122, POSIX 39867107170, SOLO 39867107039; `b4cb5e0e` | Valid for unchanged source/fixtures | Engine recreation and host snapshot interaction | One RC startup/recall/recovery smoke; Pi hardware pending |
-| #107 Smart Switch UI | 39866607059 passed at `de0e9d44`; later `b4cb5e0e` run 39867107354 still compiling when this ledger was written | Partially valid; later commit only changed routing test fixture | #103 editor additions may change layout | Review latest run and five-size real PNGs only after UI integration |
-| #97 ARP traversal/recall | PR description reports 7,177 focused EEL + 25,426 legacy checks and isolated JACK; head `f06b3947` workflow 39770071770 was cancelled | Partial; test logs/head provenance need verification | Catalog/native range, patch carrier, #100 recall overlap | Targeted native ARP + patch migration + matching-PC no-op; no wholesale rerun |
-| #99 retrigger/decay | PR description: 397 focused real-engine checks at `071ff757`; no linked green workflow | Partial until result artifacts are checked | Shared note ownership and ECHOCITY output | Same-pitch overlap/STOP/PANIC and decay 50/100/200% on integrated engine |
-| #103 typed Conductor ACTIONs | Isolated workflow 39756519549 passed at exact head `51b8892f` | Valid for its source, partial after rebasing | Mixed layers, LONG_HOLD/release and MASTER | Small raw MIDI five-step HOLD/group-0 and action-phase checks |
-| #98 expressive core | Native core workflow 39777887330 passed at `06ae2a7b`; broad ARP/browser workflow 39777887353 failed at that SHA; current head `9ee8feb6` not covered by those runs | Partial | Shared scheduler, output note pairing, patch codec | Targeted integrated C++/native/JACK + browser authoring; Pi CPU/callback and listening pending |
-| ECHOCITY Harris 1.0 | User previously reported audible repeats on Pi, but exact source SHA/provenance is not established in this ledger | Not transferable as RC source evidence yet | #93 scheduler and #99/#98 integration | Identify exact source; isolated dry/echo/note-order/PANIC smoke, then physical user acceptance |
+| Native engine, JACK routing, note ownership, ONCE/LOOP/HOLD | PR #103 isolated workflow [39756519549](https://github.com/petedevries666/midi_human_looper/actions/runs/39756519549), `51b8892f` | Native implementation and frozen JSFX blobs unchanged | RC [39870388847](https://github.com/petedevries666/midi_human_looper/actions/runs/39870388847) routing safety and [39870388848](https://github.com/petedevries666/midi_human_looper/actions/runs/39870388848) isolated native integration passed at `5c9d7f2e361231b2c97df49daf047a8ff1195665` | Isolated validated; Pi audio/JACK pending |
+| Conductor ACTION and Smart Switch gestures | PR #103 [39756519549](https://github.com/petedevries666/midi_human_looper/actions/runs/39756519549), `51b8892f` | Native source unchanged | RC [39870388848](https://github.com/petedevries666/midi_human_looper/actions/runs/39870388848) covers real-engine ownership, HOLD/group-0 five-step wrap, config and browser recovery | Isolated validated; pedal acceptance pending |
+| ARP DOWN, STEP MAX/ONCE, random modes, Program Change | #97 lineage, `f06b394746f9540b53c8e38d119fbfe1774a7f1f`; #103 green at exact head | Native bridge inherited unchanged | RC [39870388848](https://github.com/petedevries666/midi_human_looper/actions/runs/39870388848) and POSIX recall [39870388869](https://github.com/petedevries666/midi_human_looper/actions/runs/39870388869) passed | Isolated validated; physical MIDI recall pending |
+| ECHOCITY Harris 1.0 | #93 `040b15c3c807a884ca8d54e61ed5eafda1c34f75` and #103 source lineage | Native ECHOCITY and scheduler blobs unchanged from #103 | RC native smoke passed; exact source running on Pi has not been read | Source integrated; audible equivalence pending |
+| HUMANIZER and VELOCITY CURVES | #98 foundation `9ee8feb651fcf7b23ff4badc46c27c2802c0f1c1` inherited via #103 | Integrated native source unchanged | RC native and browser regressions passed; no Pi CPU/timing measurement | Isolated validated; performance and musical acceptance pending |
+| Zynthian snapshot/patch recall, SOLO | #107 host/Web changes `b4cb5e0e` | New combination with #103 | RC [39870388869](https://github.com/petedevries666/midi_human_looper/actions/runs/39870388869) POSIX recall, [39870388803](https://github.com/petedevries666/midi_human_looper/actions/runs/39870388803) SOLO patch, local four-case manual recall test all passed | Isolated validated; Pi snapshots/chains pending |
+| Web panels, assigned-slider feedback, recovery | #107 panel and mapped-slider source plus #103 editor | Combined render model | RC [39870388905](https://github.com/petedevries666/midi_human_looper/actions/runs/39870388905) slider and [39870388858](https://github.com/petedevries666/midi_human_looper/actions/runs/39870388858) panel workflows passed; five-size native screenshot artifact reviewed | Browser validated; physical Web session pending |
+| RC install, backup and rollback wrapper | New `scripts/v2-dickinson-rc.py`, `5c9d7f2e361231b2c97df49daf047a8ff1195665` | New code | Local isolated preflight/backup test passed; actual updater retains its transactional rollback | Procedure prepared; Pi preflight/install/rollback unexecuted |
 
-Reuse unchanged subsystem evidence. Before each new test, record changed file hashes and the specific interface at risk. Do not rerun broad suites merely because this branch exists. A final isolated smoke must cover startup, patch load, MIDI in/out, phrase, Conductor, host communication, shutdown and recovery. Physical Zynthian acceptance is a separate gate.
+All six RC workflows above were green at `5c9d7f2e361231b2c97df49daf047a8ff1195665`. The screenshot workflow used a synthetic PR merge commit with tree SHA `32a6d2dfda405d1da39737a7baa9556f8658b4aa`, identical to the RC head tree. Its artifact contains 214 native browser screenshots at 320x240, 800x480, 1366x768, 1440x900 and 1904x1032; all contact-sheet views were visually reviewed with no obvious clipping. The artifact is linked from run 39870388848. The existing committed screenshot files have not yet been replaced with that artifact's PNGs; this remains a repository-evidence gate under AGENTS.md. A static screenshot cannot qualify continuous live repaint.
 
-## RC packaging gates
+## Release gates and remaining work
 
-- [x] Dedicated branch from #107; no change to `main` or the Pi.
-- [x] Dependency/evidence ledger before code integration.
-- [ ] Identify Harris 1.0 source SHA and preserve its behavior.
-- [ ] Integrate selected #97, #99, #103 and #98 changes with focused commits and tests.
-- [ ] Freeze an immutable RC commit SHA and concise changelog.
-- [ ] Provide a versioned preflight/update procedure with mandatory backup of application checkout, configuration, patches and Zynthian snapshot references; refuse unmet prerequisites.
-- [ ] Provide a verified rollback procedure and a short manual musical acceptance checklist.
-- [ ] Record open limitations and hardware-only checks. Do not deploy or merge without the user's explicit approval.
+- [x] Dedicated integration branch and draft PR; no change to `main` or the Pi.
+- [x] Dependency/evidence audit before merge; compatible #103 native and #107 host/Web sources selected.
+- [x] Frozen REAPER JSFX and source identities preserved; no extra ECHOCITY effects or #106 design added.
+- [x] Newline conflict repaired; six applicable RC CI workflows green.
+- [x] Versioned preflight, mandatory private backup, transactional updater/rollback wrapper and isolated backup test.
+- [x] Changelog, exclusions and manual acceptance list in `docs/v2-dickinson-rc.md`.
+- [ ] Commit current five-size PNGs and manifest, or record an explicitly approved alternate evidence path.
+- [ ] Read current Pi source and config, run read-only preflight, then install only with explicit approval.
+- [ ] Test FEAR & LOATHING / ROAD, existing chains/snapshots, real pedal gestures, ARP, HUMANIZER/VELOCITY CURVES and Harris ECHOCITY, plus XRUNs and restart recovery on Pi.
+- [ ] Merge into `main` only after separate explicit approval.
 
-## Integration decision (2026-10-23)
+## Architecture notes
 
-PR #103 is the full-feature source tree. It descends from #93 (ECHOCITY), #97 (ARP STEP MAX/ONCE and recall), #98 (HUMANIZER/VELOCITY CURVES), and #99 (ONCE retrigger/decay). PR #107 contributes later recall/SOLO/Smart Switch/mapped-slider work. Its non-ECHOCITY edits are overlaid onto #103; unchanged or already-present hunks are not reapplied. Conflict resolutions: retain #103's native-only ARP enum bridge and frozen JSFX; retain its current screenshot gesture flow and ECHOCITY-aware render model; add #107 mapped-slider regression to the existing recovery fixture. The code merge requires CI and visual evidence before this can be called an RC.
+The merge retained the existing native note scheduler/ownership contract and did not refactor musical algorithms. The host recall path is shared between manual and MIDI selection; snapshot and patch persistence remain owned by the existing host/updater. The RC wrapper adds only a preflight/archive boundary around that updater. Unfinished PAUSE/RESUME, cursor-only RELEASE advancement, recursive/recall ACTION types, MASTER redesign, PR #106 entry/exit semantics and further ECHOCITY effects remain future work. No optimization is claimed without Pi measurement.
 
-The exact source commit currently running on the Pi remains unverified because remote SSH is unavailable from this sandbox. #93 is the repository's documented playable Harris 1.0 foundation; this integration preserves that lineage and does not deploy or claim hardware equivalence.
+Resume at the first unchecked gate. Do not repeat the repository audit or broad native suites unless source or dependency hashes change, CI reports a new failure, or hardware finds a concrete defect.

@@ -1,4 +1,4 @@
-# MBMF V2 DICKINSON — release candidate
+# MBMF V2 DICKINSON - release candidate
 
 This candidate combines the native M5 lineage through PR #103 with the later
 recall, Zynthian SOLO, Smart Switch panel and mapped-slider fixes from PR #107.
@@ -85,6 +85,8 @@ reconfigure JACK or Zynthian chains.
 PAUSE/RESUME, cursor-only release advancement, recursive/recall Conductor
 actions, MASTER redesign, PR #106's entry/exit model and additional
 ECHOCITY effects are not implemented by this RC. The exact current Pi source,
-physical MIDI routing, long-duration audio performance and five-size visual
-review of the integrated Web surface must be verified before declaring this
-candidate releasable. See `v2-dickinson-rc-ledger.md` for commit-level evidence.
+physical MIDI routing and long-duration audio performance must be verified
+before declaring this candidate releasable. Five-size browser captures from
+the integrated source were reviewed, but the PNG artifacts and manifest
+remain to be committed to satisfy the repository's evidence rule. See
+`v2-dickinson-rc-ledger.md` for commit-level evidence and exact CI runs.

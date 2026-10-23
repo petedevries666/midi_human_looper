@@ -87,6 +87,6 @@ actions, MASTER redesign, PR #106's entry/exit model and additional
 ECHOCITY effects are not implemented by this RC. The exact current Pi source,
 physical MIDI routing and long-duration audio performance must be verified
 before declaring this candidate releasable. Five-size browser captures from
-the integrated source were reviewed, but the PNG artifacts and manifest
-remain to be committed to satisfy the repository's evidence rule. See
+the integrated source were reviewed and their real PNG artifacts and manifest
+were committed as evidence. See
 `v2-dickinson-rc-ledger.md` for commit-level evidence and exact CI runs.

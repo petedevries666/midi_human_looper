@@ -22,7 +22,7 @@ Status (2026-10-23): source integration and isolated qualification complete on `
 | Web panels, assigned-slider feedback, recovery | #107 panel and mapped-slider source plus #103 editor | Combined render model | RC [39870388905](https://github.com/petedevries666/midi_human_looper/actions/runs/39870388905) slider and [39870388858](https://github.com/petedevries666/midi_human_looper/actions/runs/39870388858) panel workflows passed; five-size native screenshot artifact reviewed | Browser validated; physical Web session pending |
 | RC install, backup and rollback wrapper | New `scripts/v2-dickinson-rc.py`, `5c9d7f2e361231b2c97df49daf047a8ff1195665` | New code | Local isolated preflight/backup test passed; actual updater retains its transactional rollback | Procedure prepared; Pi preflight/install/rollback unexecuted |
 
-All six RC workflows above were green at `5c9d7f2e361231b2c97df49daf047a8ff1195665`. The screenshot workflow used a synthetic PR merge commit with tree SHA `32a6d2dfda405d1da39737a7baa9556f8658b4aa`, identical to the RC head tree. Its artifact contains 214 native browser screenshots at 320x240, 800x480, 1366x768, 1440x900 and 1904x1032; all contact-sheet views were visually reviewed with no obvious clipping. The artifact is linked from run 39870388848. The existing committed screenshot files have not yet been replaced with that artifact's PNGs; this remains a repository-evidence gate under AGENTS.md. A static screenshot cannot qualify continuous live repaint.
+All six RC workflows above were green at `5c9d7f2e361231b2c97df49daf047a8ff1195665`. The screenshot workflow used a synthetic PR merge commit with tree SHA `32a6d2dfda405d1da39737a7baa9556f8658b4aa`, identical to the RC head tree. Its artifact contains 214 native browser screenshots at 320x240, 800x480, 1366x768, 1440x900 and 1904x1032; all contact-sheet views were visually reviewed with no obvious clipping. The artifact is linked from run 39870388848. The generated real PNGs, README and manifest were committed as a follow-up evidence-only change, satisfying the repository's Web evidence rule. No Web or native code changed in that commit. A static screenshot cannot qualify continuous live repaint.
 
 ## Release gates and remaining work
 
@@ -32,7 +32,7 @@ All six RC workflows above were green at `5c9d7f2e361231b2c97df49daf047a8ff11956
 - [x] Newline conflict repaired; six applicable RC CI workflows green.
 - [x] Versioned preflight, mandatory private backup, transactional updater/rollback wrapper and isolated backup test.
 - [x] Changelog, exclusions and manual acceptance list in `docs/v2-dickinson-rc.md`.
-- [ ] Commit current five-size PNGs and manifest, or record an explicitly approved alternate evidence path.
+- [x] Commit current five-size PNGs, README and manifest after visual review.
 - [ ] Read current Pi source and config, run read-only preflight, then install only with explicit approval.
 - [ ] Test FEAR & LOATHING / ROAD, existing chains/snapshots, real pedal gestures, ARP, HUMANIZER/VELOCITY CURVES and Harris ECHOCITY, plus XRUNs and restart recovery on Pi.
 - [ ] Merge into `main` only after separate explicit approval.

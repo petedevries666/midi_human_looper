@@ -1,8 +1,8 @@
 {
-  "browser": "151.0.7922.173",
-  "sourceRevision": "1e6ed931dce4c1e5b42b4299de8c30fbb2515daf",
+  "browser": "155.0.8059.0",
+  "sourceRevision": "7c9239dd4bc66a0b4338aec3f165ba167f8c15c0",
   "sourceDirty": false,
-  "runtimeBuildRevision": "5a4a96e50710dbd3ffe516761d48917dc06a5a60.dirty",
+  "runtimeBuildRevision": "7c9239dd4bc66a0b4338aec3f165ba167f8c15c0",
   "application": "MIDI BAD MOTHERFUCKER",
   "data": "Native --demo views plus actual native --chain recovery: named CC source, real ARP MIDI, observed recording states and explicitly configured reference chains",
   "artifacts": [
@@ -214,6 +214,24 @@
       "checks": []
     },
     {
+      "view": "conductor-action-editor",
+      "viewport": [
+        320,
+        240
+      ],
+      "file": "conductor-action-editor-320x240.png",
+      "checks": []
+    },
+    {
+      "view": "conductor-action-editor-bottom",
+      "viewport": [
+        320,
+        240
+      ],
+      "file": "conductor-action-editor-bottom-320x240.png",
+      "checks": []
+    },
+    {
       "view": "phrases",
       "viewport": [
         320,
@@ -238,15 +256,6 @@
         240
       ],
       "file": "phrase-editor-320x240.png",
-      "checks": []
-    },
-    {
-      "view": "phrase-editor-bottom",
-      "viewport": [
-        320,
-        240
-      ],
-      "file": "phrase-editor-bottom-320x240.png",
       "checks": []
     },
     {
@@ -610,6 +619,33 @@
       "checks": []
     },
     {
+      "view": "movement-layer-editor-bottom",
+      "viewport": [
+        800,
+        480
+      ],
+      "file": "movement-layer-editor-bottom-800x480.png",
+      "checks": []
+    },
+    {
+      "view": "conductor-action-editor",
+      "viewport": [
+        800,
+        480
+      ],
+      "file": "conductor-action-editor-800x480.png",
+      "checks": []
+    },
+    {
+      "view": "conductor-action-editor-bottom",
+      "viewport": [
+        800,
+        480
+      ],
+      "file": "conductor-action-editor-bottom-800x480.png",
+      "checks": []
+    },
+    {
       "view": "phrases",
       "viewport": [
         800,
@@ -880,12 +916,30 @@
       "checks": []
     },
     {
+      "view": "conductor-override-editor-bottom",
+      "viewport": [
+        1366,
+        768
+      ],
+      "file": "conductor-override-editor-bottom-1366x768.png",
+      "checks": []
+    },
+    {
       "view": "conductor-hold-trigger-editor",
       "viewport": [
         1366,
         768
       ],
       "file": "conductor-hold-trigger-editor-1366x768.png",
+      "checks": []
+    },
+    {
+      "view": "conductor-hold-trigger-editor-bottom",
+      "viewport": [
+        1366,
+        768
+      ],
+      "file": "conductor-hold-trigger-editor-bottom-1366x768.png",
       "checks": []
     },
     {
@@ -931,6 +985,24 @@
         768
       ],
       "file": "movement-layer-editor-1366x768.png",
+      "checks": []
+    },
+    {
+      "view": "conductor-action-editor",
+      "viewport": [
+        1366,
+        768
+      ],
+      "file": "conductor-action-editor-1366x768.png",
+      "checks": []
+    },
+    {
+      "view": "conductor-action-editor-bottom",
+      "viewport": [
+        1366,
+        768
+      ],
+      "file": "conductor-action-editor-bottom-1366x768.png",
       "checks": []
     },
     {
@@ -1204,6 +1276,15 @@
       "checks": []
     },
     {
+      "view": "conductor-override-editor-bottom",
+      "viewport": [
+        1440,
+        900
+      ],
+      "file": "conductor-override-editor-bottom-1440x900.png",
+      "checks": []
+    },
+    {
       "view": "conductor-hold-trigger-editor",
       "viewport": [
         1440,
@@ -1213,12 +1294,30 @@
       "checks": []
     },
     {
+      "view": "conductor-hold-trigger-editor-bottom",
+      "viewport": [
+        1440,
+        900
+      ],
+      "file": "conductor-hold-trigger-editor-bottom-1440x900.png",
+      "checks": []
+    },
+    {
       "view": "conductor-reveal-gate-editor",
       "viewport": [
         1440,
         900
       ],
       "file": "conductor-reveal-gate-editor-1440x900.png",
+      "checks": []
+    },
+    {
+      "view": "conductor-reveal-gate-editor-bottom",
+      "viewport": [
+        1440,
+        900
+      ],
+      "file": "conductor-reveal-gate-editor-bottom-1440x900.png",
       "checks": []
     },
     {
@@ -1246,6 +1345,15 @@
         900
       ],
       "file": "movement-layer-editor-1440x900.png",
+      "checks": []
+    },
+    {
+      "view": "conductor-action-editor",
+      "viewport": [
+        1440,
+        900
+      ],
+      "file": "conductor-action-editor-1440x900.png",
       "checks": []
     },
     {
@@ -1537,6 +1645,15 @@
       "checks": []
     },
     {
+      "view": "conductor-reveal-gate-editor-bottom",
+      "viewport": [
+        1904,
+        1032
+      ],
+      "file": "conductor-reveal-gate-editor-bottom-1904x1032.png",
+      "checks": []
+    },
+    {
       "view": "movement-curve-editor",
       "viewport": [
         1904,
@@ -1561,6 +1678,15 @@
         1032
       ],
       "file": "movement-layer-editor-1904x1032.png",
+      "checks": []
+    },
+    {
+      "view": "conductor-action-editor",
+      "viewport": [
+        1904,
+        1032
+      ],
+      "file": "conductor-action-editor-1904x1032.png",
       "checks": []
     },
     {
@@ -1744,7 +1870,7 @@
       "checks": [],
       "nativeClockAdvanced": true,
       "capture": "Actual observed native state; browser telemetry briefly suspended for static capture, engine continues",
-      "runtimeBuildRevision": "5a4a96e50710dbd3ffe516761d48917dc06a5a60.dirty",
+      "runtimeBuildRevision": "7c9239dd4bc66a0b4338aec3f165ba167f8c15c0",
       "data": "Actual native --chain; real CC mapping and recording actions"
     },
     {
@@ -1757,7 +1883,7 @@
       "checks": [],
       "nativeClockAdvanced": true,
       "capture": "Actual observed native state; browser telemetry briefly suspended for static capture, engine continues",
-      "runtimeBuildRevision": "5a4a96e50710dbd3ffe516761d48917dc06a5a60.dirty",
+      "runtimeBuildRevision": "7c9239dd4bc66a0b4338aec3f165ba167f8c15c0",
       "data": "Actual native --chain; real CC mapping and recording actions"
     },
     {
@@ -1770,7 +1896,7 @@
       "checks": [],
       "nativeClockAdvanced": true,
       "capture": "Actual observed native state; browser telemetry briefly suspended for static capture, engine continues",
-      "runtimeBuildRevision": "5a4a96e50710dbd3ffe516761d48917dc06a5a60.dirty",
+      "runtimeBuildRevision": "7c9239dd4bc66a0b4338aec3f165ba167f8c15c0",
       "data": "Actual native --chain; real CC mapping and recording actions"
     },
     {
@@ -1783,7 +1909,7 @@
       "checks": [],
       "nativeClockAdvanced": true,
       "capture": "Actual observed native state; browser telemetry briefly suspended for static capture, engine continues",
-      "runtimeBuildRevision": "5a4a96e50710dbd3ffe516761d48917dc06a5a60.dirty",
+      "runtimeBuildRevision": "7c9239dd4bc66a0b4338aec3f165ba167f8c15c0",
       "data": "Actual native --chain; real CC mapping and recording actions"
     },
     {
@@ -1796,7 +1922,7 @@
       "checks": [],
       "nativeClockAdvanced": true,
       "capture": "Actual observed native state; browser telemetry briefly suspended for static capture, engine continues",
-      "runtimeBuildRevision": "5a4a96e50710dbd3ffe516761d48917dc06a5a60.dirty",
+      "runtimeBuildRevision": "7c9239dd4bc66a0b4338aec3f165ba167f8c15c0",
       "data": "Actual native --chain; real CC mapping and recording actions"
     },
     {
@@ -1809,7 +1935,7 @@
       "checks": [],
       "nativeClockAdvanced": true,
       "capture": "Actual observed native state; browser telemetry briefly suspended for static capture, engine continues",
-      "runtimeBuildRevision": "5a4a96e50710dbd3ffe516761d48917dc06a5a60.dirty",
+      "runtimeBuildRevision": "7c9239dd4bc66a0b4338aec3f165ba167f8c15c0",
       "data": "Actual native --chain; real CC mapping and recording actions"
     },
     {
@@ -1822,7 +1948,7 @@
       "checks": [],
       "nativeClockAdvanced": true,
       "capture": "Actual observed native state; browser telemetry briefly suspended for static capture, engine continues",
-      "runtimeBuildRevision": "5a4a96e50710dbd3ffe516761d48917dc06a5a60.dirty",
+      "runtimeBuildRevision": "7c9239dd4bc66a0b4338aec3f165ba167f8c15c0",
       "data": "Actual native --chain; real CC mapping and recording actions"
     },
     {
@@ -1835,80 +1961,11 @@
       "checks": [],
       "nativeClockAdvanced": true,
       "capture": "Actual observed native state; browser telemetry briefly suspended for static capture, engine continues",
-      "runtimeBuildRevision": "5a4a96e50710dbd3ffe516761d48917dc06a5a60.dirty",
+      "runtimeBuildRevision": "7c9239dd4bc66a0b4338aec3f165ba167f8c15c0",
       "data": "Actual native --chain; real CC mapping and recording actions"
     }
   ],
   "unsupported": {
     "MOVEMENT advanced execution": "GATED, JOIN/FECK and musical durations are not enabled. Basic PHRASE REVEAL uses native CC7 leases; source phrases containing CC7 are explicitly refused."
-  },
-  "illustratedLiveReview": {
-    "date": "2026-10-18",
-    "engineSourceRevision": "58c9019473db8859cb12d427eab1ecc68c599ff0",
-    "method": "Actual CUA browser; user-authorized direct live validation; screenshot script not run",
-    "artifacts": [
-      {
-        "path": "docs/screenshots/illustrated-live/main-1366x768.png",
-        "sha256": "a72feee5bb952d31255141a22e36081385aa1fa6f4456d06a8daef11d6f4fe1f",
-        "provenance": "Physical native engine; actual editor through localhost review proxy"
-      },
-      {
-        "path": "docs/screenshots/illustrated-live/main-1440x900.png",
-        "sha256": "5c0439b82e99b9338e4865410d4f7e1928955840cd61de8a18ddee9de139b05a",
-        "provenance": "Physical native engine; actual editor through localhost review proxy"
-      },
-      {
-        "path": "docs/screenshots/illustrated-live/main-1904x1032.png",
-        "sha256": "449dc8829f8f860ad7547f29b0ce4cbc2b516f94ff754d0cf7dd3fe779fcf088",
-        "provenance": "Physical native engine; actual editor through localhost review proxy"
-      },
-      {
-        "path": "docs/screenshots/illustrated-live/main-320x240.png",
-        "sha256": "8a22cedaec4998ae4a1d02ebf815fc6748042c6dfb0b24d8395b44aee24b8d00",
-        "provenance": "Physical native engine; actual editor through localhost review proxy"
-      },
-      {
-        "path": "docs/screenshots/illustrated-live/main-800x480.png",
-        "sha256": "1fd04a915792cf93ce0608fba35e9efc78cac307450cb9612a3e5458c0512aa3",
-        "provenance": "Physical native engine; actual editor through localhost review proxy"
-      },
-      {
-        "path": "docs/screenshots/illustrated-live/switches-320x240.png",
-        "sha256": "1f7ab23304c22427158384bb38e46993c9e3b95a5e791e591328795fd2a2062c",
-        "provenance": "Physical native engine; actual editor through localhost review proxy"
-      }
-    ]
-  },
-  "illustratedLiveRefinements": {
-    "date": "2026-10-18",
-    "switchAlpha": 0.3,
-    "movementAlpha": 0.4,
-    "instrumentFit": "contain, left center, no-repeat",
-    "artifacts": [
-      {
-        "path": "docs/screenshots/illustrated-live/switch-refinements.png",
-        "sha256": "47892c194097a9ad8b374c2dea69eb2de1be664f58c5e253e61ad2ae97120deb",
-        "provenance": "Installed physical Pi editor, real synchronized instrument links"
-      },
-      {
-        "path": "docs/screenshots/illustrated-live/instrument-art.png",
-        "sha256": "828d3055ca2cf39d0805dee38882a97cd0af9a33a55afa1da1948cb696ea2a37",
-        "provenance": "Installed physical Pi editor, real synchronized instrument links"
-      }
-    ]
-  },
-  "followupValidation": [
-    {
-      "date": "2026-10-18",
-      "sourceRevision": "5b37e7224377944c2e452fb4fb534b3cccdbe175",
-      "sourceDirty": true,
-      "file": "docs/screenshots/illustrated-live/editor-recovery.png",
-      "dimensions": [
-        65536,
-        4292542531
-      ],
-      "data": "Actual native Zynthian engine and resident patch; token masked; user authorized public visual evidence",
-      "validation": "Direct live desktop review authorized instead of scripts/screenshots.sh; no five-size or physical touch qualification"
-    }
-  ]
+  }
 }

@@ -3,13 +3,13 @@ from contextlib import contextmanager
 import os
 
 @contextmanager
-def library_lock(directory):
+def library_lock(directory,wait=False):
     from pathlib import Path
     directory=Path(directory);directory.mkdir(parents=True,exist_ok=True)
     with (directory/'.patch-operation.lock').open('a+b') as stream:
         if os.name!='nt':
             import fcntl
-            try:fcntl.flock(stream,fcntl.LOCK_EX|fcntl.LOCK_NB)
+            try:fcntl.flock(stream,fcntl.LOCK_EX|(0 if wait else fcntl.LOCK_NB))
             except BlockingIOError:raise ValueError('A patch save or recall is already in progress')
         try:yield
         finally:

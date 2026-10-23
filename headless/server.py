@@ -752,6 +752,14 @@ class Handler(BaseHTTPRequestHandler):
                 result=self.server.control.request(op=42,revision=rev,session=session)
                 if result.get('status')!='ok':self.respond(409,result);return
                 self.server.switch_presets.on_patch(slot);result=self.server.control.request();result['emptySlot']=True;self.respond(200,result);return
+            if self.path.endswith('/load') and getattr(self.server,'host_chain_socket',None):
+                from zynthian_chains import bridge_request
+                state=self.server.control.request()
+                if state['revision']!=rev or state['engineSessionId']!=session:
+                    self.respond(409,{'error':'conflict'});return
+                result=bridge_request(self.server.host_chain_socket,dict(action='patch_recall',operation='recall',slot=slot))
+                if 'error' in result:self.respond(409,result);return
+                self.respond(202,{'status':'queued','recall':result});return
             if self.path.endswith('/save') or self.path.endswith('/export'):
                 if path.exists():
                     previous=json.loads(path.read_text())

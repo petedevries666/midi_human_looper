@@ -265,4 +265,19 @@ class Capacity(unittest.TestCase):
   state=self.control.request();self.assertEqual(self.control.request(op=53,value=16,revision=state['revision'],session=state['engineSessionId'])['status'],'ok')
   state=self.control.request();self.assertNotEqual(self.control.request(op=53,value=17,revision=state['revision'],session=state['engineSessionId'])['status'],'ok')
 
+ def test_26_persisted_native_project_restores_with_schema8(self):
+  from project_sync import ProjectStore,atomic_json
+  from portable_project import capture,digest,timing
+  state=self.control.request();patch=self.export()
+  self.assertEqual(patch['schema'],8)
+  project=capture(patch,state['sampleRate'])
+  store=ProjectStore(self.dir/'schema8-restore',self.control)
+  store.directory.mkdir(parents=True,exist_ok=True)
+  atomic_json(store.directory/(project['revisionId']+'.json'),project)
+  manifest=dict(version=1,projectId=project['projectId'],revisionId=project['revisionId'],
+                fingerprint=digest(timing(patch,1/state['sampleRate'])))
+  atomic_json(store.directory/'active.json',manifest)
+  self.assertEqual(store.restore(),manifest)
+  self.assertEqual(self.export()['schema'],8)
+
 if __name__=='__main__':unittest.main(verbosity=2)

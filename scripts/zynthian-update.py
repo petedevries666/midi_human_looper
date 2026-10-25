@@ -178,7 +178,11 @@ class Runtime:
         for chain in (True,False):
             with tempfile.TemporaryDirectory(prefix='mbmf-preflight-') as temporary:
                 socket=str(Path(temporary)/'control.sock')
-                args=[config['binary'],str(Path(config['repository'])/'midi_human_looper.jsfx'),socket]
+                source=Path(config['repository'])/'midi_human_looper.jsfx'
+                if config.get('expanded_capacity'):
+                    source=Path(temporary)/'native-expanded.jsfx'
+                    run(sys.executable,str(Path(config['repository'])/'headless/native_capacity.py'),str(source))
+                args=[config['binary'],str(source),socket]
                 if chain:
                     args+=['--chain','--chain-timing',str(config.get('chain_timing_version',1))]
                     if config.get('chain_grid_capture',False):args+=['--chain-grid-capture']

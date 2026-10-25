@@ -118,14 +118,14 @@ class ProjectStore:
             if data.get('expectedFingerprint')!=fingerprint:
                 raise Conflict('Live configuration changed; PULL before PUSH')
             patch,adopted=executable(project,state)
-            result=self.control.request(op=5,arg=1,target=7,patch=patch,revision=state['revision'],session=state['engineSessionId'])
+            result=self.control.request(op=5,arg=1,target=patch['schema'],patch=patch,revision=state['revision'],session=state['engineSessionId'])
             if result.get('status')!='ok':raise Conflict('Engine rejected activation; previous revision remains active')
             try:
                 after,applied,baseline=self.current()
                 atomic_json(self.directory/'active.json',dict(version=1,projectId=project['projectId'],revisionId=revision,fingerprint=baseline))
             except BaseException:
                 now,_,_=self.current()
-                rollback=self.control.request(op=5,arg=1,target=7,patch=previous,revision=now['revision'],session=now['engineSessionId'])
+                rollback=self.control.request(op=5,arg=1,target=previous['schema'],patch=previous,revision=now['revision'],session=now['engineSessionId'])
                 if rollback.get('status')!='ok':raise RuntimeError('Activation persistence failed and rollback rejected; STOP and reload prior revision')
                 # A directory fsync may fail after rename. Restore the previous
                 # pointer too, rather than leaving restart on the rejected state.
@@ -188,6 +188,6 @@ class ProjectStore:
             if project['revisionId']!=manifest['revisionId'] or project['projectId']!=manifest['projectId']:raise ValueError('Active manifest/content mismatch')
             state,_,_=self.current()
             patch,_=executable(project,state)
-            result=self.control.request(op=5,arg=1,target=7,patch=patch,revision=state['revision'],session=state['engineSessionId'])
+            result=self.control.request(op=5,arg=1,target=patch['schema'],patch=patch,revision=state['revision'],session=state['engineSessionId'])
             if result.get('status')!='ok':raise Conflict('Persisted project restoration rejected')
             return manifest

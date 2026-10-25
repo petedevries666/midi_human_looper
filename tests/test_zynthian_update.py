@@ -82,6 +82,11 @@ class Updates(unittest.TestCase):
         runtime=u.Runtime(ROOT)
         runtime.preflight({'binary':os.environ['HEADLESS_BINARY'],'repository':str(ROOT)},self.directory)
     @unittest.skipUnless(os.environ.get('HEADLESS_BINARY'),'Actual engine not configured')
+    def test_real_expanded_native_preflight_engine(self):
+        runtime=u.Runtime(ROOT)
+        revision=runtime.preflight({'binary':os.environ['HEADLESS_BINARY'],'repository':str(ROOT),'expanded_capacity':True},self.directory)
+        self.assertTrue(revision)
+    @unittest.skipUnless(os.environ.get('HEADLESS_BINARY'),'Actual engine not configured')
     def test_authenticated_real_web_health_and_revision(self):
         runtime=u.Runtime(ROOT);data=self.directory/'processor-1';data.mkdir()
         socket=data/'control.sock';token=self.directory/'token';token.write_text('test-private-token')

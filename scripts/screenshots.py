@@ -95,7 +95,9 @@ def run(output, performance=False):
                     page.locator('.conductor-editor').wait_for()
 
                 def capture(name,selector=None):
-                    if name.startswith('controller-') and name in ('controller-editor','controller-advanced'):
+                    if name.startswith('expressive-'):
+                        page.locator('#expressive-editor').wait_for(state='visible')
+                    elif name.startswith('controller-') and name in ('controller-editor','controller-advanced'):
                         page.locator('#mapping-editor').wait_for(state='visible')
                     elif 'editor' in name and 'name-editor' not in name:page.locator('#editor').wait_for(state='visible')
                     if performance and name not in ('phrases','instruments','transformer-editor'): return
@@ -268,6 +270,15 @@ def run(output, performance=False):
                 api.command('module_structure',instrumentId=1,moduleId=tf['id'],operation='delete')
                 page.locator('details').filter(has=page.locator('#metrics')).evaluate('e=>e.open=true')
                 capture('diagnostics','#metrics')
+                api.command('expressive_commit',expressive={'version':1,'configuration':[
+                    1,1,1,1,0,20,0,0,1,0,0,1,0,1,0,100,2,1,1,127,127]})
+                page.reload();page.get_by_text('CONNECTED · Engine running',exact=True).wait_for()
+                modules=page.locator('[data-instrument-id="1"] .expressive-module')
+                modules.first.get_by_role('button',name='EDIT',exact=True).click()
+                capture('expressive-humanizer-editor');page.keyboard.press('Escape')
+                modules.nth(1).get_by_role('button',name='EDIT',exact=True).click()
+                capture('expressive-curve-editor');page.keyboard.press('Escape')
+                api.command('expressive_commit',expressive={'version':1,'configuration':[1,0]})
                 if errors: raise AssertionError(errors)
                 context.close()
             browser.close()

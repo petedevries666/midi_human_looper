@@ -116,6 +116,8 @@ def run(output, performance=False):
                     modal=page.locator('dialog[open]')
                     if modal.count() and modal.evaluate('e=>e.scrollHeight>e.clientHeight+1'):
                         modal.evaluate('e=>e.scrollTop=e.scrollHeight')
+                        if name.startswith('expressive-'):
+                            modal.get_by_role('button',name='APPLY',exact=True).scroll_into_view_if_needed()
                         bottom=output/f'{name}-bottom-{width}x{height}.png'
                         page.screenshot(path=str(bottom),animations='disabled')
                         verify_png(bottom,width,height)

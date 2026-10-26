@@ -41,7 +41,7 @@ function edit(i,state,key,send){
   const amount=ctl('AMOUNT · %','range',c.amount,0,100,1,v=>{amountTouched=true;c.amount=v;out.value=v+'%';}),out=el('output',c.amount+'%','expressive-amount');content.append(amount,out);
   const rail=amount.querySelector('input');
   if(decode(state).some(x=>x.instrument===i.id&&x.curveModule===row.curveModule)){
-   window.MBMF_BIND_EXPRESSIVE_AMOUNT?.(rail,{instrumentId:i.id,moduleId:row.curveModule,kind:27});
+   window.MBMF_BIND_EXPRESSIVE_AMOUNT?.(rail,{instrumentId:i.id,moduleId:row.curveModule,kind:27},{openOnClick:false});
    rail.setEffective=value=>{if(amountTouched||document.activeElement===rail)return;c.amount=value;rail.value=value;out.value=Math.round(value)+'%';};
   }else content.append(el('small','Apply once to make AMOUNT available to expression controllers.'));
   const wrap=el('div',undefined,'velocity-graph-wrap'),svg=document.createElementNS('http://www.w3.org/2000/svg','svg');svg.setAttribute('viewBox','0 0 400 200');svg.setAttribute('role','img');svg.setAttribute('aria-label','Velocity curve, input and output 1 to 127');const grid=document.createElementNS(svg.namespaceURI,'path');grid.setAttribute('class','velocity-grid');grid.setAttribute('d','M12 12H388 M12 100H388 M12 188H388 M12 12V188 M200 12V188 M388 12V188');svg.append(grid);const line=document.createElementNS(svg.namespaceURI,'polyline');line.setAttribute('class','velocity-curve-line');svg.append(line);let selected=-1;

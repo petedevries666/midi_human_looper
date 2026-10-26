@@ -321,6 +321,7 @@ class Handler(BaseHTTPRequestHandler):
             self.respond(200,asset.read_bytes(),types[asset.suffix]);return
         files = {'/': ('index.html', 'text/html; charset=utf-8'),
                  '/app.js': ('app.js', 'text/javascript; charset=utf-8'),
+                 '/expressive.js': ('expressive.js', 'text/javascript; charset=utf-8'),
                  '/block-tools.js': ('block-tools.js', 'text/javascript; charset=utf-8'),
                  '/conductor.js': ('conductor.js', 'text/javascript; charset=utf-8'),
                  '/movement.js': ('movement.js', 'text/javascript; charset=utf-8'),
@@ -328,6 +329,7 @@ class Handler(BaseHTTPRequestHandler):
                  '/patch-recall.js': ('patch-recall.js', 'text/javascript; charset=utf-8'),
                  '/switch-presets.js': ('switch-presets.js','text/javascript; charset=utf-8'),
                  '/style.css': ('style.css', 'text/css; charset=utf-8'),
+                 '/expressive.css': ('expressive.css', 'text/css; charset=utf-8'),
                  '/tiles.css': ('tiles.css','text/css; charset=utf-8'),
                  '/tiles.js': ('tiles.js','text/javascript; charset=utf-8'),
                  '/module-layout.js': ('module-layout.js','text/javascript; charset=utf-8'),

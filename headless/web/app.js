@@ -112,11 +112,11 @@ function openAssignedCurve(binding){
 function curveY(points,x,hold=false){let y=points.at(-1)[1];for(let i=1;i<points.length;i++)if(x<points[i][0]||(!hold&&x===points[i][0])){const a=points[i-1],b=points[i];let t=hold?0:(x-a[0])/(b[0]-a[0]),power=1+5*Math.abs(a[2]||0);t=a[2]>0?Math.pow(t,power):a[2]<0?1-Math.pow(1-t,power):t;return a[1]+(b[1]-a[1])*t;}return y;}
 function previewCurve(points,hold=false){const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');svg.setAttribute('viewBox','0 0 100 20');svg.classList.add('rail-curve');svg.setAttribute('aria-hidden','true');const path=document.createElementNS(svg.namespaceURI,'path');path.setAttribute('d',Array.from({length:101},(_,x)=>`${x?'L':'M'}${x},${20*(1-curveY(points,x/100,hold))}`).join(' '));svg.append(path);return svg;}
 function closeAssignment(){document.getElementById('assignment-menu')?.remove();}
-function bindModulation(control,binding){
+function bindModulation(control,binding,{openOnClick=true}={}){
  control.mbmfBinding=binding;
  const p=parameter(binding.kind);if(!p?.assignmentEligible)return;
  control.dataset.modulationTarget=JSON.stringify(binding);
- if(control.matches('input[type=range]'))control.addEventListener('click',()=>{if(!control.dataset.assignmentGesture)openAssignedCurve(binding);});
+ if(openOnClick&&control.matches('input[type=range]'))control.addEventListener('click',()=>{if(!control.dataset.assignmentGesture)openAssignedCurve(binding);});
  control.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();e.stopPropagation();openAssignedCurve(binding);}});
  const mapping=mappingFor(binding),source=controllerConfiguration().sources.find(s=>s.id===mapping?.sourceId);
  if(mapping){control.classList.add('modulated');control.title=`${p.label} · ${source?.name||'SOURCE '+mapping.sourceId}`;if(control.matches('input[type=range]')){const curve=previewCurve(mapping.points);curve.dataset.modulationPreview='';curve.mbmfRail=control;curve.setAttribute('preserveAspectRatio','none');const marker=node('span',undefined,'rail-live-value');marker.dataset.modulationLive='';marker.setAttribute('aria-hidden','true');control.parentElement?.append(curve,marker);control.setModulationEffective=value=>{if(!Number.isFinite(value)){marker.hidden=true;return;}marker.hidden=false;const box=control.getBoundingClientRect(),root=control.parentElement.getBoundingClientRect(),pct=Math.max(0,Math.min(1,value));marker.style.left=(box.left-root.left+2+pct*Math.max(0,box.width-4))+'px';marker.style.top=(box.top-root.top+1)+'px';marker.title=p.label+' · contrôle effectif '+Math.round(pct*100)+'%';};}}

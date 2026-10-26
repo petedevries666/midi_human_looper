@@ -119,7 +119,7 @@ class ExpressiveIntegration(unittest.TestCase):
         rejected = self.control.request(op=55, expressive=[1, 0],
                                         revision=state['revision'],
                                         session=state['engineSessionId'])
-        self.assertEqual(rejected['status'], 'invalid')
+        self.assertEqual(rejected['status'], 'unknown_target')
         self.assertEqual(self.control.request()['nativeExpressive']['configuration'][15], 50)
 
 

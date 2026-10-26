@@ -16,6 +16,11 @@ int main(){
   c.amount=100;assert(c.apply(1)==127);
   c.amount=50;assert(c.apply(1)==64);
   assert(c.apply(127)==64);
+  for(unsigned v=1;v<=127;++v){
+    c.amount=0;assert(c.apply(uint8_t(v))==v);
+    c.amount=50;assert(c.apply(uint8_t(v))==64);
+    c.amount=100;assert(c.apply(uint8_t(v))==128-v);
+  }
   auto bad=c;bad.points[1].x=1;assert(!bad.valid());
   VelocityCurve gate;gate.count=4;gate.points[0]={1,1};gate.points[1]={55,1};gate.points[2]={56,127};gate.points[3]={127,127};
   assert(gate.valid()&&gate.apply(55)==1&&gate.apply(56)==127);

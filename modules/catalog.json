@@ -714,6 +714,21 @@
       "assignmentEligible": true,
       "nativeOnly": true,
       "engineField": "host_pan"
+    },
+    {
+      "id": "velocity_curve_amount",
+      "engineKind": 27,
+      "label": "VELOCITY CURVE AMOUNT",
+      "valueType": "float",
+      "min": 0,
+      "max": 100,
+      "default": 100,
+      "step": 0.1,
+      "unit": "%",
+      "normalizedConversion": "linear_continuous",
+      "assignmentEligible": true,
+      "curveSupport": true,
+      "nativeOnly": true
     }
   ],
   "modules": [

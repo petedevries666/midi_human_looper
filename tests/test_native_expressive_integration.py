@@ -10,6 +10,7 @@ import unittest
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'headless'))
 from native_capacity import build_source
+from controller_config import binding_wire, decode as decode_controllers
 from server import Control
 
 
@@ -93,6 +94,33 @@ class ExpressiveIntegration(unittest.TestCase):
         self.cmd(op=2)
         self.wait(lambda s: s['activeNotes'] == 0 and s['expressivePending'] == 0,
                   'panic drains expressive ledger')
+
+    def test_curve_amount_controller_recall_and_patch_base(self):
+        wire = [1, 1, 1, 1, 0, 0, 0, 0, 1, 0, 0, 1, 0,
+                2, 1, 100, 2, 1, 1, 127, 127]
+        self.cmd(op=55, expressive=wire)
+        self.cmd(op=14, target=101, arg=2, ch=1, note=21)
+        binding = binding_wire(dict(id=1, sourceId=101, targetId=201,
+                                    instrumentId=1, moduleId=2, kind=27))
+        self.cmd(op=16, target=1, binding=binding)
+        self.cmd(op=19, ch=1, note=21, value=0)
+        self.wait(lambda s: s['nativeExpressive']['configuration'][15] < 1,
+                  'controller moves AMOUNT')
+        state = self.control.request()
+        exported = self.control.request(op=4, revision=state['revision'],
+                                        session=state['engineSessionId'])
+        self.assertEqual(exported['nativeExpressive']['configuration'][15], 100)
+        updated = wire.copy()
+        updated[15] = 50
+        self.cmd(op=55, expressive=updated)
+        mapping = decode_controllers(self.control.request()['controllerEngine'])['mappings'][0]
+        self.assertAlmostEqual(mapping['base'], .5)
+        state = self.control.request()
+        rejected = self.control.request(op=55, expressive=[1, 0],
+                                        revision=state['revision'],
+                                        session=state['engineSessionId'])
+        self.assertEqual(rejected['status'], 'invalid')
+        self.assertEqual(self.control.request()['nativeExpressive']['configuration'][15], 50)
 
 
 if __name__ == '__main__':

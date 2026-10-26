@@ -450,6 +450,10 @@ struct Model {
         add(identity(*inst[i][1]), 0, 1, *inst[i][5], *levelAssignment[i] != 0);
         for (unsigned j = 0; j < 3; ++j)
           add(identity(*inst[i][1]), 0, 21 + j, *inst[i][2 + j], false);
+        for (const auto &setting : expressiveSettings)
+          if (setting.instrument == identity(*inst[i][1]) && setting.curveModule)
+            add(setting.instrument, setting.curveModule, 27,
+                setting.curve.amount, false);
         if (!std::isfinite(*tfCount[i]) || *tfCount[i] < 0 || *tfCount[i] > 6 ||
             *tfCount[i] != std::floor(*tfCount[i])) {
           result.count = 513;
@@ -501,6 +505,16 @@ struct Model {
         break;
     if (i == 8)
       return false;
+    if (b.kind == 27) {
+      for (const auto &setting : expressiveSettings)
+        if (setting.instrument == b.instrument && setting.curveModule &&
+            setting.curveModule == b.module) {
+          code = -3;
+          row = 0;
+          return true;
+        }
+      return false;
+    }
     if (!b.module) {
       code = 0;
       row = 0;
@@ -540,6 +554,12 @@ struct Model {
     if (!resolve(b, i, c, r, legacy))
       return nullptr;
     if(b.kind==25 || b.kind==26)return &hostMixer[i][b.kind-25];
+    if(c==-3){
+      for(auto &setting:expressiveSettings)
+        if(setting.instrument==b.instrument && setting.curveModule==b.module)
+          return &setting.curve.amount;
+      return nullptr;
+    }
     return c == -1   ? phrase[i][r]
            : c == -2 ? tfCodes[i][r]
            : c       ? values[i][c][r]
@@ -1095,7 +1115,7 @@ static void control(int listener, Queue<Request, 8> &commands,
                       request.arg >> request.revision >> request.ch >>
                       request.note >> request.value) &&
                  request.id > 0 && request.id <= 9007199254740991ULL &&
-                 request.op >= 0 && (request.op <= 54) && request.arg >= 0 &&
+                 request.op >= 0 && (request.op <= 55) && request.arg >= 0 &&
                  request.arg <= (request.op == 1 ? 5 : request.op == 13   ? 5
                                  : request.op == 40 ? 7
                                  : request.op == 15 || request.op == 34 ? 3
@@ -1408,8 +1428,16 @@ static void control(int listener, Queue<Request, 8> &commands,
                                     performanceSnapshots.configuration()));
           if (!conductorConfiguration.empty())
             document.insert(document.find_last_of('}'),",\"conductor\":"+conductor::json(conductorConfiguration));
-          if(model.schema==8)
-            document.insert(document.find_last_of('}'),",\"nativeExpressive\":"+expressive::configurationJson(model.expressiveConfiguration()));
+          if(model.schema==8){
+            auto savedExpressive=model.expressiveConfiguration();
+            for(const auto &binding:reply.state.controllerConfig.bindings)
+              if(binding.policy.id && binding.kind==27)
+                for(auto &setting:savedExpressive)
+                  if(setting.instrument==binding.instrument &&
+                     setting.curveModule==binding.module)
+                    setting.curve.amount=performance::physical(27,binding.base);
+            document.insert(document.find_last_of('}'),",\"nativeExpressive\":"+expressive::configurationJson(savedExpressive));
+          }
           if(reply.state.echoAvailable)document.insert(document.find_last_of('}'),",\"echocity\":"+echocity::json(reply.state.echoConfig));
           paused.store(false, std::memory_order_release);
           send_line(fd, document, shutdown);
@@ -1423,7 +1451,9 @@ static void control(int listener, Queue<Request, 8> &commands,
               previous[j] = *patch.globals[j];
             for (unsigned j = 0; j < patch.memory.size(); ++j)
               previous[9 + j] = *patch.memory[j];
+            auto previousExpressive=model.expressiveConfiguration();
             patch.load(unsigned(request.target), patchValues);
+            model.loadExpressive(request.expressiveConfig);
             bool collision = !model.expressiveTargets(request.expressiveConfig);
             for(const auto &c:request.echoConfig)if(c.id){
               bool found=false;for(unsigned j=0;j<8;++j)found|=*model.inst[j][1]==c.instrument && *model.inst[j][0]>.5;
@@ -1439,11 +1469,11 @@ static void control(int listener, Queue<Request, 8> &commands,
                                        return model.bindingValue(b) != nullptr;
                                      })) {
               patch.load(patch.schema, previous);
+              model.loadExpressive(previousExpressive);
               reply.status = 3;
             }
           }
           if (reply.status == 0 && request.op == 5) {
-            model.loadExpressive(request.expressiveConfig);
             installConductor(pendingConductor);
             echoRuntime.configure(request.echoConfig,true);
             conductorConfiguration.swap(pendingConductor);
@@ -1798,6 +1828,11 @@ int main(int argc, char **argv) {
       if(b.kind==25 || b.kind==26){
         const unsigned field=b.kind-25;const double physical=performance::physical(b.kind,value);
         if(std::abs(model.hostMixer[i][field]-physical)>1e-9){model.hostMixer[i][field]=physical;++model.hostMixerSequence[i][field];}
+        return;
+      }
+      if (b.kind == 27) {
+        if (auto amount = model.bindingValue(b, true))
+          *amount = performance::physical(27, value);
         return;
       }
       if (b.kind >= 17) {
@@ -2513,8 +2548,27 @@ int main(int argc, char **argv) {
           if(!reply.status){echoRuntime.configure(request.echoConfig);++state.revision;}
         }
         else if(request.op==55){
+          auto previousExpressive=model.expressiveConfiguration();
           if(!model.expressiveTargets(request.expressiveConfig))reply.status=2;
-          else{model.loadExpressive(request.expressiveConfig);expressiveCancelPending=true;++state.revision;}
+          else{
+            model.loadExpressive(request.expressiveConfig);
+            for(const auto &binding:controllers.configuration().bindings)
+              if(binding.policy.id && binding.kind==27 && !model.bindingValue(binding))
+                reply.status=2;
+            if(reply.status)model.loadExpressive(previousExpressive);
+            else{
+              for(const auto &setting:request.expressiveConfig){
+                auto prior=std::find_if(previousExpressive.begin(),previousExpressive.end(),
+                  [&](const auto &old){return old.instrument==setting.instrument &&
+                    old.curveModule==setting.curveModule;});
+                if(prior!=previousExpressive.end() &&
+                   std::abs(prior->curve.amount-setting.curve.amount)>1e-9)
+                  controllers.recall(setting.instrument,setting.curveModule,27,
+                    performance::normalized(27,setting.curve.amount));
+              }
+              expressiveCancelPending=true;++state.revision;
+            }
+          }
         }
         else if(request.op==53){
           if(request.value>16)reply.status=3;

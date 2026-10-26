@@ -630,7 +630,7 @@ class Handler(BaseHTTPRequestHandler):
                 args=dict(op=38,target=target,arg=kind,macro=[module,int(action=='parameter_unassign')])
             elif action=='parameter_set':
                 target,module,kind,value=data.get('targetId'),data.get('moduleId',0),data.get('kind'),data.get('value')
-                if any(type(v) is not int for v in (target,module,kind)) or not 1<=target<=16777215 or not 0<=module<=16777215 or kind==16 or type(value) not in (int,float) or not math.isfinite(value):raise ValueError()
+                if any(type(v) is not int for v in (target,module,kind)) or not 1<=target<=16777215 or not 0<=module<=16777215 or kind in (16,27) or type(value) not in (int,float) or not math.isfinite(value):raise ValueError()
                 p=next((p for p in REGISTRY.parameters.values() if p['engineKind']==kind),None)
                 if not p or not p['min']<=value<=p['max'] or (kind!=14 and abs(value/p['step']-round(value/p['step']))>1e-6):raise ValueError()
                 args=dict(op=32,target=target,arg=kind,macro=[module,value])

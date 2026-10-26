@@ -37,9 +37,10 @@ static constexpr Parameter parameters[]={
   {0,1,1,1}, // 24: transformer_enabled
   {0,1,0.001,3}, // 25: host_volume
   {-1,1,0.001,3}, // 26: host_pan
+  {0,100,0.1,3}, // 27: velocity_curve_amount
 };
 inline double physical(int kind,double x) {
-  if(kind<0 || kind>=27) return 0;
+  if(kind<0 || kind>=28) return 0;
   const auto &p=parameters[kind]; x=std::max(0.,std::min(1.,x));
   if(p.conversion==2) return std::pow(2.,2*x-1);
   if(p.conversion==3) return p.low+(p.high-p.low)*x;
@@ -47,7 +48,7 @@ inline double physical(int kind,double x) {
   return std::max(p.low,std::min(p.high,std::floor((p.low+(p.high-p.low)*x)/p.step+.5)*p.step));
 }
 inline double normalized(int kind,double v) {
-  if(kind<0 || kind>=27) return 0;
+  if(kind<0 || kind>=28) return 0;
   const auto &p=parameters[kind];
   const double n=p.conversion==2 ? (std::log2(v<=0?1:v)+1)/2
       : p.conversion==1 ? (v+.5)/(p.high+1) : (v-p.low)/(p.high-p.low);

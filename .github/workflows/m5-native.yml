@@ -49,6 +49,16 @@ jobs:
           python3 tests/test_conductor_reveal_native.py
           .build/test-venv/bin/python tests/test_conductor_legacy_contract.py
 
+      - name: Validate HUMANIZER and VELOCITY CURVES in the private native engine
+        env:
+          HEADLESS_BINARY: ${{ github.workspace }}/.build/midi-headless-engine
+        run: |
+          python3 tests/test_native_expressive_config.py
+          g++ -std=c++17 -O1 -Wall -Wextra -Werror -pedantic -Iheadless tests/native_expressive_transformers.cpp -o .build/native-expressive-test
+          .build/native-expressive-test
+          python3 tests/test_native_expressive_integration.py
+          node --check headless/web/expressive.js
+
       - name: Prepare isolated browser
         run: |
           bash scripts/screenshots-setup.sh

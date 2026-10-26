@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 cd "$(dirname "$0")/.."
-python3 scripts/generate-parameters.py --check
+# Native additions may extend the C++ registry while REAPER's JSFX is frozen.
+python3 scripts/generate-parameters.py --native-only --check
 : "${YSFX_SOURCE:=$PWD/.build/ysfx}"
 : "${YSFX_BUILD:=$YSFX_SOURCE/build}"
 : "${HEADLESS_BINARY:=$PWD/.build/midi-headless-engine}"

@@ -19,7 +19,7 @@ function mount(i,state,send){
  const r=decode(state).find(x=>x.instrument===i.id)||fresh(i.id),root=el('div',undefined,'expressive-modules');
  const routed=(state.instruments||[]).filter(x=>x.enabled&&x.output===i.output&&x.output>0);
  if(!i.output||routed.length>1)root.append(el('small',!i.output?'Set MIDI OUT to a unique channel (1–16) to activate these modules.':'MIDI OUT is shared; choose a unique channel to activate these modules.','expressive-routing-note'));
- [['HUMANIZER','humanizer'],['VELOCITY CURVES','curve']].forEach(([name,key])=>{const c=r[key],card=el('article',undefined,'module expressive-module');card.classList.toggle('bypassed',!c.enabled);card.append(el('strong',name),el('small',c.enabled?(key==='humanizer'?c.timingMs+' ms · BIAS '+c.biasMs+' · VEL ±'+c.velocityPercent+'%':c.points.length+' POINTS · AMOUNT '+c.amount+'%'):'BYPASS'));card.append(btn(c.enabled?'BYPASS':'ENABLE',()=>apply(state,i.id,x=>{x[key].enabled=!x[key].enabled;},send)));card.append(btn('EDIT',()=>edit(i,state,key,send)));root.append(card);});
+ [['HUMANIZER','humanizer'],['VELOCITY CURVES','curve']].forEach(([name,key])=>{const c=r[key],card=el('article',undefined,'expressive-module');card.classList.toggle('bypassed',!c.enabled);card.append(el('strong',name),el('small',c.enabled?(key==='humanizer'?c.timingMs+' ms · BIAS '+c.biasMs+' · VEL ±'+c.velocityPercent+'%':c.points.length+' POINTS · AMOUNT '+c.amount+'%'):'BYPASS'));card.append(btn(c.enabled?'BYPASS':'ENABLE',()=>apply(state,i.id,x=>{x[key].enabled=!x[key].enabled;},send)));card.append(btn('EDIT',()=>edit(i,state,key,send)));root.append(card);});
  return root;
 }
 function edit(i,state,key,send){

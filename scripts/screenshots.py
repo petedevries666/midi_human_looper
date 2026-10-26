@@ -229,7 +229,7 @@ def run(output, performance=False):
                 capture('empty-transformer');page.get_by_role('button',name='CANCEL',exact=True).click()
                 page.get_by_role('button',name='Edit Instrument 1 name',exact=True).click()
                 capture('instrument-name-editor');page.keyboard.press('Escape')
-                page.locator('[data-instrument-id="1"]').get_by_role('button',name='EDIT',exact=True).first.click()
+                page.locator('[data-instrument-id="1"] > .transformers').get_by_role('button',name='EDIT',exact=True).last.click()
                 capture('instrument-editor');page.keyboard.press('Escape')
                 page.locator('#controller-section').evaluate('e=>e.open=true')
                 capture('controllers','#controller-section')

@@ -60,6 +60,17 @@ class ExpressiveIntegration(unittest.TestCase):
         self.fail(label + ': ' + str({k: state.get(k) for k in
                                     ('activeNotes', 'midiCount', 'lastEvent', 'expressivePending')}))
 
+    def test_legacy_patch_without_modules_keeps_its_fingerprint(self):
+        from portable_project import digest, timing
+        state = self.control.request()
+        original = self.control.request(op=4, revision=state['revision'], session=state['engineSessionId'])
+        self.assertNotIn('nativeExpressive', original)
+        self.cmd(op=5, target=original['schema'], patch=original)
+        state = self.control.request()
+        restored = self.control.request(op=4, revision=state['revision'], session=state['engineSessionId'])
+        self.assertEqual(digest(timing(original, 1/state['sampleRate'])),
+                         digest(timing(restored, 1/state['sampleRate'])))
+
     def test_curve_live_phrase_patch_and_panic(self):
         state = self.control.request()
         for instrument in state['instruments']:

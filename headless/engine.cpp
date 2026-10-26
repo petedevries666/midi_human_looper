@@ -1436,7 +1436,8 @@ static void control(int listener, Queue<Request, 8> &commands,
                   if(setting.instrument==binding.instrument &&
                      setting.curveModule==binding.module)
                     setting.curve.amount=performance::physical(27,binding.base);
-            document.insert(document.find_last_of('}'),",\"nativeExpressive\":"+expressive::configurationJson(savedExpressive));
+            if(std::any_of(savedExpressive.begin(),savedExpressive.end(),[](const auto &setting){return setting.instrument!=0;}))
+              document.insert(document.find_last_of('}'),",\"nativeExpressive\":"+expressive::configurationJson(savedExpressive));
           }
           if(reply.state.echoAvailable)document.insert(document.find_last_of('}'),",\"echocity\":"+echocity::json(reply.state.echoConfig));
           paused.store(false, std::memory_order_release);

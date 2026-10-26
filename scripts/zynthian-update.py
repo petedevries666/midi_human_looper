@@ -288,7 +288,9 @@ def main():
         fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
         old=json.loads(args.config.read_text())
         if old.get('version')!=1:raise ValueError('Unsupported installation configuration')
-        runtime=Runtime(old['repository'])
+        # The invoked updater owns the candidate protocol. Loading the old
+        # server rejects newly supported patch extensions during preflight.
+        runtime=Runtime(Path(__file__).resolve().parents[1])
         history=directory/'runtime-update.json'
         if history.exists() and json.loads(history.read_text()).get('components'):
             raise ValueError('Component update journal requires the authorized UPDATE worker for rollback/recovery; legacy CLI will not partially restore it')

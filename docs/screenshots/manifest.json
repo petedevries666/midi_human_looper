@@ -1,8 +1,8 @@
 {
   "browser": "155.0.8059.0",
-  "sourceRevision": "7c9239dd4bc66a0b4338aec3f165ba167f8c15c0",
+  "sourceRevision": "644808f71bcceb7b62a25fea427d5fe53fc74abe",
   "sourceDirty": false,
-  "runtimeBuildRevision": "7c9239dd4bc66a0b4338aec3f165ba167f8c15c0",
+  "runtimeBuildRevision": "644808f71bcceb7b62a25fea427d5fe53fc74abe",
   "application": "MIDI BAD MOTHERFUCKER",
   "data": "Native --demo views plus actual native --chain recovery: named CC source, real ARP MIDI, observed recording states and explicitly configured reference chains",
   "artifacts": [
@@ -430,6 +430,42 @@
       "checks": []
     },
     {
+      "view": "expressive-humanizer-editor",
+      "viewport": [
+        320,
+        240
+      ],
+      "file": "expressive-humanizer-editor-320x240.png",
+      "checks": []
+    },
+    {
+      "view": "expressive-humanizer-editor-bottom",
+      "viewport": [
+        320,
+        240
+      ],
+      "file": "expressive-humanizer-editor-bottom-320x240.png",
+      "checks": []
+    },
+    {
+      "view": "expressive-curve-editor",
+      "viewport": [
+        320,
+        240
+      ],
+      "file": "expressive-curve-editor-320x240.png",
+      "checks": []
+    },
+    {
+      "view": "expressive-curve-editor-bottom",
+      "viewport": [
+        320,
+        240
+      ],
+      "file": "expressive-curve-editor-bottom-320x240.png",
+      "checks": []
+    },
+    {
       "view": "patch",
       "viewport": [
         800,
@@ -817,6 +853,33 @@
       "checks": []
     },
     {
+      "view": "expressive-humanizer-editor",
+      "viewport": [
+        800,
+        480
+      ],
+      "file": "expressive-humanizer-editor-800x480.png",
+      "checks": []
+    },
+    {
+      "view": "expressive-curve-editor",
+      "viewport": [
+        800,
+        480
+      ],
+      "file": "expressive-curve-editor-800x480.png",
+      "checks": []
+    },
+    {
+      "view": "expressive-curve-editor-bottom",
+      "viewport": [
+        800,
+        480
+      ],
+      "file": "expressive-curve-editor-bottom-800x480.png",
+      "checks": []
+    },
+    {
       "view": "patch",
       "viewport": [
         1366,
@@ -1177,6 +1240,24 @@
       "checks": []
     },
     {
+      "view": "expressive-humanizer-editor",
+      "viewport": [
+        1366,
+        768
+      ],
+      "file": "expressive-humanizer-editor-1366x768.png",
+      "checks": []
+    },
+    {
+      "view": "expressive-curve-editor",
+      "viewport": [
+        1366,
+        768
+      ],
+      "file": "expressive-curve-editor-1366x768.png",
+      "checks": []
+    },
+    {
       "view": "patch",
       "viewport": [
         1440,
@@ -1528,6 +1609,24 @@
       "checks": []
     },
     {
+      "view": "expressive-humanizer-editor",
+      "viewport": [
+        1440,
+        900
+      ],
+      "file": "expressive-humanizer-editor-1440x900.png",
+      "checks": []
+    },
+    {
+      "view": "expressive-curve-editor",
+      "viewport": [
+        1440,
+        900
+      ],
+      "file": "expressive-curve-editor-1440x900.png",
+      "checks": []
+    },
+    {
       "view": "patch",
       "viewport": [
         1904,
@@ -1861,6 +1960,24 @@
       "checks": []
     },
     {
+      "view": "expressive-humanizer-editor",
+      "viewport": [
+        1904,
+        1032
+      ],
+      "file": "expressive-humanizer-editor-1904x1032.png",
+      "checks": []
+    },
+    {
+      "view": "expressive-curve-editor",
+      "viewport": [
+        1904,
+        1032
+      ],
+      "file": "expressive-curve-editor-1904x1032.png",
+      "checks": []
+    },
+    {
       "view": "recovery-arp-editor",
       "viewport": [
         1904,
@@ -1870,7 +1987,7 @@
       "checks": [],
       "nativeClockAdvanced": true,
       "capture": "Actual observed native state; browser telemetry briefly suspended for static capture, engine continues",
-      "runtimeBuildRevision": "7c9239dd4bc66a0b4338aec3f165ba167f8c15c0",
+      "runtimeBuildRevision": "644808f71bcceb7b62a25fea427d5fe53fc74abe",
       "data": "Actual native --chain; real CC mapping and recording actions"
     },
     {
@@ -1883,7 +2000,7 @@
       "checks": [],
       "nativeClockAdvanced": true,
       "capture": "Actual observed native state; browser telemetry briefly suspended for static capture, engine continues",
-      "runtimeBuildRevision": "7c9239dd4bc66a0b4338aec3f165ba167f8c15c0",
+      "runtimeBuildRevision": "644808f71bcceb7b62a25fea427d5fe53fc74abe",
       "data": "Actual native --chain; real CC mapping and recording actions"
     },
     {
@@ -1896,7 +2013,7 @@
       "checks": [],
       "nativeClockAdvanced": true,
       "capture": "Actual observed native state; browser telemetry briefly suspended for static capture, engine continues",
-      "runtimeBuildRevision": "7c9239dd4bc66a0b4338aec3f165ba167f8c15c0",
+      "runtimeBuildRevision": "644808f71bcceb7b62a25fea427d5fe53fc74abe",
       "data": "Actual native --chain; real CC mapping and recording actions"
     },
     {
@@ -1909,7 +2026,7 @@
       "checks": [],
       "nativeClockAdvanced": true,
       "capture": "Actual observed native state; browser telemetry briefly suspended for static capture, engine continues",
-      "runtimeBuildRevision": "7c9239dd4bc66a0b4338aec3f165ba167f8c15c0",
+      "runtimeBuildRevision": "644808f71bcceb7b62a25fea427d5fe53fc74abe",
       "data": "Actual native --chain; real CC mapping and recording actions"
     },
     {
@@ -1922,7 +2039,7 @@
       "checks": [],
       "nativeClockAdvanced": true,
       "capture": "Actual observed native state; browser telemetry briefly suspended for static capture, engine continues",
-      "runtimeBuildRevision": "7c9239dd4bc66a0b4338aec3f165ba167f8c15c0",
+      "runtimeBuildRevision": "644808f71bcceb7b62a25fea427d5fe53fc74abe",
       "data": "Actual native --chain; real CC mapping and recording actions"
     },
     {
@@ -1935,7 +2052,7 @@
       "checks": [],
       "nativeClockAdvanced": true,
       "capture": "Actual observed native state; browser telemetry briefly suspended for static capture, engine continues",
-      "runtimeBuildRevision": "7c9239dd4bc66a0b4338aec3f165ba167f8c15c0",
+      "runtimeBuildRevision": "644808f71bcceb7b62a25fea427d5fe53fc74abe",
       "data": "Actual native --chain; real CC mapping and recording actions"
     },
     {
@@ -1948,7 +2065,7 @@
       "checks": [],
       "nativeClockAdvanced": true,
       "capture": "Actual observed native state; browser telemetry briefly suspended for static capture, engine continues",
-      "runtimeBuildRevision": "7c9239dd4bc66a0b4338aec3f165ba167f8c15c0",
+      "runtimeBuildRevision": "644808f71bcceb7b62a25fea427d5fe53fc74abe",
       "data": "Actual native --chain; real CC mapping and recording actions"
     },
     {
@@ -1961,7 +2078,7 @@
       "checks": [],
       "nativeClockAdvanced": true,
       "capture": "Actual observed native state; browser telemetry briefly suspended for static capture, engine continues",
-      "runtimeBuildRevision": "7c9239dd4bc66a0b4338aec3f165ba167f8c15c0",
+      "runtimeBuildRevision": "644808f71bcceb7b62a25fea427d5fe53fc74abe",
       "data": "Actual native --chain; real CC mapping and recording actions"
     }
   ],

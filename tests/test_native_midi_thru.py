@@ -23,7 +23,7 @@ class NativeMidiThru(unittest.TestCase):
         root=Path(self.temp.name)
         # Real native source, explicitly configured as USB slot 1 and DIN slot 2.
         source=extend(build_source((ROOT/'midi_human_looper.jsfx').read_text(encoding='utf-8')))
-        source=source.replace('@block','native_thru_enabled=1;mem[NATIVE_THRU_MODE_BASE+2*16+2]=0;\n@block',1)
+        source=source.replace('\n@block\n','\nnative_thru_enabled=1;mem[NATIVE_THRU_MODE_BASE+2*16+2]=0;\n@block\n',1)
         path=root/'ingress.jsfx';path.write_text(source,encoding='utf-8')
         socket=root/'control.sock'
         self.log=(root/'engine.log').open('w');self.addCleanup(self.log.close)

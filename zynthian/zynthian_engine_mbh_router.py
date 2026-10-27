@@ -12,6 +12,7 @@ from pathlib import Path
 
 # Explicit opt-in: default Zynthian input routing is untouched.
 CONFIG_PATH = Path("/zynthian/zynthian-my-data/midi-human-looper/install.json")
+MIDI_INPUT_IDENTITY_VERSION=2
 
 
 def sources(context):
@@ -504,7 +505,9 @@ def _physical_ingress(context,names):
     """Explicit new registry opts into dedicated source ports, never a fallback."""
     path=CONFIG_PATH.with_name('midi-inputs.json')
     if not path.exists() and not path.is_symlink():return None
-    from midi_inputs import Store,inventory,ingress_plan,runtime_wire
+    from midi_inputs import Store,inventory,ingress_plan,runtime_wire,IDENTITY_VERSION
+    if IDENTITY_VERSION!=MIDI_INPUT_IDENTITY_VERSION:
+        raise ValueError('Physical MIDI input identity contract differs; reviewed integration required')
     registry=Store(path).read()
     if len(names)!=1:raise ValueError('Physical MIDI THRU requires one dedicated MBMF engine')
     output=next(iter(names));client=output.split(':',1)[0]

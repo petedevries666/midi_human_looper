@@ -12,6 +12,7 @@ import tempfile
 from midi_thru_config import LIMIT
 
 MAX_INPUTS=15  # Bus zero remains the existing aggregated/native test input.
+IDENTITY_VERSION=2  # USB aliases, independent of system:midi_capture_N numbering.
 
 
 def port_key(name):

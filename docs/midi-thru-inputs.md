@@ -37,6 +37,11 @@ not change the saved identity. Replacing a keyboard with another model does not
 silently inherit its rules. Existing explicit port selections migrate on APPLY,
 preserving their IDs, channel policies and patch references.
 
+The router and registry resolver share an explicit identity contract. Returning
+to an earlier resolver requires restoring the reviewed router and its registry
+backup together; the general updater's router ownership guard must remain in
+place rather than silently accepting an incompatible downgrade.
+
 ## Routing and note lifetime
 
 Each enabled physical source uses a dedicated native JACK input. Oram closes

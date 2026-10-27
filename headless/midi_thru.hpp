@@ -58,4 +58,30 @@ inline bool readInputs(std::istream&in,Inputs&out) {
   out=next;return true;
 }
 inline bool empty(const Configuration&config){for(const auto&r:config)if(r.source)return false;return true;}
+
+// Callback-owned state. A control-worker update is validated before reaching
+// this object. The returned mask is consumed in DSP context, where releasing
+// held notes is safe; no JACK graph access or heap allocation occurs here.
+struct Update {
+  std::array<int8_t,Slots*Channels> modes{};
+  std::array<bool,Slots*Channels> close{};
+};
+class Runtime {
+  Configuration patch_{};
+  Inputs inputs_{};
+public:
+  Update configure(const Configuration&patch,const Inputs&inputs) {
+    Update result{};
+    for(unsigned slot=0;slot<Slots;++slot)
+      for(unsigned ch=0;ch<Channels;++ch){
+        const unsigned at=slot*Channels+ch;
+        const auto before=effective(patch_,inputs_[slot],ch);
+        const auto after=effective(patch,inputs[slot],ch);
+        result.modes[at]=after;
+        result.close[at]=before!=after || inputs_[slot].source!=inputs[slot].source ||
+                         inputs_[slot].connected!=inputs[slot].connected;
+      }
+    patch_=patch;inputs_=inputs;return result;
+  }
+};
 } // namespace midi_thru

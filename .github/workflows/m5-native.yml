@@ -40,6 +40,8 @@ jobs:
           HEADLESS_BINARY: ${{ github.workspace }}/.build/midi-headless-engine
         run: |
           python3 -m unittest tests.test_midi_inputs
+          c++ -std=c++17 -Wall -Wextra -Werror tests/midi_thru_test.cpp -o .build/midi-thru-test
+          .build/midi-thru-test
           python3 tests/test_native_midi_thru.py
       - name: Run Conductor configuration regressions
         env:

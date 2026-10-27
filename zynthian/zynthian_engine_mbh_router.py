@@ -7,6 +7,7 @@ import logging
 import re
 import json
 import ctypes
+import threading
 from pathlib import Path
 
 # Explicit opt-in: default Zynthian input routing is untouched.
@@ -172,14 +173,14 @@ def _restore_exclusive(context):
     return restored
 
 
-def _apply_exclusive(context, requested, virtual_names):
+def _apply_exclusive(context, requested, virtual_names, raw_ingress=False):
     """Keyboard -> MB -> native virtual input -> synth, without direct bypass.
 
     Explicit named physical inputs go to MB, not directly to other chains.
     ZynSMF/step/CV returns to MB are blocked to avoid a transport-time
     feedback path. All unrelated devices and their other routes are retained.
     """
-    if not requested:
+    if not requested and not raw_ingress:
         # No explicit consent to native feedback-sensitive routing.
         # The caller blocks the virtual source; any saved keyboard matrix
         # may be restored only after native virtual quarantine.
@@ -205,7 +206,7 @@ def _apply_exclusive(context, requested, virtual_names):
                 logging.error('MBMF duplicate keyboard input %s', port.name)
                 return False
             indexes[port.name] = index
-    if not indexes or any(name in virtual_names for name in requested):
+    if (not indexes and not raw_ingress) or any(name in virtual_names for name in requested):
         _restore_exclusive(context)
         logging.error('MBMF configured exclusive keyboard port missing or unsafe')
         return False
@@ -258,7 +259,7 @@ def _apply_exclusive(context, requested, virtual_names):
     # Do not change ttymidi/video or any other unselected device.
     for index in indexes.values():
         port = context.devices_in[index]
-        changes[(mb.zmop_index, index)] = (mb, port.name, 1)
+        changes[(mb.zmop_index, index)] = (mb, port.name, 0 if raw_ingress else 1)
         for chain in chains.values():
             if isinstance(chain.zmop_index, int) and chain.zmop_index >= 0 and chain is not mb:
                 changes[(chain.zmop_index, index)] = (chain, port.name, 0)
@@ -499,6 +500,63 @@ def _jack_returns_to_mb(required_routes, start, mb_input):
     return False
 
 
+def _physical_ingress(context,names):
+    """Explicit new registry opts into dedicated source ports, never a fallback."""
+    path=CONFIG_PATH.with_name('midi-inputs.json')
+    if not path.exists() and not path.is_symlink():return None
+    from midi_inputs import Store,inventory,ingress_plan,runtime_wire
+    registry=Store(path).read()
+    if len(names)!=1:raise ValueError('Physical MIDI THRU requires one dedicated MBMF engine')
+    output=next(iter(names));client=output.split(':',1)[0]
+    observed=[]
+    for port in context.jclient.get_ports(is_midi=True,is_output=True,is_physical=True):
+        if port.name.startswith('a2j:Midi Through ['):continue
+        observed.append({'port':port.name,'aliases':list(getattr(port,'aliases',())),
+                         'connections':[p.name for p in context.jclient.get_all_connections(port)]})
+    native_inputs={p.name:p for p in context.jclient.get_ports(is_midi=True,is_input=True)}
+    ports=set(native_inputs)
+    edges=ingress_plan(registry,observed,client,ports)
+    requested=[row['port'] or row['key'] for row in inventory(registry,observed) if row['enabled']]
+    processors=[p for chain in context.chain_manager.chains.values() for slot in chain.midi_slots for p in slot
+                if p.eng_code=='MB' and p.engine.get_jackname().rstrip(':')==client]
+    if len(processors)!=1:raise ValueError('Ambiguous physical MIDI THRU processor')
+    processor=processors[0]
+    entry=processor.engine.instances.get(int(processor.id))
+    if not entry or 'control' not in entry:raise ValueError('Physical MIDI THRU control unavailable')
+    control=entry['control'];state=control.request()
+    if not state.get('midiThruAvailable'):raise ValueError('Native engine lacks physical MIDI THRU support')
+    wire=runtime_wire(registry,observed,client=client)
+    expected={destination:source for source,destination in edges}
+    for at in range(2,len(wire),19):
+        destination=f'{client}:midi_in_{wire[at]}'
+        actual={p.name for p in context.jclient.get_all_connections(native_inputs[destination])}
+        if actual!={expected.get(destination)}:wire[at+2]=0
+    return dict(requested=requested,edges=edges,client=client,control=control,state=state,wire=wire)
+
+
+def _retry_physical_ingress(context,raw):
+    """One bounded reconciliation after Oram applies the planned JACK edges."""
+    key=tuple(raw['edges'])
+    if getattr(context,'_mbmf_ingress_retry_graph',None)!=key:
+        context._mbmf_ingress_retry_graph=key;context._mbmf_ingress_retries=0
+    pending=any(raw['wire'][at+2]==0 for at in range(2,len(raw['wire']),19)) and bool(raw['edges'])
+    if not pending:
+        context._mbmf_ingress_retries=0
+        return
+    if getattr(context,'_mbmf_ingress_retry_pending',False):return
+    attempts=getattr(context,'_mbmf_ingress_retries',0)
+    if attempts>=3:return
+    context._mbmf_ingress_retries=attempts+1
+    context._mbmf_ingress_retry_pending=True
+    def retry():
+        context._mbmf_ingress_retry_pending=False
+        try:
+            import zynautoconnect
+            zynautoconnect.request_midi_connect()
+        except Exception:logging.exception('MBMF physical MIDI graph refresh unavailable')
+    timer=threading.Timer(.3,retry);timer.daemon=True;timer.start()
+
+
 def configure(context, required_routes):
     """Fail closed if the native router cannot prove its no-feedback routes.
 
@@ -542,14 +600,33 @@ def configure(context, required_routes):
             return
     quarantined = _quarantine_virtual(context)
     requested = []
+    raw=None
+    raw_requested=CONFIG_PATH.with_name('midi-inputs.json').exists() or CONFIG_PATH.with_name('midi-inputs.json').is_symlink()
     exclusive_safe = False
     try:
-        requested = _read_exclusive_ports()
+        raw=_physical_ingress(context,names)
+        requested = raw['requested'] if raw is not None else _read_exclusive_ports()
         if quarantined:
-            exclusive_safe = _apply_exclusive(context, requested, names)
+            exclusive_safe = _apply_exclusive(context, requested, names,raw_ingress=raw is not None)
+        if raw is not None:
+            # Close the old merged input and every owned dedicated input before
+            # the new graph is admitted. TEACH's scoped output relay is untouched.
+            for destination,inputs in required_routes.items():
+                if destination==raw['client']+':midi_in' or destination.startswith(raw['client']+':midi_in_'):
+                    inputs.clear()
+            if exclusive_safe:
+                evidence=(raw['state']['engineSessionId'],tuple(raw['wire']))
+                if getattr(context,'_mbmf_physical_ingress',None)!=evidence or not raw['state'].get('midiThruEnabled'):
+                    result=raw['control'].request(op=57,midi_inputs=raw['wire'],revision=raw['state']['revision'],session=raw['state']['engineSessionId'])
+                    if result.get('status')!='ok':raise ValueError('Physical MIDI THRU activation refused')
+                    context._mbmf_physical_ingress=evidence
+                for source,destination in raw['edges']:
+                    required_routes.setdefault(destination,set()).add(source)
+                _retry_physical_ingress(context,raw)
     except Exception:
         logging.exception('MBMF invalid exclusive MIDI input config; virtual source blocked')
-        _restore_exclusive(context)
+        if not raw_requested:_restore_exclusive(context)
+        exclusive_safe=False
     for index, port in enumerate(context.devices_in):
         if port is None or port.name not in names:
             continue
@@ -591,7 +668,7 @@ def configure(context, required_routes):
         # Never reconnect MB virtual input without an explicit, verified
         # physical keyboard isolation policy. The previous implicit default
         # caused a real MIDI storm during REC on Kit V4.
-        safe = mb_chain_count > 0 and bool(requested) and exclusive_safe
+        safe = mb_chain_count > 0 and (bool(requested) or raw is not None) and exclusive_safe
         try:
             if safe:
                 for chain in chains.values():
@@ -653,7 +730,7 @@ def configure(context, required_routes):
 
         if not safe:
             if record.get('learn_relay'):record['learn_relay'].allowed=()
-            _restore_exclusive(context)
+            if not raw_requested:_restore_exclusive(context)
             # Stop every route from this source, including any previously admitted
             # receiver. Oram will disconnect the owned devN_in JACK connection.
             for zmop, _ in routes:

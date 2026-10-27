@@ -160,8 +160,7 @@ local(gi,idx,mask)
            'is_note_on=(status==144 && d2>0);i_release_mask=native_thru_enabled?0:i_capture_release(msg1,d1,d2);')
     # Exclusive Learn / stale releases (matched == -2) never leak, even in ALL.
     change('matched!=-1 ? (thru>0 ? send_to_instruments(offs,st,num,value,1);1;) : 0;',
-           'matched!=-1 ? (matched>=0 && (native_thru_mode==2 || '
-           '(native_thru_mode==1 && thru>0)) ? '
+           'matched!=-1 ? (matched>=0 && (native_thru_enabled?native_thru_mode==2:thru>0) ? '
            'native_thru_route(offs,st,num,value,native_thru_slot);1;) : 0;')
     change('    !is_trigger_command ? (\n    (state==STATE_READY',
            '    !is_trigger_command && native_thru_mode>0 ? (\n    (state==STATE_READY')

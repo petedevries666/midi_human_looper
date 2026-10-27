@@ -101,6 +101,12 @@ public:
   const Target *target(uint32_t id) const { return core.target(id); }
   void rawCCMasks(std::array<unsigned,128>& masks) const {core.rawCCMasks(masks);}
   uint32_t learnTarget() const { return learning; }
+  bool exclusiveMidi(const uint8_t*bytes,unsigned size) const {
+    if(learning)return true;
+    if(size!=3 || bytes[1]>127)return false;
+    const unsigned status=bytes[0]&240;
+    return (status==128 || status==144) && quarantine[bytes[0]&15][bytes[1]];
+  }
   bool learnsCommand() const { return commandLearning; }
   bool learnCommand(uint32_t id) {
     if (!id || id > 16777215) return false;

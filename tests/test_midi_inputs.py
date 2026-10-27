@@ -1,11 +1,12 @@
 import copy
 from pathlib import Path
 import sys
+import tempfile
 import unittest
 
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'headless'))
-from midi_inputs import bootstrap,enroll,inventory,runtime_wire,validate
-from midi_thru_config import decode
+from midi_inputs import bootstrap,enroll,inventory,runtime_wire,validate,ingress_plan,Store
+from midi_thru_config import decode,validate_inputs
 
 
 class MidiInputs(unittest.TestCase):
@@ -62,6 +63,36 @@ class MidiInputs(unittest.TestCase):
         self.assertEqual(wire[5+2],0)
         self.assertEqual(wire[5+4],2)
         self.assertEqual(registry['sources'][0]['channels'][2],-1)
+
+    def test_runtime_requires_real_dedicated_connection_when_requested(self):
+        registry=bootstrap(['ttymidi:MIDI_in'])
+        observed=[{'port':'ttymidi:MIDI_in','connections':['ZynMidiRouter:dev0_in']}]
+        self.assertEqual(runtime_wire(registry,observed,client='mbh_4')[4],0)
+        observed[0]['connections'].append('mbh_4:midi_in_1')
+        self.assertEqual(runtime_wire(registry,observed,client='mbh_4')[4],1)
+        validate_inputs(runtime_wire(registry,observed,client='mbh_4'))
+
+    def test_ingress_plan_never_falls_back_to_merged_legacy_port(self):
+        registry=bootstrap(['ttymidi:MIDI_in'])
+        observed=[{'port':'ttymidi:MIDI_in'}]
+        with self.assertRaises(ValueError):ingress_plan(registry,observed,'mbh_4',['mbh_4:midi_in'])
+        self.assertEqual(ingress_plan(registry,observed,'mbh_4',['mbh_4:midi_in_1']),[('ttymidi:MIDI_in','mbh_4:midi_in_1')])
+        self.assertEqual(ingress_plan(registry,[],'mbh_4',['mbh_4:midi_in_1']),[])
+
+    def test_store_bootstrap_is_read_only_and_corrupt_file_is_retained(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path=Path(directory)/'midi-inputs.json';store=Store(path,['ttymidi:MIDI_in'])
+            registry=store.read();self.assertFalse(path.exists())
+            store.save(registry);self.assertEqual(store.read(),registry)
+            path.write_text('{"version":999}',encoding='utf-8')
+            before=path.read_bytes()
+            with self.assertRaises(ValueError):store.save(registry)
+            self.assertEqual(path.read_bytes(),before)
+
+    def test_runtime_carrier_rejects_duplicate_slot_and_boolean_values(self):
+        wire=[1,2,1,7,1,*([1]*16),1,8,1,*([1]*16)]
+        with self.assertRaises(ValueError):validate_inputs(wire)
+        with self.assertRaises(ValueError):validate_inputs([1,1,1,7,True,*([1]*16)])
 
 
 if __name__=='__main__':unittest.main()

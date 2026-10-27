@@ -342,6 +342,10 @@ class Bridge:
                         result=recall.request(request)
                     elif request == {'action': 'status'}:
                         result = bridge.links.status()
+                    elif request == {'action':'refresh_midi_inputs'}:
+                        import zynautoconnect
+                        zynautoconnect.request_midi_connect()
+                        result={'status':'queued'}
                     elif set(request)=={'action','instrumentId','moduleId','identity','inventoryRevision','expectedRevision','expectedEngineSessionId'} and request['action']=='teach_cc':
                         result=bridge.links.teach_cc(request)
                     elif set(request)=={'action','instrumentId','channel','cc','value','identity','inventoryRevision','expectedRevision','expectedEngineSessionId'} and request['action']=='teach_movement':

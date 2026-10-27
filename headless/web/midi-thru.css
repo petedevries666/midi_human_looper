@@ -1,0 +1,8 @@
+#midi-thru-panel { min-width:0; }
+#midi-thru-panel > output { display:block;margin:8px 0;color:var(--accent,#ffdc00); }
+.midi-thru-inputs { display:grid;gap:12px; }
+.midi-thru-input { padding:10px;border:1px solid #555;min-width:0; }
+.midi-thru-input > strong,.midi-thru-input > small { display:block;overflow-wrap:anywhere; }
+.midi-thru-channels { display:grid;grid-template-columns:repeat(auto-fit,minmax(115px,1fr));gap:8px;margin:10px 0; }
+.midi-thru-channels label { display:flex;flex-direction:column;gap:3px;min-width:0; }
+.midi-thru-channels select { width:100%;min-width:0; }

@@ -105,5 +105,48 @@ class NativeMidiThru(unittest.TestCase):
         self.assertEqual(self.cmd(op=57,midi_inputs=disconnected)['activeNotes'],1)
         self.assertEqual(self.note(3,69,0)['activeNotes'],0)
 
+    def test_all_includes_controller_notes_but_never_learn_capture(self):
+        self.cmd(op=14,target=17,arg=1,ch=2,note=74)
+        self.assertEqual(self.note(1,74,100)['activeNotes'],0)
+        self.note(1,74,0)
+        modes=list(self.inputs);modes[5+2]=2
+        self.cmd(op=57,midi_inputs=modes)
+        self.assertEqual(self.note(1,74,100)['activeNotes'],1)
+        self.assertEqual(self.note(1,74,0)['activeNotes'],0)
+        self.cmd(op=15,target=17,arg=0)
+        self.assertEqual(self.note(1,75,100)['activeNotes'],0)
+        self.assertEqual(self.note(1,75,0)['activeNotes'],0)
+        self.assertEqual(self.note(1,75,100)['activeNotes'],1)
+        self.assertEqual(self.note(1,75,0)['activeNotes'],0)
+
+    def test_all_can_play_smart_switch_command_after_silent_learn(self):
+        ident=self.control.request()['switches'][0]['id']
+        self.cmd(op=50,target=ident,arg=0)
+        self.assertEqual(self.note(2,38,100)['activeNotes'],0)
+        self.note(2,38,0)
+        self.assertEqual(self.note(1,38,100)['activeNotes'],0)
+        self.note(1,38,0)
+        modes=list(self.inputs);modes[5+2]=2
+        self.cmd(op=57,midi_inputs=modes)
+        self.assertEqual(self.note(1,38,100)['activeNotes'],1)
+        self.assertEqual(self.note(1,38,0)['activeNotes'],0)
+
+    def test_patch_roundtrip_and_empty_patch_keep_global_input_registry(self):
+        modes=[-1]*16;modes[2]=0
+        self.cmd(op=56,midi_thru=[1,1,1,*modes])
+        state=self.control.request()
+        patch=self.control.request(op=4,revision=state['revision'],session=state['engineSessionId'])
+        self.assertEqual(patch['midiThru']['configuration'],[1,1,1,*modes])
+        cleared=self.cmd(op=42)
+        self.assertEqual(cleared['midiThru']['configuration'],[1,0])
+        self.assertTrue(cleared['midiThruEnabled'])
+        self.cmd(op=11,target=1,arg=1,ch=0,note=1,value=127)
+        self.assertEqual(self.note(1,70,100)['activeNotes'],1)
+        self.note(1,70,0)
+        restored=self.cmd(op=5,target=patch['schema'],patch=patch)
+        self.assertEqual(restored['midiThru'],patch['midiThru'])
+        self.assertEqual(self.note(1,70,100)['activeNotes'],0)
+        self.note(1,70,0)
+
 
 if __name__=='__main__':unittest.main()

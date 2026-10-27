@@ -6,12 +6,14 @@ from pathlib import Path
 import tempfile
 import types
 import unittest
+import sys
 from unittest.mock import patch
 
 spec = importlib.util.spec_from_file_location(
     'mb_router', Path(__file__).resolve().parents[1] / 'zynthian/zynthian_engine_mbh_router.py')
 router = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(router)
+sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'headless'))
 
 
 class NativeAPI:
@@ -105,6 +107,42 @@ class ExclusiveInput(unittest.TestCase):
 
     def route(self, zmop, dev):
         return self.api.routes.get((zmop, dev), 1)
+
+    def test_raw_ingress_closes_merged_mb_input_and_all_physical_bypasses(self):
+        self.assertTrue(router._apply_exclusive(self.ctx,[self.keyboard.name,self.ttymidi.name],{'mbh_1:midi_out'},raw_ingress=True))
+        for device in (0,1):
+            for zmop in (0,1,2):self.assertEqual(self.route(zmop,device),0)
+        for internal in (24,25,26):self.assertEqual(self.route(0,internal),0)
+
+    def test_raw_ingress_can_keep_generated_phrases_when_all_inputs_unplugged(self):
+        self.ctx.devices_in[0]=self.ctx.devices_in[1]=None
+        self.assertTrue(router._apply_exclusive(self.ctx,[],{'mbh_1:midi_out'},raw_ingress=True))
+        for internal in (24,25,26):self.assertEqual(self.route(0,internal),0)
+
+    def test_raw_graph_admits_only_verified_physical_source_connection(self):
+        from midi_inputs import Store,bootstrap
+        Store(self.path.with_name('midi-inputs.json')).save(bootstrap([self.keyboard.name]))
+        native_input=types.SimpleNamespace(name='mbh_1:midi_in_1')
+        actual=[];calls=[]
+        state={'midiThruAvailable':True,'midiThruEnabled':False,'engineSessionId':77,'revision':1}
+        def request(**kwargs):
+            if kwargs:
+                calls.append(kwargs);state['midiThruEnabled']=True
+            return {'status':'ok',**state}
+        processor=self.mb.midi_slots[0][0];processor.id=1
+        processor.engine.instances={1:{'control':types.SimpleNamespace(request=request)}}
+        self.ctx.jclient.get_ports=lambda *args,**kwargs: [self.keyboard] if kwargs.get('is_physical') else [native_input] if kwargs.get('is_input') else [self.virtual]
+        self.ctx.jclient.get_all_connections=lambda port: actual if port.name==native_input.name else [native_input] if actual else []
+        with patch.object(router,'_retry_physical_ingress'):
+            graph=self.configure()
+            self.assertEqual(calls[-1]['midi_inputs'][4],0)
+            self.assertEqual(graph[native_input.name],{self.keyboard.name})
+            self.assertFalse(graph['mbh_1:midi_in'])
+            for zmop in (0,1,2):self.assertEqual(self.route(zmop,0),0)
+            actual.append(self.keyboard)
+            self.configure();self.assertEqual(calls[-1]['midi_inputs'][4],1)
+            actual.append(self.ttymidi)
+            self.configure();self.assertEqual(calls[-1]['midi_inputs'][4],0)
 
     def configure(self):
         graph = {'mbh_1:midi_in': {'ZynMidiRouter:ch0_out'},

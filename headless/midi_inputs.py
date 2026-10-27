@@ -4,7 +4,11 @@ The registry assigns identities, not ALSA/JACK enumeration numbers. Reading an
 inventory never enrolls a device or changes the musical routing graph.
 """
 import copy
+import json
+import os
+from pathlib import Path
 import re
+import tempfile
 from midi_thru_config import LIMIT
 
 MAX_INPUTS=15  # Bus zero remains the existing aggregated/native test input.
@@ -95,6 +99,7 @@ def inventory(registry,observed):
         if len(matches)==1:
             aliases=matches[0].get('aliases') or []
             if aliases:row['name']=str(aliases[-1])[:128]
+            row['connections']=list(matches[0].get('connections',[]))
         result.append(row)
     for key,matches in by_key.items():
         entry=matches[0];aliases=entry.get('aliases') or []
@@ -104,10 +109,58 @@ def inventory(registry,observed):
     return result
 
 
-def runtime_wire(registry,observed):
+def runtime_wire(registry,observed,client=None):
     rows=[row for row in inventory(registry,observed) if row['enabled']]
     wire=[1,len(rows)]
     for row in rows:
         modes=[registry['defaults'][ch] if mode<0 else mode for ch,mode in enumerate(row['channels'])]
-        wire.extend([row['slot'],row['id'],int(row['present'] and not row['ambiguous']),*modes])
+        connected=row['present'] and not row['ambiguous']
+        if client is not None:
+            connected=connected and ingress_port(client,row['slot']) in row.get('connections',[])
+        wire.extend([row['slot'],row['id'],int(connected),*modes])
     return wire
+
+
+def ingress_port(client,slot):
+    if not isinstance(client,str) or re.fullmatch(r'mbh_\d+',client) is None or type(slot) is not int or not 1<=slot<=MAX_INPUTS:
+        raise ValueError('Expected a dedicated native MBMF physical input')
+    return f'{client}:midi_in_{slot}'
+
+
+def ingress_plan(registry,observed,client,available_inputs):
+    """Read-only plan; caller isolates native bypasses before admitting edges."""
+    rows=[row for row in inventory(registry,observed) if row['enabled']]
+    edges=[]
+    for row in rows:
+        destination=ingress_port(client,row['slot'])
+        if destination not in available_inputs:
+            raise ValueError('Native engine lacks isolated physical MIDI inputs; routing refused')
+        if row['present'] and not row['ambiguous']:
+            edges.append((row['port'],destination))
+    return edges
+
+
+class Store:
+    """Global opt-in registry, separate from patch rules and engine voice state."""
+    def __init__(self,path,legacy_ports=()):
+        self.path=Path(path)
+        self.legacy_ports=tuple(legacy_ports)
+
+    def read(self):
+        if self.path.is_symlink():raise ValueError('MIDI input registry must not be a symbolic link')
+        if not self.path.exists():return bootstrap(self.legacy_ports)
+        if self.path.stat().st_size>262144:raise ValueError('MIDI input registry is too large')
+        return validate(json.loads(self.path.read_text(encoding='utf-8')))
+
+    def save(self,registry):
+        validate(registry)
+        self.read()  # Never silently replace an unsupported or corrupt registry.
+        payload=(json.dumps(registry,ensure_ascii=False,sort_keys=True)+'\n').encode('utf-8')
+        self.path.parent.mkdir(parents=True,exist_ok=True)
+        fd,name=tempfile.mkstemp(prefix='.midi-inputs-',dir=self.path.parent)
+        try:
+            with os.fdopen(fd,'wb') as stream:
+                stream.write(payload);stream.flush();os.fsync(stream.fileno())
+            os.replace(name,self.path)
+        finally:
+            if os.path.exists(name):os.unlink(name)

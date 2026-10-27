@@ -697,6 +697,30 @@ static std::string quote(const char *s) {
   }
   return out + '"';
 }
+// Read-only graph discovery runs on the socket worker, never in JACK process.
+static std::string physicalMidiInventory(jack_client_t*client){
+  if(!client)return "[]";
+  const char**ports=jack_get_ports(client,nullptr,JACK_DEFAULT_MIDI_TYPE,JackPortIsPhysical|JackPortIsOutput);
+  if(!ports)return "[]";
+  std::ostringstream out;out<<'[';bool comma=false;
+  const unsigned capacity=unsigned(jack_port_name_size());
+  std::array<std::vector<char>,2> storage{std::vector<char>(capacity),std::vector<char>(capacity)};
+  char*aliases[2]={storage[0].data(),storage[1].data()};
+  for(unsigned n=0;ports[n] && n<256;++n){
+    const std::string name=ports[n];
+    if(name.rfind("a2j:Midi Through [",0)==0)continue;
+    auto port=jack_port_by_name(client,ports[n]);if(!port)continue;
+    if(comma)out<<',';comma=true;
+    out<<"{\"port\":"<<quote(ports[n])<<",\"aliases\":[";
+    int count=jack_port_get_aliases(port,aliases);
+    for(int a=0;a<count && a<2;++a){if(a)out<<',';out<<quote(aliases[a]);}
+    out<<"],\"connections\":[";
+    const char**connections=jack_port_get_all_connections(client,port);
+    if(connections){for(unsigned c=0;connections[c] && c<256;++c){if(c)out<<',';out<<quote(connections[c]);}jack_free(connections);}
+    out<<"]}";
+  }
+  jack_free(ports);out<<']';return out.str();
+}
 static std::string json(const Reply &r) {
   auto &s = r.state;
   std::ostringstream o;
@@ -1071,7 +1095,14 @@ static void control(int listener, Queue<Request, 8> &commands,
                     PatchModel &patch, Model &model,
                     controller::Host &controllers,
                     performance::Snapshots &performanceSnapshots,
-                    const std::function<bool(int, int, int)> &conflicts, movement::Runtime &movements,echocity::Runtime &echoRuntime) {
+                    const std::function<bool(int, int, int)> &conflicts, movement::Runtime &movements,echocity::Runtime &echoRuntime,jack_client_t*jackClient) {
+  std::string physicalInputs="[]";auto inventoryDeadline=std::chrono::steady_clock::time_point{};
+  auto replyJson=[&](const Reply&r){
+    const auto now=std::chrono::steady_clock::now();
+    if(now>=inventoryDeadline){physicalInputs=physicalMidiInventory(jackClient);inventoryDeadline=now+std::chrono::seconds(1);}
+    auto document=json(r);document.pop_back();
+    return document+",\"physicalMidiInputs\":"+physicalInputs+"}";
+  };
   std::vector<unsigned> conductorConfiguration; // worker-owned, never live MIDI state
   auto installConductor=[&](const std::vector<unsigned>& bytes){
     std::array<unsigned,64> owners{};
@@ -1368,7 +1399,7 @@ static void control(int listener, Queue<Request, 8> &commands,
         if(reply.status==0 && request.op==35 && request.arg==2){
           // Already cleared with bounded pointer writes in the callback. No pause,
           // worker RAM mutation or skipped JACK callback for inactive content.
-          send_line(fd,json(reply),shutdown);
+          send_line(fd,replyJson(reply),shutdown);
         } else if (reply.status == 0 && request.op == 35) {
           const unsigned selected=unsigned(request.target), base=selected*unsigned(variable(patch.fx,"LAYER_STRIDE"));
           const unsigned countBase=unsigned(variable(patch.fx,"COUNT_BASE"));
@@ -1381,7 +1412,7 @@ static void control(int listener, Queue<Request, 8> &commands,
             for(const char* name : {"TRIG_BASE","HOLD_ACTIVE_BASE","ONCEPOS_BASE"})
               *NSEEL_VM_getramptr(patch.fx->vm.get(),unsigned(variable(patch.fx,name))+selected,nullptr)=0;
             paused.store(false,std::memory_order_release);
-            send_line(fd,json(reply),shutdown);
+            send_line(fd,replyJson(reply),shutdown);
           } else if (request.arg == 1) {
             double duration=std::max(std::ceil(patchValues[0]*rate),std::round(patchValues[patchValues.size()-4]*rate)+1);
             if (reply.state.chainGridCapture && (duration>reply.state.chainLength ||
@@ -1400,7 +1431,7 @@ static void control(int listener, Queue<Request, 8> &commands,
               if (*patch.globals[0]<=0) { *patch.globals[0]=duration; *patch.globals[1]=1; }
             }
             paused.store(false,std::memory_order_release);
-            send_line(fd,json(reply),shutdown);
+            send_line(fd,replyJson(reply),shutdown);
           } else {
             double storedCount=*patch.memory[countBase+selected];
             bool validEvents=std::isfinite(storedCount) && storedCount>=0 && storedCount<=2048 && std::floor(storedCount)==storedCount;
@@ -1436,8 +1467,10 @@ static void control(int listener, Queue<Request, 8> &commands,
         } else if(reply.status==0 && request.op==42){
           patch.load(patch.schema,patch.factory);patch.guardedReady=false;conductorConfiguration.clear();installConductor(conductorConfiguration);
           model.loadExpressive(expressive::Configuration{});
+          model.midiThruConfig=midi_thru::Configuration{};
+          model.midiThruPending.store(true,std::memory_order_release);
           echoRuntime.configure(echocity::Configurations{},true);
-          send_line(fd,json(reply),shutdown);
+          send_line(fd,replyJson(reply),shutdown);
         } else if (reply.status == 0 && request.op == 4) {
           auto document =
               patch.save(paused, reply.state.controllerConfig, model, request.arg == 1);
@@ -1509,7 +1542,7 @@ static void control(int listener, Queue<Request, 8> &commands,
             model.abRestorePending.store(performanceSnapshots.ab.a != 0,
                                          std::memory_order_release);
           }
-          send_line(fd, json(reply), shutdown);
+          send_line(fd, replyJson(reply), shutdown);
         }
       }
       if (request.op == 4 || request.op == 5 || request.op == 35 || request.op==42) {
@@ -1579,6 +1612,11 @@ int main(int argc, char **argv) {
   jack_client_t *jack = nullptr;
   jack_port_t *midiIn = nullptr, *midiOut = nullptr;
   std::array<jack_port_t*,midi_thru::Slots> midiInputs{};
+  struct InputDisconnects {
+    jack_client_t*client=nullptr;
+    std::array<jack_port_t*,midi_thru::Slots>*ports=nullptr;
+    std::atomic<unsigned> pending{0};
+  } inputDisconnects;
   unsigned sampleRate = 48000, blockSize = 128;
   int listener = -1;
   ysfx_t *fx = nullptr;
@@ -1913,7 +1951,8 @@ int main(int argc, char **argv) {
     midi_thru::Inputs midiThruInputs;
     auto midiThruEnabled=NSEEL_VM_regvar(fx->vm.get(),"native_thru_enabled");
     auto midiThruClosePending=NSEEL_VM_regvar(fx->vm.get(),"native_thru_close_pending");
-    const bool midiThruAvailable=variable(fx,"native_thru_available")>.5;
+    const auto midiThruCapability=ysfx_find_var(fx,"native_thru_available");
+    const bool midiThruAvailable=midiThruCapability && *midiThruCapability>.5;
     std::array<EEL_F*,256> midiThruModes{},midiThruClose{};
     if(midiThruAvailable)for(unsigned j=0;j<256;++j){
       midiThruModes[j]=cell(fx,29400000+j);midiThruClose[j]=cell(fx,29468096+j);
@@ -1925,6 +1964,10 @@ int main(int argc, char **argv) {
       for(unsigned j=0;j<256;++j){*midiThruModes[j]=update.modes[j];
         if(update.close[j]){*midiThruClose[j]=1;*midiThruClosePending=1;}}
       *midiThruEnabled=midiThruActive?1:0;
+    };
+    auto assignedMidiThru=[&](const uint8_t*bytes,unsigned size,unsigned bus,bool exclusive){
+      return midiThruActive && !exclusive && size==3 && bus<midi_thru::Slots &&
+             *midiThruModes[bus*16+(bytes[0]&15)]==2;
     };
     std::atomic<bool> shutdown{false}, paused{false}, loading{false};
     std::thread io;
@@ -2353,6 +2396,11 @@ int main(int argc, char **argv) {
     };
     int programChannel = 0; // Global host reservation, 0 disables it; never a patch parameter.
     std::function<int(jack_nframes_t)> process = [&](jack_nframes_t frames) {
+      const unsigned disconnected=inputDisconnects.pending.exchange(0,std::memory_order_acq_rel);
+      if(midiThruActive && disconnected)for(unsigned slot=1;slot<midi_thru::Slots;++slot)
+        if(disconnected&(1u<<slot))for(unsigned ch=0;ch<16;++ch){
+          *midiThruClose[slot*16+ch]=1;*midiThruClosePending=1;
+        }
       realtime_trace::Trace::Scope trace(rtTrace.get(),state.samples,frames);
       if(rtTrace)trace.value.jackFrame=useJack?jack_last_frame_time(jack):state.samples;
       const uint64_t noteStart=tracedNotes,noteOnStart=tracedNoteOns,ccStart=tracedCCs,orderStart=tracedOrderErrors;
@@ -2446,6 +2494,7 @@ int main(int argc, char **argv) {
         for(unsigned slot=0;slot<midiInputs.size();++slot){
           buffers[slot]=jack_port_get_buffer(midiInputs[slot],frames);
           counts[slot]=jack_midi_get_event_count(buffers[slot]);
+          if((slot==0 && midiThruActive) || (slot>0 && !midiThruActive)){state.midiDropped+=counts[slot];counts[slot]=0;}
           remaining+=counts[slot];
           if(counts[slot] && jack_midi_event_get(&heads[slot],buffers[slot],0)){
             state.midiDropped+=counts[slot];remaining-=counts[slot];counts[slot]=0;
@@ -2512,14 +2561,16 @@ int main(int argc, char **argv) {
         e.data = m.data.data();
         e.bus = m.bus;
         auto before = controllers.learnTarget();
-        if (captureSwitch(e.data,e.size) || controllers.midi(e.data, e.size,
+        const bool captured=captureSwitch(e.data,e.size);
+        const bool exclusive=captured || controllers.exclusiveMidi(e.data,e.size);
+        if (captured || controllers.midi(e.data, e.size,
                              (state.samples + e.offset) / double(sampleRate),
                              conflicts)) {
           if (before && !controllers.learnTarget()) {
             cancelAB();
             ++state.revision;
           }
-          continue;
+          if(!assignedMidiThru(e.data,e.size,e.bus,exclusive))continue;
         }
         if(e.size==3&&(e.data[0]&240)==176){auto &p=movementPhysical[movementPhysicalCount++];p.offset=e.offset;p.ch=e.data[0]&15;p.cc=e.data[1];p.value=e.data[2];}
         if (!ysfx_send_midi(fx, &e)) {
@@ -3073,9 +3124,11 @@ int main(int argc, char **argv) {
             uint8_t data[] = {uint8_t(176 | request.ch), uint8_t(request.note),
                               uint8_t(request.value)};
             auto before = controllers.learnTarget();
-            if (!captureSwitch(data,3) && !controllers.midi(data, 3,
-                                  (state.samples + frames) / double(sampleRate),
-                                  conflicts)) {
+            const bool captured=captureSwitch(data,3);
+            const bool exclusive=captured || controllers.exclusiveMidi(data,3);
+            const bool consumed=captured || controllers.midi(data,3,
+                                  (state.samples+frames)/double(sampleRate),conflicts);
+            if (!consumed || assignedMidiThru(data,3,unsigned(request.arg),exclusive)) {
               auto &physical=movementPhysical[movementPhysicalCount++];physical.offset=0;physical.ch=request.ch;physical.cc=request.note;physical.value=request.value;
               *snapHostRead = *snapHostWrite = 0;
               ysfx_midi_event_t event{};
@@ -3269,13 +3322,16 @@ int main(int argc, char **argv) {
           event.data = data;
               event.bus = unsigned(request.arg);
           auto before = controllers.learnTarget();
-          if (captureSwitch(data,3) || controllers.midi(data, 3,
+          const bool captured=captureSwitch(data,3);
+          const bool exclusive=captured || controllers.exclusiveMidi(data,3);
+          if (captured || controllers.midi(data, 3,
                                (state.samples + frames) / double(sampleRate),
                                conflicts)) {
             if (before && !controllers.learnTarget()) {
               cancelAB();
               ++state.revision;
             }
+            if(assignedMidiThru(data,3,event.bus,exclusive) && !ysfx_send_midi(fx,&event))reply.status=3;
           } else if (!ysfx_send_midi(fx, &event))
             reply.status = 3;
         }
@@ -3695,6 +3751,16 @@ int main(int argc, char **argv) {
             return (*static_cast<std::function<int(jack_nframes_t)> *>(p))(n);
           },
           &process);
+      inputDisconnects.client=jack;inputDisconnects.ports=&midiInputs;
+      if(jack_set_port_connect_callback(jack,[](jack_port_id_t a,jack_port_id_t b,int connected,void*data){
+        if(connected)return;
+        auto&context=*static_cast<InputDisconnects*>(data);
+        const auto first=jack_port_by_id(context.client,a),second=jack_port_by_id(context.client,b);
+        unsigned mask=0;
+        for(unsigned slot=1;slot<context.ports->size();++slot)
+          if((*context.ports)[slot]==first || (*context.ports)[slot]==second)mask|=1u<<slot;
+        context.pending.fetch_or(mask,std::memory_order_release);
+      },&inputDisconnects))throw std::runtime_error("JACK MIDI input disconnect callback");
       jack_on_shutdown(jack, [](void *) { running = 0; }, nullptr);
       jack_set_xrun_callback(
           jack,
@@ -3715,7 +3781,7 @@ int main(int argc, char **argv) {
     io = std::thread(control, listener, std::ref(commands), std::ref(replies),
                      std::ref(shutdown), std::ref(paused), std::ref(loading),
                      std::ref(patch), std::ref(model), std::ref(controllers),
-                     std::ref(*performanceSnapshots), std::cref(conflicts), std::ref(movements),std::ref(echoRuntime));
+                     std::ref(*performanceSnapshots), std::cref(conflicts), std::ref(movements),std::ref(echoRuntime),jack);
     while (running) {
       if (!useJack)
         process(blockSize);

@@ -13,7 +13,7 @@ NATIVE_THRU_STALE_BASE=29435072;
 NATIVE_THRU_SUSTAIN_BASE=29467840;
 NATIVE_THRU_CLOSE_BASE=29468096;
 NATIVE_THRU_HEAD_BASE=29468352;
-ext_midi_bus=1;native_thru_enabled=0;
+ext_midi_bus=1;native_thru_available=1;native_thru_enabled=0;
 native_thru_reset_pending=0;native_thru_close_pending=0;
 native_thru_slot=0;native_thru_mode=1;native_thru_stale_until=0;
 nt_init=0;loop(256,mem[NATIVE_THRU_MODE_BASE+nt_init]=1;nt_init+=1;);

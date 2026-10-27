@@ -10,7 +10,6 @@ import unittest
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/'headless'))
 from native_capacity import build_source
-from native_midi_thru_source import extend
 from server import Control
 
 
@@ -21,9 +20,8 @@ class NativeMidiThru(unittest.TestCase):
         self.temp=tempfile.TemporaryDirectory(prefix='mbmf-midi-thru-')
         self.addCleanup(self.temp.cleanup)
         root=Path(self.temp.name)
-        # Real native source, explicitly configured as USB slot 1 and DIN slot 2.
-        source=extend(build_source((ROOT/'midi_human_looper.jsfx').read_text(encoding='utf-8')))
-        source=source.replace('\n@block\n','\nnative_thru_enabled=1;mem[NATIVE_THRU_MODE_BASE+2*16+2]=0;\n@block\n',1)
+        # Real production source and control protocol, without an injected gate.
+        source=build_source((ROOT/'midi_human_looper.jsfx').read_text(encoding='utf-8'))
         path=root/'ingress.jsfx';path.write_text(source,encoding='utf-8')
         socket=root/'control.sock'
         self.log=(root/'engine.log').open('w');self.addCleanup(self.log.close)
@@ -36,6 +34,12 @@ class NativeMidiThru(unittest.TestCase):
         else:self.fail('Native ingress fixture did not start')
         self.control=Control(str(socket))
         self.cmd(op=11,target=1,arg=1,ch=0,note=1,value=127)
+        self.inputs=[1,3]
+        for slot in (1,2,3):
+            modes=[1]*16
+            if slot==2:modes[2]=0
+            self.inputs.extend([slot,slot,1,*modes])
+        self.cmd(op=57,midi_inputs=self.inputs)
 
     def stop(self):
         self.engine.terminate()
@@ -57,9 +61,9 @@ class NativeMidiThru(unittest.TestCase):
         self.assertEqual(self.note(1,60,0)['activeNotes'],0)
 
     def test_equal_notes_from_two_allowed_inputs_do_not_cut_each_other(self):
-        self.assertEqual(self.note(0,62,100)['activeNotes'],1)
+        self.assertEqual(self.note(3,62,100)['activeNotes'],1)
         self.assertEqual(self.note(1,62,100)['activeNotes'],1)
-        self.assertEqual(self.note(0,62,0)['activeNotes'],1)
+        self.assertEqual(self.note(3,62,0)['activeNotes'],1)
         self.assertEqual(self.note(1,62,0)['activeNotes'],0)
 
     def test_phrase_learn_receives_blocked_din_and_capture_is_silent(self):
@@ -84,6 +88,22 @@ class NativeMidiThru(unittest.TestCase):
         self.assertEqual(self.note(1,65,0)['activeNotes'],0)
         self.assertEqual(self.note(1,65,100)['activeNotes'],1)
         self.assertEqual(self.note(1,65,0)['activeNotes'],0)
+
+
+    def test_closing_usb_channel_leaves_other_input_note_running(self):
+        self.assertEqual(self.note(1,66,100)['activeNotes'],1)
+        self.assertEqual(self.note(3,67,100)['activeNotes'],2)
+        modes=[-1]*16;modes[2]=0
+        self.assertEqual(self.cmd(op=56,midi_thru=[1,1,1,*modes])['activeNotes'],1)
+        self.assertEqual(self.note(1,66,0)['activeNotes'],1)
+        self.assertEqual(self.note(3,67,0)['activeNotes'],0)
+
+    def test_disconnection_releases_only_the_disconnected_input(self):
+        self.assertEqual(self.note(1,68,100)['activeNotes'],1)
+        self.assertEqual(self.note(3,69,100)['activeNotes'],2)
+        disconnected=list(self.inputs);disconnected[4]=0
+        self.assertEqual(self.cmd(op=57,midi_inputs=disconnected)['activeNotes'],1)
+        self.assertEqual(self.note(3,69,0)['activeNotes'],0)
 
 
 if __name__=='__main__':unittest.main()

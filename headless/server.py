@@ -22,7 +22,7 @@ from urllib.parse import urlsplit
 
 ROOT = Path(__file__).parent / 'web'
 
-PATCH_KEYS={'format','schema','work_mem_size','globals','memory','controllerEngine','globalSnapshots','conductor','echocity','nativeExpressive'}
+PATCH_KEYS={'format','schema','work_mem_size','globals','memory','controllerEngine','globalSnapshots','conductor','echocity','nativeExpressive','midiThru'}
 def validate_patch_extensions(patch):
     if not isinstance(patch,dict) or set(patch)-PATCH_KEYS:
         raise ValueError('Unsupported patch fields preserved; refusing to discard configuration.')
@@ -39,6 +39,10 @@ def validate_patch_extensions(patch):
         from native_expressive_config import decode as decode_expressive
         decode_expressive(patch['nativeExpressive'])
         if patch['schema']!=8:raise ValueError('Native expressive settings require schema 8')
+    if 'midiThru' in patch:
+        from midi_thru_config import decode as decode_midi_thru
+        decode_midi_thru(patch['midiThru'])
+        if patch['schema']!=8:raise ValueError('MIDI THRU rules require schema 8')
     for name,versions in (('controllerEngine',(1,2)),('globalSnapshots',(1,2,3,4))):
         if name in patch and (not isinstance(patch[name],dict) or set(patch[name])!={'version','configuration'} or type(patch[name].get('version')) is not int or patch[name]['version'] not in versions):
             raise ValueError('Unsupported patch extension preserved; refusing to discard configuration.')
@@ -71,7 +75,7 @@ class Control:
                 self._observation_json=json.dumps(state,separators=(',',':')).encode()
             return self._observation_json
 
-    def request(self, op=0, target=0, arg=0, revision=1, ch=0, note=0, value=0, session=0, patch=None, parameters=None, module=0, binding=None, name=None, settings=None, inclusions=None, macro=None,instance=None, phrase=None,echo=None,expressive=None):
+    def request(self, op=0, target=0, arg=0, revision=1, ch=0, note=0, value=0, session=0, patch=None, parameters=None, module=0, binding=None, name=None, settings=None, inclusions=None, macro=None,instance=None, phrase=None,echo=None,expressive=None,midi_thru=None,midi_inputs=None):
         # One worker producer owns the engine's command queue; HTTP threads never
         # inspect live engine state. A timeout does not cancel an already executed TEST.
         with self.lock:
@@ -97,6 +101,16 @@ class Control:
                 decode_expressive(extension)
                 values=' '.join(format(v,'.17g') for v in expressive)
                 line=line.rstrip('\n')+(' '+values if op==55 else ' native_expressive '+values)+'\n'
+            if midi_thru is not None:
+                from midi_thru_config import decode as decode_midi_thru
+                decode_midi_thru({'version':1,'configuration':midi_thru})
+                if op!=56:raise ValueError('MIDI THRU carrier requires its dedicated operation')
+                line=line.rstrip('\n')+' '+' '.join(str(v) for v in midi_thru)+'\n'
+            if midi_inputs is not None:
+                from midi_thru_config import validate_inputs
+                validate_inputs(midi_inputs)
+                if op!=57:raise ValueError('MIDI input carrier requires its dedicated operation')
+                line=line.rstrip('\n')+' '+' '.join(str(v) for v in midi_inputs)+'\n'
             if parameters is not None:
                 line=line.rstrip('\n')+f' {module} {len(parameters)} '+ ' '.join(f"{p['kind']} {p['value']:.17g}" for p in parameters)+'\n'
             if binding is not None:line=line.rstrip('\n')+' '+' '.join(format(v,'.17g') for v in binding)+'\n'
@@ -125,6 +139,8 @@ class Control:
                 line=line.rstrip('\n')+' echocity '+' '.join(format(v,'.17g') for v in patch['echocity']['configuration'])+'\n'
             if patch is not None and 'nativeExpressive' in patch:
                 line=line.rstrip('\n')+' native_expressive '+' '.join(format(v,'.17g') for v in patch['nativeExpressive']['configuration'])+'\n'
+            if patch is not None and 'midiThru' in patch:
+                line=line.rstrip('\n')+' midi_thru '+' '.join(str(v) for v in patch['midiThru']['configuration'])+'\n'
             with socket.socket(socket.AF_UNIX) as client:
                 client.settimeout(15)
                 client.connect(self.path)

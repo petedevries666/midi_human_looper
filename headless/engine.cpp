@@ -12,6 +12,7 @@
 #include "echocity_runtime.hpp"
 #include "snapshot_wire.hpp"
 #include "native_expressive_config.hpp"
+#include "midi_thru.hpp"
 #include "ysfx.hpp"
 #include <algorithm>
 #include <array>
@@ -72,8 +73,10 @@ struct ParameterChange {
   double value = 0;
 };
 struct RequestFields {
+  midi_thru::Inputs midiInputs{};
   echocity::Configurations echoConfig{};
   expressive::Configuration expressiveConfig{};
+  midi_thru::Configuration midiThruConfig{};
   uint64_t id = 0, session = 0, instanceId=0, instanceGeneration=0;
   int op = 0, target = 0, arg = 0, revision = 1, ch = 0, note = 0, value = 0;
   int module = 0, count = 0;
@@ -126,6 +129,8 @@ struct Phrase {
 struct Snapshot {
   echocity::Configurations echoConfig{};
   expressive::Configuration expressiveConfig{};
+  midi_thru::Configuration midiThruConfig{};
+  bool midiThruAvailable=false,midiThruEnabled=false;
   bool echoAvailable=false;
   unsigned echoPending=0,echoSources=0;
   uint64_t echoRejected=0;
@@ -253,6 +258,8 @@ struct Model {
       pendingValues;
   std::array<std::array<std::array<int, 5>, 12>, 8> kinds, curveIndices;
   std::array<int, 8> levelCurveIndices;
+  midi_thru::Configuration midiThruConfig{};
+  std::atomic<bool> midiThruPending{false};
   mutable expressive::Configuration expressiveSettings{};
   expressive::Configuration expressiveConfiguration() const { return expressiveSettings; }
   bool expressiveTargets(const expressive::Configuration &config) const {
@@ -591,6 +598,7 @@ struct Model {
   }
   void snapshot(Snapshot &s) const {
     s.expressiveConfig=expressiveConfiguration();
+    s.midiThruConfig=midiThruConfig;
     s.phraseCapacity=phraseCapacity;s.switchCapacity=switchCapacity;s.schema=schema;
     s.instanceError=int(*instanceError);s.instanceRejected=uint64_t(*instanceRejected);
     for(unsigned j=0;j<12+phraseCapacity;++j)for(unsigned k=0;k<14;++k)s.instances[j][k]=*instances[j][k];
@@ -705,6 +713,9 @@ static std::string json(const Reply &r) {
     << ",\"echocityPending\":" << s.echoPending << ",\"echocitySources\":" << s.echoSources
     << ",\"expressivePending\":" << s.expressivePending << ",\"expressiveRejected\":" << s.expressiveRejected << ",\"expressiveClamped\":" << s.expressiveClamped
     << ",\"nativeExpressive\":" << expressive::configurationJson(s.expressiveConfig)
+    << ",\"midiThru\":" << midi_thru::json(s.midiThruConfig)
+    << ",\"midiThruAvailable\":" << (s.midiThruAvailable?"true":"false")
+    << ",\"midiThruEnabled\":" << (s.midiThruEnabled?"true":"false")
     << ",\"echocityRejected\":" << s.echoRejected
     << ",\"chainFrameGap\":" << s.chainFrameGap << ",\"chainClockGap\":" << s.chainClockGap
     << ",\"chainTimingVersion\":" << s.chainTimingVersion
@@ -1115,7 +1126,7 @@ static void control(int listener, Queue<Request, 8> &commands,
                       request.arg >> request.revision >> request.ch >>
                       request.note >> request.value) &&
                  request.id > 0 && request.id <= 9007199254740991ULL &&
-                 request.op >= 0 && (request.op <= 55) && request.arg >= 0 &&
+                 request.op >= 0 && (request.op <= 57) && request.arg >= 0 &&
                  request.arg <= (request.op == 3 || request.op == 19 ? 15 : request.op == 1 ? 5 : request.op == 13   ? 5
                                  : request.op == 40 ? 7
                                  : request.op == 15 || request.op == 34 ? 3
@@ -1161,6 +1172,12 @@ static void control(int listener, Queue<Request, 8> &commands,
       if(input>>extra)valid=false;
     } else if(valid && request.op==55){
       valid=expressive::readConfiguration(input,request.expressiveConfig);
+      if(input>>extra)valid=false;
+    } else if(valid && request.op==56){
+      valid=midi_thru::read(input,request.midiThruConfig);
+      if(input>>extra)valid=false;
+    } else if(valid && request.op==57){
+      valid=midi_thru::readInputs(input,request.midiInputs);
       if(input>>extra)valid=false;
     } else if (valid && request.op == 35) {
       valid = request.target >= 0 && request.target < int(model.phraseCapacity) && request.arg >= 0 && request.arg <= 2;
@@ -1221,6 +1238,10 @@ static void control(int listener, Queue<Request, 8> &commands,
         }
         if(valid && marker=="native_expressive"){
           valid=expressive::readConfiguration(input,request.expressiveConfig);
+          if(!(input>>marker))marker.clear();
+        }
+        if(valid && marker=="midi_thru"){
+          valid=midi_thru::read(input,request.midiThruConfig);
           if(!(input>>marker))marker.clear();
         }
         if (!marker.empty()) valid=false;
@@ -1439,6 +1460,8 @@ static void control(int listener, Queue<Request, 8> &commands,
             if(std::any_of(savedExpressive.begin(),savedExpressive.end(),[](const auto &setting){return setting.instrument!=0;}))
               document.insert(document.find_last_of('}'),",\"nativeExpressive\":"+expressive::configurationJson(savedExpressive));
           }
+          if(!midi_thru::empty(model.midiThruConfig))
+            document.insert(document.find_last_of('}'),",\"midiThru\":"+midi_thru::json(model.midiThruConfig));
           if(reply.state.echoAvailable)document.insert(document.find_last_of('}'),",\"echocity\":"+echocity::json(reply.state.echoConfig));
           paused.store(false, std::memory_order_release);
           send_line(fd, document, shutdown);
@@ -1475,6 +1498,8 @@ static void control(int listener, Queue<Request, 8> &commands,
             }
           }
           if (reply.status == 0 && request.op == 5) {
+            model.midiThruConfig=request.midiThruConfig;
+            model.midiThruPending.store(true,std::memory_order_release);
             installConductor(pendingConductor);
             echoRuntime.configure(request.echoConfig,true);
             conductorConfiguration.swap(pendingConductor);
@@ -1553,6 +1578,7 @@ int main(int argc, char **argv) {
   }
   jack_client_t *jack = nullptr;
   jack_port_t *midiIn = nullptr, *midiOut = nullptr;
+  std::array<jack_port_t*,midi_thru::Slots> midiInputs{};
   unsigned sampleRate = 48000, blockSize = 128;
   int listener = -1;
   ysfx_t *fx = nullptr;
@@ -1588,6 +1614,12 @@ int main(int argc, char **argv) {
                                    JackPortIsOutput, 0);
       if (!midiIn || !midiOut)
         throw std::runtime_error("JACK MIDI ports");
+      midiInputs[0]=midiIn;
+      for(unsigned slot=1;slot<midiInputs.size();++slot){
+        const auto port="midi_in_"+std::to_string(slot);
+        midiInputs[slot]=jack_port_register(jack,port.c_str(),JACK_DEFAULT_MIDI_TYPE,JackPortIsInput,0);
+        if(!midiInputs[slot])throw std::runtime_error("JACK physical MIDI input ports");
+      }
     }
     ysfx_set_sample_rate(fx, sampleRate);
     ysfx_set_block_size(fx, blockSize);
@@ -1877,6 +1909,23 @@ int main(int argc, char **argv) {
     std::unique_ptr<Queue<Reply, 8>> replyStorage(new Queue<Reply, 8>());
     auto &commands = *commandStorage;
     auto &replies = *replyStorage;
+    midi_thru::Runtime midiThruRuntime;
+    midi_thru::Inputs midiThruInputs;
+    auto midiThruEnabled=NSEEL_VM_regvar(fx->vm.get(),"native_thru_enabled");
+    auto midiThruClosePending=NSEEL_VM_regvar(fx->vm.get(),"native_thru_close_pending");
+    const bool midiThruAvailable=variable(fx,"native_thru_available")>.5;
+    std::array<EEL_F*,256> midiThruModes{},midiThruClose{};
+    if(midiThruAvailable)for(unsigned j=0;j<256;++j){
+      midiThruModes[j]=cell(fx,29400000+j);midiThruClose[j]=cell(fx,29468096+j);
+    }
+    bool midiThruActive=false;
+    auto refreshMidiThru=[&](){
+      if(!midiThruAvailable)return;
+      const auto update=midiThruRuntime.configure(model.midiThruConfig,midiThruInputs);
+      for(unsigned j=0;j<256;++j){*midiThruModes[j]=update.modes[j];
+        if(update.close[j]){*midiThruClose[j]=1;*midiThruClosePending=1;}}
+      *midiThruEnabled=midiThruActive?1:0;
+    };
     std::atomic<bool> shutdown{false}, paused{false}, loading{false};
     std::thread io;
     std::unique_ptr<performance::Snapshots> performanceSnapshots(
@@ -2390,29 +2439,41 @@ int main(int argc, char **argv) {
           flushOutput(outBuffer, frames);
       }
       if (useJack) {
-        void *in = jack_port_get_buffer(midiIn, frames);
-        unsigned n = jack_midi_get_event_count(in);
-        trace.value.inputEvents=n;
-        state.midiReceived+=n;
-        for (unsigned i = 0; i < n; ++i) {
-          jack_midi_event_t e;
-          if (jack_midi_event_get(&e, in, i) || muted || recovering || echoRecovering ||
-              loading.load(std::memory_order_acquire)) {
-            ++state.midiDropped;
-          } else {
-            if (programChannel && e.size==2 && (e.buffer[0]&240)==192 &&
-                (e.buffer[0]&15)==programChannel-1) continue;
-            if (inputWrite - inputRead >= 8192 || e.size > 256) {
-              ++state.midiDropped;
-              ++state.outputOverflow;
-              overflowRecovery = true;
-            } else {
-              ++state.midiInputAccepted;
-              auto &m = (*inputQueue)[inputWrite++ % 8192];
-              m.size = e.size;
-              m.offset = e.time;
-              std::memcpy(m.data.data(), e.buffer, e.size);
+        std::array<void*,midi_thru::Slots> buffers{};
+        std::array<unsigned,midi_thru::Slots> counts{},cursors{};
+        std::array<jack_midi_event_t,midi_thru::Slots> heads{};
+        unsigned remaining=0;
+        for(unsigned slot=0;slot<midiInputs.size();++slot){
+          buffers[slot]=jack_port_get_buffer(midiInputs[slot],frames);
+          counts[slot]=jack_midi_get_event_count(buffers[slot]);
+          remaining+=counts[slot];
+          if(counts[slot] && jack_midi_event_get(&heads[slot],buffers[slot],0)){
+            state.midiDropped+=counts[slot];remaining-=counts[slot];counts[slot]=0;
+          }
+        }
+        trace.value.inputEvents=remaining;state.midiReceived+=remaining;
+        while(remaining){
+          unsigned selected=midiInputs.size();jack_nframes_t earliest=frames;
+          for(unsigned slot=0;slot<midiInputs.size();++slot)
+            if(cursors[slot]<counts[slot] && (selected==midiInputs.size() || heads[slot].time<earliest)){
+              selected=slot;earliest=heads[slot].time;
             }
+          if(selected==midiInputs.size())break;
+          const auto e=heads[selected];--remaining;
+          if(muted || recovering || echoRecovering || loading.load(std::memory_order_acquire))++state.midiDropped;
+          else if(!(programChannel && e.size==2 && (e.buffer[0]&240)==192 && (e.buffer[0]&15)==programChannel-1)){
+            if(inputWrite-inputRead>=8192 || e.size>256){
+              ++state.midiDropped;++state.outputOverflow;overflowRecovery=true;
+            }else{
+              ++state.midiInputAccepted;auto &m=(*inputQueue)[inputWrite++%8192];
+              m.size=e.size;m.offset=e.time;m.bus=selected;
+              std::memcpy(m.data.data(),e.buffer,e.size);
+            }
+          }
+          if(++cursors[selected]<counts[selected] &&
+             jack_midi_event_get(&heads[selected],buffers[selected],cursors[selected])){
+            const unsigned lost=counts[selected]-cursors[selected];
+            state.midiDropped+=lost;remaining-=lost;cursors[selected]=counts[selected];
           }
         }
       }
@@ -2570,6 +2631,14 @@ int main(int argc, char **argv) {
               }
               expressiveCancelPending=true;++state.revision;
             }
+          }
+        }
+        else if(request.op==56 || request.op==57){
+          if(!midiThruAvailable)reply.status=3;
+          else{
+            if(request.op==56)model.midiThruConfig=request.midiThruConfig;
+            else{midiThruInputs=request.midiInputs;midiThruActive=true;}
+            refreshMidiThru();++state.revision;
           }
         }
         else if(request.op==53){
@@ -3211,6 +3280,8 @@ int main(int argc, char **argv) {
             reply.status = 3;
         }
       }
+      if(model.midiThruPending.exchange(false,std::memory_order_acq_rel))refreshMidiThru();
+      state.midiThruAvailable=midiThruAvailable;state.midiThruEnabled=midiThruActive;
       trace.value.commands=count;
       trace.mark(2);
       for (unsigned j = 0; j < performanceTargetCount;) {

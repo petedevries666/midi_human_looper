@@ -21,3 +21,15 @@ def decode(extension):
 def wire(extension):
     decode(extension)
     return extension['configuration']
+
+
+def validate_inputs(values):
+    if not isinstance(values,list) or len(values)<2 or any(type(v) is not int for v in values) or values[0]!=1 or not 0<=values[1]<SLOTS or len(values)!=2+values[1]*19:
+        raise ValueError('Invalid MIDI input runtime carrier')
+    slots=set();sources=set()
+    for at in range(2,len(values),19):
+        slot,source,connected=values[at:at+3]
+        if not 1<=slot<SLOTS or slot in slots or not 1<=source<=LIMIT or source in sources or connected not in (0,1) or any(mode not in (0,1,2) for mode in values[at+3:at+19]):
+            raise ValueError('Invalid MIDI input runtime source or policy')
+        slots.add(slot);sources.add(source)
+    return values

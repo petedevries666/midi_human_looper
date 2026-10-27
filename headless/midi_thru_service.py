@@ -1,8 +1,7 @@
 """Non-realtime MIDI input configuration; audio routing belongs to Oram."""
-import copy
 import hashlib
 import json
-from midi_inputs import Store,channels,enroll,inventory
+from midi_inputs import Store,channels,enroll,inventory,canonicalize
 
 
 class Service:
@@ -49,8 +48,10 @@ class Service:
             raise ValueError('MIDI source absent or ambiguous; no substitution allowed')
         if row['id'] is None and not row['present']:
             raise ValueError('Connect the MIDI source before enabling it')
-        next_registry=copy.deepcopy(registry)
-        saved=enroll(next_registry,row['port'] or row['key'],row['name'],request['enabled'])
+        next_registry=canonicalize(registry,state.get('physicalMidiInputs',[]))
+        if row['id'] is not None:
+            row=next(r for r in inventory(next_registry,state.get('physicalMidiInputs',[])) if r['id']==row['id'])
+        saved=enroll(next_registry,row['port'] or row['key'],row['name'],request['enabled'],identity=row['key'])
         saved['channels']=modes
         self.store.save(next_registry)
         # This requests one autoconnect pass. Never change TEACH's scoped relay

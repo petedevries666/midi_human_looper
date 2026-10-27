@@ -31,6 +31,12 @@ simultaneous devices with the same normalized name are ambiguous and remain
 blocked rather than being silently exchanged. Up to 15 physical inputs can be
 managed; inactive historical device identities are retained.
 
+For JACK's `system:midi_capture_N` USB ports, the USB hardware alias identifies
+the physical USB path, device and MIDI input port. A changed capture number does
+not change the saved identity. Replacing a keyboard with another model does not
+silently inherit its rules. Existing explicit port selections migrate on APPLY,
+preserving their IDs, channel policies and patch references.
+
 ## Routing and note lifetime
 
 Each enabled physical source uses a dedicated native JACK input. Oram closes

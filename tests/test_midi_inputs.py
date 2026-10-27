@@ -5,7 +5,7 @@ import tempfile
 import unittest
 
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'headless'))
-from midi_inputs import bootstrap,enroll,inventory,runtime_wire,validate,ingress_plan,Store
+from midi_inputs import bootstrap,enroll,inventory,runtime_wire,validate,ingress_plan,Store,source_key,canonicalize
 from midi_thru_config import decode,validate_inputs
 
 
@@ -16,6 +16,29 @@ class MidiInputs(unittest.TestCase):
         self.assertEqual((row['id'],row['slot'],row['present']),(2,2,True))
         self.assertEqual(row['name'],'AKAI keyboard')
         self.assertEqual(registry['sources'][1]['id'],2)
+
+    def test_system_usb_alias_survives_jack_capture_port_renumbering(self):
+        original={'port':'system:midi_capture_3','aliases':['USB:1.1.1/MPKmini2 IN 1','MPKmini2']}
+        registry=bootstrap();saved=enroll(registry,original['port'],'MPKmini2',identity=source_key(original))
+        moved={**original,'port':'system:midi_capture_7'}
+        row=inventory(registry,[moved])[0]
+        self.assertEqual((row['id'],row['slot'],row['present']),(saved['id'],saved['slot'],True))
+        other={'port':original['port'],'aliases':['USB:1.1.1/OTHER IN 1','OTHER']}
+        rows=inventory(registry,[other])
+        self.assertFalse(rows[0]['present']);self.assertIsNone(rows[1]['id'])
+
+    def test_explicit_legacy_alias_migration_keeps_patch_source_identity(self):
+        registry=bootstrap(['system:midi_capture_1','ttymidi:MIDI_in']);before=copy.deepcopy(registry)
+        observed=[{'port':'system:midi_capture_1','aliases':['USB:f_midi OUT 1 IN 1','USB HOST']},{'port':'ttymidi:MIDI_in'}]
+        migrated=canonicalize(registry,observed)
+        self.assertEqual(registry,before)
+        self.assertEqual((migrated['sources'][0]['id'],migrated['sources'][0]['slot']),(1,1))
+        self.assertEqual(migrated['sources'][0]['key'],'jack-alias:USB:f_midi OUT 1 IN 1')
+
+    def test_legacy_named_usb_source_never_substitutes_another_device(self):
+        registry=bootstrap();enroll(registry,'system:midi_capture_3','MPKmini2')
+        rows=inventory(registry,[{'port':'system:midi_capture_3','aliases':['USB:1.1.1/OTHER IN 1','OTHER']}])
+        self.assertFalse(rows[0]['present']);self.assertIsNone(rows[1]['id'])
 
     def test_two_identical_usb_names_fail_closed(self):
         registry=bootstrap(['a2j:AKAI [20] (capture): MIDI 1'])

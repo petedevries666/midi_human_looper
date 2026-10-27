@@ -22,6 +22,17 @@ def port_key(name):
     return re.sub(r' \[\d+\](?= \(capture\):)', '', name) if name.startswith('a2j:') else name
 
 
+def source_key(entry):
+    name=port_key(entry['port'])
+    # JACK's ALSA bridge renumbers system:midi_capture_N after hotplug. Its
+    # USB alias carries the physical USB path, device name and MIDI port.
+    if name.startswith('system:midi_capture_'):
+        for alias in entry.get('aliases') or []:
+            if isinstance(alias,str) and alias.startswith('USB:'):
+                return port_key('jack-alias:'+alias)
+    return name
+
+
 def channels(value,inherit=False):
     if not isinstance(value,list) or len(value)!=16 or any(type(v) is not int or v not in ((-1,0,1,2) if inherit else (0,1,2)) for v in value):
         raise ValueError('Expected 16 MIDI THRU channel policies')
@@ -63,10 +74,10 @@ def bootstrap(legacy_ports=()):
     return validate(registry)
 
 
-def enroll(registry,port,name=None,enabled=True):
+def enroll(registry,port,name=None,enabled=True,identity=None):
     validate(registry)
     if type(enabled) is not bool:raise ValueError('MIDI input enabled must be boolean')
-    key=port_key(port)
+    key=port_key(identity if identity is not None else port)
     source=next((s for s in registry['sources'] if s['key']==key),None)
     # Refuse before allocating an identity: an unsuccessful edit must leave the
     # saved configuration byte-for-byte equivalent, including nextId.
@@ -88,11 +99,19 @@ def inventory(registry,observed):
     validate(registry)
     by_key={}
     for entry in observed:
-        key=port_key(entry['port'])
+        key=source_key(entry)
         by_key.setdefault(key,[]).append(entry)
     result=[]
     for source in registry['sources']:
         matches=by_key.pop(source['key'],[])
+        if not matches and source['key'].startswith('system:midi_capture_'):
+            # Existing explicit port selections can be reviewed and migrated
+            # on APPLY. A stored device name must never silently change owner.
+            legacy=[(key,group) for key,group in by_key.items() if any(e['port']==source['key'] for e in group)]
+            if len(legacy)==1:
+                key,group=legacy[0];aliases=group[0].get('aliases') or []
+                if source['name']==source['key'] or (aliases and source['name']==aliases[-1]):
+                    matches=by_key.pop(key)
         row=copy.deepcopy(source)
         row.update(present=len(matches)==1,ambiguous=len(matches)>1,
                    port=matches[0]['port'] if len(matches)==1 else None)
@@ -107,6 +126,18 @@ def inventory(registry,observed):
                        'slot':0,'enabled':False,'channels':[-1]*16,'present':len(matches)==1,
                        'ambiguous':len(matches)>1,'port':entry['port'] if len(matches)==1 else None})
     return result
+
+
+def canonicalize(registry,observed):
+    """Explicit APPLY migration; preserve saved source IDs and channel rules."""
+    result=copy.deepcopy(validate(registry))
+    rows=inventory(registry,observed)
+    for source in result['sources']:
+        row=next(r for r in rows if r['id']==source['id'])
+        if row['present']:
+            entry=next(e for e in observed if e['port']==row['port'])
+            source['key']=source_key(entry);source['name']=row['name']
+    return validate(result)
 
 
 def runtime_wire(registry,observed,client=None):

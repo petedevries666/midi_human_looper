@@ -37,7 +37,7 @@ local(slot,at,offs,st,data)
 function native_thru_next()
 local(slot,at,best,best_offset,offs,st,data)
 (
- best=-1;best_offset=1e30;slot=0;
+ best=-1;best_offset=samplesblock+1;slot=0;
  loop(native_thru_enabled?16:1,
   at=NATIVE_THRU_HEAD_BASE+slot*4;
   mem[at]>0 && mem[at+1]<best_offset?(

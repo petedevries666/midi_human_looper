@@ -11,6 +11,7 @@
 #include "panic_sweep.hpp"
 #include "echocity_runtime.hpp"
 #include "snapshot_wire.hpp"
+#include "native_expressive_config.hpp"
 #include "ysfx.hpp"
 #include <algorithm>
 #include <array>
@@ -72,6 +73,7 @@ struct ParameterChange {
 };
 struct RequestFields {
   echocity::Configurations echoConfig{};
+  expressive::Configuration expressiveConfig{};
   uint64_t id = 0, session = 0, instanceId=0, instanceGeneration=0;
   int op = 0, target = 0, arg = 0, revision = 1, ch = 0, note = 0, value = 0;
   int module = 0, count = 0;
@@ -123,9 +125,12 @@ struct Phrase {
 };
 struct Snapshot {
   echocity::Configurations echoConfig{};
+  expressive::Configuration expressiveConfig{};
   bool echoAvailable=false;
   unsigned echoPending=0,echoSources=0;
   uint64_t echoRejected=0;
+  uint64_t expressiveRejected=0,expressiveClamped=0;
+  unsigned expressivePending=0;
   unsigned switchLearnTarget=0;bool switchLearnConflict=false;
   uint64_t samples = 0, blocks = 0, midi = 0, late = 0, last_sample = 0;
   int revision = 1;
@@ -248,6 +253,18 @@ struct Model {
       pendingValues;
   std::array<std::array<std::array<int, 5>, 12>, 8> kinds, curveIndices;
   std::array<int, 8> levelCurveIndices;
+  mutable expressive::Configuration expressiveSettings{};
+  expressive::Configuration expressiveConfiguration() const { return expressiveSettings; }
+  bool expressiveTargets(const expressive::Configuration &config) const {
+    for(const auto &setting:config) if(setting.instrument) {
+      bool found=false;
+      for(unsigned i=0;i<8;++i)
+        found |= *inst[i][0]>.5 && unsigned(*inst[i][1])==setting.instrument;
+      if(!found)return false;
+    }
+    return true;
+  }
+  void loadExpressive(const expressive::Configuration &config) { expressiveSettings=config; }
   void initParameters(ysfx_t *fx) {
     auto i = NSEEL_VM_regvar(fx->vm.get(), "remote_pi"),
          c = NSEEL_VM_regvar(fx->vm.get(), "remote_pc"),
@@ -433,6 +450,10 @@ struct Model {
         add(identity(*inst[i][1]), 0, 1, *inst[i][5], *levelAssignment[i] != 0);
         for (unsigned j = 0; j < 3; ++j)
           add(identity(*inst[i][1]), 0, 21 + j, *inst[i][2 + j], false);
+        for (const auto &setting : expressiveSettings)
+          if (setting.instrument == identity(*inst[i][1]) && setting.curveModule)
+            add(setting.instrument, setting.curveModule, 27,
+                setting.curve.amount, false);
         if (!std::isfinite(*tfCount[i]) || *tfCount[i] < 0 || *tfCount[i] > 6 ||
             *tfCount[i] != std::floor(*tfCount[i])) {
           result.count = 513;
@@ -484,6 +505,16 @@ struct Model {
         break;
     if (i == 8)
       return false;
+    if (b.kind == 27) {
+      for (const auto &setting : expressiveSettings)
+        if (setting.instrument == b.instrument && setting.curveModule &&
+            setting.curveModule == b.module) {
+          code = -3;
+          row = 0;
+          return true;
+        }
+      return false;
+    }
     if (!b.module) {
       code = 0;
       row = 0;
@@ -523,6 +554,12 @@ struct Model {
     if (!resolve(b, i, c, r, legacy))
       return nullptr;
     if(b.kind==25 || b.kind==26)return &hostMixer[i][b.kind-25];
+    if(c==-3){
+      for(auto &setting:expressiveSettings)
+        if(setting.instrument==b.instrument && setting.curveModule==b.module)
+          return &setting.curve.amount;
+      return nullptr;
+    }
     return c == -1   ? phrase[i][r]
            : c == -2 ? tfCodes[i][r]
            : c       ? values[i][c][r]
@@ -553,6 +590,7 @@ struct Model {
     return pending && *pending != -999 ? *pending : *bindingValue(b);
   }
   void snapshot(Snapshot &s) const {
+    s.expressiveConfig=expressiveConfiguration();
     s.phraseCapacity=phraseCapacity;s.switchCapacity=switchCapacity;s.schema=schema;
     s.instanceError=int(*instanceError);s.instanceRejected=uint64_t(*instanceRejected);
     for(unsigned j=0;j<12+phraseCapacity;++j)for(unsigned k=0;k<14;++k)s.instances[j][k]=*instances[j][k];
@@ -665,6 +703,8 @@ static std::string json(const Reply &r) {
     << ",\"echocityAvailable\":" << (s.echoAvailable?"true":"false")
     << ",\"echocity\":" << echocity::json(s.echoConfig)
     << ",\"echocityPending\":" << s.echoPending << ",\"echocitySources\":" << s.echoSources
+    << ",\"expressivePending\":" << s.expressivePending << ",\"expressiveRejected\":" << s.expressiveRejected << ",\"expressiveClamped\":" << s.expressiveClamped
+    << ",\"nativeExpressive\":" << expressive::configurationJson(s.expressiveConfig)
     << ",\"echocityRejected\":" << s.echoRejected
     << ",\"chainFrameGap\":" << s.chainFrameGap << ",\"chainClockGap\":" << s.chainClockGap
     << ",\"chainTimingVersion\":" << s.chainTimingVersion
@@ -1075,7 +1115,7 @@ static void control(int listener, Queue<Request, 8> &commands,
                       request.arg >> request.revision >> request.ch >>
                       request.note >> request.value) &&
                  request.id > 0 && request.id <= 9007199254740991ULL &&
-                 request.op >= 0 && (request.op <= 54) && request.arg >= 0 &&
+                 request.op >= 0 && (request.op <= 55) && request.arg >= 0 &&
                  request.arg <= (request.op == 1 ? 5 : request.op == 13   ? 5
                                  : request.op == 40 ? 7
                                  : request.op == 15 || request.op == 34 ? 3
@@ -1118,6 +1158,9 @@ static void control(int listener, Queue<Request, 8> &commands,
       if(input>>extra)valid=false;
     } else if(valid && request.op==54){
       valid=echocity::read(input,request.echoConfig);
+      if(input>>extra)valid=false;
+    } else if(valid && request.op==55){
+      valid=expressive::readConfiguration(input,request.expressiveConfig);
       if(input>>extra)valid=false;
     } else if (valid && request.op == 35) {
       valid = request.target >= 0 && request.target < int(model.phraseCapacity) && request.arg >= 0 && request.arg <= 2;
@@ -1174,6 +1217,10 @@ static void control(int listener, Queue<Request, 8> &commands,
         }
         if(valid && marker=="echocity"){
           valid=echocity::read(input,request.echoConfig);
+          if(!(input>>marker))marker.clear();
+        }
+        if(valid && marker=="native_expressive"){
+          valid=expressive::readConfiguration(input,request.expressiveConfig);
           if(!(input>>marker))marker.clear();
         }
         if (!marker.empty()) valid=false;
@@ -1367,6 +1414,7 @@ static void control(int listener, Queue<Request, 8> &commands,
           paused.store(false,std::memory_order_release);
         } else if(reply.status==0 && request.op==42){
           patch.load(patch.schema,patch.factory);patch.guardedReady=false;conductorConfiguration.clear();installConductor(conductorConfiguration);
+          model.loadExpressive(expressive::Configuration{});
           echoRuntime.configure(echocity::Configurations{},true);
           send_line(fd,json(reply),shutdown);
         } else if (reply.status == 0 && request.op == 4) {
@@ -1380,6 +1428,17 @@ static void control(int listener, Queue<Request, 8> &commands,
                                     performanceSnapshots.configuration()));
           if (!conductorConfiguration.empty())
             document.insert(document.find_last_of('}'),",\"conductor\":"+conductor::json(conductorConfiguration));
+          if(model.schema==8){
+            auto savedExpressive=model.expressiveConfiguration();
+            for(const auto &binding:reply.state.controllerConfig.bindings)
+              if(binding.policy.id && binding.kind==27)
+                for(auto &setting:savedExpressive)
+                  if(setting.instrument==binding.instrument &&
+                     setting.curveModule==binding.module)
+                    setting.curve.amount=performance::physical(27,binding.base);
+            if(std::any_of(savedExpressive.begin(),savedExpressive.end(),[](const auto &setting){return setting.instrument!=0;}))
+              document.insert(document.find_last_of('}'),",\"nativeExpressive\":"+expressive::configurationJson(savedExpressive));
+          }
           if(reply.state.echoAvailable)document.insert(document.find_last_of('}'),",\"echocity\":"+echocity::json(reply.state.echoConfig));
           paused.store(false, std::memory_order_release);
           send_line(fd, document, shutdown);
@@ -1393,8 +1452,10 @@ static void control(int listener, Queue<Request, 8> &commands,
               previous[j] = *patch.globals[j];
             for (unsigned j = 0; j < patch.memory.size(); ++j)
               previous[9 + j] = *patch.memory[j];
+            auto previousExpressive=model.expressiveConfiguration();
             patch.load(unsigned(request.target), patchValues);
-            bool collision = false;
+            model.loadExpressive(request.expressiveConfig);
+            bool collision = !model.expressiveTargets(request.expressiveConfig);
             for(const auto &c:request.echoConfig)if(c.id){
               bool found=false;for(unsigned j=0;j<8;++j)found|=*model.inst[j][1]==c.instrument && *model.inst[j][0]>.5;
               if(!reply.state.echoAvailable || !found)collision=true;
@@ -1409,6 +1470,7 @@ static void control(int listener, Queue<Request, 8> &commands,
                                        return model.bindingValue(b) != nullptr;
                                      })) {
               patch.load(patch.schema, previous);
+              model.loadExpressive(previousExpressive);
               reply.status = 3;
             }
           }
@@ -1769,6 +1831,11 @@ int main(int argc, char **argv) {
         if(std::abs(model.hostMixer[i][field]-physical)>1e-9){model.hostMixer[i][field]=physical;++model.hostMixerSequence[i][field];}
         return;
       }
+      if (b.kind == 27) {
+        if (auto amount = model.bindingValue(b, true))
+          *amount = performance::physical(27, value);
+        return;
+      }
       if (b.kind >= 17) {
         *editI = i;
         *editCode = code;
@@ -1834,6 +1901,9 @@ int main(int argc, char **argv) {
     Snapshot state;
     std::unique_ptr<echocity::Runtime> echoStorage(new echocity::Runtime(sampleRate));
     auto &echoRuntime=*echoStorage;
+    std::unique_ptr<expressive::StreamRuntime<256>> expressiveStream(
+        new expressive::StreamRuntime<256>(sampleRate));
+    bool expressiveCancelPending=false;
     std::unique_ptr<echocity::SourceJournal<>> echoJournal(new echocity::SourceJournal<>());
     auto echoHost=NSEEL_VM_regvar(fx->vm.get(),"native_echo_sources");
     auto echoRead=NSEEL_VM_regvar(fx->vm.get(),"native_echo_read");
@@ -2177,6 +2247,8 @@ int main(int argc, char **argv) {
         new std::array<MidiPacket, 8192>());
     std::unique_ptr<std::array<unsigned, 8192>> outputOrder(
         new std::array<unsigned, 8192>());
+    std::unique_ptr<std::array<MidiPacket, 8192>> expressiveBatch(
+        new std::array<MidiPacket, 8192>());
     unsigned outputRead = 0, outputWrite = 0;
     std::atomic<unsigned> outputPending{0};
     std::atomic<bool> finalAcknowledged{false};
@@ -2476,6 +2548,29 @@ int main(int argc, char **argv) {
           }
           if(!reply.status){echoRuntime.configure(request.echoConfig);++state.revision;}
         }
+        else if(request.op==55){
+          auto previousExpressive=model.expressiveConfiguration();
+          if(!model.expressiveTargets(request.expressiveConfig))reply.status=2;
+          else{
+            model.loadExpressive(request.expressiveConfig);
+            for(const auto &binding:controllers.configuration().bindings)
+              if(binding.policy.id && binding.kind==27 && !model.bindingValue(binding))
+                reply.status=2;
+            if(reply.status)model.loadExpressive(previousExpressive);
+            else{
+              for(const auto &setting:request.expressiveConfig){
+                auto prior=std::find_if(previousExpressive.begin(),previousExpressive.end(),
+                  [&](const auto &old){return old.instrument==setting.instrument &&
+                    old.curveModule==setting.curveModule;});
+                if(prior!=previousExpressive.end() &&
+                   std::abs(prior->curve.amount-setting.curve.amount)>1e-9)
+                  controllers.recall(setting.instrument,setting.curveModule,27,
+                    performance::normalized(27,setting.curve.amount));
+              }
+              expressiveCancelPending=true;++state.revision;
+            }
+          }
+        }
         else if(request.op==53){
           if(request.value>16)reply.status=3;
           else {programChannel=int(request.value);++state.revision;}
@@ -2663,6 +2758,11 @@ int main(int argc, char **argv) {
                 *target = request.target;
                 *editOp = 1;
                 NSEEL_code_execute(instrumentLifecycle);
+                auto expressive=model.expressiveConfiguration();
+                for(auto &setting:expressive)
+                  if(setting.instrument==unsigned(request.target))setting=expressive::InstrumentSettings{};
+                model.loadExpressive(expressive);
+                expressiveCancelPending=true;
                 valid = true;
               } else reply.status = 2;
             }
@@ -3074,6 +3174,7 @@ int main(int argc, char **argv) {
           if (*ok != 1)
             reply.status = 2;
         } else if (request.op == 2) {
+          expressiveCancelPending=true;
           if(chainMode)panicSweep.begin();
           if(echoProtocol){echoRuntime.configure(echoRuntime.configuration(),true);echoRecovering=true;}
           state.switchLearnTarget=0;state.switchLearnConflict=false;chain.cancel();
@@ -3357,7 +3458,68 @@ int main(int argc, char **argv) {
         if(removed)echoRuntime.configure(alive);
       }
       state.echoConfig=echoRuntime.configuration();state.echoPending=echoRuntime.pending();state.echoSources=echoRuntime.sources();state.echoRejected=echoRuntime.rejected;
-      outputCount=movementOutputCount;bool outputSorted=true;
+      state.expressivePending=unsigned(expressiveStream->pending());state.expressiveRejected=expressiveStream->rejected;state.expressiveClamped=expressiveStream->clamped;
+      outputCount=movementOutputCount;
+      // Apply per-instrument HUMANIZER and VELOCITY CURVES after the native
+      // transformer chain and before JACK. Disabled modules take the exact
+      // original packet path. The fixed stream table pairs overlapping voices
+      // and schedules attacks/releases without callback allocation or locks.
+      auto expressiveSettings=model.expressiveConfiguration();
+      bool expressiveActive=false;
+      for(const auto &setting:expressiveSettings)
+        expressiveActive|=setting.instrument &&
+          ((setting.humanizerModule && setting.humanizer.enabled) ||
+           (setting.curveModule && setting.curve.enabled));
+      if(expressiveActive || expressiveStream->pending() || expressiveCancelPending){
+        bool ordered=true;
+        for(unsigned j=1;j<outputCount;++j){const auto&a=(*outputBatch)[j-1],&b=(*outputBatch)[j];if(a.offset>b.offset||(a.offset==b.offset&&a.order>b.order)){ordered=false;break;}}
+        for(unsigned j=0;j<outputCount;++j)(*outputOrder)[j]=j;
+        if(!ordered)std::sort(outputOrder->begin(),outputOrder->begin()+outputCount,[&](unsigned a,unsigned b){const auto&x=(*outputBatch)[a];const auto&y=(*outputBatch)[b];return x.offset!=y.offset?x.offset<y.offset:(x.order!=y.order?x.order<y.order:a<b);});
+        unsigned expressiveCount=0;uint64_t expressiveIdentity=state.samples+state.blocks*uint64_t(frames);
+        auto copyExpressive=[&](const MidiPacket&src){if(expressiveCount>=expressiveBatch->size()){++state.outputOverflow;overflowRecovery=true;return false;}(*expressiveBatch)[expressiveCount++]=src;return true;};
+        if(expressiveCancelPending){
+          if(!expressiveStream->cancel(state.samples,0,0,[&](uint64_t sample,bool on,uint8_t ch,uint8_t pitch,uint8_t velocity){
+            if(expressiveCount>=expressiveBatch->size()){++state.outputOverflow;overflowRecovery=true;return false;}
+            auto&m=(*expressiveBatch)[expressiveCount++];m.size=3;m.offset=unsigned(std::min<uint64_t>(frames-1,sample>state.samples?sample-state.samples:0));m.bus=0;m.order=expressiveCount*4;m.data[0]=uint8_t((on?144:128)|ch);m.data[1]=pitch;m.data[2]=velocity;return true;
+          })) {++state.outputOverflow;overflowRecovery=true;}
+          expressiveCancelPending=false;
+        }
+        for(unsigned j=0;j<outputCount;++j){const auto &src=(*outputBatch)[(*outputOrder)[j]];
+          if(src.size==3 && (src.data[0]&240)==176 && (src.data[1]==120 || src.data[1]==123))expressiveStream->channelCleared(src.data[0]&15);
+          if(src.size!=3 || ((src.data[0]&240)!=128 && (src.data[0]&240)!=144)){if(!copyExpressive(src))break;continue;}
+          const unsigned channel=src.data[0]&15,pitch=src.data[1]&127,kind=src.data[0]&240,velocity=src.data[2]&127;
+          // An explicit MIDI OUT channel identifies the instrument at this
+          // post-routing point. ORIGINAL and ambiguous shared channels pass
+          // through until the source bridge can provide an instrument ID.
+          int instrument=-1;
+          for(unsigned k=0;k<8;++k)if(*model.inst[k][0]>.5&&*model.inst[k][2]>.5&&unsigned(*model.inst[k][4])==channel+1){if(instrument!=-1){instrument=-2;break;}instrument=int(k);}
+          const expressive::InstrumentSettings *setting=nullptr;
+          if(instrument>=0){const unsigned id=unsigned(*model.inst[instrument][1]);for(const auto &candidate:expressiveSettings)if(candidate.instrument==id){setting=&candidate;break;}}
+          if(!setting || !((setting->humanizerModule&&setting->humanizer.enabled)||(setting->curveModule&&setting->curve.enabled))){if(!copyExpressive(src))break;continue;}
+          native_notes::SourceKey key{};key.instrument=setting->instrument;key.origin=native_notes::Origin::Live;key.instance=0;key.channel=uint8_t(channel);key.pitch=uint8_t(pitch);
+          expressive::Identity identity{};identity.instrument=setting->instrument;identity.note=uint32_t(pitch);
+          auto humanizer=setting->humanizer;if(!setting->humanizerModule)humanizer.enabled=false;
+          auto curve=setting->curve;if(!setting->curveModule)curve.enabled=false;
+          const uint64_t sourceSample=state.samples+src.offset;
+          if(humanizer.variation==expressive::Variation::Evolving){identity.iteration=uint32_t(state.blocks);identity.group=uint32_t(sourceSample);identity.instance=sourceSample;}
+          else{identity.iteration=0;identity.group=channel;identity.instance=0;}
+          if(kind==144&&velocity>0){
+            const bool accepted=expressiveStream->attack(key,setting->humanizerModule?setting->humanizerModule:setting->curveModule,state.samples+src.offset,uint8_t(velocity),identity,humanizer,curve,[](uint64_t,bool,uint8_t,uint8_t,uint8_t){return true;});
+            if(!accepted&&!copyExpressive(src))break;
+          }else{
+            const bool accepted=expressiveStream->release(key,state.samples+src.offset,uint8_t(velocity),[](uint64_t,bool,uint8_t,uint8_t,uint8_t){return true;});
+            if(!accepted&&!copyExpressive(src))break;
+          }
+        }
+        expressiveStream->render(state.samples,frames,[&](uint64_t sample,bool on,uint8_t ch,uint8_t pitch,uint8_t velocity){
+          if(expressiveCount>=expressiveBatch->size()){++state.outputOverflow;overflowRecovery=true;return false;}
+          auto &m=(*expressiveBatch)[expressiveCount++];m.size=3;m.offset=unsigned(std::min<uint64_t>(frames-1,sample>state.samples?sample-state.samples:0));m.bus=0;m.order=expressiveCount*4;m.data[0]=uint8_t((on?144:128)|ch);m.data[1]=pitch;m.data[2]=velocity;return true;
+        });
+        if(expressiveStream->recoveryNeeded){++state.outputOverflow;overflowRecovery=true;}
+        outputCount=expressiveCount;
+        for(unsigned j=0;j<outputCount;++j)(*outputBatch)[j]=(*expressiveBatch)[j];
+      }
+      bool outputSorted=true;
       for(unsigned j=1;j<outputCount;++j){const auto &a=(*outputBatch)[j-1],&b=(*outputBatch)[j];if(a.offset>b.offset||(a.offset==b.offset&&a.order>b.order)){outputSorted=false;break;}}
       for(unsigned j=0;j<outputCount;++j)(*outputOrder)[j]=j;
       trace.mark(7);
@@ -3403,7 +3565,8 @@ int main(int argc, char **argv) {
       if (useJack)
         state.late = xruns.load(std::memory_order_relaxed);
       drainPanic();
-      state.pendingOutput = outputWrite - outputRead + panicSweep.remaining();
+      if(recovering&&expressiveStream->recoveryNeeded)expressiveStream->recovered();
+      state.pendingOutput = outputWrite - outputRead + panicSweep.remaining() + expressiveStream->pending();
       outputPending.store(state.pendingOutput, std::memory_order_release);
       if (muted)
         finalAcknowledged.store(true, std::memory_order_release);

@@ -77,6 +77,16 @@ class Updates(unittest.TestCase):
         with patch.object(u,'run') as run:
             with self.assertRaises(ValueError):u.build(self.directory,'main;evil')
             run.assert_not_called()
+    def test_cli_uses_invoked_updater_protocol_for_candidate_validation(self):
+        import sys
+        with patch.object(sys, 'argv', ['zynthian-update.py', '--config', str(self.config), '--revision', 'a'*40]), \
+             patch.object(u.os, 'geteuid', return_value=0, create=True), \
+             patch.object(u, 'Runtime') as runtime, patch.object(u, 'run'), \
+             patch.object(u, 'build', return_value=(Path('new'), Path('new/binary'))), \
+             patch.object(u, 'activate'):
+            runtime.return_value.preflight.return_value='a'*40
+            u.main()
+            runtime.assert_called_once_with(ROOT)
     @unittest.skipUnless(os.environ.get('HEADLESS_BINARY'),'Actual engine not configured')
     def test_real_native_preflight_engine(self):
         runtime=u.Runtime(ROOT)

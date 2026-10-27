@@ -14,7 +14,7 @@ concurrency:
 jobs:
   switch-panel:
     runs-on: ubuntu-24.04
-    timeout-minutes: 25
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
         with:

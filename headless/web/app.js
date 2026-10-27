@@ -112,11 +112,11 @@ function openAssignedCurve(binding){
 function curveY(points,x,hold=false){let y=points.at(-1)[1];for(let i=1;i<points.length;i++)if(x<points[i][0]||(!hold&&x===points[i][0])){const a=points[i-1],b=points[i];let t=hold?0:(x-a[0])/(b[0]-a[0]),power=1+5*Math.abs(a[2]||0);t=a[2]>0?Math.pow(t,power):a[2]<0?1-Math.pow(1-t,power):t;return a[1]+(b[1]-a[1])*t;}return y;}
 function previewCurve(points,hold=false){const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');svg.setAttribute('viewBox','0 0 100 20');svg.classList.add('rail-curve');svg.setAttribute('aria-hidden','true');const path=document.createElementNS(svg.namespaceURI,'path');path.setAttribute('d',Array.from({length:101},(_,x)=>`${x?'L':'M'}${x},${20*(1-curveY(points,x/100,hold))}`).join(' '));svg.append(path);return svg;}
 function closeAssignment(){document.getElementById('assignment-menu')?.remove();}
-function bindModulation(control,binding){
+function bindModulation(control,binding,{openOnClick=true}={}){
  control.mbmfBinding=binding;
  const p=parameter(binding.kind);if(!p?.assignmentEligible)return;
  control.dataset.modulationTarget=JSON.stringify(binding);
- if(control.matches('input[type=range]'))control.addEventListener('click',()=>{if(!control.dataset.assignmentGesture)openAssignedCurve(binding);});
+ if(openOnClick&&control.matches('input[type=range]'))control.addEventListener('click',()=>{if(!control.dataset.assignmentGesture)openAssignedCurve(binding);});
  control.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();e.stopPropagation();openAssignedCurve(binding);}});
  const mapping=mappingFor(binding),source=controllerConfiguration().sources.find(s=>s.id===mapping?.sourceId);
  if(mapping){control.classList.add('modulated');control.title=`${p.label} · ${source?.name||'SOURCE '+mapping.sourceId}`;if(control.matches('input[type=range]')){const curve=previewCurve(mapping.points);curve.dataset.modulationPreview='';curve.mbmfRail=control;curve.setAttribute('preserveAspectRatio','none');const marker=node('span',undefined,'rail-live-value');marker.dataset.modulationLive='';marker.setAttribute('aria-hidden','true');control.parentElement?.append(curve,marker);control.setModulationEffective=value=>{if(!Number.isFinite(value)){marker.hidden=true;return;}marker.hidden=false;const box=control.getBoundingClientRect(),root=control.parentElement.getBoundingClientRect(),pct=Math.max(0,Math.min(1,value));marker.style.left=(box.left-root.left+2+pct*Math.max(0,box.width-4))+'px';marker.style.top=(box.top-root.top+1)+'px';marker.title=p.label+' · contrôle effectif '+Math.round(pct*100)+'%';};}}
@@ -126,6 +126,8 @@ function bindModulation(control,binding){
  let timer;control.addEventListener('pointerdown',e=>{if(e.pointerType==='touch'){const value=control.value;timer=setTimeout(()=>{control.dataset.assignmentGesture='1';control.value=value;control.dispatchEvent(new Event('input'));open(e.clientX,e.clientY);setTimeout(()=>delete control.dataset.assignmentGesture,500);},600);}});for(const event of ['pointerup','pointercancel','pointermove'])control.addEventListener(event,()=>clearTimeout(timer));
  const access=button('EXP',()=>{const r=control.getBoundingClientRect();open(r.left,r.bottom);});access.className='modulation-access';access.setAttribute('aria-label',`Assign modulation ${p.label}`);access.title=source?.name||'Assign expression · right-click or long press';control.parentElement?.append(access);
 }
+window.MBMF_BIND_EXPRESSIVE_AMOUNT=bindModulation;
+window.MBMF_CURRENT_STATE=()=>latest;
 async function assignmentMenu(binding,x,y){
  closeAssignment();const menu=node('div',undefined,'assignment-menu');menu.id='assignment-menu';menu.setAttribute('role','menu');menu.setAttribute('aria-label','Modulator assignment');
  const {sources,mappings}=controllerConfiguration();const matches=mappings.filter(m=>m.instrumentId===binding.instrumentId&&m.moduleId===binding.moduleId&&m.kind===binding.kind);
@@ -155,6 +157,14 @@ async function assignModulator(binding,source){
 document.addEventListener('pointerdown',e=>{const menu=$('assignment-menu');if(menu&&!menu.contains(e.target)){e.preventDefault();e.stopImmediatePropagation();closeAssignment();}},true);
 document.addEventListener('keydown',e=>{if(e.key==='Escape'){if(document.querySelector('.assignment-menu')){closeAssignment();e.preventDefault();return;}const dialog=document.querySelector('dialog[data-contextual][open]');if(dialog){const cancel=new Event('cancel',{cancelable:true});if(dialog.dispatchEvent(cancel))dialog.close();e.preventDefault();}}});
 function showEditor(dialog,docked=false,kind=''){if(kind)dialog.dataset.kind=kind;else delete dialog.dataset.kind;if(docked){dialog.dataset.contextual='true';if(kind==='module'){$('module-editor-dock').append(dialog);$('module-editor-section').open=true;}else document.querySelector('main').append(dialog);dialog.show();dialog.scrollIntoView({block:'nearest'});}else{document.querySelector('main').append(dialog);delete dialog.dataset.contextual;dialog.showModal();}}
+async function editExpressive(i,key){
+ const dialog=$('editor');if(dialog.open){if(dialog.dataset.kind!=='module')return;if(await window.mbmfModuleFlush?.()===false)return;dialog.close();}
+ i=latest.instruments.find(v=>v.id===i.id);if(!i)return;
+ selectedModule={instrumentId:i.id,moduleId:key};
+ for(const card of document.querySelectorAll('.module'))card.classList.toggle('selected',Number(card.dataset.instrumentId)===i.id&&card.dataset.moduleId===key);
+ window.mbmfModuleFlush=async()=>true;dialog.onclick=null;dialog.oncancel=null;
+ window.MBMF_EXPRESSIVE.edit(i,latest,key,command,{dialog,content:$('editor-content'),show:()=>showEditor(dialog,true,'module')});
+}
 document.addEventListener('pointerdown',e=>{const d=$('editor');if(d.open&&d.dataset.contextual&&!d.contains(e.target)&&!e.target.closest('.module')&&!e.target.closest('.group-layout-controls')&&!e.target.closest('#assignment-menu')&&!e.target.closest('#mapping-editor-section'))d.close();});
 function editInstrument(i){const d=descriptor(0);if(!d)return;edit(d,i,d.parameters.map(id=>{const p=catalog.parameters.find(p=>p.id===id),canonical=parameter({enabled:21,input:22,output:23}[id]);const display=canonical?{...p,valueType:canonical.valueType,choices:canonical.choices}:p;return {descriptor:display,value:i[p.engineField],assignment:0};}),null);}
 function echoUnits(){
@@ -449,7 +459,7 @@ function renderAB(s){
     if(mapping&&learn.target===mapping.sourceId){feedback.append(node('span',learn.conflict<0?' · Assigned to a legacy controller: cancel and choose another input.':learn.conflict>0?' · Already assigned: deliberate reassignment required.':' · Waiting for MIDI…'),button('CANCEL LEARN',()=>command({action:'controller_cancel',sourceId:mapping.sourceId})));if(learn.conflict>0)feedback.append(button('REASSIGN',()=>command({action:'controller_confirm',sourceId:mapping.sourceId})));}
   }
 }
-function paintEffectiveRails(s){paintHostVolumes();const mappings=controllerConfiguration(s).mappings;for(const rail of document.querySelectorAll('.tactile-slider input[type=range]')){const b=rail.mbmfBinding;if(!b)continue;const mapping=mappings.find(m=>m.instrumentId===b.instrumentId&&m.moduleId===b.moduleId&&m.kind===b.kind&&m.enabled);const runtime=mapping?s.controllerRuntime?.[mapping.slot]:null;rail.setModulationEffective?.(runtime?Number(runtime.effective):null);if(!rail.setEffective)continue;const p=[14,15,17].includes(b.kind)?s.phrases.find(p=>p.id===b.instrumentId):s.instruments.find(i=>i.id===b.instrumentId);if(!p)continue;const field={1:'level',14:'timeDecay',15:'velocityDecay',17:'baseVelocity'}[b.kind];if(field)rail.setEffective(p[field]);}}
+function paintEffectiveRails(s){paintHostVolumes();const mappings=controllerConfiguration(s).mappings;for(const rail of document.querySelectorAll('.tactile-slider input[type=range],.expressive-control input[type=range]')){const b=rail.mbmfBinding;if(!b)continue;const mapping=mappings.find(m=>m.instrumentId===b.instrumentId&&m.moduleId===b.moduleId&&m.kind===b.kind&&m.enabled);const runtime=mapping?s.controllerRuntime?.[mapping.slot]:null;rail.setModulationEffective?.(runtime?Number(runtime.effective):null);if(!rail.setEffective)continue;if(b.kind===27){const amount=window.MBMF_EXPRESSIVE?.amount(s,b.instrumentId,b.moduleId);if(Number.isFinite(amount))rail.setEffective(amount);continue;}const p=[14,15,17].includes(b.kind)?s.phrases.find(p=>p.id===b.instrumentId):s.instruments.find(i=>i.id===b.instrumentId);if(!p)continue;const field={1:'level',14:'timeDecay',15:'velocityDecay',17:'baseVelocity'}[b.kind];if(field)rail.setEffective(p[field]);}}
 function render(s){
   if(!catalog){latest=s;revision=s.revision;engineSession=s.engineSessionId;$('connection').textContent='CONNECTED · Chargement des modules…';if(!descriptorRetry)loadDescriptors();return;}
   if(s.status==='ok'&&['token required','invalid token'].includes($('error').textContent))$('error').textContent='';
@@ -461,7 +471,7 @@ function render(s){
   $('connection').textContent='CONNECTED · Engine running';
   $('stop-native').hidden=!s.chainMode;paintPhraseStates(s);paintEffectiveRails(s);paintConductorRuntime(s);if(typeof refreshMovements==='function')refreshMovements(s);
   $('transport-state').textContent=s.chainMode?`NATIVE · ${s.chainRecording?'RECORDING':s.chainArmed?'RECORD ARMED':s.chainRunning?'PLAYING':'STOPPED'} · ${s.activeNotes} ACTIVE NOTES`:`ENGINE RUNNING · ${s.activeNotes} ACTIVE NOTES`;
-  $('metrics').replaceChildren(...[`Build ${s.buildRevision||'unknown'}`,`Backend ${s.backend} · ${s.sampleRate} Hz / ${s.blockSize}`,`Sample clock ${s.sampleClock}`,`MIDI messages ${s.midiCount}`,`Active notes ${s.activeNotes}`,`Maximum callback ${s.maxCallbackUs.toFixed(1)} µs`,`JACK XRUN notifications ${s.lateBlocks}`,`Output overflow ${s.outputOverflow}`].map(v=>node('span',v)));
+  $('metrics').replaceChildren(...[`Build ${s.buildRevision||'unknown'}`,`Backend ${s.backend} · ${s.sampleRate} Hz / ${s.blockSize}`,`Sample clock ${s.sampleClock}`,`MIDI messages ${s.midiCount}`,`Active notes ${s.activeNotes}`,`Maximum callback ${s.maxCallbackUs.toFixed(1)} µs`,`JACK XRUN notifications ${s.lateBlocks}`,`Output overflow ${s.outputOverflow}`,`Expressive queue ${s.expressivePending||0} · rejected ${s.expressiveRejected||0} · clamps ${s.expressiveClamped||0}`].map(v=>node('span',v)));
   if(s.chainMode)$('metrics').append(node('span',`Zynthian · ${s.chainCaptureMode==='free-time'?'FREE TIME':'TWO BARS'} · ${s.chainBpm} BPM · ${s.chainError?'CLOCK / CAPACITY ERROR — stopped':s.chainRecording?'RECORDING':s.chainArmed?(s.chainCaptureMode==='free-time'?'WAITING FOR FIRST NOTE':'WAITING FOR NEXT LOOP'):s.chainRunning?'PLAYING':'STOPPED'}`));
   $('last-midi').textContent=`Last MIDI · sample ${s.lastEvent[0]} · status ${s.lastEvent[1]} · number ${s.lastEvent[2]} · value ${s.lastEvent[3]}`;
   for(const sw of s.switches){const el=document.querySelector(`[data-switch-id="${sw.id}"] .step`);if(el)el.textContent=sw.conductor?.queuedStep?`STEP ${sw.conductor.step} → ${sw.conductor.queuedStep} EN ATTENTE`:`STEP ${sw.conductor?.steps?sw.conductor.step:sw.step} / ${sw.conductor?.steps||sw.length}`;}
@@ -497,7 +507,8 @@ function render(s){
   emptyBlockActions($('capture-snapshot'),'snapshot');
   if(!document.activeElement?.closest('#controllers .name-input'))renderControllers(s);
   if(blockDragging||uiPointerHeld||document.activeElement?.tagName==='SELECT'||document.activeElement?.classList.contains('name-input')||document.activeElement?.type==='range'||document.querySelector('[data-live-release=held]'))return;
-  const model=JSON.stringify([[...transformerAdds].map(([id,p])=>[id,p.type]),s.echocityAvailable,s.echocity,s.controllerEngine,s.controllerLearn,s.phrases.map(p=>({...p,state:undefined,events:0})),s.instruments.map(i=>({...i,hostMixer:undefined})),s.switches.map(v=>({...v,step:0,actionCount:0,lastAction:0,result:0,conductor:v.conductor?.steps||0,supercharge:undefined})),s.snapshotActions,s.switchLearn]);if(model===renderedModel)return;renderedModel=model;
+  window.MBMF_EXPRESSIVE?.paint(s);
+  const model=JSON.stringify([[...transformerAdds].map(([id,p])=>[id,p.type]),s.echocityAvailable,s.echocity,window.MBMF_EXPRESSIVE?.rows(s).map(r=>({...r,curve:{...r.curve,amount:0}})),s.controllerEngine,s.controllerLearn,s.phrases.map(p=>({...p,state:undefined,events:0})),s.instruments.map(i=>({...i,hostMixer:undefined})),s.switches.map(v=>({...v,step:0,actionCount:0,lastAction:0,result:0,conductor:v.conductor?.steps||0,supercharge:undefined})),s.snapshotActions,s.switchLearn]);if(model===renderedModel)return;renderedModel=model;
   compactPhrases(s);
   paintPhraseStates(s);
   $('instruments').replaceChildren(...s.instruments.map(compactInstrument));
@@ -726,6 +737,7 @@ function editMapping(existing){
   const source=node('select');source.setAttribute('aria-label','Controller source');for(const s of sources){const o=node('option',s.name||`SOURCE ${s.id}`);o.value=s.id;source.append(o);}source.value=draft.sourceId;content.append(source);
   const target=node('select');target.setAttribute('aria-label','Controller target');
   const targets=[{instrumentId:1,moduleId:0,kind:16,label:'GLOBAL SNAPSHOT A/B'}];for(const p of latest.phrases)for(const kind of [14,15,17,18,19,20])targets.push({instrumentId:p.id,moduleId:0,kind,label:`PHRASE ${p.id} / ${parameter(kind).label}`});for(const i of latest.instruments){for(const kind of [1,21,22,23,...(hostChains?.bindings[String(i.id)]?[25,26]:[])])targets.push({instrumentId:i.id,moduleId:0,kind,label:`I${i.id} / ${parameter(kind).label}`});for(const tf of i.transformers){targets.push({instrumentId:i.id,moduleId:tf.id,kind:24,label:`I${i.id} / ${tf.id} ON/OFF`});for(const p of tf.parameters)if((!p.assignment||(draft.instrumentId===i.id&&draft.moduleId===tf.id&&draft.kind===p.kind))&&parameter(p.kind)?.assignmentEligible)targets.push({instrumentId:i.id,moduleId:tf.id,kind:p.kind,label:`I${i.id} / ${tf.id} / ${parameter(p.kind).label}`});}}
+  for(const row of window.MBMF_EXPRESSIVE?.rows(latest)||[])if(row.curveModule)targets.push({instrumentId:row.instrument,moduleId:row.curveModule,kind:27,label:`I${row.instrument} / VELOCITY CURVES / AMOUNT`});
   targets.forEach((t,j)=>{const o=node('option',t.label);o.value=j;target.append(o);});let selection=targets.findIndex(t=>t.instrumentId===draft.instrumentId&&t.moduleId===draft.moduleId&&t.kind===draft.kind);target.value=selection<0?targets.findIndex(t=>t.kind===1):selection;content.append(target);
   const advanced=node('details');advanced.append(node('summary','ADVANCED OPTIONS'));
   const descriptor=descriptorForMapping();for(const id of descriptor.parameters){const p=catalog.parameters.find(p=>p.id===id),label=node('label',shortParameter(p.label),'parameter'),input=node(p.choices?'select':'input');if(p.choices){p.choices.forEach((text,value)=>{const option=node('option',text);option.value=value;input.append(option);});}else{input.type='number';input.min=p.min;input.max=p.max;input.step=p.step;}input.setAttribute('aria-label',p.label);input.value=draft[p.policyField]??p.default;draft[p.policyField]=Number(input.value);input.addEventListener('input',()=>draft[p.policyField]=Number(input.value));label.append(input,node('span',p.unit));(p.choices?content:advanced).append(label);}
@@ -978,6 +990,7 @@ function compactInstrument(i){
       if(operation==='bypass')card.append(button(label,run));else actions.push({label:operation==='up'?'MOVE UP':operation==='down'?'MOVE DOWN':'DELETE',run});
     }cardActions(card,actions,()=>editModule(i,tf));card.querySelector('[aria-label="BYPASS"]')?.setAttribute('aria-pressed',String(!tf.enabled));chain.append(card);
   }
+  if(window.MBMF_EXPRESSIVE)chain.append(window.MBMF_EXPRESSIVE.mount(i,latest,command,{selected:selectedModule,edit:editExpressive,cardActions,button,decorate:(...args)=>window.MBMF_TILES?.decorate(...args),deleted:(id,key)=>{if(selectedModule?.instrumentId===id&&selectedModule.moduleId===key){$('editor').close();selectedModule=null;}}}));
   if(latest?.echocityAvailable){
     const unit=echoUnits()?.find(v=>v[0]===i.id);
     if(unit){const card=node('article',undefined,'module');card.dataset.instrumentId=i.id;card.dataset.moduleId='ECHOCITY';
@@ -993,12 +1006,14 @@ function compactInstrument(i){
   blank.disabled=(i.transformers||[]).length>=6;
   for(const d of catalog?.modules.filter(m=>m.engineType>0&&(catalog.runtimeCapabilities?.transformerTypes||[1,2,3,4,5,6]).includes(m.engineType))||[]){const option=node('option',d.label);option.value=d.engineType;option.disabled=!!transformerAddProblem(i,d.engineType);select.append(option);}
   if(latest?.echocityAvailable){const option=node('option','ECHOCITY — FIN DE CHAÎNE');option.value='echo';option.disabled=!!echoUnits()?.some(v=>v[0]===i.id);select.append(option);}
+  const expressive=window.MBMF_EXPRESSIVE?.rows(latest).find(row=>row.instrument===i.id);
+  if(window.MBMF_EXPRESSIVE)for(const [key,label,field] of [['humanizer','HUMANIZER','humanizerModule'],['curve','VELOCITY CURVES','curveModule']]){const option=node('option',label);option.value=key;option.disabled=!!expressive?.[field];select.append(option);}
   select.value=catalog?.modules.find(m=>m.engineType>0&&(catalog.runtimeCapabilities?.transformerTypes||[1,2,3,4,5,6]).includes(m.engineType))?.engineType??'empty';
   const chosen=transformerChoices.get(i.id);
   if([...select.options].some(option=>option.value===chosen))select.value=chosen;
   select.onchange=()=>transformerChoices.set(i.id,select.value);
   if(select.selectedOptions[0]?.disabled)select.value=[...select.options].find(o=>!o.disabled)?.value||'empty';
-  chain.title=i.serialPitchOrder?'Serial pitch order · Velocity → Polyphony → ARP; CC separate':'Legacy stages: Transpose → Range → Velocity → Polyphony → ARP; CC separate';const addTransformer=button('ADD TRANSFORMER',async()=>{if(select.value==='echo'){await editEcho(i);return;}if(select.value==='empty'){addEmptyTransformer(i);return;}await addTransformerAndEdit(i,Number(select.value));});
+  chain.title=i.serialPitchOrder?'Serial pitch order · Velocity → Polyphony → ARP; CC separate':'Legacy stages: Transpose → Range → Velocity → Polyphony → ARP; CC separate';const addTransformer=button('ADD TRANSFORMER',async()=>{if(['humanizer','curve'].includes(select.value)){const key=select.value;if(await window.MBMF_EXPRESSIVE.add(i,latest,key,command))await editExpressive(i,key);return;}if(select.value==='echo'){await editEcho(i);return;}if(select.value==='empty'){addEmptyTransformer(i);return;}await addTransformerAndEdit(i,Number(select.value));});
   const full=(i.transformers||[]).length>=6,waiting=transformerAdds.has(i.id),available=[...select.options].some(o=>!o.disabled);select.disabled=!available||waiting;addTransformer.disabled=!available||waiting;if(full){addTransformer.title=transformerAddProblem(i,0);chain.append(node('small','6 / 6 · chaîne complète'));}
   if(waiting){const notice=node('small',`${descriptor(transformerAdds.get(i.id).type)?.label||'TRANSFORMATEUR'} · en attente du relâchement des notes`);notice.setAttribute('role','status');chain.append(notice);}
   window.MBMF_TILES?.decorate(addTransformer,'TRANSFORMER','add:'+i.id,true);chain.append(select,addTransformer,button('EDIT',()=>editInstrument(i)));n.append(chain);return n;

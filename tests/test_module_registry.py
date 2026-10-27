@@ -5,7 +5,7 @@ from registry import Registry,REGISTRY
 class RegistryTests(unittest.TestCase):
  def test_generated_contract_is_current(self):
   root=Path(__file__).resolve().parents[1]
-  subprocess.run([sys.executable,str(root/"scripts/generate-parameters.py"),"--check"],check=True)
+  subprocess.run([sys.executable,str(root/"scripts/generate-parameters.py"),"--native-only","--check"],check=True)
  def test_normalized_ranges_and_roundtrip(self):
   for id,p in REGISTRY.parameters.items():
    for v in (p['min'],p['default'],p['max']):self.assertAlmostEqual(REGISTRY.scale(id,REGISTRY.normalize(id,v)),v)

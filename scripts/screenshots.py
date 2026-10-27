@@ -95,7 +95,9 @@ def run(output, performance=False):
                     page.locator('.conductor-editor').wait_for()
 
                 def capture(name,selector=None):
-                    if name.startswith('controller-') and name in ('controller-editor','controller-advanced'):
+                    if name.startswith('expressive-'):
+                        if 'editor' in name:page.locator('#editor').wait_for(state='visible')
+                    elif name.startswith('controller-') and name in ('controller-editor','controller-advanced'):
                         page.locator('#mapping-editor').wait_for(state='visible')
                     elif 'editor' in name and 'name-editor' not in name:page.locator('#editor').wait_for(state='visible')
                     if performance and name not in ('phrases','instruments','transformer-editor'): return
@@ -112,8 +114,10 @@ def run(output, performance=False):
                     artifacts.append(dict(view=name,viewport=[width,height],file=path.name,checks=findings))
                     print(f'{path.name}: {"PASS" if not findings else findings}',flush=True)
                     modal=page.locator('dialog[open]')
-                    if modal.count() and modal.evaluate('e=>e.scrollHeight>e.clientHeight+1'):
+                    if modal.count() and (modal.evaluate('e=>e.scrollHeight>e.clientHeight+1') or (name.startswith('expressive-') and modal.bounding_box()['height']>height)):
                         modal.evaluate('e=>e.scrollTop=e.scrollHeight')
+                        if name.startswith('expressive-'):
+                            modal.get_by_role('button',name='APPLY',exact=True).scroll_into_view_if_needed()
                         bottom=output/f'{name}-bottom-{width}x{height}.png'
                         page.screenshot(path=str(bottom),animations='disabled')
                         verify_png(bottom,width,height)
@@ -227,7 +231,7 @@ def run(output, performance=False):
                 capture('empty-transformer');page.get_by_role('button',name='CANCEL',exact=True).click()
                 page.get_by_role('button',name='Edit Instrument 1 name',exact=True).click()
                 capture('instrument-name-editor');page.keyboard.press('Escape')
-                page.locator('[data-instrument-id="1"]').get_by_role('button',name='EDIT',exact=True).first.click()
+                page.locator('[data-instrument-id="1"] > .transformers').get_by_role('button',name='EDIT',exact=True).last.click()
                 capture('instrument-editor');page.keyboard.press('Escape')
                 page.locator('#controller-section').evaluate('e=>e.open=true')
                 capture('controllers','#controller-section')
@@ -268,6 +272,38 @@ def run(output, performance=False):
                 api.command('module_structure',instrumentId=1,moduleId=tf['id'],operation='delete')
                 page.locator('details').filter(has=page.locator('#metrics')).evaluate('e=>e.open=true')
                 capture('diagnostics','#metrics')
+                # Exercise actual addition and live repaint, without page reload.
+                choice=instrument.get_by_label('Transformer type for Instrument 1',exact=True)
+                choice.select_option('humanizer')
+                instrument.get_by_role('button',name='ADD TRANSFORMER',exact=True).click()
+                humanizer=instrument.locator('.expressive-module[data-module-id="humanizer"]')
+                instrument.locator('.expressive-module[data-module-id="humanizer"]:not(.bypassed)').wait_for()
+                assert page.locator('#module-editor-dock #editor[open]').count()==1
+                page.get_by_role('button',name='SUBTLE',exact=True).click()
+                capture('expressive-humanizer-editor')
+                page.get_by_role('button',name='APPLY',exact=True).click()
+                humanizer.get_by_text('12 ms',exact=True).wait_for()
+                humanizer.get_by_role('button',name='BYPASS',exact=True).click()
+                instrument.locator('.expressive-module[data-module-id="humanizer"].bypassed').wait_for()
+                assert api.call()['nativeExpressive']['configuration'][4]==0
+                humanizer.get_by_role('button',name='BYPASS',exact=True).click()
+                instrument.locator('.expressive-module[data-module-id="humanizer"]:not(.bypassed)').wait_for()
+                choice.select_option('curve')
+                instrument.get_by_role('button',name='ADD TRANSFORMER',exact=True).click()
+                curve=instrument.locator('.expressive-module[data-module-id="curve"]')
+                instrument.locator('.expressive-module[data-module-id="curve"]:not(.bypassed)').wait_for()
+                page.get_by_role('button',name='HARD',exact=True).click()
+                capture('expressive-curve-editor')
+                page.get_by_role('button',name='APPLY',exact=True).click()
+                page.locator('#editor').wait_for(state='hidden')
+                assert api.call()['nativeExpressive']['configuration'][5]==12
+                capture('expressive-transformer-chain','#instruments')
+                curve.click(button='right')
+                page.once('dialog',lambda dialog:dialog.accept())
+                page.get_by_role('menuitem',name='DELETE',exact=True).click()
+                curve.wait_for(state='detached')
+                instrument.locator('.expressive-module[data-module-id="humanizer"]:not(.bypassed)').wait_for()
+                api.command('expressive_commit',expressive={'version':1,'configuration':[1,0]})
                 if errors: raise AssertionError(errors)
                 context.close()
             browser.close()

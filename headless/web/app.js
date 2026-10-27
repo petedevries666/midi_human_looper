@@ -990,7 +990,7 @@ function compactInstrument(i){
       if(operation==='bypass')card.append(button(label,run));else actions.push({label:operation==='up'?'MOVE UP':operation==='down'?'MOVE DOWN':'DELETE',run});
     }cardActions(card,actions,()=>editModule(i,tf));card.querySelector('[aria-label="BYPASS"]')?.setAttribute('aria-pressed',String(!tf.enabled));chain.append(card);
   }
-  if(window.MBMF_EXPRESSIVE)chain.append(window.MBMF_EXPRESSIVE.mount(i,latest,command,{selected:selectedModule,edit:editExpressive,cardActions,decorate:(...args)=>window.MBMF_TILES?.decorate(...args),deleted:(id,key)=>{if(selectedModule?.instrumentId===id&&selectedModule.moduleId===key){$('editor').close();selectedModule=null;}}}));
+  if(window.MBMF_EXPRESSIVE)chain.append(window.MBMF_EXPRESSIVE.mount(i,latest,command,{selected:selectedModule,edit:editExpressive,cardActions,button,decorate:(...args)=>window.MBMF_TILES?.decorate(...args),deleted:(id,key)=>{if(selectedModule?.instrumentId===id&&selectedModule.moduleId===key){$('editor').close();selectedModule=null;}}}));
   if(latest?.echocityAvailable){
     const unit=echoUnits()?.find(v=>v[0]===i.id);
     if(unit){const card=node('article',undefined,'module');card.dataset.instrumentId=i.id;card.dataset.moduleId='ECHOCITY';

@@ -107,6 +107,11 @@ local(gi,idx,mask)
     change(release, '')
     change('function sw_input(st,num,value,offs)',
            release+'\n'+EEL+'\nfunction sw_input(st,num,value,offs)')
+    # midirecv selects its input bus; it does not discover a bus and return it.
+    # Restore that selection before every receive because output uses bus zero.
+    change('while (\n  midirecv(offset,msg1,msg23) ?',
+           'native_thru_read_slot=0;loop(native_thru_enabled?16:1,\nwhile (\n'
+           '  midi_bus=native_thru_read_slot;midirecv(offset,msg1,msg23) ?')
     change('    status=msg1&240;\n    d1=msg23&127;',
            '    native_thru_slot=max(0,min(15,floor(midi_bus)));midi_bus=0;\n'
            '    native_thru_mode=native_thru_enabled?mem[NATIVE_THRU_MODE_BASE+native_thru_slot*16+(msg1&15)]:1;\n'
@@ -124,5 +129,6 @@ local(gi,idx,mask)
            '(native_thru_mode==2 || (native_thru_mode==1 && !is_trigger_command)) ? '
            'native_thru_route(offset,msg1,d1,d2,native_thru_slot);')
     change('i_release_mask=0;\nsw_poll',
+           'native_thru_read_slot+=1;);midi_bus=0;\n'
            'i_release_mask=0;native_thru_mode=1;native_thru_slot=0;\nsw_poll')
     return source

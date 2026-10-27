@@ -114,7 +114,7 @@ def run(output, performance=False):
                     artifacts.append(dict(view=name,viewport=[width,height],file=path.name,checks=findings))
                     print(f'{path.name}: {"PASS" if not findings else findings}',flush=True)
                     modal=page.locator('dialog[open]')
-                    if modal.count() and modal.evaluate('e=>e.scrollHeight>e.clientHeight+1'):
+                    if modal.count() and (modal.evaluate('e=>e.scrollHeight>e.clientHeight+1') or (name.startswith('expressive-') and modal.bounding_box()['height']>height)):
                         modal.evaluate('e=>e.scrollTop=e.scrollHeight')
                         if name.startswith('expressive-'):
                             modal.get_by_role('button',name='APPLY',exact=True).scroll_into_view_if_needed()

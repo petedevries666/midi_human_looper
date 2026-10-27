@@ -22,7 +22,7 @@ from urllib.parse import urlsplit
 
 ROOT = Path(__file__).parent / 'web'
 
-PATCH_KEYS={'format','schema','work_mem_size','globals','memory','controllerEngine','globalSnapshots','conductor','echocity','nativeExpressive'}
+PATCH_KEYS={'format','schema','work_mem_size','globals','memory','controllerEngine','globalSnapshots','conductor','echocity','nativeExpressive','midiThru'}
 def validate_patch_extensions(patch):
     if not isinstance(patch,dict) or set(patch)-PATCH_KEYS:
         raise ValueError('Unsupported patch fields preserved; refusing to discard configuration.')
@@ -39,6 +39,10 @@ def validate_patch_extensions(patch):
         from native_expressive_config import decode as decode_expressive
         decode_expressive(patch['nativeExpressive'])
         if patch['schema']!=8:raise ValueError('Native expressive settings require schema 8')
+    if 'midiThru' in patch:
+        from midi_thru_config import decode as decode_midi_thru
+        decode_midi_thru(patch['midiThru'])
+        if patch['schema']!=8:raise ValueError('MIDI THRU rules require schema 8')
     for name,versions in (('controllerEngine',(1,2)),('globalSnapshots',(1,2,3,4))):
         if name in patch and (not isinstance(patch[name],dict) or set(patch[name])!={'version','configuration'} or type(patch[name].get('version')) is not int or patch[name]['version'] not in versions):
             raise ValueError('Unsupported patch extension preserved; refusing to discard configuration.')
@@ -71,7 +75,7 @@ class Control:
                 self._observation_json=json.dumps(state,separators=(',',':')).encode()
             return self._observation_json
 
-    def request(self, op=0, target=0, arg=0, revision=1, ch=0, note=0, value=0, session=0, patch=None, parameters=None, module=0, binding=None, name=None, settings=None, inclusions=None, macro=None,instance=None, phrase=None,echo=None,expressive=None):
+    def request(self, op=0, target=0, arg=0, revision=1, ch=0, note=0, value=0, session=0, patch=None, parameters=None, module=0, binding=None, name=None, settings=None, inclusions=None, macro=None,instance=None, phrase=None,echo=None,expressive=None,midi_thru=None,midi_inputs=None):
         # One worker producer owns the engine's command queue; HTTP threads never
         # inspect live engine state. A timeout does not cancel an already executed TEST.
         with self.lock:
@@ -97,6 +101,16 @@ class Control:
                 decode_expressive(extension)
                 values=' '.join(format(v,'.17g') for v in expressive)
                 line=line.rstrip('\n')+(' '+values if op==55 else ' native_expressive '+values)+'\n'
+            if midi_thru is not None:
+                from midi_thru_config import decode as decode_midi_thru
+                decode_midi_thru({'version':1,'configuration':midi_thru})
+                if op!=56:raise ValueError('MIDI THRU carrier requires its dedicated operation')
+                line=line.rstrip('\n')+' '+' '.join(str(v) for v in midi_thru)+'\n'
+            if midi_inputs is not None:
+                from midi_thru_config import validate_inputs
+                validate_inputs(midi_inputs)
+                if op!=57:raise ValueError('MIDI input carrier requires its dedicated operation')
+                line=line.rstrip('\n')+' '+' '.join(str(v) for v in midi_inputs)+'\n'
             if parameters is not None:
                 line=line.rstrip('\n')+f' {module} {len(parameters)} '+ ' '.join(f"{p['kind']} {p['value']:.17g}" for p in parameters)+'\n'
             if binding is not None:line=line.rstrip('\n')+' '+' '.join(format(v,'.17g') for v in binding)+'\n'
@@ -125,6 +139,8 @@ class Control:
                 line=line.rstrip('\n')+' echocity '+' '.join(format(v,'.17g') for v in patch['echocity']['configuration'])+'\n'
             if patch is not None and 'nativeExpressive' in patch:
                 line=line.rstrip('\n')+' native_expressive '+' '.join(format(v,'.17g') for v in patch['nativeExpressive']['configuration'])+'\n'
+            if patch is not None and 'midiThru' in patch:
+                line=line.rstrip('\n')+' midi_thru '+' '.join(str(v) for v in patch['midiThru']['configuration'])+'\n'
             with socket.socket(socket.AF_UNIX) as client:
                 client.settimeout(15)
                 client.connect(self.path)
@@ -257,6 +273,8 @@ class Handler(BaseHTTPRequestHandler):
         path = urlsplit(self.path).path
         if not self.allowed(api=path.startswith('/api/') and path!='/api/v1/ws'):
             return
+        if path=='/api/v1/midi-inputs':
+            self.midi_inputs_command(read_only=True);return
         if path == '/api/v1/zynthian/chains':
             self.host_chain_command(read_only=True);return
         if path == '/api/v1/patch-recall':
@@ -322,6 +340,8 @@ class Handler(BaseHTTPRequestHandler):
         files = {'/': ('index.html', 'text/html; charset=utf-8'),
                  '/app.js': ('app.js', 'text/javascript; charset=utf-8'),
                  '/expressive.js': ('expressive.js', 'text/javascript; charset=utf-8'),
+                 '/midi-thru.js': ('midi-thru.js', 'text/javascript; charset=utf-8'),
+                 '/midi-thru.css': ('midi-thru.css', 'text/css; charset=utf-8'),
                  '/block-tools.js': ('block-tools.js', 'text/javascript; charset=utf-8'),
                  '/conductor.js': ('conductor.js', 'text/javascript; charset=utf-8'),
                  '/movement.js': ('movement.js', 'text/javascript; charset=utf-8'),
@@ -430,6 +450,8 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         if not self.allowed(api=True):
             return
+        if self.path=='/api/v1/midi-inputs':
+            self.midi_inputs_command();return
         if self.path == '/api/v1/zynthian/chains':
             self.host_chain_command();return
         if self.path == '/api/v1/patch-recall':
@@ -644,6 +666,10 @@ class Handler(BaseHTTPRequestHandler):
                 from native_expressive_config import decode as decode_expressive
                 extension=data.get('expressive');rows=decode_expressive(extension)
                 args=dict(op=55,expressive=extension['configuration'])
+            elif action=='midi_thru_commit':
+                from midi_thru_config import decode as decode_midi_thru
+                extension=data.get('midiThru');decode_midi_thru(extension)
+                args=dict(op=56,midi_thru=extension['configuration'])
             elif action=='module_structure':
                 target=data.get('instrumentId');module=data.get('moduleId',0);op=data.get('operation');type_=data.get('engineType',0)
                 if any(type(v) is not int or not 0<=v<=16777215 for v in (target,module,type_)) or not target or op not in ('add','delete','bypass','up','down'):raise ValueError()
@@ -827,6 +853,29 @@ class Handler(BaseHTTPRequestHandler):
             self.respond(503,{'error':'patch I/O or engine unavailable'})
 
 
+    def midi_inputs_command(self,read_only=False):
+        service=getattr(self.server,'midi_inputs',None)
+        if service is None:
+            if read_only:
+                self.respond(200,{'available':False,'enabled':False,'inputs':[],
+                                 'reason':'Les entrées MIDI physiques sont disponibles avec le bridge Zynthian.'})
+            else:self.respond(503,{'error':'MIDI THRU physique disponible avec le bridge Zynthian'})
+            return
+        try:
+            with self.server.patch_lock:
+                if read_only:result=service.status()
+                else:
+                    length=int(self.headers.get('Content-Length','0'))
+                    if not 0<length<=8192 or self.headers.get('Content-Type','').split(';')[0]!='application/json':
+                        raise ValueError('Bounded JSON request required')
+                    request=json.loads(self.rfile.read(length))
+                    if not isinstance(request,dict):raise ValueError('JSON object required')
+                    result=service.update_source(request)
+                result['activeSlot']=self.server.switch_presets.read()['activeSlot']
+            self.respond(200,result)
+        except (ValueError,TypeError,KeyError) as error:self.respond(422,{'error':str(error)})
+        except OSError:self.respond(503,{'error':'Physical MIDI input registry unavailable'})
+
     def host_chain_command(self, read_only=False, recall=False):
         path = getattr(self.server, 'host_chain_socket', None)
         if path is None:
@@ -846,7 +895,7 @@ class Handler(BaseHTTPRequestHandler):
         except OSError:self.respond(503, {'error': 'Zynthian chain links unavailable'})
 
 
-def make_server(bind, port, path, token='',patch_dir=None,host_chain_socket=None):
+def make_server(bind, port, path, token='',patch_dir=None,host_chain_socket=None,midi_input_registry=None):
     if bind not in ('127.0.0.1', 'localhost') and not token:
         raise ValueError('explicit token required for LAN binding')
     server = ThreadingHTTPServer((bind, port), Handler)
@@ -855,6 +904,16 @@ def make_server(bind, port, path, token='',patch_dir=None,host_chain_socket=None
     server.patch_lock=threading.RLock()
     server.block_clipboards={}
     server.host_chain_socket=host_chain_socket
+    server.midi_inputs=None
+    if midi_input_registry is not None and host_chain_socket is not None:
+        from midi_thru_service import Service
+        from zynthian_chains import bridge_request
+        config=Path(midi_input_registry).with_name('install.json')
+        legacy=json.loads(config.read_text(encoding='utf-8')).get('exclusive_midi_input_ports',[]) if config.exists() else []
+        def refresh_inputs():
+            result=bridge_request(host_chain_socket,{'action':'refresh_midi_inputs'})
+            if 'error' in result:raise ValueError(result['error'])
+        server.midi_inputs=Service(midi_input_registry,server.control,refresh_inputs,legacy)
     from project_sync import ProjectStore
     server.projects=ProjectStore(server.patch_dir,server.control)
     from switch_presets import Store
@@ -870,10 +929,11 @@ if __name__ == '__main__':
     parser.add_argument('--token-file', type=Path)
     parser.add_argument('--patch-dir',type=Path)
     parser.add_argument('--host-chain-socket',type=Path)
+    parser.add_argument('--midi-input-registry',type=Path)
     parser.add_argument('--restore-active-project',action='store_true',help='Restore committed portable project on fresh engine startup')
     args = parser.parse_args()
     token = args.token_file.read_text().strip() if args.token_file else ''
-    server = make_server(args.bind, args.port, args.socket, token,args.patch_dir,args.host_chain_socket)
+    server = make_server(args.bind, args.port, args.socket, token,args.patch_dir,args.host_chain_socket,args.midi_input_registry)
     if args.restore_active_project:server.projects.restore()
     print(f'EDITOR http://{args.bind}:{server.server_port}', flush=True)
     try:

@@ -117,7 +117,7 @@ class zynthian_engine_mbh(zynthian_engine):
                     on_refresh=lambda: self._refresh_host_chain_selectors(processor),recall=recall)
             web=[sys.executable,str(self.root/'headless/server.py'),'--socket',socket_path,'--patch-dir',str(library),'--port',str(self.config.get('web_port_base',8765)+pid),'--bind',self.config.get('web_bind','127.0.0.1')]
             if entry.get('host_chains'):
-                web += ['--host-chain-socket', str(data/'host-chains.sock')]
+                web += ['--host-chain-socket', str(data/'host-chains.sock'),'--midi-input-registry',str(data.parent/'midi-inputs.json')]
             if self.config.get('token_file'):web+=['--token-file',self.config['token_file']]
             entry['web']=subprocess.Popen(web,stdout=log,stderr=log)
             processor.jackname=self.jackname

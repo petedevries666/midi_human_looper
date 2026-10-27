@@ -1116,7 +1116,7 @@ static void control(int listener, Queue<Request, 8> &commands,
                       request.note >> request.value) &&
                  request.id > 0 && request.id <= 9007199254740991ULL &&
                  request.op >= 0 && (request.op <= 55) && request.arg >= 0 &&
-                 request.arg <= (request.op == 1 ? 5 : request.op == 13   ? 5
+                 request.arg <= (request.op == 3 || request.op == 19 ? 15 : request.op == 1 ? 5 : request.op == 13   ? 5
                                  : request.op == 40 ? 7
                                  : request.op == 15 || request.op == 34 ? 3
                                  : request.op == 32 || request.op == 38 ? 26
@@ -2449,6 +2449,7 @@ int main(int argc, char **argv) {
         e.offset = std::min(m.offset, frames - 1);
         e.size = m.size;
         e.data = m.data.data();
+        e.bus = m.bus;
         auto before = controllers.learnTarget();
         if (captureSwitch(e.data,e.size) || controllers.midi(e.data, e.size,
                              (state.samples + e.offset) / double(sampleRate),
@@ -3011,6 +3012,7 @@ int main(int argc, char **argv) {
               ysfx_midi_event_t event{};
               event.size = 3;
               event.data = data;
+              event.bus = unsigned(request.arg);
               if (!ysfx_send_midi(fx, &event))
                 reply.status = 3;
             }
@@ -3196,6 +3198,7 @@ int main(int argc, char **argv) {
           ysfx_midi_event_t event{};
           event.size = 3;
           event.data = data;
+              event.bus = unsigned(request.arg);
           auto before = controllers.learnTarget();
           if (captureSwitch(data,3) || controllers.midi(data, 3,
                                (state.samples + frames) / double(sampleRate),

@@ -35,6 +35,10 @@ jobs:
         run: |
           bash scripts/once-retrigger-test.sh
           bash scripts/m5-hold-wrap-test.sh
+      - name: Verify physical MIDI THRU isolation and protected Learn paths
+        env:
+          HEADLESS_BINARY: ${{ github.workspace }}/.build/midi-headless-engine
+        run: python3 tests/test_native_midi_thru.py
       - name: Run Conductor configuration regressions
         env:
           HEADLESS_BINARY: ${{ github.workspace }}/.build/midi-headless-engine

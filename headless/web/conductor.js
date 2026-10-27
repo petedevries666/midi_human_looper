@@ -1,4 +1,10 @@
 'use strict';
+function duplicateConductorStep(original,uuid){
+ const copy=structuredClone(original),blocks=new Map();copy.id=uuid();
+ for(const layer of copy.layers){layer.id=uuid();if(layer.block){const previous=layer.block.id;layer.block.id=uuid();blocks.set(previous,layer.block.id);}}
+ for(const binding of copy.supercharge?.bindings||[])if(blocks.has(binding.blockId))binding.blockId=blocks.get(binding.blockId);
+ return copy;
+}
 // C's versioned model, D's execution. Only the stopped, guarded native commit writes it.
 let conductorView=null;
 function paintConductorRuntime(state){
@@ -73,9 +79,10 @@ async function editConductor(sw){
   change(()=>{ensure(toStep);toLayer.block=operation==='DUPLICATE'?{...structuredClone(a),id:uuid()}:a;if(operation!=='DUPLICATE')fromLayer.block=operation==='SWAP'?b:null;});
  }
  function dropTarget(el,s,l=null){
-  el.ondragover=e=>{e.preventDefault();};
-  el.ondrop=e=>{e.preventDefault();e.stopPropagation();if(!drag)return;
+  el.ondragover=e=>{e.preventDefault();if(e.dataTransfer)e.dataTransfer.dropEffect=e.altKey||drag?.copy?'copy':'move';};
+  el.ondrop=e=>{e.preventDefault();e.stopPropagation();if(committing||!drag)return;
    if(drag.layer&&l)transfer(drag.step,drag.layer,s,l,e.altKey?'DUPLICATE':e.ctrlKey?'SWAP':'REPLACE');
+   else if(!drag.layer&&!l&&(e.altKey||drag.copy))change(()=>{const copy=duplicateConductorStep(drag.step,uuid),at=sequence.steps.indexOf(s);sequence.steps.splice(at<0?sequence.steps.length:at,0,copy);selected=copy.id;});
    else if(!drag.layer&&!l&&drag.step!==s&&sequence.steps.includes(s))change(()=>{const from=sequence.steps.indexOf(drag.step);sequence.steps.splice(from,1);sequence.steps.splice(sequence.steps.indexOf(s),0,drag.step);});
    drag=null;
   };
@@ -203,10 +210,11 @@ async function editConductor(sw){
    const column=node('section',undefined,'conductor-step');column.dataset.stepId=s.id;column.dataset.stepPosition=sequence.steps.includes(s)?index+1:0;column.classList.toggle('selected-step',selected===s.id);
    const header=node('div',undefined,'conductor-step-header');header.append(action(`STEP ${String(index+1).padStart(2,'0')}`,()=>{selected=s.id;paint();}));
    if(sequence.steps.includes(s)){
+    const duplicate=action('DUPLICATE STEP',()=>change(()=>{const copy=duplicateConductorStep(s,uuid);sequence.steps.splice(index+1,0,copy);selected=copy.id;}));duplicate.textContent='⧉';header.append(duplicate);
     for(const [name,delta] of [['MOVE STEP LEFT',-1],['MOVE STEP RIGHT',1]]){const control=action(name,()=>change(()=>{const other=index+delta;[sequence.steps[index],sequence.steps[other]]=[sequence.steps[other],sequence.steps[index]];}));control.textContent=delta<0?'←':'→';control.disabled=index+delta<0||index+delta>=sequence.steps.length;header.append(control);}
     const del=action('DELETE STEP',()=>change(()=>sequence.steps.splice(index,1)));del.textContent='×';header.append(del);
    }
-   if(sequence.steps.includes(s)){header.draggable=true;header.ondragstart=e=>{drag={step:s};e.dataTransfer.setData('text/plain',s.id);};dropTarget(header,s);}
+   if(sequence.steps.includes(s)){header.draggable=true;header.title='Glisser pour déplacer · ALT + glisser pour dupliquer';header.ondragstart=e=>{drag={step:s,copy:e.altKey};e.dataTransfer.effectAllowed='copyMove';e.dataTransfer.setData('text/plain',s.id);};header.ondragend=()=>{drag=null;};}dropTarget(header,s);
    column.append(header);const badge=node('output','EN ATTENTE','queued-badge');badge.hidden=true;column.append(badge);
    if(sequence.steps.includes(s))column.append(transitionSelect(`PASSAGE STEP ${index+1}`,s.transition,true,value=>change(()=>s.transition=value)));
    if(sequence.steps.includes(s))column.append(action(`SUPERCHARGE STEP ${index+1}`,()=>chargeProperties(s)));

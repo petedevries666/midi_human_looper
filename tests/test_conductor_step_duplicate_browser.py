@@ -5,19 +5,18 @@ from pathlib import Path
 import urllib.request
 from playwright.sync_api import sync_playwright
 from test_conductor_execution_native import Execution
-from test_conductor_editor_browser import author_four_steps,save_draft
+from test_conductor_editor_browser import save_draft
 
 api=Execution('test_steps_coexist_wrap_capacity_and_persistence')
 api.setUpClass()
 try:
-    api.setUp()
+    api.setUp();api.commit()
     with sync_playwright() as pw:
         browser=pw.chromium.launch(headless=True,executable_path=os.environ.get('CHROMIUM_PATH','/usr/bin/chromium'),args=['--no-sandbox','--disable-gpu'])
         page=browser.new_page(viewport={'width':1440,'height':900})
         page.goto(api.base);page.get_by_text('CONNECTED · Engine running',exact=True).wait_for()
         page.locator('[data-switch-id="1"]').get_by_role('button',name='CONDUCTOR',exact=True).click()
-        save_draft(page)
-        author_four_steps(page)
+        page.locator('.conductor-editor').wait_for()
         first=page.locator('.conductor-step').first
         first.get_by_role('button',name='Add PHRASE STEP 1 LAYER 2',exact=True).click()
         first.get_by_role('button',name=__import__('re').compile('^PHRASE 02 ·')).click()

@@ -53,28 +53,6 @@ if __name__=='__main__':
    first.locator('.conductor-step-header').drag_to(page.locator('.conductor-step').nth(2).locator('.conductor-step-header'))
    assert page.locator('.conductor-step').nth(1).get_attribute('data-step-id')==original_step
    page.get_by_role('button',name='UNDO',exact=True).click()
-   # ALT duplicates complete steps; header and automatic empty target insert.
-   original_order=page.locator('.conductor-step[data-step-position]:not([data-step-position="0"])').evaluate_all('(els)=>els.map(e=>e.dataset.stepId)')
-   original_layers=first.locator('[data-layer-id]').evaluate_all('(els)=>els.map(e=>e.dataset.layerId)')
-   original_blocks=first.locator('[data-block-id]').evaluate_all('(els)=>els.map(e=>e.dataset.blockId)')
-   page.keyboard.down('Alt')
-   try:first.locator('.conductor-step-header').drag_to(page.locator('.conductor-step').nth(2).locator('.conductor-step-header'))
-   finally:page.keyboard.up('Alt')
-   copied=page.locator('.conductor-step').nth(2)
-   assert copied.get_attribute('data-step-id') not in original_order
-   assert not set(original_layers)&set(copied.locator('[data-layer-id]').evaluate_all('(els)=>els.map(e=>e.dataset.layerId)'))
-   assert not set(original_blocks)&set(copied.locator('[data-block-id]').evaluate_all('(els)=>els.map(e=>e.dataset.blockId)'))
-   assert copied.locator('[data-block-id]').count()==2,'copy must retain every populated layer'
-   page.get_by_role('button',name='UNDO',exact=True).click()
-   assert page.locator('.conductor-step:not([data-step-position="0"])').evaluate_all('(els)=>els.map(e=>e.dataset.stepId)')==original_order
-   first.get_by_role('button',name='DUPLICATE STEP',exact=True).click()
-   assert page.locator('.conductor-step').nth(1).locator('[data-block-id]').count()==2
-   page.get_by_role('button',name='UNDO',exact=True).click()
-   page.keyboard.down('Alt')
-   try:first.locator('.conductor-step-header').drag_to(page.locator('.conductor-step').last.locator('.conductor-step-header'))
-   finally:page.keyboard.up('Alt')
-   assert page.locator('.conductor-step[data-step-position="5"]').locator('[data-block-id]').count()==2
-   page.get_by_role('button',name='UNDO',exact=True).click()
    # Touch/keyboard transfer uses the same block operation, with a new block UUID.
    first.get_by_role('button',name='EDIT BLOCK',exact=True).first.click()
    page.get_by_text('MOVE / REPLACE',exact=True).click()

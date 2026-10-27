@@ -248,3 +248,6 @@ dialog[data-contextual][open]{position:relative;inset:auto;width:100%;max-width:
 [data-block-id]>.block-drag-handle:active{cursor:grabbing;opacity:1}
 .block-dragging{outline:2px solid var(--yellow);opacity:.7}
 .card-context-menu button:disabled{opacity:.4;cursor:default}
+
+/* Keep the shared bypass control clear of module content. */
+.instrument .module>button[aria-label="BYPASS"]{position:absolute;grid-area:auto;top:4px;right:4px;margin:0;z-index:2}

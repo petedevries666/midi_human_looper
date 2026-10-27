@@ -18,7 +18,7 @@ function paint(){
  if(!data)return;
  const signature=JSON.stringify([scope.value,data.available,data.enabled,data.inputs,data.patch,data.activeSlot]);
  if(signature===model)return;model=signature;rows.replaceChildren();
- if(!data.available){status.textContent='Cette version du moteur ne propose pas encore MIDI THRU.';return;}
+ if(!data.available){status.textContent=data.reason||'Cette version du moteur ne propose pas encore MIDI THRU.';return;}
  status.textContent=data.enabled?'MIDI THRU actif.':'La première activation demande une lecture arrêtée et les notes relâchées.';
  if(!data.inputs.length){rows.append(node('p','Aucune entrée MIDI physique détectée.'));return;}
  const rules=patchRows(data.patch);

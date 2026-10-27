@@ -65,6 +65,7 @@ inline bool empty(const Configuration&config){for(const auto&r:config)if(r.sourc
 struct Update {
   std::array<int8_t,Slots*Channels> modes{};
   std::array<bool,Slots*Channels> close{};
+  std::array<bool,Slots> fresh{};
 };
 class Runtime {
   Configuration patch_{};
@@ -72,6 +73,9 @@ class Runtime {
 public:
   Update configure(const Configuration&patch,const Inputs&inputs) {
     Update result{};
+    for(unsigned slot=0;slot<Slots;++slot)
+      result.fresh[slot]=inputs_[slot].source!=inputs[slot].source ||
+                        (!inputs_[slot].connected && inputs[slot].connected);
     for(unsigned slot=0;slot<Slots;++slot)
       for(unsigned ch=0;ch<Channels;++ch){
         const unsigned at=slot*Channels+ch;

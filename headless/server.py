@@ -856,7 +856,11 @@ class Handler(BaseHTTPRequestHandler):
     def midi_inputs_command(self,read_only=False):
         service=getattr(self.server,'midi_inputs',None)
         if service is None:
-            self.respond(503,{'error':'MIDI THRU physique disponible avec le bridge Zynthian'});return
+            if read_only:
+                self.respond(200,{'available':False,'enabled':False,'inputs':[],
+                                 'reason':'Les entrées MIDI physiques sont disponibles avec le bridge Zynthian.'})
+            else:self.respond(503,{'error':'MIDI THRU physique disponible avec le bridge Zynthian'})
+            return
         try:
             with self.server.patch_lock:
                 if read_only:result=service.status()

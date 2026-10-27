@@ -105,6 +105,35 @@ class NativeMidiThru(unittest.TestCase):
         self.assertEqual(self.cmd(op=57,midi_inputs=disconnected)['activeNotes'],1)
         self.assertEqual(self.note(3,69,0)['activeNotes'],0)
 
+    def test_reenable_after_release_while_off_does_not_swallow_fresh_note_off(self):
+        self.note(1,71,100)
+        modes=[-1]*16;modes[2]=0
+        self.assertEqual(self.cmd(op=56,midi_thru=[1,1,1,*modes])['activeNotes'],0)
+        self.note(1,71,0)
+        self.cmd(op=56,midi_thru=[1,0])
+        self.assertEqual(self.note(1,71,100)['activeNotes'],1)
+        self.assertEqual(self.note(1,71,0)['activeNotes'],0)
+
+    def test_reconnection_without_old_note_off_starts_with_clean_ownership(self):
+        self.note(1,72,100)
+        disconnected=list(self.inputs);disconnected[4]=0
+        self.assertEqual(self.cmd(op=57,midi_inputs=disconnected)['activeNotes'],0)
+        self.cmd(op=57,midi_inputs=self.inputs)
+        self.assertEqual(self.note(1,72,100)['activeNotes'],1)
+        self.assertEqual(self.note(1,72,0)['activeNotes'],0)
+
+    def test_assigned_controller_release_while_off_does_not_leave_stale_gate(self):
+        self.cmd(op=14,target=17,arg=1,ch=2,note=76)
+        modes=list(self.inputs);modes[5+2]=2
+        self.cmd(op=57,midi_inputs=modes)
+        self.assertEqual(self.note(1,76,100)['activeNotes'],1)
+        off=[-1]*16;off[2]=0
+        self.assertEqual(self.cmd(op=56,midi_thru=[1,1,1,*off])['activeNotes'],0)
+        self.note(1,76,0)
+        self.cmd(op=56,midi_thru=[1,0])
+        self.assertEqual(self.note(1,76,100)['activeNotes'],1)
+        self.assertEqual(self.note(1,76,0)['activeNotes'],0)
+
     def test_all_includes_controller_notes_but_never_learn_capture(self):
         self.cmd(op=14,target=17,arg=1,ch=2,note=74)
         self.assertEqual(self.note(1,74,100)['activeNotes'],0)

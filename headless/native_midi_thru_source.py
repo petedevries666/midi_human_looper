@@ -11,13 +11,47 @@ NATIVE_THRU_HELD_BASE=29400256;
 NATIVE_THRU_TOTAL_BASE=29433024;
 NATIVE_THRU_STALE_BASE=29435072;
 NATIVE_THRU_SUSTAIN_BASE=29467840;
+NATIVE_THRU_CLOSE_BASE=29468096;
+NATIVE_THRU_HEAD_BASE=29468352;
 ext_midi_bus=1;native_thru_enabled=0;
+native_thru_reset_pending=0;native_thru_close_pending=0;
 native_thru_slot=0;native_thru_mode=1;native_thru_stale_until=0;
 nt_init=0;loop(256,mem[NATIVE_THRU_MODE_BASE+nt_init]=1;nt_init+=1;);
 memset(NATIVE_THRU_HELD_BASE,0,32768);
 memset(NATIVE_THRU_TOTAL_BASE,0,2048);
 memset(NATIVE_THRU_STALE_BASE,0,32768);
 memset(NATIVE_THRU_SUSTAIN_BASE,0,256);
+memset(NATIVE_THRU_CLOSE_BASE,0,256);
+
+// Merge one lookahead event per physical bus by sample offset. Draining each
+// bus in turn would reorder a pedal release relative to another keyboard.
+function native_thru_begin()
+local(slot,at,offs,st,data)
+(
+ slot=0;loop(native_thru_enabled?16:1,
+  at=NATIVE_THRU_HEAD_BASE+slot*4;midi_bus=slot;
+  mem[at]=midirecv(offs,st,data);
+  mem[at+1]=offs;mem[at+2]=st;mem[at+3]=data;slot+=1;
+ );midi_bus=0;
+);
+function native_thru_next()
+local(slot,at,best,best_offset,offs,st,data)
+(
+ best=-1;best_offset=1e30;slot=0;
+ loop(native_thru_enabled?16:1,
+  at=NATIVE_THRU_HEAD_BASE+slot*4;
+  mem[at]>0 && mem[at+1]<best_offset?(
+   best=slot;best_offset=mem[at+1];
+  );slot+=1;
+ );
+ best>=0?(
+  at=NATIVE_THRU_HEAD_BASE+best*4;
+  offset=mem[at+1];msg1=mem[at+2];msg23=mem[at+3];
+  midi_bus=best;mem[at]=midirecv(offs,st,data);
+  mem[at+1]=offs;mem[at+2]=st;mem[at+3]=data;
+  1;
+ ):0;
+);
 
 function native_thru_reset()
 (
@@ -107,11 +141,17 @@ local(gi,idx,mask)
     change(release, '')
     change('function sw_input(st,num,value,offs)',
            release+'\n'+EEL+'\nfunction sw_input(st,num,value,offs)')
-    # midirecv selects its input bus; it does not discover a bus and return it.
-    # Restore that selection before every receive because output uses bus zero.
+    change('function reset_note_runtime()\nlocal(pv_i)\n(',
+           'function reset_note_runtime()\nlocal(pv_i)\n(\n native_thru_reset_pending=1;')
+    # midirecv selects its input bus; merge their lookahead events by timestamp.
     change('while (\n  midirecv(offset,msg1,msg23) ?',
-           'native_thru_read_slot=0;loop(native_thru_enabled?16:1,\nwhile (\n'
-           '  midi_bus=native_thru_read_slot;midirecv(offset,msg1,msg23) ?')
+           'native_thru_reset_pending?(native_thru_reset();native_thru_reset_pending=0;);\n'
+           'native_thru_close_pending?(nt_close=0;loop(256,\n'
+           ' mem[NATIVE_THRU_CLOSE_BASE+nt_close]>0?('
+           'native_thru_close(floor(nt_close/16),nt_close%16,0);'
+           'mem[NATIVE_THRU_CLOSE_BASE+nt_close]=0;);nt_close+=1;);'
+           'native_thru_close_pending=0;);\n'
+           'native_thru_begin();\nwhile (\n  native_thru_next() ?')
     change('    status=msg1&240;\n    d1=msg23&127;',
            '    native_thru_slot=max(0,min(15,floor(midi_bus)));midi_bus=0;\n'
            '    native_thru_mode=native_thru_enabled?mem[NATIVE_THRU_MODE_BASE+native_thru_slot*16+(msg1&15)]:1;\n'
@@ -129,6 +169,5 @@ local(gi,idx,mask)
            '(native_thru_mode==2 || (native_thru_mode==1 && !is_trigger_command)) ? '
            'native_thru_route(offset,msg1,d1,d2,native_thru_slot);')
     change('i_release_mask=0;\nsw_poll',
-           'native_thru_read_slot+=1;);midi_bus=0;\n'
-           'i_release_mask=0;native_thru_mode=1;native_thru_slot=0;\nsw_poll')
+           'midi_bus=0;i_release_mask=0;native_thru_mode=1;native_thru_slot=0;\nsw_poll')
     return source

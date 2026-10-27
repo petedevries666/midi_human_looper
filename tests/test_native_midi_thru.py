@@ -78,5 +78,12 @@ class NativeMidiThru(unittest.TestCase):
         self.assertEqual((switch['kind'],switch['number'],switch['channel']),(1,37,3))
         self.assertEqual(s['activeNotes'],0)
 
+    def test_panic_clears_ingress_ownership_before_next_note(self):
+        self.assertEqual(self.note(1,65,100)['activeNotes'],1)
+        self.assertEqual(self.cmd(op=2)['activeNotes'],0)
+        self.assertEqual(self.note(1,65,0)['activeNotes'],0)
+        self.assertEqual(self.note(1,65,100)['activeNotes'],1)
+        self.assertEqual(self.note(1,65,0)['activeNotes'],0)
+
 
 if __name__=='__main__':unittest.main()

@@ -38,7 +38,9 @@ jobs:
       - name: Verify physical MIDI THRU isolation and protected Learn paths
         env:
           HEADLESS_BINARY: ${{ github.workspace }}/.build/midi-headless-engine
-        run: python3 tests/test_native_midi_thru.py
+        run: |
+          python3 -m unittest tests.test_midi_inputs
+          python3 tests/test_native_midi_thru.py
       - name: Run Conductor configuration regressions
         env:
           HEADLESS_BINARY: ${{ github.workspace }}/.build/midi-headless-engine

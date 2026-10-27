@@ -60,6 +60,10 @@ class NativeMidiThru(unittest.TestCase):
         self.assertEqual(self.note(2,60,0)['activeNotes'],1)
         self.assertEqual(self.note(1,60,0)['activeNotes'],0)
 
+    def test_virtual_web_note_test_remains_available_with_physical_din_off(self):
+        self.assertEqual(self.note(0,79,100)['activeNotes'],1)
+        self.assertEqual(self.note(0,79,0)['activeNotes'],0)
+
     def test_equal_notes_from_two_allowed_inputs_do_not_cut_each_other(self):
         self.assertEqual(self.note(3,62,100)['activeNotes'],1)
         self.assertEqual(self.note(1,62,100)['activeNotes'],1)

@@ -58,6 +58,15 @@ inline bool readInputs(std::istream&in,Inputs&out) {
   out=next;return true;
 }
 inline bool empty(const Configuration&config){for(const auto&r:config)if(r.source)return false;return true;}
+inline std::string inputsJson(const Inputs&inputs){
+  unsigned count=0;for(unsigned slot=1;slot<Slots;++slot)if(inputs[slot].source)++count;
+  std::ostringstream out;out<<"{\"version\":1,\"configuration\":[1,"<<count;
+  for(unsigned slot=1;slot<Slots;++slot){const auto&input=inputs[slot];if(!input.source)continue;
+    out<<','<<slot<<','<<input.source<<','<<(input.connected?1:0);
+    for(auto mode:input.channels)out<<','<<int(mode);
+  }
+  out<<"]}";return out.str();
+}
 
 // Callback-owned state. A control-worker update is validated before reaching
 // this object. The returned mask is consumed in DSP context, where releasing

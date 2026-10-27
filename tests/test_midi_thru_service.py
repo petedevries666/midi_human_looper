@@ -53,5 +53,13 @@ class MidiThruService(unittest.TestCase):
         with self.assertRaises(ValueError):self.service.update_source(edit)
         self.assertFalse(self.service.store.path.exists())
 
+    def test_presence_is_not_reported_as_verified_routing(self):
+        self.control.state['midiThruEnabled']=True
+        self.control.state['midiInputRuntime']={'version':1,'configuration':[1,1,1,1,0,*([1]*16)]}
+        self.assertTrue(self.service.status()['inputs'][0]['present'])
+        self.assertFalse(self.service.status()['inputs'][0]['routingReady'])
+        self.control.state['midiInputRuntime']['configuration'][4]=1
+        self.assertTrue(self.service.status()['inputs'][0]['routingReady'])
+
 
 if __name__=='__main__':unittest.main()

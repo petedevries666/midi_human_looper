@@ -24,7 +24,7 @@ function paint(){
  const rules=patchRows(data.patch);
  for(const input of data.inputs){
   const card=node('article');card.className='midi-thru-input';
-  card.append(node('strong',input.name),node('small',input.ambiguous?'AMBIGUË · CONNEXION REFUSÉE':input.present?'CONNECTÉE':'DÉCONNECTÉE'));
+  card.append(node('strong',input.name),node('small',input.ambiguous?'AMBIGUË · CONNEXION REFUSÉE':!input.present?'DÉCONNECTÉE':input.routingReady?'CONNECTÉE · ROUTAGE VÉRIFIÉ':input.enabled?'CONNECTÉE · EN ATTENTE DU ROUTAGE':'CONNECTÉE · NON GÉRÉE'));
   const grid=node('div');grid.className='midi-thru-channels';
   const rule=rules.find(r=>r.source===input.id);
   const patchUnavailable=scope.value==='patch'&&(!input.id||!input.enabled||!data.enabled);

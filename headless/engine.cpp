@@ -127,6 +127,7 @@ struct Phrase {
   int mute = 0, solo = 0, triggerNote = -1, triggerChannel = 0, outputChannel = 0;
 };
 struct Snapshot {
+  midi_thru::Inputs midiInputs{};
   echocity::Configurations echoConfig{};
   expressive::Configuration expressiveConfig{};
   midi_thru::Configuration midiThruConfig{};
@@ -738,6 +739,7 @@ static std::string json(const Reply &r) {
     << ",\"expressivePending\":" << s.expressivePending << ",\"expressiveRejected\":" << s.expressiveRejected << ",\"expressiveClamped\":" << s.expressiveClamped
     << ",\"nativeExpressive\":" << expressive::configurationJson(s.expressiveConfig)
     << ",\"midiThru\":" << midi_thru::json(s.midiThruConfig)
+    << ",\"midiInputRuntime\":" << midi_thru::inputsJson(s.midiInputs)
     << ",\"midiThruAvailable\":" << (s.midiThruAvailable?"true":"false")
     << ",\"midiThruEnabled\":" << (s.midiThruEnabled?"true":"false")
     << ",\"echocityRejected\":" << s.echoRejected
@@ -1966,7 +1968,8 @@ int main(int argc, char **argv) {
     auto refreshMidiThru=[&](){
       if(!midiThruAvailable)return;
       const auto update=midiThruRuntime.configure(model.midiThruConfig,midiThruInputs);
-      for(unsigned j=0;j<256;++j){*midiThruModes[j]=update.modes[j];
+      // Only control-injected Web tests use bus zero while MIDI THRU is active.
+      for(unsigned j=0;j<256;++j){*midiThruModes[j]=j<16?1:update.modes[j];
         if(update.close[j]){*midiThruClose[j]=1;*midiThruClosePending=1;}}
       for(unsigned slot=0;slot<16;++slot)if(update.fresh[slot])*midiThruFresh[slot]=1;
       *midiThruEnabled=midiThruActive?1:0;
@@ -3353,7 +3356,7 @@ int main(int argc, char **argv) {
         }
       }
       if(model.midiThruPending.exchange(false,std::memory_order_acq_rel))refreshMidiThru();
-      state.midiThruAvailable=midiThruAvailable;state.midiThruEnabled=midiThruActive;
+      state.midiThruAvailable=midiThruAvailable;state.midiThruEnabled=midiThruActive;state.midiInputs=midiThruInputs;
       trace.value.commands=count;
       trace.mark(2);
       for (unsigned j = 0; j < performanceTargetCount;) {

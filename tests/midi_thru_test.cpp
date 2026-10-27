@@ -9,8 +9,10 @@ int main(){
   auto update=runtime.configure(patch,inputs);
   assert(update.modes[16]==1 && update.modes[0]==0);
   assert(update.close[16]);
+  assert(update.fresh[1]);
   update=runtime.configure(patch,inputs);
   for(bool close:update.close)assert(!close);
+  assert(!update.fresh[1]);
   patch[0].source=7;patch[0].channels[2]=0;
   update=runtime.configure(patch,inputs);
   assert(update.close[18] && !update.close[17] && update.modes[18]==0);
@@ -19,6 +21,7 @@ int main(){
   inputs[1].source=8;
   update=runtime.configure(patch,inputs);
   assert(update.modes[18]==1);
+  assert(update.fresh[1]);
   for(unsigned ch=0;ch<Channels;++ch)assert(update.close[16+ch]);
   inputs[1].connected=false;
   update=runtime.configure(patch,inputs);

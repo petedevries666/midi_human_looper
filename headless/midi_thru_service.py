@@ -17,12 +17,18 @@ class Service:
 
     def status(self):
         state=self.control.request();registry=self.store.read()
+        inputs=inventory(registry,state.get('physicalMidiInputs',[]))
+        runtime=state.get('midiInputRuntime',{}).get('configuration',[1,0])
+        from midi_thru_config import validate_inputs
+        validate_inputs(runtime)
+        ready={runtime[at+1] for at in range(2,len(runtime),19) if runtime[at+2]}
+        for row in inputs:row['routingReady']=bool(state.get('midiThruEnabled') and row['enabled'] and row['id'] in ready)
         return {'available':bool(state.get('midiThruAvailable')),
                 'enabled':bool(state.get('midiThruEnabled')),
                 'engineSessionId':state['engineSessionId'],
                 'revision':state.get('revision',1),
                 'configurationRevision':self.fingerprint(registry),
-                'inputs':inventory(registry,state.get('physicalMidiInputs',[])),
+                'inputs':inputs,
                 'defaults':registry['defaults'],
                 'patch':state.get('midiThru',{'version':1,'configuration':[1,0]})}
 

@@ -32,6 +32,19 @@ class PhraseTune(unittest.TestCase):
             m,_=self.model();m['switches'][0]['steps'][0]['repeat']=value
             with self.assertRaises(ValueError):conductor.validate(m)
 
+    def test_rate_source_and_override_range_roundtrip(self):
+        for value in (.1,.5,1,1.25,16):
+            m,b=self.model();m['sources'][0]['rate']=value;b['overrides']['phrase_rate']=dict(mode='OVERRIDE',value=value)
+            self.assertEqual(conductor.decode(conductor.encode(m)),m)
+            b['overrides']['phrase_rate']=dict(mode='INHERIT')
+            self.assertEqual(conductor.decode(conductor.encode(m)),m)
+        for value in (0,.09,16.01,float('nan'),float('inf'),True,'2'):
+            for local in (False,True):
+                m,b=self.model()
+                if local:b['overrides']['phrase_rate']=dict(mode='OVERRIDE',value=value)
+                else:m['sources'][0]['rate']=value
+                with self.assertRaises(ValueError):conductor.validate(m)
+
     def test_reject_invalid_or_fractional_semitones(self):
         for value in (-25,25,.5,True,'12'):
             for local in (False,True):

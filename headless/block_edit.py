@@ -60,7 +60,7 @@ def capture(patch, kind, source, allow_empty=False):
         if not count and not allow_empty: raise ValueError('This phrase is empty')
         src = phrase_source(model(patch), source)
         return dict(kind=kind, source=source, values=[mem[a] for a in addresses],
-                    events=list(mem[i*c['LAYER_STRIDE']:i*c['LAYER_STRIDE']+count*5]), muteGroup=src['muteGroup'], tune=src.get('tune',0))
+                    events=list(mem[i*c['LAYER_STRIDE']:i*c['LAYER_STRIDE']+count*5]), muteGroup=src['muteGroup'], tune=src.get('tune',0),rate=src.get('rate',1))
     if kind == 'movement':
         item = next((m for m in model(patch)['movements'] if m['id'] == source), None)
         if not item: raise ValueError('Movement missing')
@@ -122,6 +122,7 @@ def paste(patch, clip, target=None, mode='empty'):
             mem[c['TRIG_BASE']+idx]=mem[c['ONCEPOS_BASE']+idx]=0
             phrase_source(m,slot)['muteGroup']=data['muteGroup']
             phrase_source(m,slot)['tune']=data.get('tune',0)
+            phrase_source(m,slot)['rate']=data.get('rate',1)
         write(target,clip)
         if mode=='swap':
             write(clip['source'],other)

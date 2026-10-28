@@ -265,3 +265,11 @@ dialog[data-contextual][open]{position:relative;inset:auto;width:100%;max-width:
 .conductor-step-controls label{font-size:9px;color:#eee600}
 .conductor-step-controls input{width:100%;min-width:0;box-sizing:border-box;text-align:center;padding:2px;font-size:11px;height:26px;color:#eee600;appearance:textfield;-moz-appearance:textfield}
 .conductor-step-controls input::-webkit-inner-spin-button,.conductor-step-controls input::-webkit-outer-spin-button{appearance:none;margin:0}
+
+/* Source RATE is a playback multiplier, adjacent to TUNE. */
+.phrase-rate-cell{min-width:0}
+@media(min-width:701px){
+ #phrases,.phrase-columns{width:1014px;max-width:100%}
+ .phrase-columns,.phrase{grid-template-columns:24px minmax(90px,150px) 22px 22px 18px 18px 48px 42px 42px 54px repeat(3,minmax(52px,1fr)) 22px 25px 22px}
+}
+@media(max-width:700px){.phrase>.phrase-rate-cell{grid-column:span 2!important;grid-row:auto!important}}

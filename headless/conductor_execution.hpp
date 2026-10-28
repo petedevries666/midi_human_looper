@@ -30,7 +30,7 @@ inline bool supportedBlock(const Value& b) {
   for(const auto& item:b.at("overrides").object) {
     if(choice(item.second.at("mode"),{"INHERIT"}))continue;
     const auto& k=item.first;const auto& v=item.second.at("value");
-    if(k=="phrase_tune" || k=="playMode" || k=="phrase_base_velocity" || k=="phrase_velocity_decay" || k=="phrase_time_decay")continue;
+    if(k=="phrase_rate" || k=="phrase_tune" || k=="playMode" || k=="phrase_base_velocity" || k=="phrase_velocity_decay" || k=="phrase_time_decay")continue;
     if(k=="revealCC" || k=="revealFadeSeconds")continue;
     if(k=="entry" && choice(v,{"TRIGGER","REVEAL"}))continue;
     if(k=="release" && choice(v,{"LATCH","GATE"}))continue;
@@ -48,7 +48,8 @@ inline std::vector<double> compile(const std::vector<unsigned>& bytes,double bas
   std::vector<double> out(SwitchCapacity*8,0);
   if(bytes.empty())return out;
   auto root=document(bytes);std::map<std::string,unsigned> slots;
-  std::array<unsigned,128> groups{};std::array<double,128> tunes{};
+  std::array<unsigned,128> groups{};std::array<double,128> tunes{};std::array<double,128> rates;rates.fill(1);
+  for(const auto& s:root.at("sources").array)if(s.object.count("rate"))rates[unsigned(s.at("slot").number)-1]=s.at("rate").number;
   for(const auto& s:root.at("sources").array)if(s.object.count("tune"))tunes[unsigned(s.at("slot").number)-1]=s.at("tune").number;
   for(const auto& s:root.at("sources").array)if(s.object.count("muteGroup"))groups[unsigned(s.at("slot").number)-1]=unsigned(s.at("muteGroup").number);
   for(const auto& s:root.at("sources").array)slots[s.at("id").text]=unsigned(s.at("slot").number)-1;
@@ -60,7 +61,7 @@ inline std::vector<double> compile(const std::vector<unsigned>& bytes,double bas
     if(out[h+7]&&sw.object.count("advance")&&choice(sw.at("advance"),{"RELEASE"}))out[h+7]=2;
     unsigned stepStart=out.size();out.resize(out.size()+sw.at("steps").array.size()*80,0);unsigned stepIndex=0;
     for(const auto& step:sw.at("steps").array) {
-      std::array<double,80> record{};std::vector<double> admissions,heldAdmissions,longAdmissions,releaseAdmissions,chargeAdmissions,revealOptions,actions,phraseTunes;unsigned longMask=0;bool chargeAction=false;
+      std::array<double,80> record{};std::vector<double> admissions,heldAdmissions,longAdmissions,releaseAdmissions,chargeAdmissions,revealOptions,actions,phraseTunes,phraseRates;unsigned longMask=0;bool chargeAction=false;
       record[0]=choice(step.at("transition"),{"INHERIT","IMMEDIATE","END_OF_PHRASE"});
       record[71]=choice(step.at("transition"),{"END_OF_PHRASE"})||(choice(step.at("transition"),{"INHERIT"})&&choice(sw.at("transition"),{"END_OF_PHRASE"}));
       unsigned n=0;
@@ -118,6 +119,7 @@ inline std::vector<double> compile(const std::vector<unsigned>& bytes,double bas
         if(&layer==&step.at("layers").array.front())record[70]=n+1;
         double cc=localNumber(b,"revealCC"),fade=localNumber(b,"revealFadeSeconds");revealOptions.push_back(cc<0?7:cc);revealOptions.push_back(fade<0?0:fade);
         auto tune=b.at("overrides").object.find("phrase_tune");phraseTunes.push_back(tune!=b.at("overrides").object.end()&&choice(tune->second.at("mode"),{"OVERRIDE"})?tune->second.at("value").number:tunes[it->second]);
+        auto rate=b.at("overrides").object.find("phrase_rate");phraseRates.push_back(rate!=b.at("overrides").object.end()&&choice(rate->second.at("mode"),{"OVERRIDE"})?rate->second.at("value").number:rates[it->second]);
         unsigned row=4+n*5;record[row]=it->second;record[row+1]=-1;
         auto mode=b.at("overrides").object.find("playMode");
         if(mode!=b.at("overrides").object.end() && choice(mode->second.at("mode"),{"OVERRIDE"}))
@@ -139,7 +141,7 @@ inline std::vector<double> compile(const std::vector<unsigned>& bytes,double bas
       }
       record[75]=chargeAdmissions.size();record[77]=base+out.size();out.insert(out.end(),chargeAdmissions.begin(),chargeAdmissions.end());record[78]=base+out.size();
       out.insert(out.end(),{threshold,full,double(binding.size()/7)});out.insert(out.end(),binding.begin(),binding.end());
-      record[79]=base+out.size();out.push_back(actions.size()/4);out.insert(out.end(),actions.begin(),actions.end());out.insert(out.end(),phraseTunes.begin(),phraseTunes.end());out.push_back(step.object.count("repeat")?step.at("repeat").number:1);
+      record[79]=base+out.size();out.push_back(actions.size()/4);out.insert(out.end(),actions.begin(),actions.end());out.insert(out.end(),phraseTunes.begin(),phraseTunes.end());out.push_back(step.object.count("repeat")?step.at("repeat").number:1);out.insert(out.end(),phraseRates.begin(),phraseRates.end());
       std::copy(record.begin(),record.end(),out.begin()+stepStart+(stepIndex-1)*80);
 
     }

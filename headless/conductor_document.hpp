@@ -92,7 +92,7 @@ inline bool validDocument(const std::vector<unsigned> &bytes){
     std::set<std::string> ids,sources,movements;std::set<unsigned> slots,switchIds;
     auto unique=[&](const Value &v){require(ids.insert(uuid(v)).second);};
     const auto &src=root.at("sources");require(src.type=='a');
-    for(const auto &v:src.array){if(groupVersion){fieldsOptional(v,{"id","type","slot","muteGroup"},{"tune"});require(integer(v.at("muteGroup"),0,16777215));}else fieldsOptional(v,{"id","type","slot"},{"tune"});if(v.object.count("tune"))require(integer(v.at("tune"),-24,24));unique(v.at("id"));require(choice(v.at("type"),{"PHRASE"})&&integer(v.at("slot"),1,128)&&slots.insert(unsigned(v.at("slot").number)).second);sources.insert(uuid(v.at("id")));}
+    for(const auto &v:src.array){if(groupVersion){fieldsOptional(v,{"id","type","slot","muteGroup"},{"tune","rate"});require(integer(v.at("muteGroup"),0,16777215));}else fieldsOptional(v,{"id","type","slot"},{"tune","rate"});if(v.object.count("tune"))require(integer(v.at("tune"),-24,24));if(v.object.count("rate"))require(v.at("rate").type=='n'&&v.at("rate").number>=.1&&v.at("rate").number<=16);unique(v.at("id"));require(choice(v.at("type"),{"PHRASE"})&&integer(v.at("slot"),1,128)&&slots.insert(unsigned(v.at("slot").number)).second);sources.insert(uuid(v.at("id")));}
     if(movementVersion){
       const auto &rate=root.at("ccRate");require(integer(rate,10,100)&&(rate.number==10||rate.number==25||rate.number==50||rate.number==100));
       const auto &library=root.at("movements");require(library.type=='a');
@@ -158,7 +158,7 @@ inline bool validDocument(const std::vector<unsigned> &bytes){
               {"join",{"TRIGGER","JOIN_NOW","JOIN_AT_LOOP_START"}},{"referenceTime",{"CYCLE","ELAPSED"}},
               {"entry",{"TRIGGER","REVEAL"}},{"release",{"LATCH","GATE"}},
               {"movementCycle",{"ONCE","LOOP","PING_PONG"}},{"movementPlayMode",{"ONE_SHOT","GATED"}},{"retrigger",{"SOFT_RESTART","DIRECT"}}};
-            bool tune=key=="phrase_tune";bool parameter=tune||key=="phrase_time_decay"||key=="phrase_velocity_decay"||key=="phrase_base_velocity";
+            bool tune=key=="phrase_tune",rate=key=="phrase_rate";bool parameter=tune||rate||key=="phrase_time_decay"||key=="phrase_velocity_decay"||key=="phrase_base_velocity";
             bool revealNumber=key=="revealCC"||key=="revealFadeSeconds";
             bool movementNumber=key=="releaseSeconds"||key=="restValue"||key=="movementDuration";
             require(opts.count(key)||key=="destination"||parameter||movementNumber||revealNumber);
@@ -171,6 +171,7 @@ inline bool validDocument(const std::vector<unsigned> &bytes){
             else if(movementNumber)require(v.type=='n'&&v.number>=(key=="movementDuration"?.001:0)&&v.number<=(key=="movementDuration"?86400:key=="releaseSeconds"?60:1));
             else if(key=="destination")destination(v);
             else if(tune)require(integer(v,-24,24));
+            else if(rate)require(v.type=='n'&&v.number>=.1&&v.number<=16);
             else if(parameter){unsigned kind=key=="phrase_time_decay"?14:key=="phrase_velocity_decay"?15:17;const auto &descriptor=performance::parameters[kind];require(v.type=='n'&&v.number>=descriptor.low&&v.number<=descriptor.high);}
             else {require(v.type=='s');auto &allowed=opts.at(key);require(std::find(allowed.begin(),allowed.end(),v.text)!=allowed.end());}
           }

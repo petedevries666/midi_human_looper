@@ -25,7 +25,7 @@ OPTIONS = {
     'movementCycle': ('ONCE', 'LOOP', 'PING_PONG'),
     'retrigger': ('SOFT_RESTART', 'DIRECT'),
 }
-PHRASE_OPTIONS = {'playMode', 'trigger', 'instancePolicy', 'join', 'referenceTime', 'entry', 'release', 'phrase_time_decay', 'phrase_velocity_decay', 'phrase_base_velocity', 'phrase_tune', 'revealCC', 'revealFadeSeconds'}
+PHRASE_OPTIONS = {'playMode', 'trigger', 'instancePolicy', 'join', 'referenceTime', 'entry', 'release', 'phrase_time_decay', 'phrase_velocity_decay', 'phrase_base_velocity', 'phrase_tune', 'phrase_rate', 'revealCC', 'revealFadeSeconds'}
 MOVEMENT_OPTIONS = {'trigger', 'join', 'referenceTime', 'movementPlayMode', 'retrigger', 'destination', 'releaseSeconds', 'restValue', 'movementDuration', 'movementCycle'}
 
 
@@ -48,6 +48,11 @@ def identity(value):
 def integer(value, lo, hi):
     if type(value) is not int or not lo <= value <= hi:
         raise ValueError('CONDUCTOR invalid integer')
+
+
+def playback_rate(value):
+    if type(value) not in (int,float) or not math.isfinite(value) or not .1<=value<=16:
+        raise ValueError('RATE must be between 0.1 and 16')
 
 
 def destination(value):
@@ -124,8 +129,9 @@ def validate(data):
     slots = set()
     sources = {}
     for source in data['sources']:
-        fields(source, (('id', 'type', 'slot', 'muteGroup') if data['version']==GROUP_VERSION else ('id', 'type', 'slot')) + (('tune',) if 'tune' in source else ()))
+        fields(source, (('id', 'type', 'slot', 'muteGroup') if data['version']==GROUP_VERSION else ('id', 'type', 'slot')) + tuple(k for k in ('tune','rate') if k in source))
         if 'tune' in source: integer(source['tune'], -24, 24)
+        if 'rate' in source: playback_rate(source['rate'])
         if data['version']==GROUP_VERSION: integer(source['muteGroup'], 0, 16777215)
         unique(source['id'])
         # Only the existing PHRASE pool has a production storage binding today.
@@ -244,6 +250,8 @@ def validate(data):
                         elif name in ('releaseSeconds','restValue','movementDuration'):
                             v=local['value']
                             if type(v) not in (int,float) or not math.isfinite(v) or not (0<v<=86400 if name=='movementDuration' else 0<=v<=(60 if name=='releaseSeconds' else 1)):raise ValueError('MOVEMENT invalid release override')
+                        elif name == 'phrase_rate':
+                            playback_rate(local['value'])
                         elif name == 'phrase_tune':
                             integer(local['value'], -24, 24)
                         elif name.startswith('phrase_'):

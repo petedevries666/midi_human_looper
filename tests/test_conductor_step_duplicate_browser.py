@@ -21,6 +21,10 @@ try:
         tune.fill('12');tune.press('Tab')
         expect(tune).to_have_value('12')
         expect(tune).to_be_enabled(timeout=30000)
+        rate=page.get_by_label('Rate Phrase 1',exact=True)
+        expect(rate).to_be_enabled(timeout=30000);expect(rate).to_have_value('1')
+        assert rate.get_attribute('min')=='0.1' and rate.get_attribute('max')=='16'
+        rate.fill('0.5');rate.press('Tab');expect(rate).to_be_enabled(timeout=30000)
         page.locator('[data-switch-id="1"]').get_by_role('button',name='CONDUCTOR',exact=True).click()
         page.locator('.conductor-editor').wait_for()
         first=page.locator('.conductor-step').first
@@ -40,6 +44,11 @@ try:
         page.get_by_label('TUNE inheritance',exact=True).select_option('OVERRIDE')
         page.get_by_label('TUNE override',exact=True).fill('-12')
         page.get_by_label('TUNE override',exact=True).press('Tab')
+        expect(page.get_by_label('RATE inheritance',exact=True)).to_have_value('INHERIT')
+        expect(page.get_by_label('RATE override',exact=True)).to_have_value('0.5')
+        page.get_by_label('RATE inheritance',exact=True).select_option('OVERRIDE')
+        page.get_by_label('RATE override',exact=True).fill('2')
+        page.get_by_label('RATE override',exact=True).press('Tab')
         page.get_by_label('VEL inheritance',exact=True).select_option('OVERRIDE')
         page.get_by_label('VEL override',exact=True).fill('0.5')
         page.get_by_label('VEL override',exact=True).press('Tab')
@@ -72,6 +81,8 @@ try:
             assert old['block']['sourceId']==new['block']['sourceId']
             assert old['block']['overrides']==new['block']['overrides']
         assert steps[1]['layers'][0]['block']['overrides']['phrase_base_velocity']['value']==.5
+        assert model['sources'][0]['rate']==.5
+        assert steps[1]['layers'][0]['block']['overrides']['phrase_rate']['value']==2
         assert model['sources'][0]['tune']==12
         assert steps[1]['layers'][0]['block']['overrides']['phrase_tune']['value']==-12
         assert not api.call()['instances'],'editing must never launch a phrase'

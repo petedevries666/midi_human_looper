@@ -45,9 +45,11 @@ static void pair(const char* source,bool conductor,double decay){
   if(!conductor){trigger(h,false);check(h.events()==first,"idle direct retrigger resets decay sequence");}
 }
 #include "conductor_repeat_cases.hpp"
+#include "phrase_rate_cases.hpp"
 int main(int argc,char**argv){
   check(argc==2,"native generated source required");
   repeat_cases(argv[1]);
+  phrase_rate_cases(argv[1]);
   for(int tune:{-24,0,24}){
     Host h(argv[1]);fixture(h,false);h.run("mem[NATIVE_PHRASE_TUNE_BASE]="+std::to_string(tune)+";");
     trigger(h,false);check(h.events()==std::vector<std::vector<int>>{{146,48+tune,40}},"phrase TUNE transposes attack");

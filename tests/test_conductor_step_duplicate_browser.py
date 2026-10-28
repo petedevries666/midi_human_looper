@@ -39,17 +39,27 @@ try:
         first.get_by_role('button',name='Add PHRASE STEP 1 LAYER 2',exact=True).click()
         first.get_by_role('button',name=__import__('re').compile('^PHRASE 02 ·')).click()
         first.get_by_role('button',name='EDIT BLOCK',exact=True).first.click()
-        assert page.get_by_label('TUNE inheritance',exact=True).input_value()=='INHERIT'
+        assert page.get_by_label('TUNE override',exact=True).get_attribute('data-inheritance')=='INHERIT'
         assert page.get_by_label('TUNE override',exact=True).input_value()=='12'
-        page.get_by_label('TUNE inheritance',exact=True).select_option('OVERRIDE')
+        tune_local=page.get_by_label('TUNE override',exact=True)
+        expect(tune_local).to_be_enabled()
+        assert page.get_by_label('TUNE inheritance',exact=True).count()==0
+        tune_local.fill('12');tune_local.press('Tab')
+        expect(tune_local).to_have_attribute('data-inheritance','OVERRIDE')
+        tune_local.dblclick()
+        expect(tune_local).to_have_attribute('data-inheritance','INHERIT')
+        expect(tune_local).to_have_value('12')
+        tune_local.fill('-12');tune_local.press('Tab')
+        expect(tune_local).to_have_attribute('data-inheritance','OVERRIDE')
+        page.get_by_role('button',name='UNDO',exact=True).click()
+        first.get_by_role('button',name='EDIT BLOCK',exact=True).first.click()
+        expect(tune_local).to_have_attribute('data-inheritance','INHERIT')
         page.get_by_label('TUNE override',exact=True).fill('-12')
         page.get_by_label('TUNE override',exact=True).press('Tab')
-        expect(page.get_by_label('RATE inheritance',exact=True)).to_have_value('INHERIT')
+        expect(page.get_by_label('RATE override',exact=True)).to_have_attribute('data-inheritance','INHERIT')
         expect(page.get_by_label('RATE override',exact=True)).to_have_value('0.5')
-        page.get_by_label('RATE inheritance',exact=True).select_option('OVERRIDE')
         page.get_by_label('RATE override',exact=True).fill('2')
         page.get_by_label('RATE override',exact=True).press('Tab')
-        page.get_by_label('VEL inheritance',exact=True).select_option('OVERRIDE')
         page.get_by_label('VEL override',exact=True).fill('0.5')
         page.get_by_label('VEL override',exact=True).press('Tab')
         original=first.get_attribute('data-step-id')
@@ -85,7 +95,14 @@ try:
         assert steps[1]['layers'][0]['block']['overrides']['phrase_rate']['value']==2
         assert model['sources'][0]['tune']==12
         assert steps[1]['layers'][0]['block']['overrides']['phrase_tune']['value']==-12
+        page.locator('[data-switch-id="1"]').get_by_role('button',name='CONDUCTOR',exact=True).click()
+        page.locator('.conductor-step').first.get_by_role('button',name='EDIT BLOCK',exact=True).first.click()
+        inherited=page.get_by_label('T.DEC override',exact=True)
+        expect(inherited).to_have_attribute('data-inheritance','INHERIT')
+        inherited.press('ArrowRight');expect(inherited).to_have_attribute('data-inheritance','OVERRIDE')
+        inherited.press('Escape');expect(inherited).to_have_attribute('data-inheritance','INHERIT')
         assert not api.call()['instances'],'editing must never launch a phrase'
+        page.get_by_role('button',name='CANCEL',exact=True).click()
         api.command('module_structure',instrumentId=1,operation='add',engineType=3)
         native=api.call()['instruments'][0]
         module=next(m for m in native['transformers'] if m['type']==3)
@@ -109,6 +126,17 @@ try:
         card.click();expect(policy).to_have_value('1');expect(note_mode).to_have_value('1')
         page.get_by_role('button',name='DONE',exact=True).click()
         assert not api.call()['instances']
+        touch=browser.new_context(viewport={'width':360,'height':780},is_mobile=True,has_touch=True)
+        mobile=touch.new_page();mobile.goto(api.base)
+        mobile.get_by_text('CONNECTED · Engine running',exact=True).wait_for()
+        mobile.locator('[data-switch-id="1"]').get_by_role('button',name='CONDUCTOR',exact=True).tap()
+        mobile.locator('.conductor-step').first.get_by_role('button',name='EDIT BLOCK',exact=True).first.tap()
+        slider=mobile.get_by_label('TUNE override',exact=True);slider.scroll_into_view_if_needed()
+        box=slider.bounding_box();x=box['x']+box['width']/2;y=box['y']+box['height']/2
+        mobile.touchscreen.tap(x,y);mobile.touchscreen.tap(x,y)
+        expect(slider).to_have_attribute('data-inheritance','INHERIT');expect(slider).to_have_value('12')
+        assert mobile.evaluate('document.documentElement.scrollWidth<=innerWidth'),'mobile editor must not overflow'
+        touch.close()
         browser.close()
     print('PASS real editor: ALT step copy, empty-column insertion, touch button, UNDO and native persistence')
 finally:

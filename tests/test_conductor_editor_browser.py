@@ -37,7 +37,6 @@ if __name__=='__main__':
    first.get_by_role('button',name='Add PHRASE STEP 1 LAYER 2',exact=True).click()
    first.get_by_role('button',name=re.compile('^PHRASE 02 ·')).click()
    first.get_by_role('button',name='EDIT BLOCK',exact=True).first.click()
-   page.get_by_label('VEL inheritance',exact=True).select_option('OVERRIDE')
    page.get_by_label('VEL override',exact=True).fill('0.5')
    page.get_by_label('VEL override',exact=True).press('ArrowRight')
    assert float(page.get_by_label('VEL override',exact=True).input_value())==.51

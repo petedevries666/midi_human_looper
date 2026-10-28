@@ -5,6 +5,35 @@ function duplicateConductorStep(original,uuid){
  for(const binding of copy.supercharge?.bindings||[])if(blocks.has(binding.blockId))binding.blockId=blocks.get(binding.blockId);
  return copy;
 }
+// Numeric local overrides keep the native schema; only the authoring gesture changes.
+function conductorInheritedControl(title,overrides,key,fallback,range,checkpoint,changed){
+ const row=node('label',title,'conductor-option conductor-inherited-control'),track=node('span',undefined,'conductor-inherited-track'),value=node('input'),marker=node('span',undefined,'conductor-source-marker'),output=node('output');
+ value.type=range.type||'range';value.min=range.min;value.max=range.max;value.step=range.step;value.setAttribute('aria-label',`${title} override`);
+ marker.setAttribute('aria-hidden','true');track.style.setProperty('--inherit-position',Math.max(0,Math.min(1,(fallback-range.min)/(range.max-range.min))));
+ let gesture=false,suppress=false,lastTap=null,startX=0,startY=0,moved=false;
+ const display=(sync=true)=>{
+  const local=overrides[key]?.mode==='OVERRIDE',current=local?overrides[key].value:fallback;
+  if(sync)value.value=current;output.value=String(current);row.dataset.inheritance=value.dataset.inheritance=local?'OVERRIDE':'INHERIT';
+  row.classList.toggle('is-local',local);value.setAttribute('aria-valuetext',`${current} · ${local?'valeur locale':'suit la source'}`);
+  const hint=`Source : ${fallback} · ${local?'valeur locale':'hérité'} · double-clic / double-tap : rétablir l’héritage`;
+  value.title=output.title=hint;marker.title=`Source : ${fallback}`;
+ };
+ const begin=()=>{if(!gesture){checkpoint();gesture=true;}};
+ const update=()=>{if(suppress||!value.checkValidity())return;const n=Number(value.value);if(!Number.isFinite(n))return;begin();overrides[key]={mode:'OVERRIDE',value:n};display(false);};
+ const inherit=()=>{checkpoint();gesture=false;overrides[key]={mode:'INHERIT'};display();changed();};
+ value.oninput=update;value.onchange=()=>{if(!suppress){update();gesture=false;changed();}};
+ value.ondblclick=output.ondblclick=inherit;
+ value.addEventListener('keydown',e=>{if(e.key==='Escape'){e.preventDefault();e.stopPropagation();inherit();}});
+ value.addEventListener('pointerdown',e=>{startX=e.clientX;startY=e.clientY;moved=false;});
+ value.addEventListener('pointermove',e=>{if(Math.hypot(e.clientX-startX,e.clientY-startY)>6)moved=true;});
+ value.addEventListener('pointercancel',()=>{lastTap=null;gesture=false;});
+ value.addEventListener('pointerup',e=>{if(e.pointerType!=='touch'||moved){lastTap=null;return;}const now=Date.now();
+  if(lastTap&&now-lastTap.time<320&&Math.hypot(e.clientX-lastTap.x,e.clientY-lastTap.y)<24){suppress=true;inherit();lastTap=null;setTimeout(()=>suppress=false,0);}
+  else lastTap={time:now,x:e.clientX,y:e.clientY};
+ });
+ if(value.type==='range')track.append(value,marker);else{track.classList.add('is-number');track.append(value,node('small',`↳ ${fallback}`));}
+ row.append(track,output);display();return row;
+}
 // C's versioned model, D's execution. Only the stopped, guarded native commit writes it.
 let conductorView=null;
 function paintConductorRuntime(state){
@@ -150,6 +179,7 @@ async function editConductor(sw){
   if(b.type==='MOVEMENT'){
    const m=source(b);if(!m){side.append(node('p','MISSING SOURCE · preserved'));return;}
    for(const [key,title,choices,fallback] of [['movementCycle','PLAY MODE',['ONCE','LOOP','PING_PONG'],m.cycleMode||'ONCE'],['movementPlayMode','MAINTIEN',['ONE_SHOT','GATED'],m.playMode||'ONE_SHOT'],['movementDuration','DURATION s',null,m.duration],['releaseSeconds','RELEASE s',null,m.releaseSeconds??.2],['restValue','REPOS 0–1',null,m.restValue??.5]]){
+    if(!choices){side.append(conductorInheritedControl(title,b.overrides,key,fallback,{type:'number',min:key==='movementDuration'?.001:0,max:key==='movementDuration'?86400:key==='restValue'?1:60,step:.01},()=>{checkpoint();editing=l.id;},()=>paint(true)));continue;}
     const row=node('label',title,'conductor-option'),policy=node('select'),value=node(choices?'select':'input');
     policy.setAttribute('aria-label',`${title} inheritance`);value.setAttribute('aria-label',`${title} override`);
     for(const text of ['INHERIT','OVERRIDE']){const o=node('option',text);o.value=text;policy.append(o);}
@@ -174,19 +204,18 @@ async function editConductor(sw){
   }
   if(b.overrides.entry?.mode==='OVERRIDE'&&b.overrides.entry.value==='REVEAL'){
    for(const [key,title,fallback,max,stepSize] of [['revealCC','REVEAL CC',7,119,1],['revealFadeSeconds','FADE s',0,60,.01]]){
-    const row=node('label',title,'conductor-option'),policy=node('select'),value=node('input');policy.setAttribute('aria-label',`${title} inheritance`);value.setAttribute('aria-label',`${title} override`);
-    for(const text of ['INHERIT','OVERRIDE']){const o=node('option',text);o.value=text;policy.append(o);}
-    value.type='number';value.min=0;value.max=max;value.step=stepSize;policy.value=b.overrides[key]?.mode||'INHERIT';value.value=b.overrides[key]?.value??fallback;value.disabled=policy.value!=='OVERRIDE';
-    const update=()=>{checkpoint();b.overrides[key]=policy.value==='INHERIT'?{mode:'INHERIT'}:{mode:'OVERRIDE',value:Number(value.value)};paint();properties(s,l);};policy.onchange=value.onchange=update;row.append(policy,value);side.append(row);
+    side.append(conductorInheritedControl(title,b.overrides,key,fallback,{min:0,max,step:stepSize},()=>{checkpoint();editing=l.id;},()=>paint(true)));continue;
+
    }
   }
   if(b.overrides.entry?.mode==='OVERRIDE'&&b.overrides.entry.value==='REVEAL'){
    const warning=node('small',b.overrides.trigger?.mode==='OVERRIDE'&&['HOLD','LONG_HOLD','RELEASE','SUPERCHARGE_RELEASE'].includes(b.overrides.trigger.value)?`CC${b.overrides.revealCC?.mode==='OVERRIDE'?b.overrides.revealCC.value:7} CHANNEL-WIDE`:'REVEAL NEEDS TRIG HOLD / LONG HOLD','conductor-group-warning');warning.title='REVEAL sends its configured CC: shared channels affect other layers and instruments. Use independent channels for isolation. A source phrase cannot also automate this same CC.';warning.setAttribute('role','status');side.append(warning);
   }
   for(const [key,title,kind] of [['phrase_tune','TUNE',null],['phrase_rate','RATE',null],['playMode','MODE',20],['phrase_base_velocity','VEL',17],['phrase_velocity_decay','V.DEC',15],['phrase_time_decay','T.DEC',14]]){
+   const p=phrase(b),fallback=key==='phrase_tune'?(source(b)?.tune??0):key==='phrase_rate'?(source(b)?.rate??1):key==='playMode'?['LOOP','ONCE','HOLD'][p?.mode]||'ONCE':p?.[{phrase_base_velocity:'baseVelocity',phrase_velocity_decay:'velocityDecay',phrase_time_decay:'timeDecay'}[key]]??1;
+   if(key!=='playMode'){const d=key==='phrase_tune'?{min:-24,max:24,step:1}:key==='phrase_rate'?{min:.1,max:16,step:.01}:parameter(kind);side.append(conductorInheritedControl(title,b.overrides,key,fallback,d,()=>{checkpoint();editing=l.id;},()=>paint(true)));continue;}
    const row=node('label',title,'conductor-option'),policy=node('select');policy.setAttribute('aria-label',`${title} inheritance`);
    for(const value of ['INHERIT','OVERRIDE']){const o=node('option',value);o.value=value;policy.append(o);}policy.value=b.overrides[key]?.mode||'INHERIT';
-   const p=phrase(b),fallback=key==='phrase_tune'?(source(b)?.tune??0):key==='phrase_rate'?(source(b)?.rate??1):key==='playMode'?['LOOP','ONCE','HOLD'][p?.mode]||'ONCE':p?.[{phrase_base_velocity:'baseVelocity',phrase_velocity_decay:'velocityDecay',phrase_time_decay:'timeDecay'}[key]]??1;
    let value;
    if(key==='playMode'){value=node('select');for(const text of ['LOOP','ONCE','HOLD']){const o=node('option',text);o.value=text;value.append(o);}value.value=b.overrides[key]?.value??fallback;}
    else{value=node('input');const d=key==='phrase_tune'?{min:-24,max:24,step:1}:key==='phrase_rate'?{min:.1,max:16,step:.01}:parameter(kind);value.type='range';value.min=d.min;value.max=d.max;value.step=d.step;value.value=b.overrides[key]?.value??fallback;}
@@ -203,8 +232,8 @@ async function editConductor(sw){
   const move=action('APPLY MOVE',()=>{const target=sequence.steps.find(t=>t.layers.some(v=>v.id===destination.value));if(target)transfer(s,l,target,target.layers.find(v=>v.id===destination.value),operation.value);});move.disabled=!destination.options.length;moves.append(destination,operation,move);side.append(moves);
   side.append(action('CLOSE PROPERTIES',()=>{editing=null;side.replaceChildren();}));
  }
- function paint(){
-  removeMenu();side.replaceChildren();board.replaceChildren();
+ function paint(keepProperties=false){
+  removeMenu();if(!keepProperties)side.replaceChildren();board.replaceChildren();
   const columns=[...sequence.steps];if(!columns.length||columns.at(-1).layers.some(l=>l.block)){empty=step();columns.push(empty);}
   columns.forEach((s,index)=>{
    const column=node('section',undefined,'conductor-step');column.dataset.stepId=s.id;column.dataset.stepPosition=sequence.steps.includes(s)?index+1:0;column.classList.toggle('selected-step',selected===s.id);

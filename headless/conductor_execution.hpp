@@ -139,7 +139,7 @@ inline std::vector<double> compile(const std::vector<unsigned>& bytes,double bas
       }
       record[75]=chargeAdmissions.size();record[77]=base+out.size();out.insert(out.end(),chargeAdmissions.begin(),chargeAdmissions.end());record[78]=base+out.size();
       out.insert(out.end(),{threshold,full,double(binding.size()/7)});out.insert(out.end(),binding.begin(),binding.end());
-      record[79]=base+out.size();out.push_back(actions.size()/4);out.insert(out.end(),actions.begin(),actions.end());out.insert(out.end(),phraseTunes.begin(),phraseTunes.end());
+      record[79]=base+out.size();out.push_back(actions.size()/4);out.insert(out.end(),actions.begin(),actions.end());out.insert(out.end(),phraseTunes.begin(),phraseTunes.end());out.push_back(step.object.count("repeat")?step.at("repeat").number:1);
       std::copy(record.begin(),record.end(),out.begin()+stepStart+(stepIndex-1)*80);
 
     }

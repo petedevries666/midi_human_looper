@@ -12,7 +12,7 @@ function paintConductorRuntime(state){
  const runtime=state.switches.find(s=>s.id===conductorView.switchId)?.conductor;
  const unchanged=state.engineSessionId===conductorView.session&&state.revision===conductorView.revision;
  conductorView.root.querySelectorAll('[data-step-position]').forEach(el=>{el.classList.toggle('active-step',unchanged&&Number(el.dataset.stepPosition)===runtime?.step);const queued=unchanged&&Number(el.dataset.stepPosition)===runtime?.queuedStep&&runtime.queuedStep>0;el.classList.toggle('queued-step',queued);const badge=el.querySelector('.queued-badge');if(badge)badge.hidden=!queued;});
- conductorView.status.textContent=!unchanged?'CONFIGURATION CHANGED · reopen before DONE':runtime?.result?({1:'MISSING SOURCE',2:'12 VOICES · REFUSED',3:'UNSAFE SOURCE',4:'UNSUPPORTED',5:'INSTANCE ID LIMIT'}[runtime.result]||'REFUSED'):runtime?.queuedStep?`STEP ${runtime.step} → ${runtime.queuedStep} EN ATTENTE`:`ACTIVE ${runtime?.step||'—'} / ${runtime?.steps||0}`;
+ conductorView.status.textContent=!unchanged?'CONFIGURATION CHANGED · reopen before DONE':runtime?.result?({1:'MISSING SOURCE',2:'12 VOICES · REFUSED',3:'UNSAFE SOURCE',4:'UNSUPPORTED',5:'INSTANCE ID LIMIT'}[runtime.result]||'REFUSED'):runtime?.queuedStep?`STEP ${runtime.step} → ${runtime.queuedStep} EN ATTENTE`:`ACTIVE ${runtime?.step||'—'} / ${runtime?.steps||0}${runtime?.repeatTotal>1?` · REPEAT ${runtime.repeatCount}/${runtime.repeatTotal}`:''}`;
 }
 async function editConductor(sw){
  const dialog=$('editor');if(dialog.open)return;
@@ -217,7 +217,13 @@ async function editConductor(sw){
    if(sequence.steps.includes(s)){header.draggable=true;header.title='Glisser pour déplacer · ALT + glisser pour dupliquer';header.ondragstart=e=>{drag={step:s,copy:e.altKey};e.dataTransfer.effectAllowed='copyMove';e.dataTransfer.setData('text/plain',s.id);};header.ondragend=()=>{drag=null;};}dropTarget(header,s);
    column.append(header);const badge=node('output','EN ATTENTE','queued-badge');badge.hidden=true;column.append(badge);
    if(sequence.steps.includes(s))column.append(transitionSelect(`PASSAGE STEP ${index+1}`,s.transition,true,value=>change(()=>s.transition=value)));
-   if(sequence.steps.includes(s))column.append(action(`SUPERCHARGE STEP ${index+1}`,()=>chargeProperties(s)));
+   if(sequence.steps.includes(s)){
+    const controls=node('div',undefined,'conductor-step-controls'),charge=action(`SUPERCHARGE STEP ${index+1}`,()=>chargeProperties(s));charge.textContent='CHARGE';charge.title='SUPERCHARGE · réglages du STEP';
+    const caption=node('label','REPEAT'),count=node('input');count.type='number';count.min=1;count.max=999;count.step=1;count.value=s.repeat??1;count.setAttribute('aria-label',`REPEAT STEP ${index+1}`);count.title='Nombre d’appuis jouant ce STEP avant de passer au suivant · ×1 par défaut';
+    const update=value=>{if(!Number.isInteger(value)||value<1||value>999){error.textContent='REPEAT : entier de 1 à 999';count.value=s.repeat??1;return;}change(()=>{if(value===1)delete s.repeat;else s.repeat=value;});};
+    const minus=action(`REDUCE REPEAT STEP ${index+1}`,()=>update((s.repeat??1)-1)),plus=action(`INCREASE REPEAT STEP ${index+1}`,()=>update((s.repeat??1)+1));minus.textContent='−';plus.textContent='+';minus.disabled=(s.repeat??1)<=1;plus.disabled=s.repeat>=999;count.onchange=()=>update(Number(count.value));count.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();count.blur();}};
+    controls.append(charge,caption,minus,count,plus);column.append(controls);
+   }
    const groups=new Map();for(const l of s.layers){const src=l.block?.type==='PHRASE'?source(l.block):null;if(src?.muteGroup){const ids=groups.get(src.muteGroup)||new Set();ids.add(src.slot);groups.set(src.muteGroup,ids);}}
    for(const [group,ids] of groups)if(ids.size>1){const warning=node('small',`GROUP ${group} · PHRASE ${Math.min(...ids)} wins`,'conductor-group-warning');warning.setAttribute('role','status');column.append(warning);}
 

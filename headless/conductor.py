@@ -187,7 +187,8 @@ def validate(data):
         if not isinstance(switch['steps'], list) or not switch['steps']:
             raise ValueError('CONDUCTOR at least one STEP required')
         for step in switch['steps']:
-            fields(step, ('id', 'transition', 'layers') + (('supercharge',) if 'supercharge' in step else ()))
+            fields(step, ('id', 'transition', 'layers') + tuple(k for k in ('supercharge','repeat') if k in step))
+            if 'repeat' in step: integer(step['repeat'],1,999)
             if 'supercharge' in step:validate_charge(step,defaults)
             unique(step['id'])
             if step['transition'] not in ('INHERIT', 'IMMEDIATE', 'END_OF_PHRASE') or not isinstance(step['layers'], list) or not step['layers']:

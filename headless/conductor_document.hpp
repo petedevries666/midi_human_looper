@@ -116,7 +116,7 @@ inline bool validDocument(const std::vector<unsigned> &bytes){
       require(choice(sw.at("traversal"),{"SEQUENTIAL","BACKWARD","PING_PONG","RANDOM","SHUFFLE_BAG"})&&choice(sw.at("transition"),{"IMMEDIATE","END_OF_PHRASE"})&&choice(sw.at("gesture"),{"INSTANT","EXCLUSIVE"}));
       const auto &steps=sw.at("steps");require(steps.type=='a'&&!steps.array.empty());
       for(const auto &step:steps.array){
-        fieldsOptional(step,{"id","transition","layers"},{"supercharge"});unique(step.at("id"));require(choice(step.at("transition"),{"INHERIT","IMMEDIATE","END_OF_PHRASE"}));
+        fieldsOptional(step,{"id","transition","layers"},{"supercharge","repeat"});if(step.object.count("repeat"))require(integer(step.at("repeat"),1,999));unique(step.at("id"));require(choice(step.at("transition"),{"INHERIT","IMMEDIATE","END_OF_PHRASE"}));
         const auto &layers=step.at("layers");require(layers.type=='a'&&!layers.array.empty());
         if(step.object.count("supercharge")){
           const auto &c=step.at("supercharge");fieldsOptional(c,{"bindings"},{"thresholdMs","fullMs"});double threshold=c.object.count("thresholdMs")?c.at("thresholdMs").number:chargeThreshold,full=c.object.count("fullMs")?c.at("fullMs").number:chargeFull;require((!c.object.count("thresholdMs")||integer(c.at("thresholdMs"),0,30000))&&(!c.object.count("fullMs")||integer(c.at("fullMs"),1,120000))&&full>=threshold&&c.at("bindings").type=='a');

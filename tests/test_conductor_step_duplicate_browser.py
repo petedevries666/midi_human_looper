@@ -24,6 +24,14 @@ try:
         page.locator('[data-switch-id="1"]').get_by_role('button',name='CONDUCTOR',exact=True).click()
         page.locator('.conductor-editor').wait_for()
         first=page.locator('.conductor-step').first
+        repeat=page.get_by_label('REPEAT STEP 1',exact=True)
+        expect(repeat).to_have_value('1')
+        first.get_by_role('button',name='INCREASE REPEAT STEP 1',exact=True).click()
+        first.get_by_role('button',name='INCREASE REPEAT STEP 1',exact=True).click()
+        expect(repeat).to_have_value('3')
+        first.get_by_role('button',name='SUPERCHARGE STEP 1',exact=True).click()
+        assert page.get_by_text('SUPERCHARGE · STEP 1',exact=True).is_visible()
+        page.get_by_role('button',name='CLOSE PROPERTIES',exact=True).click()
         first.get_by_role('button',name='Add PHRASE STEP 1 LAYER 2',exact=True).click()
         first.get_by_role('button',name=__import__('re').compile('^PHRASE 02 ·')).click()
         first.get_by_role('button',name='EDIT BLOCK',exact=True).first.click()
@@ -58,6 +66,7 @@ try:
         steps=model['switches'][0]['steps']
         assert len(steps)==5
         assert steps[0]['id']!=steps[1]['id']
+        assert steps[0]['repeat']==steps[1]['repeat']==3
         for old,new in zip(steps[0]['layers'],steps[1]['layers']):
             assert old['id']!=new['id'] and old['block']['id']!=new['block']['id']
             assert old['block']['sourceId']==new['block']['sourceId']

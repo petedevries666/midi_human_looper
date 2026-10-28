@@ -101,6 +101,7 @@ struct Request : RequestFields {
   }
 };
 struct Switch {
+  int conductorRepeat=0,conductorRepeatTotal=1;
   int conductorQueued=0,conductorStep=0,conductorSteps=0,conductorResult=0,conductorMissing=0,conductorAdmitted=0;
   int slot=0,id = 0, on = 0, type = 0, kind = 0, ch = 0, num = 0, length = 0, step = 0, actionCount = 0, lastAction = 0, result = 0;
   bool charging=false;double charge=0;int chargeStep=0;
@@ -235,6 +236,7 @@ struct Model {
   unsigned phraseCapacity=16,switchCapacity=16,schema=7;
   std::array<std::array<EEL_F*,128>,64> switchFields;
   std::array<std::array<EEL_F*,8>,64> conductorFields;
+  std::array<std::array<EEL_F*,2>,64> conductorRepeatFields{};
   std::array<std::array<EEL_F*,5>,64> chargeFields;std::array<EEL_F*,64> conductorQueued;std::array<double*,64> switchPressed;
   EEL_F *musicalState,*recordLayer,*odLayer,*odActive,*odArmed,*freeActive,*freeReady,*freeError;
   std::array<EEL_F*,12> voiceActive,voiceLayer;
@@ -397,6 +399,7 @@ struct Model {
                           : unsigned(variable(fx, "DS_RT_BASE")) + (i - 4) * 32;
       switchPressed[i]=cell(fx,rt);chargeFields[i]={{cell(fx,rt+31),cell(fx,rt+30),cell(fx,rt+23),cell(fx,rt),cell(fx,rt+25)}};
       for(unsigned j=0;j<128;++j)switchFields[i][j]=cell(fx,b+j);
+      if(auto repeatBase=ysfx_find_var(fx,"NATIVE_CONDUCTOR_REPEAT_BASE"))for(unsigned k=0;k<2;++k)conductorRepeatFields[i][k]=cell(fx,unsigned(*repeatBase)+i*2+k);
       conductorQueued[i]=cell(fx,unsigned(variable(fx,"CONDUCTOR_GESTURE_BASE"))+i*8+3);
       for(unsigned k=0;k<8;++k)conductorFields[i][k]=cell(fx,unsigned(variable(fx,"CONDUCTOR_BASE"))+i*8+k);
       sw[i][24] = cell(fx, rt + 7);
@@ -608,8 +611,8 @@ struct Model {
     for (unsigned i = 0; i < switchCapacity; ++i) {
       auto &v = s.switches[i];
       v.id = *sw[i][0] ? int(*sw[i][1]) : 0;
-      v.conductorQueued=0;v.conductorStep=v.conductorSteps=v.conductorResult=v.conductorMissing=v.conductorAdmitted=0;
-      if(v.id && *conductorFields[i][0]==v.id){v.conductorQueued=int(*conductorQueued[i]);v.conductorStep=int(*conductorFields[i][3])+1;v.conductorSteps=int(*conductorFields[i][1]);v.conductorResult=int(*conductorFields[i][4]);v.conductorMissing=int(*conductorFields[i][5]);v.conductorAdmitted=int(*conductorFields[i][6]);}
+      v.conductorRepeat=0;v.conductorRepeatTotal=1;v.conductorQueued=0;v.conductorStep=v.conductorSteps=v.conductorResult=v.conductorMissing=v.conductorAdmitted=0;
+      if(v.id && *conductorFields[i][0]==v.id){v.conductorQueued=int(*conductorQueued[i]);v.conductorStep=int(*conductorFields[i][3])+1;if(v.conductorStep>0&&conductorRepeatFields[i][0]){v.conductorRepeat=int(*conductorRepeatFields[i][0]);v.conductorRepeatTotal=std::max(1,int(*conductorRepeatFields[i][1]));}v.conductorSteps=int(*conductorFields[i][1]);v.conductorResult=int(*conductorFields[i][4]);v.conductorMissing=int(*conductorFields[i][5]);v.conductorAdmitted=int(*conductorFields[i][6]);}
       v.on = int(*sw[i][2]);
       v.type = int(*sw[i][3]);
       v.kind = int(*sw[i][4]);
@@ -794,7 +797,7 @@ static std::string json(const Reply &r) {
         << ",\"kind\":" << v.kind << ",\"channel\":" << v.ch
         << ",\"number\":" << v.num << ",\"length\":" << v.length
         << ",\"step\":" << v.step << ",\"actionCount\":" << v.actionCount
-        << ",\"conductor\":{\"step\":"<<v.conductorStep<<",\"queuedStep\":"<<v.conductorQueued<<",\"steps\":"<<v.conductorSteps<<",\"result\":"<<v.conductorResult<<",\"missing\":"<<v.conductorMissing<<",\"admitted\":"<<v.conductorAdmitted<<"}"
+        << ",\"conductor\":{\"step\":"<<v.conductorStep<<",\"queuedStep\":"<<v.conductorQueued<<",\"steps\":"<<v.conductorSteps<<",\"result\":"<<v.conductorResult<<",\"missing\":"<<v.conductorMissing<<",\"admitted\":"<<v.conductorAdmitted<<",\"repeatCount\":"<<v.conductorRepeat<<",\"repeatTotal\":"<<v.conductorRepeatTotal<<"}"
         << ",\"supercharge\":{\"active\":"<<(v.charging?"true":"false")<<",\"progress\":"<<v.charge<<",\"step\":"<<v.chargeStep<<"}"
         << ",\"lastAction\":" << v.lastAction << ",\"result\":" << v.result << ",\"longHold\":{\"milliseconds\":"<<v.longHoldMs<<",\"action\":"<<v.longHoldAction<<",\"target\":"<<v.longHoldTarget<<"},\"settings\":[";
       for(unsigned j=0;j<18;++j){if(j)o<<',';o<<v.settings[j];}

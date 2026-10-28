@@ -24,6 +24,14 @@ class PhraseTune(unittest.TestCase):
             self.assertEqual(conductor.decode(conductor.encode(m)),m)
             b['overrides']['phrase_tune']=dict(mode='INHERIT')
             self.assertEqual(conductor.decode(conductor.encode(m)),m)
+    def test_repeat_default_bounds_and_roundtrip(self):
+        for value in (1,3,999):
+            m,_=self.model();m['switches'][0]['steps'][0]['repeat']=value
+            self.assertEqual(conductor.decode(conductor.encode(m)),m)
+        for value in (0,-1,1000,1.5,True,'3'):
+            m,_=self.model();m['switches'][0]['steps'][0]['repeat']=value
+            with self.assertRaises(ValueError):conductor.validate(m)
+
     def test_reject_invalid_or_fractional_semitones(self):
         for value in (-25,25,.5,True,'12'):
             for local in (False,True):

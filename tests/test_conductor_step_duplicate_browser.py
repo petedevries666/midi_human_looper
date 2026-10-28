@@ -3,7 +3,7 @@ import json
 import os
 from pathlib import Path
 import urllib.request
-from playwright.sync_api import sync_playwright
+from playwright.sync_api import sync_playwright, expect
 from test_conductor_execution_native import Execution
 from test_conductor_editor_browser import save_draft
 
@@ -16,10 +16,11 @@ try:
         page=browser.new_page(viewport={'width':1440,'height':900})
         page.goto(api.base);page.get_by_text('CONNECTED · Engine running',exact=True).wait_for()
         tune=page.get_by_label('Tune Phrase 1',exact=True)
-        tune.wait_for();page.wait_for_function("!document.querySelector('[data-phrase-tune=\"1\"]').disabled")
+        expect(tune).to_be_enabled(timeout=30000)
         assert tune.input_value()=='0' and tune.get_attribute('min')=='-24' and tune.get_attribute('max')=='24'
         tune.fill('12');tune.press('Tab')
-        page.wait_for_function("document.querySelector('[data-phrase-tune=\"1\"]').value==='12' && !document.querySelector('[data-phrase-tune=\"1\"]').disabled")
+        expect(tune).to_have_value('12')
+        expect(tune).to_be_enabled(timeout=30000)
         page.locator('[data-switch-id="1"]').get_by_role('button',name='CONDUCTOR',exact=True).click()
         page.locator('.conductor-editor').wait_for()
         first=page.locator('.conductor-step').first

@@ -86,6 +86,29 @@ try:
         assert model['sources'][0]['tune']==12
         assert steps[1]['layers'][0]['block']['overrides']['phrase_tune']['value']==-12
         assert not api.call()['instances'],'editing must never launch a phrase'
+        api.command('module_structure',instrumentId=1,operation='add',engineType=3)
+        native=api.call()['instruments'][0]
+        module=next(m for m in native['transformers'] if m['type']==3)
+        card=page.locator(f'.module[data-instrument-id="1"][data-module-id="{module["id"]}"]')
+        card.click()
+        note_mode=page.get_by_label('NOTE MODE',exact=True)
+        expect(note_mode).to_have_value('0')
+        note_mode.select_option('1');assert page.evaluate('async()=>await window.mbmfModuleFlush()')
+        policy=page.get_by_label('COMPORTEMENT BASS',exact=True)
+        expect(policy).to_have_value('0');policy.select_option('2');expect(policy).to_be_enabled(timeout=30000)
+        model=json.load(urllib.request.urlopen(api.base+'/api/v1/conductor'))['model']
+        assert model['bassPolicies']==[dict(instrumentId=1,moduleId=module['id'],mode=2)]
+        assert next(p for p in api.call()['instruments'][0]['transformers'][-1]['parameters'] if p['kind']==11)['value']==1
+        page.get_by_role('button',name='CANCEL',exact=True).click()
+        expect(page.locator('#editor')).not_to_be_visible()
+        assert not json.load(urllib.request.urlopen(api.base+'/api/v1/conductor'))['model'].get('bassPolicies')
+        card.click();note_mode.select_option('1');assert page.evaluate('async()=>await window.mbmfModuleFlush()')
+        policy.select_option('1');expect(policy).to_be_enabled(timeout=30000)
+        page.get_by_role('button',name='DONE',exact=True).click()
+        api.patch('save');api.patch('load')
+        card.click();expect(policy).to_have_value('1');expect(note_mode).to_have_value('1')
+        page.get_by_role('button',name='DONE',exact=True).click()
+        assert not api.call()['instances']
         browser.close()
     print('PASS real editor: ALT step copy, empty-column insertion, touch button, UNDO and native persistence')
 finally:

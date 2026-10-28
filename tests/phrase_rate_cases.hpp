@@ -15,14 +15,14 @@ static void phrase_rate_cases(const char* source){
     h.eq("mem[VOICE_TIME_BASE]",1/rate,"RATE snapshots inverse speed on voice");
     h.run("mem[NATIVE_PHRASE_RATE_BASE]=8;");
     for(unsigned frame=128;frame<4096/rate+256;frame+=128){h.block();rate_events(h,frame,edges);}
-    check(edges.size()==2&&edges[0].kind==144&&edges[0].note==48&&edges[0].sample==0&&edges[1].kind==128&&edges[1].note==48&&edges[1].sample==unsigned(2560/rate),"ONCE RATE preserves pitch and scales exact Note Off time despite later source edit");
+    check(edges.size()==2&&edges[0].kind==144&&edges[0].note==48&&edges[0].sample==0&&edges[1].kind==128&&edges[1].note==48&&edges[1].sample==unsigned(std::llround(2560/rate)),"ONCE RATE preserves pitch and scales exact Note Off time despite later source edit");
     h.eq("mem[NOTE_REF_BASE+2*128+48]",0,"rated ONCE frees note owner");
   }
   for(double rate:{.1,.5,1.,2.,16.}){
     Host h(source);rate_fixture(h,rate);h.run("mem[MODE_BASE]=0;loop_len_samples=4096;b=sw_cfg(0);mem[b+11]=1;mem[b+SW_LIST]=0;sw_submit(0,0,0,0);");h.block();
-    std::vector<RateEdge> edges;rate_events(h,0,edges);unsigned period=unsigned(4096/rate);
+    std::vector<RateEdge> edges;rate_events(h,0,edges);unsigned period=unsigned(std::llround(4096/rate));
     for(unsigned frame=128;frame<period+128;frame+=128){h.block();rate_events(h,frame,edges);}
-    check(edges.size()==3&&edges[0].kind==144&&edges[0].sample==0&&edges[1].kind==128&&edges[1].sample==unsigned(2560/rate)&&edges[2].kind==144&&edges[2].sample==period,"free LOOP RATE scales event and wrap times");
+    check(edges.size()==3&&edges[0].kind==144&&edges[0].sample==0&&edges[1].kind==128&&edges[1].sample==unsigned(std::llround(2560/rate))&&edges[2].kind==144&&edges[2].sample==period,"free LOOP RATE scales event and wrap times");
     h.run("b=sw_cfg(1);mem[b+14]=SW_STOP;sw_submit(1,0,0,0);");h.block();h.events();h.eq("mem[NOTE_REF_BASE+2*128+48]",0,"rated LOOP STOP frees note owner");
   }
   {

@@ -46,6 +46,22 @@ static void pair(const char* source,bool conductor,double decay){
 }
 int main(int argc,char**argv){
   check(argc==2,"native generated source required");
+  for(int tune:{-24,0,24}){
+    Host h(argv[1]);fixture(h,false);h.run("mem[NATIVE_PHRASE_TUNE_BASE]="+std::to_string(tune)+";");
+    trigger(h,false);check(h.events()==std::vector<std::vector<int>>{{146,48+tune,40}},"phrase TUNE transposes attack");
+    h.run("mem[NATIVE_PHRASE_TUNE_BASE]=7;");
+    for(int i=0;i<4;++i){h.block();auto e=h.events();if(!e.empty())check(e==std::vector<std::vector<int>>{{130,48+tune,0}},"TUNE release retains admitted pitch after source edit");}
+    h.eq("mem[NOTE_REF_BASE+2*128+"+std::to_string(48+tune)+"]",0,"TUNE leaves no hanging owner");
+  }
+  {
+    Host h(argv[1]);fixture(h,true);auto doc=conductor_model(1,false,1);std::string text(doc.begin(),doc.end());
+    const std::string empty="\"overrides\":{\"playMode\":{\"mode\":\"OVERRIDE\",\"value\":\"ONCE\"}}";auto at=text.find(empty);check(at!=std::string::npos,"TUNE fixture overrides");
+    text.replace(at,empty.size(),"\"overrides\":{\"phrase_tune\":{\"mode\":\"OVERRIDE\",\"value\":12}}");
+    conductor_install(h,std::vector<unsigned>(text.begin(),text.end()));trigger(h,true);
+    check(h.events()==std::vector<std::vector<int>>{{146,60,40}},"Conductor local TUNE routes transposed attack");
+    h.eq("mem[NATIVE_PHRASE_TUNE_BASE]",0,"Conductor TUNE preserves source");
+    h.run("sw_stop_phrases();");h.block();check(h.events()==std::vector<std::vector<int>>{{130,60,0}},"Conductor TUNE STOP releases exact pitch");
+  }
   for(bool conductor:{false,true})for(double decay:{.5,1.,1.5,2.})pair(argv[1],conductor,decay);
   for(bool conductor:{false,true}){
     Host h(argv[1]);fixture(h,conductor);

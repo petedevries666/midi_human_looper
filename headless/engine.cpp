@@ -1113,12 +1113,12 @@ static void control(int listener, Queue<Request, 8> &commands,
     auto prepared=movement::prepare(bytes);
     auto cells=conductor::compile(bytes,base,owners,prepared.blocks);
     movements.install(std::move(prepared));
-    std::array<unsigned,128> groups{};
+    std::array<unsigned,128> groups{};std::array<double,128> tunes{};
     if(!bytes.empty()){auto sourceDocument=conductor::document(bytes);
       for(const auto& source:sourceDocument.at("sources").array)
-        if(source.object.count("muteGroup"))groups[unsigned(source.at("slot").number)-1]=unsigned(source.at("muteGroup").number);
+        {if(source.object.count("muteGroup"))groups[unsigned(source.at("slot").number)-1]=unsigned(source.at("muteGroup").number);if(source.object.count("tune"))tunes[unsigned(source.at("slot").number)-1]=source.at("tune").number;}
     }
-    for(unsigned i=0;i<model.phraseCapacity;++i)*cell(patch.fx,unsigned(variable(patch.fx,"PHRASE_GROUP_BASE"))+i)=groups[i];
+    for(unsigned i=0;i<model.phraseCapacity;++i){*cell(patch.fx,unsigned(variable(patch.fx,"PHRASE_GROUP_BASE"))+i)=groups[i];*cell(patch.fx,unsigned(variable(patch.fx,"NATIVE_PHRASE_TUNE_BASE"))+i)=tunes[i];}
     // Touch/resolve every cell on the worker while processing is paused.
     for(unsigned i=0;i<cells.size();++i)*cell(patch.fx,base+i)=cells[i];
     *NSEEL_VM_regvar(patch.fx->vm.get(),"conductor_host_enabled")=1;

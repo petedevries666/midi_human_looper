@@ -55,6 +55,7 @@ jobs:
           python3 tests/test_m5_switch_native.py
           python3 tests/test_conductor_execution_native.py
           python3 tests/test_conductor_persistence.py
+          python3 tests/test_phrase_tune.py
           python3 tests/test_conductor_gestures_native.py
           python3 tests/test_conductor_reveal_native.py
           .build/test-venv/bin/python tests/test_conductor_legacy_contract.py

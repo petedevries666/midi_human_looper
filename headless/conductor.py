@@ -25,7 +25,7 @@ OPTIONS = {
     'movementCycle': ('ONCE', 'LOOP', 'PING_PONG'),
     'retrigger': ('SOFT_RESTART', 'DIRECT'),
 }
-PHRASE_OPTIONS = {'playMode', 'trigger', 'instancePolicy', 'join', 'referenceTime', 'entry', 'release', 'phrase_time_decay', 'phrase_velocity_decay', 'phrase_base_velocity', 'revealCC', 'revealFadeSeconds'}
+PHRASE_OPTIONS = {'playMode', 'trigger', 'instancePolicy', 'join', 'referenceTime', 'entry', 'release', 'phrase_time_decay', 'phrase_velocity_decay', 'phrase_base_velocity', 'phrase_tune', 'revealCC', 'revealFadeSeconds'}
 MOVEMENT_OPTIONS = {'trigger', 'join', 'referenceTime', 'movementPlayMode', 'retrigger', 'destination', 'releaseSeconds', 'restValue', 'movementDuration', 'movementCycle'}
 
 
@@ -124,7 +124,8 @@ def validate(data):
     slots = set()
     sources = {}
     for source in data['sources']:
-        fields(source, ('id', 'type', 'slot', 'muteGroup') if data['version']==GROUP_VERSION else ('id', 'type', 'slot'))
+        fields(source, (('id', 'type', 'slot', 'muteGroup') if data['version']==GROUP_VERSION else ('id', 'type', 'slot')) + (('tune',) if 'tune' in source else ()))
+        if 'tune' in source: integer(source['tune'], -24, 24)
         if data['version']==GROUP_VERSION: integer(source['muteGroup'], 0, 16777215)
         unique(source['id'])
         # Only the existing PHRASE pool has a production storage binding today.
@@ -242,6 +243,8 @@ def validate(data):
                         elif name in ('releaseSeconds','restValue','movementDuration'):
                             v=local['value']
                             if type(v) not in (int,float) or not math.isfinite(v) or not (0<v<=86400 if name=='movementDuration' else 0<=v<=(60 if name=='releaseSeconds' else 1)):raise ValueError('MOVEMENT invalid release override')
+                        elif name == 'phrase_tune':
+                            integer(local['value'], -24, 24)
                         elif name.startswith('phrase_'):
                             from registry import REGISTRY
                             descriptor=REGISTRY.parameters[name];v=local['value']

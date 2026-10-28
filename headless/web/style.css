@@ -251,3 +251,11 @@ dialog[data-contextual][open]{position:relative;inset:auto;width:100%;max-width:
 
 /* Keep the shared bypass control clear of module content. */
 .instrument .module>button[aria-label="BYPASS"]{position:absolute;grid-area:auto;top:4px;right:4px;margin:0;z-index:2}
+
+/* Phrase TUNE follows GROUP and keeps its compact numeric presentation. */
+.phrase-tune-cell{min-width:0}
+@media(min-width:701px){
+ #phrases,.phrase-columns{width:956px;max-width:100%}
+ .phrase-columns,.phrase{grid-template-columns:24px minmax(90px,150px) 22px 22px 18px 18px 48px 42px 42px repeat(3,minmax(52px,1fr)) 22px 25px 22px}
+}
+@media(max-width:700px){.phrase>.phrase-tune-cell{grid-column:span 2!important;grid-row:auto!important}}

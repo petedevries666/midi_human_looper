@@ -15,12 +15,22 @@ try:
         browser=pw.chromium.launch(headless=True,executable_path=os.environ.get('CHROMIUM_PATH','/usr/bin/chromium'),args=['--no-sandbox','--disable-gpu'])
         page=browser.new_page(viewport={'width':1440,'height':900})
         page.goto(api.base);page.get_by_text('CONNECTED · Engine running',exact=True).wait_for()
+        tune=page.get_by_label('Tune Phrase 1',exact=True)
+        tune.wait_for();page.wait_for_function("!document.querySelector('[data-phrase-tune=\"1\"]').disabled")
+        assert tune.input_value()=='0' and tune.get_attribute('min')=='-24' and tune.get_attribute('max')=='24'
+        tune.fill('12');tune.press('Tab')
+        page.wait_for_function("document.querySelector('[data-phrase-tune=\"1\"]').value==='12' && !document.querySelector('[data-phrase-tune=\"1\"]').disabled")
         page.locator('[data-switch-id="1"]').get_by_role('button',name='CONDUCTOR',exact=True).click()
         page.locator('.conductor-editor').wait_for()
         first=page.locator('.conductor-step').first
         first.get_by_role('button',name='Add PHRASE STEP 1 LAYER 2',exact=True).click()
         first.get_by_role('button',name=__import__('re').compile('^PHRASE 02 ·')).click()
         first.get_by_role('button',name='EDIT BLOCK',exact=True).first.click()
+        assert page.get_by_label('TUNE inheritance',exact=True).input_value()=='INHERIT'
+        assert page.get_by_label('TUNE override',exact=True).input_value()=='12'
+        page.get_by_label('TUNE inheritance',exact=True).select_option('OVERRIDE')
+        page.get_by_label('TUNE override',exact=True).fill('-12')
+        page.get_by_label('TUNE override',exact=True).press('Tab')
         page.get_by_label('VEL inheritance',exact=True).select_option('OVERRIDE')
         page.get_by_label('VEL override',exact=True).fill('0.5')
         page.get_by_label('VEL override',exact=True).press('Tab')
@@ -52,6 +62,8 @@ try:
             assert old['block']['sourceId']==new['block']['sourceId']
             assert old['block']['overrides']==new['block']['overrides']
         assert steps[1]['layers'][0]['block']['overrides']['phrase_base_velocity']['value']==.5
+        assert model['sources'][0]['tune']==12
+        assert steps[1]['layers'][0]['block']['overrides']['phrase_tune']['value']==-12
         assert not api.call()['instances'],'editing must never launch a phrase'
         browser.close()
     print('PASS real editor: ALT step copy, empty-column insertion, touch button, UNDO and native persistence')

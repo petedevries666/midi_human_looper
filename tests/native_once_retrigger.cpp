@@ -50,7 +50,8 @@ int main(int argc,char**argv){
     Host h(argv[1]);fixture(h,false);h.run("mem[NATIVE_PHRASE_TUNE_BASE]="+std::to_string(tune)+";");
     trigger(h,false);check(h.events()==std::vector<std::vector<int>>{{146,48+tune,40}},"phrase TUNE transposes attack");
     h.run("mem[NATIVE_PHRASE_TUNE_BASE]=7;");
-    for(int i=0;i<4;++i){h.block();auto e=h.events();if(!e.empty())check(e==std::vector<std::vector<int>>{{130,48+tune,0}},"TUNE release retains admitted pitch after source edit");}
+    unsigned releases=0;for(int i=0;i<12;++i){h.block();auto e=h.events();if(!e.empty()){check(e==std::vector<std::vector<int>>{{130,48+tune,0}},"TUNE release retains admitted pitch after source edit");++releases;}}
+    check(releases==1,"recorded release is emitted exactly once");
     h.eq("mem[NOTE_REF_BASE+2*128+"+std::to_string(48+tune)+"]",0,"TUNE leaves no hanging owner");
   }
   {

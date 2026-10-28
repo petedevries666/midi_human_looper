@@ -85,8 +85,10 @@ inline bool validDocument(const std::vector<unsigned> &bytes){
     Parser p(s);auto root=p.value();require(p.pos==s.size());require(integer(root.at("version"),1,3));
     bool groupVersion=root.at("version").number==3;
     bool movementVersion=root.at("version").number>=2;
-    if(movementVersion)fieldsOptional(root,{"version","sources","switches","movements","ccRate"},{"supercharge"});
-    else fieldsOptional(root,{"version","sources","switches"},{"supercharge"});
+    if(movementVersion)fieldsOptional(root,{"version","sources","switches","movements","ccRate"},{"supercharge","bassPolicies"});
+    else fieldsOptional(root,{"version","sources","switches"},{"supercharge","bassPolicies"});
+    if(root.object.count("bassPolicies")){const auto &policies=root.at("bassPolicies");require(policies.type=='a');std::set<std::pair<unsigned,unsigned>> targets;
+      for(const auto &p:policies.array){fields(p,{"instrumentId","moduleId","mode"});require(integer(p.at("instrumentId"),1,16777215)&&integer(p.at("moduleId"),1,16777215)&&integer(p.at("mode"),0,2));require(targets.insert({unsigned(p.at("instrumentId").number),unsigned(p.at("moduleId").number)}).second);}}
     double chargeThreshold=600,chargeFull=2000;
     if(root.object.count("supercharge")){const auto &c=root.at("supercharge");fields(c,{"thresholdMs","fullMs"});require(integer(c.at("thresholdMs"),0,30000)&&integer(c.at("fullMs"),1,120000)&&c.at("fullMs").number>=c.at("thresholdMs").number);chargeThreshold=c.at("thresholdMs").number;chargeFull=c.at("fullMs").number;}
     std::set<std::string> ids,sources,movements;std::set<unsigned> slots,switchIds;

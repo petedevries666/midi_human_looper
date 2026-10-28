@@ -14,6 +14,14 @@ class PhraseTune(unittest.TestCase):
         b=dict(id=uid(3),type='PHRASE',sourceId=source['id'],overrides={})
         m['switches']=[dict(switchId=1,traversal='SEQUENTIAL',transition='IMMEDIATE',gesture='INSTANT',steps=[dict(id=uid(1),transition='INHERIT',layers=[dict(id=uid(2),block=b)])])]
         return m,b
+    def test_bass_policies_identity_and_bounds(self):
+        for mode in (0,1,2):
+            m,_=self.model();m['bassPolicies']=[dict(instrumentId=16777215,moduleId=9,mode=mode)]
+            self.assertEqual(conductor.decode(conductor.encode(m)),m)
+        invalid=[None,{},[dict(instrumentId=1,moduleId=2,mode=3)],[dict(instrumentId=0,moduleId=2,mode=1)],[dict(instrumentId=1,moduleId=2,mode=True)],[dict(instrumentId=1,moduleId=2,mode=1,extra=0)],[dict(instrumentId=1,moduleId=2,mode=1)]*2]
+        for policies in invalid:
+            m,_=self.model();m['bassPolicies']=policies
+            with self.assertRaises(ValueError):conductor.validate(m)
     def test_old_documents_remain_unchanged(self):
         m,_=self.model();before=copy.deepcopy(m)
         self.assertEqual(conductor.decode(conductor.encode(m)),before)

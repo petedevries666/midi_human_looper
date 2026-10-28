@@ -225,6 +225,17 @@ async function editModule(i,tf){
  selectedModule={instrumentId:i.id,moduleId:tf.id};for(const element of document.querySelectorAll('.module'))element.classList.toggle('selected',Number(element.dataset.instrumentId)===i.id&&Number(element.dataset.moduleId)===tf.id);
  const dialog=$('editor'),content=$('editor-content'),session=engineSession;
  dialog.dataset.kind='module';content.replaceChildren(node('h2',`${i.name||'INSTRUMENT '+i.id} / ${descriptor(tf.type)?.label}`));
+ let bassOriginal=0,bassApplied=null,bassQueue=Promise.resolve(),bassFailed=false;
+ const bassValue=model=>(model?.bassPolicies||[]).find(p=>p.instrumentId===i.id&&p.moduleId===tf.id)?.mode??0;
+ const saveBass=async(value,expected)=>{
+  if(session!==engineSession)throw new Error('Moteur redémarré ; rouvrir le module.');
+  const loaded=await request('/api/v1/conductor');if(expected!==undefined&&bassValue(loaded.model)!==expected)throw new Error('BASS modifié ailleurs ; rouvrir le module.');
+  const model=upgradeMovementModel(loaded.model);model.bassPolicies=(model.bassPolicies||[]).filter(p=>p.instrumentId!==i.id||p.moduleId!==tf.id);
+  if(value)model.bassPolicies.push({instrumentId:i.id,moduleId:tf.id,mode:value});
+  if(!model.bassPolicies.length)delete model.bassPolicies;
+  await saveMovementModel(model,loaded);
+ };
+ if(tf.type===3)try{bassOriginal=bassValue((await request('/api/v1/conductor')).model);}catch(e){$('error').textContent=e.message;return;}
  const before=new Map(),applied=new Map(),desired=new Map();let queue=Promise.resolve(),draining=false,timer=null,cancelled=false,failed=false;const failures=new Set();
  const error=node('p');error.setAttribute('role','alert');
  const flush=()=>{
@@ -237,10 +248,24 @@ async function editModule(i,tf){
   }})().finally(()=>draining=false);return queue;
  };
  const change=(kind,value)=>{desired.set(kind,value);if(!draining&&!timer)timer=setTimeout(flush,40);};
- window.mbmfModuleFlush=async()=>{await flush();return !failed;};
+ window.mbmfModuleFlush=async()=>{await flush();await bassQueue;return !failed&&!bassFailed;};
  for(const item of tf.parameters){const p=parameter(item.kind);if(!p)continue;before.set(item.kind,item.pendingValue??item.value);const binding={instrumentId:i.id,moduleId:tf.id,kind:item.kind};
   const row=node('label',shortParameter(p.label),'parameter');
   if(p.valueType==='toggle'){let value=item.value;const control=button(p.label,()=>{value=value?0:1;control.textContent=value?'ON':'OFF';control.setAttribute('aria-pressed',String(!!value));change(item.kind,value);});control.textContent=value?'ON':'OFF';control.setAttribute('aria-pressed',String(!!value));control.disabled=!!item.assignment;row.append(control);bindModulation(control,binding);}
+  else if(item.kind===11&&tf.type===3){
+   const control=node('select');control.setAttribute('aria-label',p.label);
+   for(let v=0;v<=3;v++){const option=node('option',p.choices[v]);option.value=v;control.append(option);}
+   const policyRow=node('label','COMPORTEMENT BASS','parameter'),policy=node('select');policy.setAttribute('aria-label','COMPORTEMENT BASS');
+   for(const [value,text] of [[0,'GLOBAL · toutes les notes'],[1,'DERNIÈRE PHRASE · réattaque'],[2,'HOLD UNIQUEMENT']]){const option=node('option',text);option.value=value;policy.append(option);}
+   const value=item.pendingValue??item.value;control.value=value;policy.value=bassOriginal;policyRow.hidden=control.value!=='1';control.disabled=policy.disabled=!!item.assignment;
+   control.onchange=()=>{policyRow.hidden=control.value!=='1';change(item.kind,Number(control.value));};
+   policy.onchange=()=>{const value=Number(policy.value);policy.disabled=control.disabled=true;
+    bassQueue=bassQueue.then(async()=>{try{await flush();if(failed)throw new Error('Valider NOTE MODE avant BASS.');await saveBass(value,bassApplied??bassOriginal);bassApplied=value;bassFailed=false;error.textContent='';}
+     catch(e){bassFailed=true;error.textContent=e.message;policy.value=bassApplied??bassOriginal;}
+     finally{policy.disabled=control.disabled=!!item.assignment;}});
+   };
+   row.append(control);policyRow.append(policy);bindModulation(control,binding);content.append(row,policyRow,node('small','Dernière phrase : les anciennes ne reprennent pas la priorité. HOLD uniquement : filtre les notes ONCE/LOOP pour cet instrument. Le MIDI direct conserve sa priorité de basse habituelle.'));continue;
+  }
   else if(p.valueType==='enum'){const control=node('select');control.setAttribute('aria-label',p.label);for(let v=p.min;v<=p.max;v+=p.step){const o=node('option',p.choices?.[v]??String(v));o.value=v;control.append(o);}control.value=item.value;control.disabled=!!item.assignment;control.onchange=()=>change(item.kind,Number(control.value));row.append(control);bindModulation(control,binding);}
   else{const slider=tactileSlider(p.label,item.value,p.min,p.max,p.step,value=>{change(item.kind,value);return true;},p.default,false,binding);const rail=slider.querySelector('input');rail.disabled=!!item.assignment;let touch=false;rail.addEventListener('pointerdown',e=>touch=e.pointerType==='touch');for(const edge of ['pointerup','pointercancel'])rail.addEventListener(edge,()=>touch=false);rail.addEventListener('input',()=>{if(!touch&&!rail.dataset.assignmentGesture)change(item.kind,Number(rail.value));});row.append(slider);}
   content.append(row);
@@ -261,7 +286,9 @@ async function editModule(i,tf){
   content.append(teach);
  }
  content.append(error,button('DONE',async()=>{if(await window.mbmfModuleFlush()===false)return;dialog.close();renderedModel='';render(latest);}),button('CANCEL',async()=>{
-  await window.mbmfModuleFlush();cancelled=true;
+  await window.mbmfModuleFlush();
+  if(bassApplied!==null&&bassApplied!==bassOriginal)try{await saveBass(bassOriginal,bassApplied);}catch(e){error.textContent=e.message;return;}
+  cancelled=true;
   try{render(await request('/api/v1/state'));}catch(e){error.textContent=e.message;return;}
   if(session===engineSession)for(const [kind,value] of applied){const item=latest.instruments.find(v=>v.id===i.id)?.transformers.find(v=>v.id===tf.id)?.parameters.find(p=>p.kind===kind),current=item?.pendingValue??item?.value;
    if(Math.abs(current-value)<1e-8){while(pending)await new Promise(r=>setTimeout(r,10));await command({action:'parameter_set',targetId:i.id,moduleId:tf.id,kind,value:before.get(kind)});}}

@@ -113,7 +113,16 @@ def validate_charge(step,defaults):
 def validate(data):
     if not isinstance(data, dict):
         raise ValueError('CONDUCTOR document required')
-    fields(data, (('version', 'sources', 'switches', 'movements', 'ccRate') if data.get('version') in (DOCUMENT_VERSION, GROUP_VERSION) else ('version', 'sources', 'switches')) + (('supercharge',) if 'supercharge' in data else ()))
+    fields(data, (('version', 'sources', 'switches', 'movements', 'ccRate') if data.get('version') in (DOCUMENT_VERSION, GROUP_VERSION) else ('version', 'sources', 'switches')) + tuple(k for k in ('supercharge','bassPolicies') if k in data))
+    policies=data.get('bassPolicies',[])
+    if not isinstance(policies,list):raise ValueError('BASS policies array required')
+    targets=set()
+    for policy in policies:
+        fields(policy,('instrumentId','moduleId','mode'))
+        integer(policy['instrumentId'],1,16777215);integer(policy['moduleId'],1,16777215);integer(policy['mode'],0,2)
+        key=(policy['instrumentId'],policy['moduleId'])
+        if key in targets:raise ValueError('Duplicate BASS policy target')
+        targets.add(key)
     defaults=data.get('supercharge',dict(thresholdMs=600,fullMs=2000));fields(defaults,('thresholdMs','fullMs'));integer(defaults['thresholdMs'],0,30000);integer(defaults['fullMs'],1,120000)
     if defaults['fullMs']<defaults['thresholdMs']:raise ValueError('Full patch charge must follow its threshold')
     if type(data['version']) is not int or data['version'] not in (VERSION, DOCUMENT_VERSION, GROUP_VERSION):

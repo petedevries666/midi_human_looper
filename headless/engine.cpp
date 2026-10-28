@@ -1122,6 +1122,13 @@ static void control(int listener, Queue<Request, 8> &commands,
         {if(source.object.count("muteGroup"))groups[unsigned(source.at("slot").number)-1]=unsigned(source.at("muteGroup").number);if(source.object.count("tune"))tunes[unsigned(source.at("slot").number)-1]=source.at("tune").number;if(source.object.count("rate"))rates[unsigned(source.at("slot").number)-1]=source.at("rate").number;}
     }
     for(unsigned i=0;i<model.phraseCapacity;++i){*cell(patch.fx,unsigned(variable(patch.fx,"PHRASE_GROUP_BASE"))+i)=groups[i];auto tuneBase=ysfx_find_var(patch.fx,"NATIVE_PHRASE_TUNE_BASE");if(tuneBase)*cell(patch.fx,unsigned(*tuneBase)+i)=tunes[i];auto rateBase=ysfx_find_var(patch.fx,"NATIVE_PHRASE_RATE_BASE");if(rateBase)*cell(patch.fx,unsigned(*rateBase)+i)=rates[i];}
+    if(auto policyBase=ysfx_find_var(patch.fx,"NATIVE_BASS_POLICY_BASE")){
+      for(unsigned i=0;i<24;++i)*cell(patch.fx,unsigned(*policyBase)+i)=0;
+      if(!bytes.empty()){auto document=conductor::document(bytes);if(document.object.count("bassPolicies"))for(const auto &p:document.at("bassPolicies").array){
+        controller::Binding b;b.instrument=unsigned(p.at("instrumentId").number);b.module=unsigned(p.at("moduleId").number);b.kind=11;unsigned i;int code,row;
+        if(model.resolve(b,i,code,row,true)){auto address=unsigned(*policyBase)+i*3;*cell(patch.fx,address)=p.at("mode").number;*cell(patch.fx,address+1)=b.instrument;*cell(patch.fx,address+2)=b.module;}
+      }}
+    }
     // Touch/resolve every cell on the worker while processing is paused.
     for(unsigned i=0;i<cells.size();++i)*cell(patch.fx,base+i)=cells[i];
     *NSEEL_VM_regvar(patch.fx->vm.get(),"conductor_host_enabled")=1;

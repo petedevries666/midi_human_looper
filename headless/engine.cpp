@@ -1118,7 +1118,7 @@ static void control(int listener, Queue<Request, 8> &commands,
       for(const auto& source:sourceDocument.at("sources").array)
         {if(source.object.count("muteGroup"))groups[unsigned(source.at("slot").number)-1]=unsigned(source.at("muteGroup").number);if(source.object.count("tune"))tunes[unsigned(source.at("slot").number)-1]=source.at("tune").number;}
     }
-    for(unsigned i=0;i<model.phraseCapacity;++i){*cell(patch.fx,unsigned(variable(patch.fx,"PHRASE_GROUP_BASE"))+i)=groups[i];*cell(patch.fx,unsigned(variable(patch.fx,"NATIVE_PHRASE_TUNE_BASE"))+i)=tunes[i];}
+    for(unsigned i=0;i<model.phraseCapacity;++i){*cell(patch.fx,unsigned(variable(patch.fx,"PHRASE_GROUP_BASE"))+i)=groups[i];auto tuneBase=ysfx_find_var(patch.fx,"NATIVE_PHRASE_TUNE_BASE");if(tuneBase)*cell(patch.fx,unsigned(*tuneBase)+i)=tunes[i];}
     // Touch/resolve every cell on the worker while processing is paused.
     for(unsigned i=0;i<cells.size();++i)*cell(patch.fx,base+i)=cells[i];
     *NSEEL_VM_regvar(patch.fx->vm.get(),"conductor_host_enabled")=1;

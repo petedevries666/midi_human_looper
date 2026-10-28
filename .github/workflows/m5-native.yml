@@ -79,7 +79,7 @@ jobs:
           HEADLESS_BINARY: ${{ github.workspace }}/.build/midi-headless-engine
         run: |
           node tests/test_conductor_step_duplicate.cjs
-          .build/browser-venv/bin/python tests/test_conductor_step_duplicate_browser.py
+          HEADLESS_SOURCE="$PWD/.build/once-retrigger/native.jsfx" .build/browser-venv/bin/python tests/test_conductor_step_duplicate_browser.py
           bash scripts/screenshots.sh
       - name: Preserve visual evidence
         if: always()

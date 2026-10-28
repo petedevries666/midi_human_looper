@@ -61,7 +61,7 @@ int main(int argc,char**argv){
     conductor_install(h,std::vector<unsigned>(text.begin(),text.end()));trigger(h,true);
     check(h.events()==std::vector<std::vector<int>>{{146,60,40}},"Conductor local TUNE routes transposed attack");
     h.eq("mem[NATIVE_PHRASE_TUNE_BASE]",0,"Conductor TUNE preserves source");
-    h.run("sw_stop_phrases();");auto stopped=h.events();std::cout<<"TUNE STOP trace "<<conductor_events(stopped)<<std::endl;check(conductor_count(stopped,128,60)==1,"Conductor TUNE STOP releases exact pitch");h.eq("mem[NOTE_REF_BASE+2*128+60]",0,"TUNE STOP retires pitch owner");
+    h.run("b=sw_cfg(1);mem[b+14]=SW_STOP;sw_submit(1,0,0,0);");h.block();auto stopped=h.events();std::cout<<"TUNE STOP trace "<<conductor_events(stopped)<<std::endl;check(conductor_count(stopped,128,60)==1,"Conductor TUNE STOP releases exact pitch");h.eq("mem[NOTE_REF_BASE+2*128+60]",0,"TUNE STOP retires pitch owner");
   }
   for(bool conductor:{false,true})for(double decay:{.5,1.,1.5,2.})pair(argv[1],conductor,decay);
   for(bool conductor:{false,true}){

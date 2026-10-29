@@ -7,7 +7,8 @@ static void rate_events(Host& h,unsigned frame,std::vector<RateEdge>& out){
   }
 }
 static void rate_fixture(Host& h,double rate){
-  fixture(h,false);h.run("clear_layer(0);store_event(0,0,144,48,40,0);store_event(0,2560,128,48,0,0);mem[LEN_BASE]=4096;mem[NATIVE_PHRASE_RATE_BASE]="+std::to_string(rate)+";");
+  fixture(h,false);h.run("test_rate_input=0;");*ysfx_find_var(h.f,"test_rate_input")=rate;
+  h.run("clear_layer(0);store_event(0,0,144,48,40,0);store_event(0,2560,128,48,0,0);mem[LEN_BASE]=4096;mem[NATIVE_PHRASE_RATE_BASE]=test_rate_input;");
 }
 static void phrase_rate_cases(const char* source){
   for(double rate:{.1,.5,1.,2.,16.}){

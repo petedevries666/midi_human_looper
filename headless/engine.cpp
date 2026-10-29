@@ -1184,7 +1184,7 @@ static void control(int listener, Queue<Request, 8> &commands,
                  request.op >= 0 && (request.op <= 57) && request.arg >= 0 &&
                  request.arg <= (request.op == 3 || request.op == 19 ? 15 : request.op == 1 ? 5 : request.op == 13   ? 5
                                  : request.op == 40 ? 7
-                                 : request.op == 15 || request.op == 34 ? 3
+                                 : request.op == 15 || request.op == 34 || request.op == 35 ? 3
                                  : request.op == 32 || request.op == 38 ? 26
                                                     : 2) &&
                  request.ch >= 0 &&

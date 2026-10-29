@@ -176,6 +176,26 @@ try:
         api.patch('save');api.patch('load');expect(mode).to_have_value('5')
         stored=json.load(urllib.request.urlopen(api.base+'/api/v1/conductor'))['model']
         assert stored['sources'][0]['playMode']=='TOGGLE'
+        # The real pencil editor trims the native source, without changing notes or settings.
+        before=api.c.request(op=35,target=0,arg=0,revision=-1)['phraseData']
+        page.locator('.phrase[data-phrase-id="1"]').get_by_role('button',name='PHRASE OPTIONS',exact=True).click()
+        page.get_by_role('button',name='ROGNER LA FIN',exact=True).click()
+        expect(page.locator('#editor-content [role="alert"]')).to_contain_text('FIN ROGNÉE')
+        after=api.c.request(op=35,target=0,arg=0,revision=-1)['phraseData']
+        assert after['events']==before['events'],'trim changed source note events'
+        rate=api.call()['sampleRate']
+        assert abs(after['lengthSeconds']-before['events'][-1][0]-1/rate)<1e-8
+        assert after['lengthSeconds']<before['lengthSeconds']
+        assert api.call()['phrases'][0]['mode']==5,'trim changed source mode'
+        page.locator('#editor-content').get_by_role('button',name='CANCEL',exact=True).click()
+        api.patch('save');api.patch('load')
+        assert api.c.request(op=35,target=0,arg=0,revision=-1)['phraseData']==after
+        api.command('phrase_play',phraseId=1)
+        api.command('phrase_trim',phraseId=1,expected=422)
+        api.command('panic')
+        assert api.c.request(op=35,target=0,arg=0,revision=-1)['phraseData']==after,'busy trim changed MIDI'
+        api.command('phrase_clear',phraseId=1)
+        api.command('phrase_trim',phraseId=1,expected=422)
         browser.close()
     print('PASS real editor: ALT step copy, empty-column insertion, touch button, UNDO and native persistence')
 finally:

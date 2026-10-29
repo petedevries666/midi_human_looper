@@ -36,3 +36,13 @@ Tests execute the generated production EEL and real MIDI output, plus Web/API
 metadata persistence, actual keyboard press/release and source-specific ownership.
 GATE release tests enqueue the production release edge inside the audio cycle;
 calling a MIDI-emitting helper outside processing is not a valid output trace.
+
+## Manual tail trim
+
+The phrase pencil editor offers **ROGNER LA FIN**. In native free-time mode,
+with playback/recording stopped, it moves END to the final recorded Note Off,
+or the CC64 release if sustain still holds notes. One sample keeps that final
+release inside the playback span. Only events after this boundary are discarded;
+remaining event bytes/times, phrase settings and Conductor references are retained.
+Empty/unbalanced takes and fixed-grid capture are refused without changing MIDI.
+Use SAVE to persist the result. This is a manual action, never automatic on capture.

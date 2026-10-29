@@ -9,6 +9,7 @@
 #include "realtime_trace.hpp"
 #include "parameter_registry.hpp"
 #include "panic_sweep.hpp"
+#include "phrase_trim.hpp"
 #include "echocity_runtime.hpp"
 #include "snapshot_wire.hpp"
 #include "native_expressive_config.hpp"
@@ -1234,7 +1235,7 @@ static void control(int listener, Queue<Request, 8> &commands,
       valid=midi_thru::readInputs(input,request.midiInputs);
       if(input>>extra)valid=false;
     } else if (valid && request.op == 35) {
-      valid = request.target >= 0 && request.target < int(model.phraseCapacity) && request.arg >= 0 && request.arg <= 2;
+      valid = request.target >= 0 && request.target < int(model.phraseCapacity) && request.arg >= 0 && request.arg <= 3;
       if (valid && request.arg == 1) {
         double duration=0; unsigned count=0;
         valid = bool(input >> duration >> count) && std::isfinite(duration) &&
@@ -1434,6 +1435,22 @@ static void control(int listener, Queue<Request, 8> &commands,
             *patch.memory[lengthBase+selected]=0;
             for(const char* name : {"TRIG_BASE","HOLD_ACTIVE_BASE","ONCEPOS_BASE"})
               *NSEEL_VM_getramptr(patch.fx->vm.get(),unsigned(variable(patch.fx,name))+selected,nullptr)=0;
+            paused.store(false,std::memory_order_release);
+            send_line(fd,replyJson(reply),shutdown);
+          } else if (request.arg == 3) {
+            const double stored=*patch.memory[countBase+selected];
+            phrase_trim::Result trimmed;
+            if(std::isfinite(stored) && stored>0 && stored<=2048 && std::floor(stored)==stored) {
+              std::vector<phrase_trim::Event> events;events.reserve(unsigned(stored));
+              for(unsigned j=0;j<unsigned(stored);++j)
+                events.push_back({*patch.memory[base+j*5],*patch.memory[base+j*5+1],*patch.memory[base+j*5+2],*patch.memory[base+j*5+3]});
+              trimmed=phrase_trim::endpoint(events);
+            }
+            if(!trimmed.valid) reply.status=3;
+            else {
+              *patch.memory[countBase+selected]=trimmed.count;
+              *patch.memory[lengthBase+selected]=trimmed.length;
+            }
             paused.store(false,std::memory_order_release);
             send_line(fd,replyJson(reply),shutdown);
           } else if (request.arg == 1) {
@@ -2666,7 +2683,8 @@ int main(int argc, char **argv) {
           if (chain.recording || chain.armed || *importOverdub>.5 ||
               (request.arg==2 && (*importState==importReady || *importArmed>.5)) ||
               *importState==importRecording ||
-              (request.arg==1 && (state.active>0 || chain.run ||
+              (request.arg==3 && (!state.chain || state.chainGridCapture)) ||
+              ((request.arg==1 || request.arg==3) && (state.active>0 || chain.run ||
                *importState==importPlaying ||
                std::any_of(importVoices.begin(),importVoices.end(),[](double* p){return *p>.5;}))) ||
               (request.arg==2 && ((*model.musicalState==3 && *model.phraseTriggers[request.target]>.5 && *model.phrase[request.target][1]<.5 && *model.phrase[request.target][0]>0) ||

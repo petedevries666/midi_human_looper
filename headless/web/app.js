@@ -813,6 +813,13 @@ function phraseOptions(phraseId){
       const url=URL.createObjectURL(await response.blob()),link=node('a');link.href=url;link.download=`mbmf-phrase-${String(phraseId).padStart(2,'0')}.mid`;link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
     }catch(e){error.textContent=e.message;}
   }));
+  const trim=button('ROGNER LA FIN',async()=>{
+    if(committing)return;committing=true;trim.disabled=true;
+    try{if(await command({action:'phrase_trim',phraseId}))error.textContent='FIN ROGNÉE · dernier Note Off / relâchement sustain · SAVE pour conserver';
+      else error.textContent='Rognage refusé : arrêter la lecture et terminer l’enregistrement. Une phrase vide, une note sans relâchement ou le mode grille ne peuvent pas être rognés.';
+    }finally{committing=false;trim.disabled=false;}
+  });trim.title='Supprimer le silence final, jusqu’au dernier Note Off ou relâchement CC64. Les notes et leur timing restent inchangés.';
+  if(latest.chainMode)content.append(trim);
   content.append(button('CLEAR MIDI',async()=>{
     if(committing||!confirm(`Clear MIDI content of Phrase ${phraseId}? Settings are preserved. STOP playback and finish recording first.`))return;
     committing=true;

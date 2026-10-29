@@ -86,7 +86,7 @@ function instance_discard_all()''')
     change('(mode!=1 && mem[LEN_BASE+p]*t<max(128,samplesblock/8))?valid=0;n+=1;',
            '((mode==0 || mode==2) && mem[LEN_BASE+p]*t<max(128,samplesblock/8)) || (mode==3 && phase>=3)?valid=0;!(mode==5 && native_phrase_active(p))?n+=1;')
     change('mov+1>64-(snap_host_write-snap_host_read+native_control_count)',
-           'free+=native_phrase_reclaimable(b,phase,mask,longMask,releaseMask,chargeMask);mov+1>64-(snap_host_write-snap_host_read+native_control_count)')
+           'mem[b+2]==1?free+=native_phrase_reclaimable(b,phase,mask,longMask,releaseMask,chargeMask);mov+1>64-(snap_host_write-snap_host_read+native_control_count)')
     change('oldtime,native_old_rate,id,owner', 'oldtime,native_old_rate,native_old_play_mode,id,owner')
     change('      mem[b+5+j*5]>=0?mem[MODE_BASE+p]=mem[b+5+j*5];',
            '      native_old_play_mode=mem[NATIVE_PHRASE_PLAY_MODE_BASE+p];mem[b+5+j*5]>=0?(mem[NATIVE_PHRASE_PLAY_MODE_BASE+p]=0;mem[MODE_BASE+p]=mem[b+5+j*5];);')

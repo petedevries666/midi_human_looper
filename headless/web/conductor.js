@@ -227,6 +227,8 @@ async function editConductor(sw){
    const update=()=>{checkpoint();b.overrides[key]=policy.value==='INHERIT'?{mode:'INHERIT'}:{mode:'OVERRIDE',value:key==='playMode'?value.value:Number(value.value)};paint();properties(s,l);};
    policy.onchange=update;value.oninput=()=>output.value=value.value;value.onchange=update;row.append(policy,value,output);side.append(row);
   }
+  const effectiveMode=b.overrides.playMode?.mode==='OVERRIDE'?b.overrides.playMode.value:source(b)?.playMode;
+  if(effectiveMode==='GATE'&&b.overrides.trigger?.mode==='OVERRIDE'&&['RELEASE','SUPERCHARGE_RELEASE'].includes(b.overrides.trigger.value))side.append(node('small','GATE needs PRESS, HOLD or LONG HOLD: release is its STOP edge.','conductor-group-warning'));
   const unsupported=Object.entries(b.overrides).filter(([k,v])=>v.mode==='OVERRIDE'&&!['trigger','entry','release','revealCC','revealFadeSeconds','playMode','phrase_tune','phrase_rate','phrase_base_velocity','phrase_velocity_decay','phrase_time_decay'].includes(k));
   if(unsupported.length)side.append(node('small','Other existing options preserved · '+unsupported.map(([k])=>k).join(', ')));
   const moves=node('details');moves.append(node('summary','MOVE / REPLACE'));

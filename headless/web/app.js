@@ -928,13 +928,13 @@ async function setPhrasePlaybackMode(id,raw){
  const value=Number(raw),names=['LOOP','ONCE','HOLD','GATE','RETRIGGER','TOGGLE'];
  if(phraseGroupSaving||!Number.isInteger(value)||value<0||value>5)return;
  if(value>=3&&!latest.nativeGesturePhraseModes){$('error').textContent='Ce moteur ne prend pas en charge les nouveaux modes.';return;}
- phraseGroupSaving=true;
+ phraseGroupSaving=true;const modeControl=document.querySelector(`[data-phrase-id="${id}"] select`);modeControl?.blur();const playControl=document.querySelector(`[data-phrase-id="${id}"] [data-phrase-play]`);if(playControl)playControl.disabled=true;
  try{const loaded=await request('/api/v1/conductor'),model=upgradeMovementModel(loaded.model),source=model.sources.find(v=>v.type==='PHRASE'&&v.slot===id);if(!source)throw new Error('Phrase source missing');
   if(value>=3)source.playMode=names[value];else delete source.playMode;
   await saveMovementModel(model,loaded);
   if(value<3&&!await liveParameter(id,20,value))throw new Error($('error').textContent||'Mode refused');
   $('error').textContent='';
- }catch(e){$('error').textContent=e.message;}finally{phraseGroupSaving=false;await refresh();}
+ }catch(e){$('error').textContent=e.message;}finally{phraseGroupSaving=false;renderedModel='';await refresh();}
 }
 function paintPhraseRates(){
  const ready=typeof movementModel!=='undefined'&&!!movementModel&&movementSession===latest?.engineSessionId;
@@ -973,7 +973,7 @@ function compactPhrases(s){
       trigger.onkeyup=e=>{if([' ','Enter'].includes(e.key)){e.preventDefault();release();}};trigger.onblur=release;
       trigger.title=p.mode===3?'GATE: press to play, release to stop. No loop.':'HOLD: repeat while pressed; release stops owned phrase notes';
     }
-    trigger.disabled=!!s.chainMode&&!s.nativeHeldRelease&&!(s.nativePhraseContract>=2)&&p.mode===2;
+    trigger.disabled=phraseGroupSaving||(!!s.chainMode&&!s.nativeHeldRelease&&!(s.nativePhraseContract>=2)&&p.mode===2);
     if(trigger.disabled)trigger.title='Legacy HOLD data is preserved. STOP and choose LOOP or ONCE; native held release is not implemented.';
     row.append(button('REC / OVERDUB',()=>command({action:'phrase_record',phraseId:p.id})),trigger,editableName('Phrase',p.id,p.name,`PHRASE ${p.id}`));
     const learning=s.controllerLearn?.domain==='phrase'&&s.controllerLearn.target===p.id;

@@ -191,11 +191,11 @@ try:
         api.patch('save');api.patch('load')
         assert api.c.request(op=35,target=0,arg=0,revision=-1)['phraseData']==after
         api.command('phrase_play',phraseId=1)
-        api.command('phrase_trim',phraseId=1,expected=422)
+        api.command('phrase_trim',phraseId=1,expected=400)
         api.command('panic')
         assert api.c.request(op=35,target=0,arg=0,revision=-1)['phraseData']==after,'busy trim changed MIDI'
         api.command('phrase_clear',phraseId=1)
-        api.command('phrase_trim',phraseId=1,expected=422)
+        api.command('phrase_trim',phraseId=1,expected=400)
         browser.close()
     print('PASS real editor: ALT step copy, empty-column insertion, touch button, UNDO and native persistence')
 finally:

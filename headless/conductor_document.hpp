@@ -94,7 +94,7 @@ inline bool validDocument(const std::vector<unsigned> &bytes){
     std::set<std::string> ids,sources,movements;std::set<unsigned> slots,switchIds;
     auto unique=[&](const Value &v){require(ids.insert(uuid(v)).second);};
     const auto &src=root.at("sources");require(src.type=='a');
-    for(const auto &v:src.array){if(groupVersion){fieldsOptional(v,{"id","type","slot","muteGroup"},{"tune","rate","playMode"});require(integer(v.at("muteGroup"),0,16777215));}else fieldsOptional(v,{"id","type","slot"},{"tune","rate","playMode"});if(v.object.count("playMode"))require(choice(v.at("playMode"),{"GATE","RETRIGGER","TOGGLE"}));if(v.object.count("tune"))require(integer(v.at("tune"),-24,24));if(v.object.count("rate"))require(v.at("rate").type=='n'&&v.at("rate").number>=.1&&v.at("rate").number<=16);unique(v.at("id"));require(choice(v.at("type"),{"PHRASE"})&&integer(v.at("slot"),1,128)&&slots.insert(unsigned(v.at("slot").number)).second);sources.insert(uuid(v.at("id")));}
+    for(const auto &v:src.array){if(groupVersion){fieldsOptional(v,{"id","type","slot","muteGroup"},{"tune","rate","playMode","direction"});require(integer(v.at("muteGroup"),0,16777215));}else fieldsOptional(v,{"id","type","slot"},{"tune","rate","playMode","direction"});if(v.object.count("direction"))require(choice(v.at("direction"),{"FORWARD","REVERSE","PING_PONG"}));if(v.object.count("playMode"))require(choice(v.at("playMode"),{"GATE","RETRIGGER","TOGGLE"}));if(v.object.count("tune"))require(integer(v.at("tune"),-24,24));if(v.object.count("rate"))require(v.at("rate").type=='n'&&v.at("rate").number>=.1&&v.at("rate").number<=16);unique(v.at("id"));require(choice(v.at("type"),{"PHRASE"})&&integer(v.at("slot"),1,128)&&slots.insert(unsigned(v.at("slot").number)).second);sources.insert(uuid(v.at("id")));}
     if(movementVersion){
       const auto &rate=root.at("ccRate");require(integer(rate,10,100)&&(rate.number==10||rate.number==25||rate.number==50||rate.number==100));
       const auto &library=root.at("movements");require(library.type=='a');
@@ -155,7 +155,7 @@ inline bool validDocument(const std::vector<unsigned> &bytes){
           for(const auto &entry:overrides.object){
             const auto &key=entry.first;const auto &local=entry.second;
             std::map<std::string,std::vector<std::string>> opts={
-              {"playMode",{"LOOP","ONCE","HOLD","GATE","RETRIGGER","TOGGLE"}},{"trigger",{"PRESS","HOLD","LONG_HOLD","RELEASE","SUPERCHARGE_RELEASE"}},
+              {"direction",{"FORWARD","REVERSE","PING_PONG"}},{"playMode",{"LOOP","ONCE","HOLD","GATE","RETRIGGER","TOGGLE"}},{"trigger",{"PRESS","HOLD","LONG_HOLD","RELEASE","SUPERCHARGE_RELEASE"}},
               {"instancePolicy",{"JOIN_EXISTING","RESTART","NEW_INSTANCE"}},
               {"join",{"TRIGGER","JOIN_NOW","JOIN_AT_LOOP_START"}},{"referenceTime",{"CYCLE","ELAPSED"}},
               {"entry",{"TRIGGER","REVEAL"}},{"release",{"LATCH","GATE"}},
@@ -164,7 +164,7 @@ inline bool validDocument(const std::vector<unsigned> &bytes){
             bool revealNumber=key=="revealCC"||key=="revealFadeSeconds";
             bool movementNumber=key=="releaseSeconds"||key=="restValue"||key=="movementDuration";
             require(opts.count(key)||key=="destination"||parameter||movementNumber||revealNumber);
-            bool onlyPhrase=key=="playMode"||key=="instancePolicy"||key=="entry"||key=="release"||parameter||revealNumber;
+            bool onlyPhrase=key=="direction"||key=="playMode"||key=="instancePolicy"||key=="entry"||key=="release"||parameter||revealNumber;
             bool onlyMovement=key=="movementCycle"||key=="movementPlayMode"||key=="retrigger"||key=="destination"||movementNumber;
             require(!(onlyPhrase&&!phrase)&&!(onlyMovement&&phrase));
             if(choice(local.at("mode"),{"INHERIT"})){fields(local,{"mode"});continue;}

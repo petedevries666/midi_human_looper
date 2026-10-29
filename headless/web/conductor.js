@@ -215,21 +215,21 @@ async function editConductor(sw){
   if(b.overrides.entry?.mode==='OVERRIDE'&&b.overrides.entry.value==='REVEAL'){
    const warning=node('small',b.overrides.trigger?.mode==='OVERRIDE'&&['HOLD','LONG_HOLD','RELEASE','SUPERCHARGE_RELEASE'].includes(b.overrides.trigger.value)?`CC${b.overrides.revealCC?.mode==='OVERRIDE'?b.overrides.revealCC.value:7} CHANNEL-WIDE`:'REVEAL NEEDS TRIG HOLD / LONG HOLD','conductor-group-warning');warning.title='REVEAL sends its configured CC: shared channels affect other layers and instruments. Use independent channels for isolation. A source phrase cannot also automate this same CC.';warning.setAttribute('role','status');side.append(warning);
   }
-  for(const [key,title,kind] of [['phrase_tune','TUNE',null],['phrase_rate','RATE',null],['playMode','MODE',20],['phrase_base_velocity','VEL',17],['phrase_velocity_decay','V.DEC',15],['phrase_time_decay','T.DEC',14]]){
-   const p=phrase(b),fallback=key==='phrase_tune'?(source(b)?.tune??0):key==='phrase_rate'?(source(b)?.rate??1):key==='playMode'?(source(b)?.playMode||['LOOP','ONCE','HOLD','GATE','RETRIGGER','TOGGLE'][p?.mode])||'ONCE':p?.[{phrase_base_velocity:'baseVelocity',phrase_velocity_decay:'velocityDecay',phrase_time_decay:'timeDecay'}[key]]??1;
-   if(key!=='playMode'){const d=key==='phrase_tune'?{min:-24,max:24,step:1}:key==='phrase_rate'?{min:.1,max:16,step:.01}:parameter(kind);side.append(conductorInheritedControl(title,b.overrides,key,fallback,d,()=>{checkpoint();editing=l.id;},()=>paint(true)));continue;}
+  for(const [key,title,kind] of [['phrase_tune','TUNE',null],['phrase_rate','RATE',null],['direction','SENS',null],['playMode','MODE',20],['phrase_base_velocity','VEL',17],['phrase_velocity_decay','V.DEC',15],['phrase_time_decay','T.DEC',14]]){
+   const p=phrase(b),fallback=key==='direction'?(source(b)?.direction||'FORWARD'):key==='phrase_tune'?(source(b)?.tune??0):key==='phrase_rate'?(source(b)?.rate??1):key==='playMode'?(source(b)?.playMode||['LOOP','ONCE','HOLD','GATE','RETRIGGER','TOGGLE'][p?.mode])||'ONCE':p?.[{phrase_base_velocity:'baseVelocity',phrase_velocity_decay:'velocityDecay',phrase_time_decay:'timeDecay'}[key]]??1;
+   if(key!=='playMode'&&key!=='direction'){const d=key==='phrase_tune'?{min:-24,max:24,step:1}:key==='phrase_rate'?{min:.1,max:16,step:.01}:parameter(kind);side.append(conductorInheritedControl(title,b.overrides,key,fallback,d,()=>{checkpoint();editing=l.id;},()=>paint(true)));continue;}
    const row=node('label',title,'conductor-option'),policy=node('select');policy.setAttribute('aria-label',`${title} inheritance`);
    for(const value of ['INHERIT','OVERRIDE']){const o=node('option',value);o.value=value;policy.append(o);}policy.value=b.overrides[key]?.mode||'INHERIT';
    let value;
-   if(key==='playMode'){value=node('select');for(const text of ['LOOP','ONCE','HOLD',...(latest.nativeGesturePhraseModes?['GATE','RETRIGGER','TOGGLE']:[])]){const o=node('option',text);o.value=text;value.append(o);}value.value=b.overrides[key]?.value??fallback;}
+   if(key==='playMode'||key==='direction'){value=node('select');for(const text of (key==='direction'?['FORWARD','REVERSE','PING_PONG']:['LOOP','ONCE','HOLD',...(latest.nativeGesturePhraseModes?['GATE','RETRIGGER','TOGGLE']:[])])){const o=node('option',text);o.value=text;value.append(o);}value.value=b.overrides[key]?.value??fallback;}
    else{value=node('input');const d=key==='phrase_tune'?{min:-24,max:24,step:1}:key==='phrase_rate'?{min:.1,max:16,step:.01}:parameter(kind);value.type='range';value.min=d.min;value.max=d.max;value.step=d.step;value.value=b.overrides[key]?.value??fallback;}
    value.setAttribute('aria-label',`${title} override`);value.disabled=policy.value!=='OVERRIDE';const output=node('output',value.value);
-   const update=()=>{checkpoint();b.overrides[key]=policy.value==='INHERIT'?{mode:'INHERIT'}:{mode:'OVERRIDE',value:key==='playMode'?value.value:Number(value.value)};paint();properties(s,l);};
+   const update=()=>{checkpoint();b.overrides[key]=policy.value==='INHERIT'?{mode:'INHERIT'}:{mode:'OVERRIDE',value:['playMode','direction'].includes(key)?value.value:Number(value.value)};paint();properties(s,l);};
    policy.onchange=update;value.oninput=()=>output.value=value.value;value.onchange=update;row.append(policy,value,output);side.append(row);
   }
   const effectiveMode=b.overrides.playMode?.mode==='OVERRIDE'?b.overrides.playMode.value:source(b)?.playMode;
   if(effectiveMode==='GATE'&&b.overrides.trigger?.mode==='OVERRIDE'&&['RELEASE','SUPERCHARGE_RELEASE'].includes(b.overrides.trigger.value))side.append(node('small','GATE needs PRESS, HOLD or LONG HOLD: release is its STOP edge.','conductor-group-warning'));
-  const unsupported=Object.entries(b.overrides).filter(([k,v])=>v.mode==='OVERRIDE'&&!['trigger','entry','release','revealCC','revealFadeSeconds','playMode','phrase_tune','phrase_rate','phrase_base_velocity','phrase_velocity_decay','phrase_time_decay'].includes(k));
+  const unsupported=Object.entries(b.overrides).filter(([k,v])=>v.mode==='OVERRIDE'&&!['direction','trigger','entry','release','revealCC','revealFadeSeconds','playMode','phrase_tune','phrase_rate','phrase_base_velocity','phrase_velocity_decay','phrase_time_decay'].includes(k));
   if(unsupported.length)side.append(node('small','Other existing options preserved · '+unsupported.map(([k])=>k).join(', ')));
   const moves=node('details');moves.append(node('summary','MOVE / REPLACE'));
   const destination=node('select');destination.setAttribute('aria-label','Block destination');

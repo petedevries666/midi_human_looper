@@ -49,9 +49,11 @@ static void pair(const char* source,bool conductor,double decay){
 #include "bass_policy_cases.hpp"
 #include "phrase_gesture_mode_cases.hpp"
 #include "phrase_trim_cases.hpp"
+#include "phrase_direction_cases.hpp"
 int main(int argc,char**argv){
   check(argc==2,"native generated source required");
   phrase_trim_cases();
+  phrase_direction_cases(argv[1]);
   repeat_cases(argv[1]);
   phrase_rate_cases(argv[1]);
   bass_policy_cases(argv[1]);

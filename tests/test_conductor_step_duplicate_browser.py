@@ -196,6 +196,18 @@ try:
         assert api.c.request(op=35,target=0,arg=0,revision=-1)['phraseData']==after,'busy trim changed MIDI'
         api.command('phrase_clear',phraseId=1)
         api.command('phrase_trim',phraseId=1,expected=400)
+        page.locator('.phrase[data-phrase-id="1"]').get_by_role('button',name='PHRASE OPTIONS',exact=True).click()
+        direction=page.get_by_label('Direction Phrase 1',exact=True)
+        expect(direction).to_be_enabled();expect(direction).to_have_value('FORWARD')
+        for value in ('REVERSE','PING_PONG','FORWARD'):
+            direction.select_option(value)
+            expect(direction).to_be_enabled()
+            expect(direction).to_have_value(value)
+            api.wait_for(lambda:json.load(urllib.request.urlopen(api.base+'/api/v1/conductor'))['model']['sources'][0].get('direction')==value,'direction source commit')
+        direction.select_option('PING_PONG');expect(direction).to_be_enabled()
+        page.locator('#editor-content').get_by_role('button',name='CANCEL',exact=True).click()
+        api.patch('save');api.patch('load')
+        assert json.load(urllib.request.urlopen(api.base+'/api/v1/conductor'))['model']['sources'][0]['direction']=='PING_PONG'
         browser.close()
     print('PASS real editor: ALT step copy, empty-column insertion, touch button, UNDO and native persistence')
 finally:

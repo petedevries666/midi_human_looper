@@ -805,6 +805,16 @@ function phraseOptions(phraseId){
     catch(e){error.textContent=e.message+' · STOP and reopen before saving';}finally{committing=false;groupSave.disabled=group.disabled=false;}
   });groupSave.disabled=true;groupRow.append(group,groupSave);content.append(groupRow);
   request('/api/v1/conductor').then(loaded=>{if(!dialog.open)return;groupLoaded=loaded;group.value=loaded.model?.sources.find(s=>s.slot===phraseId)?.muteGroup||0;group.disabled=groupSave.disabled=false;}).catch(e=>{error.textContent=e.message;});
+  if(latest.nativePhraseDirection){
+    const directionRow=node('label','SENS','inline-control'),direction=node('select');direction.setAttribute('aria-label',`Direction Phrase ${phraseId}`);direction.disabled=true;
+    for(const [value,label] of [['FORWARD','FORWARD'],['REVERSE','REVERSE'],['PING_PONG','PING-PONG']]){const o=node('option',label);o.value=value;o.disabled=value==='PING_PONG'&&latest.phrases.find(p=>p.id===phraseId)?.mode===2;direction.append(o);}
+    const loadDirection=()=>{direction.value=groupLoaded.model?.sources.find(s=>s.slot===phraseId)?.direction||'FORWARD';direction.disabled=false;};
+    request('/api/v1/conductor').then(loaded=>{if(dialog.open){groupLoaded=loaded;loadDirection();}}).catch(e=>{error.textContent=e.message;});
+    direction.onchange=async()=>{if(committing||!groupLoaded)return;committing=true;direction.disabled=true;
+      try{const model=upgradeMovementModel(groupLoaded.model),src=model.sources.find(s=>s.slot===phraseId);if(!src)throw new Error('Phrase source missing');src.direction=direction.value;groupLoaded=await saveMovementModel(model,groupLoaded);error.textContent='SENS ENREGISTRÉ · SAVE pour conserver';}
+      catch(e){error.textContent=e.message;}finally{committing=false;loadDirection();}
+    };direction.title='PING-PONG : alterne à chaque tour en LOOP, à chaque nouvelle lecture dans les autres modes. HOLD exclu.';directionRow.append(direction);content.append(directionRow);
+  }
   const file=node('input');file.type='file';file.accept='.mid,.midi,audio/midi';file.setAttribute('aria-label','MIDI file');
   content.append(button('IMPORT MIDI',()=>file.click()),file,button('EXPORT MIDI',async()=>{
     try{

@@ -47,7 +47,7 @@ struct ChainMode {
   EEL_F* phraseTriggers[128]{};
   EEL_F* holdAccepted;
   EEL_F* phraseModes[128]{};
-  EEL_F* phraseCounts[128]{};
+  EEL_F* phraseCounts[128]{};EEL_F* phraseDirections[128]{};
   ysfx_t *fx;
   ChainMode(ysfx_t *f, bool active, unsigned version=1, bool grid=false)
       : enabled(active), timingVersion(version), gridCapture(grid), fx(f) {
@@ -60,6 +60,7 @@ struct ChainMode {
     for(unsigned i=0;i<phraseCapacity;++i)
       phraseModes[i]=NSEEL_VM_getramptr(f->vm.get(),modeBase+i,nullptr);
     for(unsigned i=0;i<phraseCapacity;++i)phraseCounts[i]=NSEEL_VM_getramptr(f->vm.get(),unsigned(*ysfx_find_var(f,"COUNT_BASE"))+i,nullptr);
+    if(auto directions=ysfx_find_var(f,"NATIVE_DIRECTION_SOURCE"))for(unsigned i=0;i<phraseCapacity;++i)phraseDirections[i]=NSEEL_VM_getramptr(f->vm.get(),unsigned(*directions)+i,nullptr);
     for(unsigned i=0;i<phraseCapacity;++i)phraseTriggers[i]=NSEEL_VM_getramptr(f->vm.get(),unsigned(*ysfx_find_var(f,"TRIG_BASE"))+i,nullptr);
     if(active && !grid)for(unsigned i=0;i<phraseCapacity*2064;++i)*NSEEL_VM_getramptr(f->vm.get(),(phraseCapacity>16?6200000:3008000)+i,nullptr)=0;
     captureActive = NSEEL_VM_regvar(f->vm.get(), "chain_capture_active");
@@ -207,6 +208,7 @@ struct ChainMode {
   }
   void cancel() {
     if(!gridCapture) {
+      if(action==2 && !recording && !armed && phraseDirections[selected] && *phraseDirections[selected]>0 && *phraseCounts[selected]>0)return false;
       finishFree();
       *musicalState=4; // STATE_STOPPED: caller performs existing owned-note PANIC
       armed=recording=run=false;

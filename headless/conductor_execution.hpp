@@ -30,7 +30,7 @@ inline bool supportedBlock(const Value& b) {
   for(const auto& item:b.at("overrides").object) {
     if(choice(item.second.at("mode"),{"INHERIT"}))continue;
     const auto& k=item.first;const auto& v=item.second.at("value");
-    if(k=="phrase_rate" || k=="phrase_tune" || k=="playMode" || k=="phrase_base_velocity" || k=="phrase_velocity_decay" || k=="phrase_time_decay")continue;
+    if(k=="direction" || k=="phrase_rate" || k=="phrase_tune" || k=="playMode" || k=="phrase_base_velocity" || k=="phrase_velocity_decay" || k=="phrase_time_decay")continue;
     if(k=="revealCC" || k=="revealFadeSeconds")continue;
     if(k=="entry" && choice(v,{"TRIGGER","REVEAL"}))continue;
     if(k=="release" && choice(v,{"LATCH","GATE"}))continue;
@@ -61,7 +61,7 @@ inline std::vector<double> compile(const std::vector<unsigned>& bytes,double bas
     if(out[h+7]&&sw.object.count("advance")&&choice(sw.at("advance"),{"RELEASE"}))out[h+7]=2;
     unsigned stepStart=out.size();out.resize(out.size()+sw.at("steps").array.size()*80,0);unsigned stepIndex=0;
     for(const auto& step:sw.at("steps").array) {
-      std::array<double,80> record{};std::vector<double> admissions,heldAdmissions,longAdmissions,releaseAdmissions,chargeAdmissions,revealOptions,actions,phraseTunes,phraseRates;unsigned longMask=0;bool chargeAction=false;
+      std::array<double,80> record{};std::vector<double> admissions,heldAdmissions,longAdmissions,releaseAdmissions,chargeAdmissions,revealOptions,actions,phraseTunes,phraseRates,phraseDirections;unsigned longMask=0;bool chargeAction=false;
       record[0]=choice(step.at("transition"),{"INHERIT","IMMEDIATE","END_OF_PHRASE"});
       record[71]=choice(step.at("transition"),{"END_OF_PHRASE"})||(choice(step.at("transition"),{"INHERIT"})&&choice(sw.at("transition"),{"END_OF_PHRASE"}));
       unsigned n=0;
@@ -119,6 +119,9 @@ inline std::vector<double> compile(const std::vector<unsigned>& bytes,double bas
         if(&layer==&step.at("layers").array.front())record[70]=n+1;
         double cc=localNumber(b,"revealCC"),fade=localNumber(b,"revealFadeSeconds");revealOptions.push_back(cc<0?7:cc);revealOptions.push_back(fade<0?0:fade);
         auto tune=b.at("overrides").object.find("phrase_tune");phraseTunes.push_back(tune!=b.at("overrides").object.end()&&choice(tune->second.at("mode"),{"OVERRIDE"})?tune->second.at("value").number:tunes[it->second]);
+        unsigned direction=0;for(const auto &src:root.at("sources").array)if(src.at("id").text==b.at("sourceId").text && src.object.count("direction"))direction=choice(src.at("direction"),{"REVERSE"})?1:choice(src.at("direction"),{"PING_PONG"})?2:0;
+        auto dir=b.at("overrides").object.find("direction");if(dir!=b.at("overrides").object.end()&&choice(dir->second.at("mode"),{"OVERRIDE"}))direction=choice(dir->second.at("value"),{"REVERSE"})?1:choice(dir->second.at("value"),{"PING_PONG"})?2:0;
+        phraseDirections.push_back(direction);
         auto rate=b.at("overrides").object.find("phrase_rate");phraseRates.push_back(rate!=b.at("overrides").object.end()&&choice(rate->second.at("mode"),{"OVERRIDE"})?rate->second.at("value").number:rates[it->second]);
         unsigned row=4+n*5;record[row]=it->second;record[row+1]=-1;
         auto mode=b.at("overrides").object.find("playMode");
@@ -143,7 +146,7 @@ inline std::vector<double> compile(const std::vector<unsigned>& bytes,double bas
       }
       record[75]=chargeAdmissions.size();record[77]=base+out.size();out.insert(out.end(),chargeAdmissions.begin(),chargeAdmissions.end());record[78]=base+out.size();
       out.insert(out.end(),{threshold,full,double(binding.size()/7)});out.insert(out.end(),binding.begin(),binding.end());
-      record[79]=base+out.size();out.push_back(actions.size()/4);out.insert(out.end(),actions.begin(),actions.end());out.insert(out.end(),phraseTunes.begin(),phraseTunes.end());out.push_back(step.object.count("repeat")?step.at("repeat").number:1);out.insert(out.end(),phraseRates.begin(),phraseRates.end());
+      record[79]=base+out.size();out.push_back(actions.size()/4);out.insert(out.end(),actions.begin(),actions.end());out.insert(out.end(),phraseTunes.begin(),phraseTunes.end());out.push_back(step.object.count("repeat")?step.at("repeat").number:1);out.insert(out.end(),phraseRates.begin(),phraseRates.end());out.insert(out.end(),phraseDirections.begin(),phraseDirections.end());
       std::copy(record.begin(),record.end(),out.begin()+stepStart+(stepIndex-1)*80);
 
     }

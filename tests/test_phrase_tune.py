@@ -29,6 +29,13 @@ class PhraseTune(unittest.TestCase):
         for invalid in ('ONCE','OTHER',True,None,3):
             m,_=self.model();m['sources'][0]['playMode']=invalid
             with self.assertRaises(ValueError):conductor.validate(m)
+    def test_phrase_direction_roundtrip(self):
+        for direction in ('FORWARD','REVERSE','PING_PONG'):
+            m,b=self.model();m['sources'][0]['direction']=direction;b['overrides']['direction']=dict(mode='OVERRIDE',value=direction)
+            self.assertEqual(conductor.decode(conductor.encode(m)),m)
+        for invalid in ('BACKWARDS',2,None,True):
+            m,b=self.model();m['sources'][0]['direction']=invalid
+            with self.assertRaises(ValueError):conductor.validate(m)
     def test_old_documents_remain_unchanged(self):
         m,_=self.model();before=copy.deepcopy(m)
         self.assertEqual(conductor.decode(conductor.encode(m)),before)

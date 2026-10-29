@@ -14,6 +14,7 @@ GROUP_VERSION = 3
 # Existing control channel byte ceiling, not a musical STEPS/LAYERS limit (Q3).
 MAX_BYTES = 16000000
 OPTIONS = {
+    'direction': ('FORWARD', 'REVERSE', 'PING_PONG'),
     'playMode': ('LOOP', 'ONCE', 'HOLD', 'GATE', 'RETRIGGER', 'TOGGLE'),
     'trigger': ('PRESS', 'HOLD', 'LONG_HOLD', 'RELEASE', 'SUPERCHARGE_RELEASE'),
     'instancePolicy': ('JOIN_EXISTING', 'RESTART', 'NEW_INSTANCE'),
@@ -25,7 +26,7 @@ OPTIONS = {
     'movementCycle': ('ONCE', 'LOOP', 'PING_PONG'),
     'retrigger': ('SOFT_RESTART', 'DIRECT'),
 }
-PHRASE_OPTIONS = {'playMode', 'trigger', 'instancePolicy', 'join', 'referenceTime', 'entry', 'release', 'phrase_time_decay', 'phrase_velocity_decay', 'phrase_base_velocity', 'phrase_tune', 'phrase_rate', 'revealCC', 'revealFadeSeconds'}
+PHRASE_OPTIONS = {'direction', 'playMode', 'trigger', 'instancePolicy', 'join', 'referenceTime', 'entry', 'release', 'phrase_time_decay', 'phrase_velocity_decay', 'phrase_base_velocity', 'phrase_tune', 'phrase_rate', 'revealCC', 'revealFadeSeconds'}
 MOVEMENT_OPTIONS = {'trigger', 'join', 'referenceTime', 'movementPlayMode', 'retrigger', 'destination', 'releaseSeconds', 'restValue', 'movementDuration', 'movementCycle'}
 
 
@@ -138,7 +139,8 @@ def validate(data):
     slots = set()
     sources = {}
     for source in data['sources']:
-        fields(source, (('id', 'type', 'slot', 'muteGroup') if data['version']==GROUP_VERSION else ('id', 'type', 'slot')) + tuple(k for k in ('tune','rate','playMode') if k in source))
+        fields(source, (('id', 'type', 'slot', 'muteGroup') if data['version']==GROUP_VERSION else ('id', 'type', 'slot')) + tuple(k for k in ('tune','rate','playMode','direction') if k in source))
+        if 'direction' in source and source['direction'] not in OPTIONS['direction']:raise ValueError('Invalid phrase direction')
         if 'playMode' in source and source['playMode'] not in ('GATE','RETRIGGER','TOGGLE'):raise ValueError('Invalid native phrase playback mode')
         if 'tune' in source: integer(source['tune'], -24, 24)
         if 'rate' in source: playback_rate(source['rate'])

@@ -46,3 +46,18 @@ release inside the playback span. Only events after this boundary are discarded;
 remaining event bytes/times, phrase settings and Conductor references are retained.
 Empty/unbalanced takes and fixed-grid capture are refused without changing MIDI.
 Use SAVE to persist the result. This is a manual action, never automatic on capture.
+
+## Playback direction
+
+Phrase pencil options and Conductor blocks offer FORWARD (default), REVERSE and
+PING_PONG independently of playback mode. REVERSE pairs recorded notes FIFO per
+channel/pitch, preserving duration, attack velocity and release velocity. Sustain
+transitions restore their preceding value when mirrored. Source MIDI is untouched.
+PING_PONG alternates each direct or independent LOOP cycle, and each successful
+one-shot admission for ONCE/GATE/RETRIGGER/TOGGLE. Rejected admissions and stopping
+a TOGGLE do not consume an alternation. STOP/PANIC and Conductor cursor reset
+restart the corresponding alternation in the forward direction. Legacy HOLD
+excludes PING_PONG. Unbalanced notes or unreleased sustain refuse reverse playback.
+Overdub of a non-forward source is refused: choose FORWARD for recording.
+Pairing uses bounded, prewarmed native scratch/cache pages, prepared on the paused
+configuration worker and invalidated by capture, import, clear and trim.

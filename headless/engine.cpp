@@ -167,8 +167,8 @@ struct Snapshot {
   std::array<Switch, 64> switches{};
   std::array<Instrument, 8> instruments{};
   std::array<Phrase, 128> phrases{};
-  unsigned phraseCapacity=16,switchCapacity=16,schema=7;
-  bool nativeGesturePhraseModes=false;
+  unsigned phraseCapacity=16,switchCapacity=16,schema=7;bool nativeDirectionAvailable=false;
+  bool nativeGesturePhraseModes=false;bool nativePhraseDirection=false;
   controller::Configuration controllerConfig;
   uint32_t learnTarget = 0;
   bool learnCommand = false;
@@ -340,6 +340,7 @@ struct Model {
     NSEEL_code_free(level);NSEEL_code_free(geometry);
   }
   explicit Model(ysfx_t *fx) {
+    nativeDirectionAvailable=ysfx_find_var(fx,"NATIVE_DIRECTION_SOURCE")!=nullptr;
     if(auto modes=ysfx_find_var(fx,"NATIVE_PHRASE_PLAY_MODE_BASE"))for(unsigned i=0;i<128;++i)phraseSpecialModes[i]=cell(fx,unsigned(*modes)+i);
     phraseCapacity=unsigned(variable(fx,"LAYERS"));switchCapacity=unsigned(variable(fx,"SW_COUNT"));schema=unsigned(variable(fx,"IO_SCHEMA"));
     if(phraseCapacity>128||switchCapacity>64)throw std::runtime_error("native capacity exceeds compiled bounds");
@@ -605,7 +606,7 @@ struct Model {
     return pending && *pending != -999 ? *pending : *bindingValue(b);
   }
   void snapshot(Snapshot &s) const {
-    s.nativeGesturePhraseModes=phraseSpecialModes[0]!=nullptr;
+    s.nativeGesturePhraseModes=phraseSpecialModes[0]!=nullptr;s.nativePhraseDirection=nativeDirectionAvailable;
     s.expressiveConfig=expressiveConfiguration();
     s.midiThruConfig=midiThruConfig;
     s.phraseCapacity=phraseCapacity;s.switchCapacity=switchCapacity;s.schema=schema;
@@ -840,7 +841,7 @@ static std::string json(const Reply &r) {
       }
       o << "]}";
     }
-  o << "],\"nativeGesturePhraseModes\":" << (s.nativeGesturePhraseModes?"true":"false") << ",\"nativePhraseContract\":" << (s.chain?2:1) << ",\"nativeHeldRelease\":false,\"phrases\":[";
+  o << "],\"nativePhraseDirection\":" << (s.nativePhraseDirection?"true":"false") << ",\"nativeGesturePhraseModes\":" << (s.nativeGesturePhraseModes?"true":"false") << ",\"nativePhraseContract\":" << (s.chain?2:1) << ",\"nativeHeldRelease\":false,\"phrases\":[";
   for (unsigned i = 0; i < s.phraseCapacity; ++i) {
     if (i)
       o << ',';
@@ -1127,6 +1128,12 @@ static void control(int listener, Queue<Request, 8> &commands,
         {if(source.object.count("muteGroup"))groups[unsigned(source.at("slot").number)-1]=unsigned(source.at("muteGroup").number);if(source.object.count("tune"))tunes[unsigned(source.at("slot").number)-1]=source.at("tune").number;if(source.object.count("rate"))rates[unsigned(source.at("slot").number)-1]=source.at("rate").number;}
     }
     for(unsigned i=0;i<model.phraseCapacity;++i){*cell(patch.fx,unsigned(variable(patch.fx,"PHRASE_GROUP_BASE"))+i)=groups[i];auto tuneBase=ysfx_find_var(patch.fx,"NATIVE_PHRASE_TUNE_BASE");if(tuneBase)*cell(patch.fx,unsigned(*tuneBase)+i)=tunes[i];auto rateBase=ysfx_find_var(patch.fx,"NATIVE_PHRASE_RATE_BASE");if(rateBase)*cell(patch.fx,unsigned(*rateBase)+i)=rates[i];}
+    if(auto directions=ysfx_find_var(patch.fx,"NATIVE_DIRECTION_SOURCE")){
+      for(unsigned p=0;p<model.phraseCapacity;++p)*cell(patch.fx,unsigned(*directions)+p)=0;
+      if(!bytes.empty()){auto document=conductor::document(bytes);for(const auto& src:document.at("sources").array)if(src.object.count("direction"))*cell(patch.fx,unsigned(*directions)+unsigned(src.at("slot").number)-1)=conductor::choice(src.at("direction"),{"REVERSE"})?1:conductor::choice(src.at("direction"),{"PING_PONG"})?2:0;}
+      for(unsigned p=0;p<model.phraseCapacity;++p)*cell(patch.fx,unsigned(variable(patch.fx,"NATIVE_REVERSE_READY"))+p)=0;
+      execute(patch.fx,"native_prepare_p=0;loop(LAYERS,native_reverse_prepare(native_prepare_p);native_prepare_p+=1;);");
+    }
     if(auto strokes=ysfx_find_var(patch.fx,"NATIVE_GATE_STROKE_BASE"))for(unsigned i=0;i<12;++i)*cell(patch.fx,unsigned(*strokes)+i)=0;
     if(auto modes=ysfx_find_var(patch.fx,"NATIVE_PHRASE_PLAY_MODE_BASE")){
       for(unsigned i=0;i<model.phraseCapacity;++i)*cell(patch.fx,unsigned(*modes)+i)=0;
@@ -1429,6 +1436,7 @@ static void control(int listener, Queue<Request, 8> &commands,
           const unsigned countBase=unsigned(variable(patch.fx,"COUNT_BASE"));
           const unsigned lengthBase=unsigned(variable(patch.fx,"LEN_BASE"));
           const double rate=reply.state.sampleRate;
+          if(request.arg!=0)if(auto ready=ysfx_find_var(patch.fx,"NATIVE_REVERSE_READY"))*cell(patch.fx,unsigned(*ready)+selected)=0;
           if (request.arg == 2) {
             // Content only: keep phrase identity, mode, names and all parameters.
             *patch.memory[countBase+selected]=0;
@@ -1761,6 +1769,8 @@ int main(int argc, char **argv) {
     for (unsigned i = 0; i < warmEnd; i += 512) {
       volatile double *page=cell(fx,i);*page=*page;
     }
+    if(auto end=ysfx_find_var(fx,"NATIVE_REVERSE_END"))
+      for(unsigned i=unsigned(variable(fx,"NATIVE_REVERSE_PAIR"));i<unsigned(*end);i+=512){volatile double* page=cell(fx,i);*page=*page;}
     auto target = NSEEL_VM_regvar(fx->vm.get(), "remote_target"),
          gesture = NSEEL_VM_regvar(fx->vm.get(), "remote_gesture"),
          ok = NSEEL_VM_regvar(fx->vm.get(), "remote_ok");
@@ -1807,7 +1817,7 @@ int main(int argc, char **argv) {
         "trigger_request=remote_phrase;process_phrase_trigger(0,0);", 0);
     auto phraseRecord = NSEEL_code_compile(
         fx->vm.get(), "select_phrase_record(remote_phrase);", 0);
-    auto phraseClear=NSEEL_code_compile(fx->vm.get(),"set_layer_count(remote_phrase,0);mem[LEN_BASE+remote_phrase]=0;mem[TRIG_BASE+remote_phrase]=0;mem[HOLD_ACTIVE_BASE+remote_phrase]=0;mem[ONCEPOS_BASE+remote_phrase]=0;mem[FREE_FINISHED_BASE+remote_phrase]=0;free_play_error==remote_phrase+1?free_play_error=0;",0);
+    auto phraseClear=NSEEL_code_compile(fx->vm.get(),"native_direction_enabled?mem[NATIVE_REVERSE_READY+remote_phrase]=0;set_layer_count(remote_phrase,0);mem[LEN_BASE+remote_phrase]=0;mem[TRIG_BASE+remote_phrase]=0;mem[HOLD_ACTIVE_BASE+remote_phrase]=0;mem[ONCEPOS_BASE+remote_phrase]=0;mem[FREE_FINISHED_BASE+remote_phrase]=0;free_play_error==remote_phrase+1?free_play_error=0;",0);
     if(!phraseClear)throw std::runtime_error("phrase content clear bridge");
     auto phraseStop = NSEEL_code_compile(
         fx->vm.get(),

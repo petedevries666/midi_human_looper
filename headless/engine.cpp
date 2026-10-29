@@ -1436,7 +1436,7 @@ static void control(int listener, Queue<Request, 8> &commands,
           const unsigned countBase=unsigned(variable(patch.fx,"COUNT_BASE"));
           const unsigned lengthBase=unsigned(variable(patch.fx,"LEN_BASE"));
           const double rate=reply.state.sampleRate;
-          if(request.arg!=0)if(auto ready=ysfx_find_var(patch.fx,"NATIVE_REVERSE_READY"))*cell(patch.fx,unsigned(*ready)+selected)=0;
+          if(model.nativeDirectionAvailable && request.arg!=0)if(auto ready=ysfx_find_var(patch.fx,"NATIVE_REVERSE_READY"))*cell(patch.fx,unsigned(*ready)+selected)=0;
           if (request.arg == 2) {
             // Content only: keep phrase identity, mode, names and all parameters.
             *patch.memory[countBase+selected]=0;

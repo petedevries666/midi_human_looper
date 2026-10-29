@@ -49,5 +49,11 @@ static void phrase_direction_cases(const char* source){
   trigger(h,true);check(bass_count(h.events(),146,67)==1,"Conductor local REVERSE affects actual MIDI");
   h.eq("mem[NATIVE_DIRECTION_SOURCE]",0,"local direction restores shared source");
  }
+ {
+  Host h(source);direction_fixture(h,1);h.run("clear_layer(0);store_event(0,0,144,60,40,0);store_event(0,100,128,60,0,0);store_event(0,30,144,67,90,0);store_event(0,90,128,67,0,0);mem[LEN_BASE]=101;");
+  trigger(h,false);auto e=h.events();
+  check(e==std::vector<std::vector<int>>{{146,60,40},{146,67,90},{130,67,0},{130,60,0}},"REVERSE sorts an overdub view without rewriting source MIDI");
+  h.eq("mem[layer_base(0,2)]",30,"overdub source ordering is preserved");
+ }
  std::cout<<"PASS non-destructive phrase REVERSE, PING-PONG, pedal reversal and Conductor overrides\n";
 }

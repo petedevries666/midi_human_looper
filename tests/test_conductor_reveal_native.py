@@ -13,9 +13,11 @@ class Reveal(Gestures):
         self.reveal=self.model['switches'][0]['steps'][0]['layers'][1]['block']
         self.reveal['overrides']['entry']=dict(mode='OVERRIDE',value='REVEAL')
         # Separate actual recorded destinations, not an instrument OUT mutation.
+        first=self.c.request(op=35,target=0,arg=0,revision=-1)['phraseData']
         state=self.call()
         result=self.c.request(op=35,target=1,arg=1,phrase=dict(lengthSeconds=30,events=[[0,145,72,100],[29,129,72,0]]),revision=state['revision'],session=state['engineSessionId'])
         self.assertEqual(result['status'],'ok')
+        self.assertEqual(self.c.request(op=35,target=0,arg=0,revision=-1)['phraseData'],first,'import must not overwrite another source through an unavailable native cache')
         # End a physical pedal gesture left held by the preceding test.
         self.up()
 

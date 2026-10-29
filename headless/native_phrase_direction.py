@@ -1,12 +1,23 @@
 """Native non-destructive direction, with bounded cached FIFO note pairing."""
 HELPERS = r'''
-function native_reverse_prepare(p) local(i,b,st,key,head,tail,prev,ok,cache)
+function native_reverse_less(p,a,b) local(ta,tb)
+(ta=mem[layer_base(p,a)];tb=mem[layer_base(p,b)];ta<tb || (ta==tb && a<b););
+function native_reverse_sift(p,order,root,size) local(child,a,b,more)
+(more=1;while(more)(child=root*2+1;child<size?(
+ child+1<size && native_reverse_less(p,mem[order+child],mem[order+child+1])?child+=1;
+ a=mem[order+root];b=mem[order+child];native_reverse_less(p,a,b)?(mem[order+root]=b;mem[order+child]=a;root=child;):more=0;
+):more=0;););
+function native_reverse_prepare(p) local(i,b,st,key,head,tail,prev,ok,cache,order,n,scan,sorted,last,root,size,tmp)
 (
  mem[NATIVE_REVERSE_READY+p]==0?(
   memset(NATIVE_REVERSE_HEAD,0,2048);memset(NATIVE_REVERSE_TAIL,0,2048);
   memset(NATIVE_REVERSE_NEXT,0,2048);memset(NATIVE_REVERSE_PEDAL,0,16);
-  cache=NATIVE_REVERSE_PAIR+p*2048;memset(cache,0,2048);i=0;ok=mem[LEN_BASE+p]>0;
-  loop(layer_count(p),b=layer_base(p,i);st=mem[b+1]&240;key=(mem[b+1]&15)*128+mem[b+2];
+  cache=NATIVE_REVERSE_PAIR+p*2048;memset(cache,0,2048);order=NATIVE_REVERSE_ORDER+p*2048;n=layer_count(p);i=0;sorted=1;last=-1;
+  loop(n,mem[order+i]=i;b=layer_base(p,i);mem[b]<last?sorted=0;last=mem[b];i+=1;);
+  !sorted?(root=floor(n/2)-1;loop(floor(n/2),native_reverse_sift(p,order,root,n);root-=1;);
+   size=n-1;loop(max(0,n-1),tmp=mem[order];mem[order]=mem[order+size];mem[order+size]=tmp;native_reverse_sift(p,order,0,size);size-=1;);
+  );scan=0;ok=mem[LEN_BASE+p]>0;
+  loop(n,i=mem[order+scan];b=layer_base(p,i);st=mem[b+1]&240;key=(mem[b+1]&15)*128+mem[b+2];
    st==144 && mem[b+3]>0?(
     tail=mem[NATIVE_REVERSE_TAIL+key];tail>0?mem[NATIVE_REVERSE_NEXT+tail-1]=i+1:mem[NATIVE_REVERSE_HEAD+key]=i+1;
     mem[NATIVE_REVERSE_TAIL+key]=i+1;
@@ -17,7 +28,7 @@ function native_reverse_prepare(p) local(i,b,st,key,head,tail,prev,ok,cache)
     ):ok=0;
    ):st==176 && mem[b+2]==64?(
     key=mem[b+1]&15;prev=mem[NATIVE_REVERSE_PEDAL+key];mem[cache+i]=-prev-1;mem[NATIVE_REVERSE_PEDAL+key]=mem[b+3];
-   );i+=1;
+   );scan+=1;
   );
   i=0;loop(2048,mem[NATIVE_REVERSE_HEAD+i]>0?ok=0;i+=1;);
   i=0;loop(16,mem[NATIVE_REVERSE_PEDAL+i]>=64?ok=0;i+=1;);
@@ -27,7 +38,7 @@ function native_reverse_prepare(p) local(i,b,st,key,head,tail,prev,ok,cache)
 function native_direction_event(p,i,rev) local(b,other,st,j)
 (
  rev?(
-  i=layer_count(p)-1-i;b=layer_base(p,i);other=mem[NATIVE_REVERSE_PAIR+p*2048+i];st=mem[b+1]&240;
+  i=mem[NATIVE_REVERSE_ORDER+p*2048+layer_count(p)-1-i];b=layer_base(p,i);other=mem[NATIVE_REVERSE_PAIR+p*2048+i];st=mem[b+1]&240;
   mem[NATIVE_REVERSE_EVENT]=max(0,mem[LEN_BASE+p]-1-mem[b]);j=1;loop(4,mem[NATIVE_REVERSE_EVENT+j]=mem[b+j];j+=1;);
   st==144 && mem[b+3]>0?(
    mem[NATIVE_REVERSE_EVENT+1]=128|(mem[b+1]&15);mem[NATIVE_REVERSE_EVENT+3]=mem[layer_base(p,other-1)+3];
@@ -70,7 +81,7 @@ def extend(source):
 NATIVE_DIRECTION_VOICE=NATIVE_DIRECTION_SOURCE+128;
 NATIVE_DIRECTION_NEXT=NATIVE_DIRECTION_VOICE+140;
 NATIVE_REVERSE_READY=NATIVE_DIRECTION_NEXT+65*128;
-NATIVE_REVERSE_PAIR=28000000;NATIVE_REVERSE_HEAD=NATIVE_REVERSE_PAIR+128*2048;
+NATIVE_REVERSE_PAIR=28000000;NATIVE_REVERSE_ORDER=NATIVE_REVERSE_PAIR+128*2048;NATIVE_REVERSE_HEAD=NATIVE_REVERSE_ORDER+128*2048;
 NATIVE_REVERSE_TAIL=NATIVE_REVERSE_HEAD+2048;NATIVE_REVERSE_NEXT=NATIVE_REVERSE_TAIL+2048;
 NATIVE_REVERSE_PEDAL=NATIVE_REVERSE_NEXT+2048;NATIVE_REVERSE_EVENT=NATIVE_REVERSE_PEDAL+16;
 NATIVE_REVERSE_END=NATIVE_REVERSE_EVENT+8;native_direction_enabled=1;
@@ -104,9 +115,9 @@ function instance_discard_all()''')
     change('mem[NATIVE_VOICE_TUNE_BASE+v]=mem[NATIVE_PHRASE_TUNE_BASE+layer];',
            'mem[NATIVE_DIRECTION_VOICE+v]=mem[NATIVE_DIRECTION_SOURCE+layer]==2?2:mem[NATIVE_DIRECTION_SOURCE+layer];mem[NATIVE_VOICE_TUNE_BASE+v]=mem[NATIVE_PHRASE_TUNE_BASE+layer];')
     change('base=layer_base(once_layer,i);relative_t=',
-           'base=native_direction_event(once_layer,i,native_direction_reversed(vi,cycle));relative_t=')
+           'base=mem[NATIVE_DIRECTION_VOICE+vi]>0?native_direction_event(once_layer,i,native_direction_reversed(vi,cycle)):layer_base(once_layer,i);relative_t=')
     change('loop(count,b=layer_base(fl,j);at=playback_rate==1?',
-           'loop(count,b=native_direction_event(fl,j,native_direction_reversed(MAX_ONCE_VOICES+fl,floor((play_sample_pos-mem[FREE_LOOP_ANCHOR_BASE+fl]+cursor)/period)));at=playback_rate==1?')
+           'loop(count,b=mem[NATIVE_DIRECTION_SOURCE+fl]>0?native_direction_event(fl,j,native_direction_reversed(MAX_ONCE_VOICES+fl,floor((play_sample_pos-mem[FREE_LOOP_ANCHOR_BASE+fl]+cursor)/period))):layer_base(fl,j);at=playback_rate==1?')
     # A direct LOOP may not have created its ledger owner before its first event.
     change('position<0?position+=period;left=samplesblock;cursor=0;',
            'position<0?position+=period;left=samplesblock;cursor=0;mem[NATIVE_DIRECTION_SOURCE+fl]>0 && play_sample_pos<mem[FREE_LOOP_ANCHOR_BASE+fl]?(cursor=min(samplesblock,mem[FREE_LOOP_ANCHOR_BASE+fl]-play_sample_pos);left-=cursor;position=0;);')

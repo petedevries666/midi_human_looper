@@ -251,7 +251,7 @@ try:
         page.get_by_label('RANDOM PITCH LOW BLOCK',exact=True).fill('-5');page.get_by_label('RANDOM PITCH LOW BLOCK',exact=True).press('Tab')
         page.get_by_label('RANDOM PITCH HIGH BLOCK',exact=True).fill('5');page.get_by_label('RANDOM PITCH HIGH BLOCK',exact=True).press('Tab')
         page.get_by_role('button',name='TOUTES LES NOTES',exact=True).click()
-        save_draft(page,api)
+        save_draft(page)
         step=json.load(urllib.request.urlopen(api.base+'/api/v1/conductor'))['model']['switches'][0]['steps'][0]
         assert step['layerSelection']=='RANDOM_NO_REPEAT' and step['layers'][0]['selectionRole']=='FIXED'
         assert step['layers'][0]['block']['overrides']['startJitter']['value']['amount']==40

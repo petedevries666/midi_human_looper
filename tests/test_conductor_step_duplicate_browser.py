@@ -204,6 +204,7 @@ try:
             expect(direction).to_be_enabled()
             expect(direction).to_have_value(value)
             api.wait_for(lambda:json.load(urllib.request.urlopen(api.base+'/api/v1/conductor'))['model']['sources'][0].get('direction')==value,'direction source commit')
+            if value!='FORWARD':api.command('phrase_record',phraseId=1,expected=400)
         direction.select_option('PING_PONG');expect(direction).to_be_enabled()
         page.locator('#editor-content').get_by_role('button',name='CANCEL',exact=True).click()
         api.patch('save');api.patch('load')

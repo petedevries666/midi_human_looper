@@ -19,7 +19,7 @@ struct ChainMode {
   EEL_F *instanceId,*instanceGeneration;
   EEL_F *instanceAccepted;
   EEL_F *musicalState, *recordPosition, *overdubArmed, *captureNormalize, *loopLength;
-  EEL_F* voiceActive[12]{};
+  EEL_F* voiceActive[12]{};EEL_F* directionVoices[12]{};EEL_F* directionVoiceLayers[12]{};
   EEL_F *switchStopPending,*switchStopPosition;
   EEL_F *freeReady,*freeActive,*overflow,*freeOldCount,*freeOldLength,*freeOldTrigger;
   NSEEL_CODEHANDLE rollbackCapture;
@@ -61,6 +61,7 @@ struct ChainMode {
       phraseModes[i]=NSEEL_VM_getramptr(f->vm.get(),modeBase+i,nullptr);
     for(unsigned i=0;i<phraseCapacity;++i)phraseCounts[i]=NSEEL_VM_getramptr(f->vm.get(),unsigned(*ysfx_find_var(f,"COUNT_BASE"))+i,nullptr);
     if(auto directions=ysfx_find_var(f,"NATIVE_DIRECTION_SOURCE"))for(unsigned i=0;i<phraseCapacity;++i)phraseDirections[i]=NSEEL_VM_getramptr(f->vm.get(),unsigned(*directions)+i,nullptr);
+    if(auto directions=ysfx_find_var(f,"NATIVE_DIRECTION_VOICE"))for(unsigned i=0;i<12;++i){directionVoices[i]=NSEEL_VM_getramptr(f->vm.get(),unsigned(*directions)+i,nullptr);directionVoiceLayers[i]=NSEEL_VM_getramptr(f->vm.get(),unsigned(*ysfx_find_var(f,"VOICE_LAYER_BASE"))+i,nullptr);}
     for(unsigned i=0;i<phraseCapacity;++i)phraseTriggers[i]=NSEEL_VM_getramptr(f->vm.get(),unsigned(*ysfx_find_var(f,"TRIG_BASE"))+i,nullptr);
     if(active && !grid)for(unsigned i=0;i<phraseCapacity*2064;++i)*NSEEL_VM_getramptr(f->vm.get(),(phraseCapacity>16?6200000:3008000)+i,nullptr)=0;
     captureActive = NSEEL_VM_regvar(f->vm.get(), "chain_capture_active");
@@ -229,7 +230,10 @@ struct ChainMode {
       *target=selected;NSEEL_code_execute(freeStop);*target=phrase;observe();return true;
     }
     if(!gridCapture) {
-      if(action==2 && !recording && !armed && phraseDirections[selected] && *phraseDirections[selected]>0 && *phraseCounts[selected]>0)return false;
+      if(action==2 && !recording && !armed){
+        if(phraseDirections[selected] && *phraseDirections[selected]>0)return false;
+        for(unsigned i=0;i<12;++i)if(directionVoices[i] && *voiceActive[i]>.5 && *directionVoiceLayers[i]==selected && *directionVoices[i]>0)return false;
+      }
       observe();
       if((recording || armed) && selected!=phrase && action!=0 && action!=4)return false;
       // STOP finishes the current recording target, not the HTTP placeholder 0.

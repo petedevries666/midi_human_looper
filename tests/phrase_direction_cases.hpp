@@ -8,6 +8,7 @@ static void phrase_direction_cases(const char* source){
   std::vector<RateEdge> edges;rate_events(h,0,edges);
   for(unsigned t=128;t<1152;t+=128){h.block();rate_events(h,t,edges);}
   check(edges.size()==4,"REVERSE emits exactly two balanced notes");
+  h.run("select_phrase_record(0);");h.eq("overdub_armed+overdub_active",0,"reverse source cannot enter overdub");
   check(edges[0].kind==144&&edges[0].note==67&&edges[0].sample==0,"REVERSE starts with final note");
   check(edges[1].kind==128&&edges[1].note==67&&edges[1].sample==767,"REVERSE keeps long note duration");
   check(edges[2].kind==144&&edges[2].note==60&&edges[2].sample==896,"REVERSE mirrors short note position");

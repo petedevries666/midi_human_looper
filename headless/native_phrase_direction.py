@@ -95,7 +95,9 @@ function instance_discard_all()''')
     function native_hold_can_play(layer)''')
     change('function select_phrase_record(layer)', 'function native_direction_record_core(layer)')
     change('function phrase_playing(layer)', r'''function select_phrase_record(layer)
-    (mem[NATIVE_DIRECTION_SOURCE+layer]>0 && layer_count(layer)>0?(free_play_error=layer+1;):(native_direction_record_core(layer);););
+    local(v,busy)
+    (busy=mem[NATIVE_DIRECTION_SOURCE+layer]>0;v=0;loop(MAX_ONCE_VOICES,mem[VOICE_ACTIVE_BASE+v]>.5 && mem[VOICE_LAYER_BASE+v]==layer && mem[NATIVE_DIRECTION_VOICE+v]>0?busy=1;v+=1;);
+    busy && !(free_record_active || free_record_ready || state==STATE_RECORDING || state==STATE_READY || overdub_active || overdub_armed)?(free_play_error=layer+1;):(native_direction_record_core(layer);););
     function phrase_playing(layer)''')
 
     change('mem[NATIVE_VOICE_TUNE_BASE+voice_slot]=', 'mem[NATIVE_DIRECTION_VOICE+voice_slot]=native_direction_current;mem[NATIVE_VOICE_TUNE_BASE+voice_slot]=')

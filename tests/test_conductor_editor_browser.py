@@ -45,11 +45,11 @@ if __name__=='__main__':
    page.get_by_label('VEL override',exact=True).press('ArrowRight')
    assert float(page.get_by_label('VEL override',exact=True).input_value())==.51
    page.get_by_label('VEL override',exact=True).press('ArrowLeft')
-   click_conductor_action(first.get_by_role('button',name='MOVE LAYER DOWN',exact=True).first)
+   click_conductor_action(first.get_by_role('button',name='MOVE LAYER DOWN',exact=True,include_hidden=True).first)
    page.get_by_role('button',name='UNDO',exact=True).click()
-   click_conductor_action(first.get_by_role('button',name='MOVE STEP RIGHT',exact=True))
+   click_conductor_action(first.get_by_role('button',name='MOVE STEP RIGHT',exact=True,include_hidden=True))
    page.get_by_role('button',name='UNDO',exact=True).click()
-   click_conductor_action(first.get_by_role('button',name='REMOVE BLOCK',exact=True).nth(1))
+   click_conductor_action(first.get_by_role('button',name='REMOVE BLOCK',exact=True,include_hidden=True).nth(1))
    page.get_by_role('button',name='UNDO',exact=True).click()
    # Desktop drag moves the entire STEP; UNDO restores stable IDs and properties.
    original_step=first.get_attribute('data-step-id')
@@ -67,7 +67,7 @@ if __name__=='__main__':
    assert len(ids)==2 and ids[0]!=ids[1],'duplicate must reference the source, with a new block identity'
    page.get_by_role('button',name='UNDO',exact=True).click()
    # Preserve four-step-only musical acceptance; extra layer saved later.
-   click_conductor_action(first.get_by_role('button',name='REMOVE BLOCK',exact=True).nth(1))
+   click_conductor_action(first.get_by_role('button',name='REMOVE BLOCK',exact=True,include_hidden=True).nth(1))
    # Delay the real native commit reply: controls lock, committed data stays exact.
    page.evaluate("""()=>{const original=fetch.bind(window);window.__commitHeld=false;
     window.fetch=async(...args)=>{const body=args[1]?.body?JSON.parse(args[1].body):{};const reply=await original(...args);if(body.action==='conductor_commit'){window.__commitHeld=true;await new Promise(r=>setTimeout(r,500));window.__commitHeld=false;}return reply;};} """)
@@ -93,7 +93,7 @@ if __name__=='__main__':
    other=context.new_page();other.goto(api.base);other.get_by_text('CONNECTED · Engine running',exact=True).wait_for()
    for p in (page,other):p.locator('[data-switch-id="1"]').get_by_role('button',name='CONDUCTOR',exact=True).click();p.locator('.conductor-editor').wait_for()
    other.locator('.conductor-step').first.get_by_role('button',name='ADD LAYER',exact=True).click();save_draft(other)
-   click_conductor_action(page.locator('.conductor-step').first.get_by_role('button',name='DELETE STEP',exact=True))
+   click_conductor_action(page.locator('.conductor-step').first.get_by_role('button',name='DELETE STEP',exact=True,include_hidden=True))
    page.get_by_role('button',name='DONE',exact=True).click();page.get_by_role('alert').filter(has_text='Configuration changed').wait_for()
    assert page.locator('#editor').is_visible(),'stale draft must stay recoverable'
    page.get_by_role('button',name='CANCEL',exact=True).click()

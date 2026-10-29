@@ -38,6 +38,18 @@ try:
         page.get_by_role('button',name='CLOSE PROPERTIES',exact=True).click()
         first.get_by_role('button',name='Add PHRASE STEP 1 LAYER 2',exact=True).click()
         first.get_by_role('button',name=__import__('re').compile('^PHRASE 02 ·')).click()
+        original_step=first.get_attribute('data-step-id')
+        first.locator('.conductor-step-header > details > summary').click()
+        first.get_by_role('button',name='MOVE STEP RIGHT',exact=True).click()
+        assert first.get_attribute('data-step-id')!=original_step
+        page.get_by_role('button',name='UNDO',exact=True).click()
+        assert first.get_attribute('data-step-id')==original_step
+        original_layer=first.locator('[data-layer-id]').first.get_attribute('data-layer-id')
+        first.locator('.conductor-layer > details > summary').first.click()
+        first.get_by_role('button',name='MOVE LAYER DOWN',exact=True).first.click()
+        assert first.locator('[data-layer-id]').first.get_attribute('data-layer-id')!=original_layer
+        page.get_by_role('button',name='UNDO',exact=True).click()
+        assert first.locator('[data-layer-id]').first.get_attribute('data-layer-id')==original_layer
         first.get_by_role('button',name='EDIT BLOCK',exact=True).first.click()
         assert first.locator('.conductor-layer.is-empty').count()==0
         expect(page.locator('.conductor-editor')).to_have_class(__import__('re').compile('has-inspector'))

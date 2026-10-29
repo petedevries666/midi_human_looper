@@ -102,7 +102,7 @@ struct Request : RequestFields {
   }
 };
 struct Switch {
-  int conductorRepeat=0,conductorRepeatTotal=1;
+  int conductorRepeat=0,conductorRepeatTotal=1,randomLayer=0;
   int conductorQueued=0,conductorStep=0,conductorSteps=0,conductorResult=0,conductorMissing=0,conductorAdmitted=0;
   int slot=0,id = 0, on = 0, type = 0, kind = 0, ch = 0, num = 0, length = 0, step = 0, actionCount = 0, lastAction = 0, result = 0;
   bool charging=false;double charge=0;int chargeStep=0;
@@ -123,6 +123,7 @@ struct Instrument {
   bool serialPitch = false;
 };
 struct Phrase {
+  int noteClasses=0,minPitch=-1,maxPitch=-1;
   char name[17]{};
   int events = 0, mode = 0, state = 0;
   double time = 1, velocityDecay = .8, baseVelocity = 1;
@@ -168,7 +169,7 @@ struct Snapshot {
   std::array<Instrument, 8> instruments{};
   std::array<Phrase, 128> phrases{};
   unsigned phraseCapacity=16,switchCapacity=16,schema=7;
-  bool nativeGesturePhraseModes=false;bool nativePhraseDirection=false;
+  bool nativeGesturePhraseModes=false;bool nativePhraseDirection=false;bool nativeRandomization=false;int randomizationError=0;
   controller::Configuration controllerConfig;
   uint32_t learnTarget = 0;
   bool learnCommand = false;
@@ -235,7 +236,7 @@ static void execute(ysfx_t *fx, const char *text) {
   NSEEL_code_free(p);
 }
 struct Model {
-  unsigned phraseCapacity=16,switchCapacity=16,schema=7;bool nativeDirectionAvailable=false;
+  unsigned phraseCapacity=16,switchCapacity=16,schema=7;bool nativeDirectionAvailable=false,nativeRandomAvailable=false;EEL_F* randomError=nullptr;std::array<EEL_F*,64> randomLayers{};std::array<std::array<EEL_F*,4>,128> randomStats{};
   std::array<EEL_F*,128> phraseSpecialModes{};
   std::array<std::array<EEL_F*,128>,64> switchFields;
   std::array<std::array<EEL_F*,8>,64> conductorFields;
@@ -341,6 +342,9 @@ struct Model {
   }
   explicit Model(ysfx_t *fx) {
     nativeDirectionAvailable=ysfx_find_var(fx,"NATIVE_DIRECTION_SOURCE")!=nullptr;
+    nativeRandomAvailable=ysfx_find_var(fx,"NATIVE_RANDOM_SOURCE")!=nullptr;
+    if(nativeRandomAvailable){randomError=ysfx_find_var(fx,"native_random_error");for(unsigned i=0;i<64;++i)randomLayers[i]=cell(fx,unsigned(variable(fx,"NATIVE_RANDOM_LAYER"))+i);for(unsigned p=0;p<128;++p)for(unsigned k=0;k<4;++k)randomStats[p][k]=cell(fx,unsigned(variable(fx,"NATIVE_RANDOM_STATS"))+p*4+k);}
+
     if(auto modes=ysfx_find_var(fx,"NATIVE_PHRASE_PLAY_MODE_BASE"))for(unsigned i=0;i<128;++i)phraseSpecialModes[i]=cell(fx,unsigned(*modes)+i);
     phraseCapacity=unsigned(variable(fx,"LAYERS"));switchCapacity=unsigned(variable(fx,"SW_COUNT"));schema=unsigned(variable(fx,"IO_SCHEMA"));
     if(phraseCapacity>128||switchCapacity>64)throw std::runtime_error("native capacity exceeds compiled bounds");
@@ -606,7 +610,7 @@ struct Model {
     return pending && *pending != -999 ? *pending : *bindingValue(b);
   }
   void snapshot(Snapshot &s) const {
-    s.nativeGesturePhraseModes=phraseSpecialModes[0]!=nullptr;s.nativePhraseDirection=nativeDirectionAvailable;
+    s.nativeGesturePhraseModes=phraseSpecialModes[0]!=nullptr;s.nativePhraseDirection=nativeDirectionAvailable;s.nativeRandomization=nativeRandomAvailable;s.randomizationError=randomError?int(*randomError):0;
     s.expressiveConfig=expressiveConfiguration();
     s.midiThruConfig=midiThruConfig;
     s.phraseCapacity=phraseCapacity;s.switchCapacity=switchCapacity;s.schema=schema;
@@ -623,7 +627,7 @@ struct Model {
       v.type = int(*sw[i][3]);
       v.kind = int(*sw[i][4]);
       v.ch = int(*sw[i][5]) + 1;
-      v.slot=i;v.num = int(*sw[i][6]);
+      v.randomLayer=randomLayers[i]?int(*randomLayers[i]):0;v.slot=i;v.num = int(*sw[i][6]);
       v.length = int(*sw[i][7]);
       v.step = int(*sw[i][24]) + 1;
       v.actionCount=int(*sw[i][25]);v.lastAction=int(*sw[i][26]);v.result=int(*sw[i][27]);
@@ -647,6 +651,8 @@ struct Model {
       if(*recordLayer==i && (*musicalState==1 || *freeReady>.5))p.state=1;
       if(*recordLayer==i && (*musicalState==2 || *freeActive>.5))p.state=2;
       if((s.chainError && s.chainErrorPhrase==int(i)) || *freeError==i+1)p.state=8;
+      s.phrases[i].noteClasses=0;s.phrases[i].minPitch=s.phrases[i].maxPitch=-1;
+      if(nativeRandomAvailable && *randomStats[i][0]>0){s.phrases[i].noteClasses=int(*randomStats[i][1]);s.phrases[i].minPitch=int(*randomStats[i][2]);s.phrases[i].maxPitch=int(*randomStats[i][3]);}
       s.phrases[i].mode = phraseSpecialModes[i]&&*phraseSpecialModes[i]>=3?int(*phraseSpecialModes[i]):int(*phrase[i][1]);
       s.phrases[i].time = *phrase[i][2];
       s.phrases[i].velocityDecay = *phrase[i][3];
@@ -803,7 +809,7 @@ static std::string json(const Reply &r) {
         << ",\"kind\":" << v.kind << ",\"channel\":" << v.ch
         << ",\"number\":" << v.num << ",\"length\":" << v.length
         << ",\"step\":" << v.step << ",\"actionCount\":" << v.actionCount
-        << ",\"conductor\":{\"step\":"<<v.conductorStep<<",\"queuedStep\":"<<v.conductorQueued<<",\"steps\":"<<v.conductorSteps<<",\"result\":"<<v.conductorResult<<",\"missing\":"<<v.conductorMissing<<",\"admitted\":"<<v.conductorAdmitted<<",\"repeatCount\":"<<v.conductorRepeat<<",\"repeatTotal\":"<<v.conductorRepeatTotal<<"}"
+        << ",\"conductor\":{\"step\":"<<v.conductorStep<<",\"queuedStep\":"<<v.conductorQueued<<",\"steps\":"<<v.conductorSteps<<",\"result\":"<<v.conductorResult<<",\"missing\":"<<v.conductorMissing<<",\"admitted\":"<<v.conductorAdmitted<<",\"repeatCount\":"<<v.conductorRepeat<<",\"repeatTotal\":"<<v.conductorRepeatTotal<<",\"randomLayer\":"<<v.randomLayer<<"}"
         << ",\"supercharge\":{\"active\":"<<(v.charging?"true":"false")<<",\"progress\":"<<v.charge<<",\"step\":"<<v.chargeStep<<"}"
         << ",\"lastAction\":" << v.lastAction << ",\"result\":" << v.result << ",\"longHold\":{\"milliseconds\":"<<v.longHoldMs<<",\"action\":"<<v.longHoldAction<<",\"target\":"<<v.longHoldTarget<<"},\"settings\":[";
       for(unsigned j=0;j<18;++j){if(j)o<<',';o<<v.settings[j];}
@@ -841,13 +847,14 @@ static std::string json(const Reply &r) {
       }
       o << "]}";
     }
-  o << "],\"nativePhraseDirection\":" << (s.nativePhraseDirection?"true":"false") << ",\"nativeGesturePhraseModes\":" << (s.nativeGesturePhraseModes?"true":"false") << ",\"nativePhraseContract\":" << (s.chain?2:1) << ",\"nativeHeldRelease\":false,\"phrases\":[";
+  o << "],\"nativeRandomization\":" << (s.nativeRandomization?"true":"false") << ",\"randomizationError\":" << s.randomizationError << ",\"nativePhraseDirection\":" << (s.nativePhraseDirection?"true":"false") << ",\"nativeGesturePhraseModes\":" << (s.nativeGesturePhraseModes?"true":"false") << ",\"nativePhraseContract\":" << (s.chain?2:1) << ",\"nativeHeldRelease\":false,\"phrases\":[";
   for (unsigned i = 0; i < s.phraseCapacity; ++i) {
     if (i)
       o << ',';
     o << "{\"id\":" << i + 1 << ",\"events\":" << s.phrases[i].events
       << ",\"name\":" << quote(s.phrases[i].name)
       << ",\"state\":" << quote(std::array<const char*,9>{{"IDLE","ARMED","RECORDING","FINISHED","PLAYING","OVERDUB ARMED","OVERDUB ACTIVE","STOPPED","ERROR"}}[s.phrases[i].state])
+      << ",\"noteClasses\":" << s.phrases[i].noteClasses << ",\"minPitch\":" << s.phrases[i].minPitch << ",\"maxPitch\":" << s.phrases[i].maxPitch
       << ",\"outputChannel\":" << s.phrases[i].outputChannel
       << ",\"mode\":" << s.phrases[i].mode
       << ",\"timeDecay\":" << s.phrases[i].time
@@ -1134,6 +1141,12 @@ static void control(int listener, Queue<Request, 8> &commands,
       for(unsigned p=0;p<model.phraseCapacity;++p)*cell(patch.fx,unsigned(variable(patch.fx,"NATIVE_REVERSE_READY"))+p)=0;
       execute(patch.fx,"native_prepare_p=0;loop(LAYERS,native_reverse_prepare(native_prepare_p);native_prepare_p+=1;);");
     }
+    if(model.nativeRandomAvailable){
+      auto address=unsigned(variable(patch.fx,"NATIVE_RANDOM_SOURCE"));
+      for(unsigned p=0;p<model.phraseCapacity;++p){auto values=conductor::randomConfiguration(nullptr);for(unsigned k=0;k<8;++k)*cell(patch.fx,address+p*8+k)=values[k];*cell(patch.fx,unsigned(variable(patch.fx,"NATIVE_RANDOM_STATS"))+p*4)=0;}
+      if(!bytes.empty()){auto document=conductor::document(bytes);for(const auto& src:document.at("sources").array){auto values=conductor::randomConfiguration(&src);unsigned p=unsigned(src.at("slot").number)-1;for(unsigned k=0;k<8;++k)*cell(patch.fx,address+p*8+k)=values[k];}}
+      execute(patch.fx,"native_stats_p=0;loop(LAYERS,native_random_stats(native_stats_p);native_stats_p+=1;);");
+    }
     if(auto strokes=ysfx_find_var(patch.fx,"NATIVE_GATE_STROKE_BASE"))for(unsigned i=0;i<12;++i)*cell(patch.fx,unsigned(*strokes)+i)=0;
     if(auto modes=ysfx_find_var(patch.fx,"NATIVE_PHRASE_PLAY_MODE_BASE")){
       for(unsigned i=0;i<model.phraseCapacity;++i)*cell(patch.fx,unsigned(*modes)+i)=0;
@@ -1289,6 +1302,7 @@ static void control(int listener, Queue<Request, 8> &commands,
           valid=conductor::read(input,pendingConductor);
           if(valid&&!pendingConductor.empty()){
             const auto document=conductor::document(pendingConductor);
+            if(!model.nativeRandomAvailable && conductor::usesRandomization(document))valid=false;
             for(const auto &source:document.at("sources").array)
               valid=valid&&source.at("slot").number<=model.phraseCapacity;
           }
@@ -1436,6 +1450,7 @@ static void control(int listener, Queue<Request, 8> &commands,
           const unsigned countBase=unsigned(variable(patch.fx,"COUNT_BASE"));
           const unsigned lengthBase=unsigned(variable(patch.fx,"LEN_BASE"));
           const double rate=reply.state.sampleRate;
+          if(model.nativeRandomAvailable && request.arg!=0)*cell(patch.fx,unsigned(variable(patch.fx,"NATIVE_RANDOM_STATS"))+selected*4)=0;
           if(model.nativeDirectionAvailable && request.arg!=0)if(auto ready=ysfx_find_var(patch.fx,"NATIVE_REVERSE_READY"))*cell(patch.fx,unsigned(*ready)+selected)=0;
           if (request.arg == 2) {
             // Content only: keep phrase identity, mode, names and all parameters.
@@ -1771,6 +1786,11 @@ int main(int argc, char **argv) {
     }
     if(auto end=ysfx_find_var(fx,"NATIVE_REVERSE_END"))
       for(unsigned i=unsigned(variable(fx,"NATIVE_REVERSE_PAIR"));i<unsigned(*end);i+=512){volatile double* page=cell(fx,i);*page=*page;}
+    if(auto end=ysfx_find_var(fx,"NATIVE_RANDOM_END")){
+      for(unsigned i=unsigned(variable(fx,"NATIVE_RANDOM_SOURCE"));i<unsigned(*end);i+=512){volatile double* page=cell(fx,i);*page=*page;}
+      *NSEEL_VM_regvar(fx->vm.get(),"native_random_seed")=double(engineSession%2147483646ULL+1);
+      *NSEEL_VM_regvar(fx->vm.get(),"native_random_cycle_seed")=double((engineSession/2147483647ULL)%2147483646ULL+1);
+    }
     auto target = NSEEL_VM_regvar(fx->vm.get(), "remote_target"),
          gesture = NSEEL_VM_regvar(fx->vm.get(), "remote_gesture"),
          ok = NSEEL_VM_regvar(fx->vm.get(), "remote_ok");
@@ -1817,7 +1837,7 @@ int main(int argc, char **argv) {
         "trigger_request=remote_phrase;process_phrase_trigger(0,0);", 0);
     auto phraseRecord = NSEEL_code_compile(
         fx->vm.get(), "select_phrase_record(remote_phrase);", 0);
-    auto phraseClear=NSEEL_code_compile(fx->vm.get(),"native_direction_enabled?mem[NATIVE_REVERSE_READY+remote_phrase]=0;set_layer_count(remote_phrase,0);mem[LEN_BASE+remote_phrase]=0;mem[TRIG_BASE+remote_phrase]=0;mem[HOLD_ACTIVE_BASE+remote_phrase]=0;mem[ONCEPOS_BASE+remote_phrase]=0;mem[FREE_FINISHED_BASE+remote_phrase]=0;free_play_error==remote_phrase+1?free_play_error=0;",0);
+    auto phraseClear=NSEEL_code_compile(fx->vm.get(),"native_random_enabled?mem[NATIVE_RANDOM_STATS+remote_phrase*4]=0;native_direction_enabled?mem[NATIVE_REVERSE_READY+remote_phrase]=0;set_layer_count(remote_phrase,0);mem[LEN_BASE+remote_phrase]=0;mem[TRIG_BASE+remote_phrase]=0;mem[HOLD_ACTIVE_BASE+remote_phrase]=0;mem[ONCEPOS_BASE+remote_phrase]=0;mem[FREE_FINISHED_BASE+remote_phrase]=0;free_play_error==remote_phrase+1?free_play_error=0;",0);
     if(!phraseClear)throw std::runtime_error("phrase content clear bridge");
     auto phraseStop = NSEEL_code_compile(
         fx->vm.get(),

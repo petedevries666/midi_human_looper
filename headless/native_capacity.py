@@ -160,7 +160,8 @@ NATIVE_SNAPSHOT_PARAMETER_BASE=CONDUCTOR_BASE-12000;native_snapshot_pending=0;
     from native_bass_policy import extend as bass_policy
     from native_phrase_modes import extend as phrase_modes
     from native_phrase_direction import extend as direction
-    return direction(phrase_modes(bass_policy(phrase_rate(conductor_repeat(phrase_tune(midi_thru(echo_sources(source))))))))
+    from native_randomization import extend as randomization
+    return randomization(direction(phrase_modes(bass_policy(phrase_rate(conductor_repeat(phrase_tune(midi_thru(echo_sources(source)))))))))
 
 def constants(source):
     """Resolve numeric allocation declarations, never execute EEL code."""

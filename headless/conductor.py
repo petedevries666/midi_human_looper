@@ -26,13 +26,26 @@ OPTIONS = {
     'movementCycle': ('ONCE', 'LOOP', 'PING_PONG'),
     'retrigger': ('SOFT_RESTART', 'DIRECT'),
 }
-PHRASE_OPTIONS = {'direction', 'playMode', 'trigger', 'instancePolicy', 'join', 'referenceTime', 'entry', 'release', 'phrase_time_decay', 'phrase_velocity_decay', 'phrase_base_velocity', 'phrase_tune', 'phrase_rate', 'revealCC', 'revealFadeSeconds'}
+PHRASE_OPTIONS = {'startJitter', 'randomPitch', 'direction', 'playMode', 'trigger', 'instancePolicy', 'join', 'referenceTime', 'entry', 'release', 'phrase_time_decay', 'phrase_velocity_decay', 'phrase_base_velocity', 'phrase_tune', 'phrase_rate', 'revealCC', 'revealFadeSeconds'}
 MOVEMENT_OPTIONS = {'trigger', 'join', 'referenceTime', 'movementPlayMode', 'retrigger', 'destination', 'releaseSeconds', 'restValue', 'movementDuration', 'movementCycle'}
 
 
 def fields(value, required):
     if not isinstance(value, dict) or set(value) != set(required):
         raise ValueError('CONDUCTOR unknown or missing fields')
+
+
+def start_jitter(value):
+    fields(value, ('amount','mode','redraw'))
+    amount=value['amount']
+    if type(amount) not in (int,float) or not math.isfinite(amount) or not 0<=amount<=100:raise ValueError('START JITTER: 0–100 percent')
+    if value['mode'] not in ('NOTE','FREE') or value['redraw'] not in ('TRIGGER','CYCLE'):raise ValueError('Invalid START JITTER mode')
+
+
+def random_pitch(value):
+    fields(value, ('enabled','low','high','notes'))
+    integer(value['enabled'],0,1);integer(value['low'],-24,24);integer(value['high'],-24,24);integer(value['notes'],0,4095)
+    if value['low']>value['high']:raise ValueError('RANDOM PITCH: LOW exceeds HIGH')
 
 
 def identity(value):
@@ -139,7 +152,9 @@ def validate(data):
     slots = set()
     sources = {}
     for source in data['sources']:
-        fields(source, (('id', 'type', 'slot', 'muteGroup') if data['version']==GROUP_VERSION else ('id', 'type', 'slot')) + tuple(k for k in ('tune','rate','playMode','direction') if k in source))
+        fields(source, (('id', 'type', 'slot', 'muteGroup') if data['version']==GROUP_VERSION else ('id', 'type', 'slot')) + tuple(k for k in ('tune','rate','playMode','direction','startJitter','randomPitch') if k in source))
+        if 'startJitter' in source:start_jitter(source['startJitter'])
+        if 'randomPitch' in source:random_pitch(source['randomPitch'])
         if 'direction' in source and source['direction'] not in OPTIONS['direction']:raise ValueError('Invalid phrase direction')
         if 'playMode' in source and source['playMode'] not in ('GATE','RETRIGGER','TOGGLE'):raise ValueError('Invalid native phrase playback mode')
         if 'tune' in source: integer(source['tune'], -24, 24)
@@ -205,14 +220,16 @@ def validate(data):
         if not isinstance(switch['steps'], list) or not switch['steps']:
             raise ValueError('CONDUCTOR at least one STEP required')
         for step in switch['steps']:
-            fields(step, ('id', 'transition', 'layers') + tuple(k for k in ('supercharge','repeat') if k in step))
+            fields(step, ('id', 'transition', 'layers') + tuple(k for k in ('supercharge','repeat','layerSelection') if k in step))
+            if 'layerSelection' in step and step['layerSelection'] not in ('ALL','RANDOM','RANDOM_NO_REPEAT'):raise ValueError('Invalid random layer selection')
             if 'repeat' in step: integer(step['repeat'],1,999)
             if 'supercharge' in step:validate_charge(step,defaults)
             unique(step['id'])
             if step['transition'] not in ('INHERIT', 'IMMEDIATE', 'END_OF_PHRASE') or not isinstance(step['layers'], list) or not step['layers']:
                 raise ValueError('CONDUCTOR invalid STEP')
             for index, layer in enumerate(step['layers']):
-                fields(layer, ('id', 'block')); unique(layer['id'])
+                fields(layer, ('id', 'block') + (('selectionRole',) if 'selectionRole' in layer else ())); unique(layer['id'])
+                if 'selectionRole' in layer and layer['selectionRole'] not in ('FIXED','CANDIDATE'):raise ValueError('Invalid random layer role')
                 block = layer['block']
                 if block is None:
                     continue
@@ -251,7 +268,9 @@ def validate(data):
                         raise ValueError('CONDUCTOR override mode required')
                     fields(local, ('mode',) if local['mode'] == 'INHERIT' else ('mode', 'value'))
                     if local['mode'] == 'OVERRIDE':
-                        if name == 'destination':
+                        if name == 'startJitter':start_jitter(local['value'])
+                        elif name == 'randomPitch':random_pitch(local['value'])
+                        elif name == 'destination':
                             destination(local['value'])
                         elif name in ('revealCC','revealFadeSeconds'):
                             v=local['value']

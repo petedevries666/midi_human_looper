@@ -154,6 +154,28 @@ try:
         expect(slider).to_have_attribute('data-inheritance','INHERIT');expect(slider).to_have_value('12')
         assert mobile.evaluate('document.documentElement.scrollWidth<=innerWidth'),'mobile editor must not overflow'
         touch.close()
+        # New source modes use actual native metadata and actual keyboard edges.
+        mode=page.get_by_label('Play mode Phrase 1',exact=True)
+        mode.select_option('3')
+        api.wait_for(lambda:api.call()['phrases'][0]['mode']==3,'source GATE committed')
+        gate=page.locator('.phrase[data-phrase-id="1"] [data-phrase-play]')
+        gate.focus();page.keyboard.down('Space')
+        api.wait_for(lambda:any(v['phraseId']==1 for v in api.call()['instances']),'real Web GATE press')
+        page.keyboard.down('Space')
+        assert len([v for v in api.call()['instances'] if v['phraseId']==1])==1,'keyboard repeat cannot stop/retrigger a held GATE'
+        page.keyboard.up('Space')
+        api.wait_for(lambda:not api.call()['instances'],'real Web GATE release')
+        mode.select_option('4');api.wait_for(lambda:api.call()['phrases'][0]['mode']==4,'source RETRIGGER committed')
+        gate.click();api.wait_for(lambda:bool(api.call()['instances']),'first RETRIGGER')
+        first_id=api.call()['instances'][0]['id'];gate.click()
+        api.wait_for(lambda:len(api.call()['instances'])==1 and api.call()['instances'][0]['id']!=first_id,'RETRIGGER replaces its previous owner')
+        api.command('panic')
+        mode.select_option('5');api.wait_for(lambda:api.call()['phrases'][0]['mode']==5,'source TOGGLE committed')
+        gate.click();api.wait_for(lambda:bool(api.call()['instances']),'TOGGLE start')
+        gate.click();api.wait_for(lambda:not api.call()['instances'],'TOGGLE stop')
+        api.patch('save');api.patch('load');expect(mode).to_have_value('5')
+        stored=json.load(urllib.request.urlopen(api.base+'/api/v1/conductor'))['model']
+        assert stored['sources'][0]['playMode']=='TOGGLE'
         browser.close()
     print('PASS real editor: ALT step copy, empty-column insertion, touch button, UNDO and native persistence')
 finally:

@@ -167,6 +167,7 @@ struct Snapshot {
   std::array<Instrument, 8> instruments{};
   std::array<Phrase, 128> phrases{};
   unsigned phraseCapacity=16,switchCapacity=16,schema=7;
+  bool nativeGesturePhraseModes=false;
   controller::Configuration controllerConfig;
   uint32_t learnTarget = 0;
   bool learnCommand = false;
@@ -234,6 +235,7 @@ static void execute(ysfx_t *fx, const char *text) {
 }
 struct Model {
   unsigned phraseCapacity=16,switchCapacity=16,schema=7;
+  std::array<EEL_F*,128> phraseSpecialModes{};
   std::array<std::array<EEL_F*,128>,64> switchFields;
   std::array<std::array<EEL_F*,8>,64> conductorFields;
   std::array<std::array<EEL_F*,2>,64> conductorRepeatFields{};
@@ -337,6 +339,7 @@ struct Model {
     NSEEL_code_free(level);NSEEL_code_free(geometry);
   }
   explicit Model(ysfx_t *fx) {
+    if(auto modes=ysfx_find_var(fx,"NATIVE_PHRASE_PLAY_MODE_BASE"))for(unsigned i=0;i<128;++i)phraseSpecialModes[i]=cell(fx,unsigned(*modes)+i);
     phraseCapacity=unsigned(variable(fx,"LAYERS"));switchCapacity=unsigned(variable(fx,"SW_COUNT"));schema=unsigned(variable(fx,"IO_SCHEMA"));
     if(phraseCapacity>128||switchCapacity>64)throw std::runtime_error("native capacity exceeds compiled bounds");
     if(variable(fx,"MAX_ONCE_VOICES")!=voiceActive.size())throw std::runtime_error("shared voice capacity mismatch");
@@ -601,6 +604,7 @@ struct Model {
     return pending && *pending != -999 ? *pending : *bindingValue(b);
   }
   void snapshot(Snapshot &s) const {
+    s.nativeGesturePhraseModes=phraseSpecialModes[0]!=nullptr;
     s.expressiveConfig=expressiveConfiguration();
     s.midiThruConfig=midiThruConfig;
     s.phraseCapacity=phraseCapacity;s.switchCapacity=switchCapacity;s.schema=schema;
@@ -641,7 +645,7 @@ struct Model {
       if(*recordLayer==i && (*musicalState==1 || *freeReady>.5))p.state=1;
       if(*recordLayer==i && (*musicalState==2 || *freeActive>.5))p.state=2;
       if((s.chainError && s.chainErrorPhrase==int(i)) || *freeError==i+1)p.state=8;
-      s.phrases[i].mode = int(*phrase[i][1]);
+      s.phrases[i].mode = phraseSpecialModes[i]&&*phraseSpecialModes[i]>=3?int(*phraseSpecialModes[i]):int(*phrase[i][1]);
       s.phrases[i].time = *phrase[i][2];
       s.phrases[i].velocityDecay = *phrase[i][3];
       s.phrases[i].baseVelocity = *phrase[i][4];
@@ -835,7 +839,7 @@ static std::string json(const Reply &r) {
       }
       o << "]}";
     }
-  o << "],\"nativePhraseContract\":" << (s.chain?2:1) << ",\"nativeHeldRelease\":false,\"phrases\":[";
+  o << "],\"nativeGesturePhraseModes\":" << (s.nativeGesturePhraseModes?"true":"false") << ",\"nativePhraseContract\":" << (s.chain?2:1) << ",\"nativeHeldRelease\":false,\"phrases\":[";
   for (unsigned i = 0; i < s.phraseCapacity; ++i) {
     if (i)
       o << ',';
@@ -1122,6 +1126,13 @@ static void control(int listener, Queue<Request, 8> &commands,
         {if(source.object.count("muteGroup"))groups[unsigned(source.at("slot").number)-1]=unsigned(source.at("muteGroup").number);if(source.object.count("tune"))tunes[unsigned(source.at("slot").number)-1]=source.at("tune").number;if(source.object.count("rate"))rates[unsigned(source.at("slot").number)-1]=source.at("rate").number;}
     }
     for(unsigned i=0;i<model.phraseCapacity;++i){*cell(patch.fx,unsigned(variable(patch.fx,"PHRASE_GROUP_BASE"))+i)=groups[i];auto tuneBase=ysfx_find_var(patch.fx,"NATIVE_PHRASE_TUNE_BASE");if(tuneBase)*cell(patch.fx,unsigned(*tuneBase)+i)=tunes[i];auto rateBase=ysfx_find_var(patch.fx,"NATIVE_PHRASE_RATE_BASE");if(rateBase)*cell(patch.fx,unsigned(*rateBase)+i)=rates[i];}
+    if(auto strokes=ysfx_find_var(patch.fx,"NATIVE_GATE_STROKE_BASE"))for(unsigned i=0;i<12;++i)*cell(patch.fx,unsigned(*strokes)+i)=0;
+    if(auto modes=ysfx_find_var(patch.fx,"NATIVE_PHRASE_PLAY_MODE_BASE")){
+      for(unsigned i=0;i<model.phraseCapacity;++i)*cell(patch.fx,unsigned(*modes)+i)=0;
+      if(!bytes.empty()){auto document=conductor::document(bytes);for(const auto &source:document.at("sources").array)if(source.object.count("playMode")){
+        unsigned p=unsigned(source.at("slot").number)-1;*cell(patch.fx,unsigned(*modes)+p)=conductor::choice(source.at("playMode"),{"GATE"})?3:conductor::choice(source.at("playMode"),{"RETRIGGER"})?4:5;*model.phrase[p][1]=1;
+      }}
+    }
     if(auto policyBase=ysfx_find_var(patch.fx,"NATIVE_BASS_POLICY_BASE")){
       for(unsigned i=0;i<24;++i)*cell(patch.fx,unsigned(*policyBase)+i)=0;
       if(!bytes.empty()){auto document=conductor::document(bytes);if(document.object.count("bassPolicies"))for(const auto &p:document.at("bassPolicies").array){

@@ -123,7 +123,9 @@ inline std::vector<double> compile(const std::vector<unsigned>& bytes,double bas
         unsigned row=4+n*5;record[row]=it->second;record[row+1]=-1;
         auto mode=b.at("overrides").object.find("playMode");
         if(mode!=b.at("overrides").object.end() && choice(mode->second.at("mode"),{"OVERRIDE"}))
-          record[row+1]=choice(mode->second.at("value"),{"LOOP"})?0:choice(mode->second.at("value"),{"ONCE"})?1:2;
+          record[row+1]=choice(mode->second.at("value"),{"LOOP"})?0:choice(mode->second.at("value"),{"ONCE"})?1:choice(mode->second.at("value"),{"HOLD"})?2:choice(mode->second.at("value"),{"GATE"})?3:choice(mode->second.at("value"),{"RETRIGGER"})?4:5;
+        if(record[row+1]<0)for(const auto &s:root.at("sources").array)if(s.at("id").text==b.at("sourceId").text&&s.object.count("playMode"))record[row+1]=choice(s.at("playMode"),{"GATE"})?3:choice(s.at("playMode"),{"RETRIGGER"})?4:5;
+        if(record[row+1]==3&&(releaseBlock(b)||chargeBlock(b)))record[0]=0;
         record[row+2]=localNumber(b,"phrase_base_velocity");record[row+3]=localNumber(b,"phrase_velocity_decay");record[row+4]=localNumber(b,"phrase_time_decay");++n;
       }
       record[2]=n;record[64]=admissions.size();record[65]=base+out.size();record[67]=heldAdmissions.size();

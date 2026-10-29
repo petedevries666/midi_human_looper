@@ -80,7 +80,7 @@ async function editConductor(sw){
  const source=b=>b?.type==='MOVEMENT'?model.movements?.find(s=>s.id===b.sourceId):model.sources.find(s=>s.id===b?.sourceId&&s.type===b?.type);
  const phrase=b=>latest.phrases.find(p=>p.id===source(b)?.slot);
  const label=b=>{if(b.type==='ACTION')return `ACTION · ${b.action}`;if(b.type==='MOVEMENT'){const m=source(b);return m?`MOVEMENT · ${m.name}`:`MISSING · ${b.sourceId}`;}if(b.type!=='PHRASE')return `${b.type} · UNAVAILABLE · ${b.sourceId||''}`;const p=phrase(b);return p?`${String(p.id).padStart(2,'0')} · ${p.name||'PHRASE '+p.id}${p.events?'':' · EMPTY'}`:`MISSING · ${b.sourceId||b.type}`;};
- const mode=b=>b.overrides?.playMode?.mode==='OVERRIDE'?b.overrides.playMode.value:['LOOP','ONCE','HOLD'][phrase(b)?.mode]||'—';
+ const mode=b=>b.overrides?.playMode?.mode==='OVERRIDE'?b.overrides.playMode.value:(source(b)?.playMode||['LOOP','ONCE','HOLD','GATE','RETRIGGER','TOGGLE'][phrase(b)?.mode])||'—';
  const ensure=s=>{if(!sequence.steps.includes(s))sequence.steps.push(s);};
  const action=(name,fn)=>{const control=button({'EDIT BLOCK':'EDIT','REMOVE BLOCK':'DELETE'}[name]||name,()=>{if(!committing)fn();});control.setAttribute('aria-label',name);control.title=name;return control;};
  const removeMenu=()=>root.querySelector('.conductor-add-menu')?.remove();
@@ -216,12 +216,12 @@ async function editConductor(sw){
    const warning=node('small',b.overrides.trigger?.mode==='OVERRIDE'&&['HOLD','LONG_HOLD','RELEASE','SUPERCHARGE_RELEASE'].includes(b.overrides.trigger.value)?`CC${b.overrides.revealCC?.mode==='OVERRIDE'?b.overrides.revealCC.value:7} CHANNEL-WIDE`:'REVEAL NEEDS TRIG HOLD / LONG HOLD','conductor-group-warning');warning.title='REVEAL sends its configured CC: shared channels affect other layers and instruments. Use independent channels for isolation. A source phrase cannot also automate this same CC.';warning.setAttribute('role','status');side.append(warning);
   }
   for(const [key,title,kind] of [['phrase_tune','TUNE',null],['phrase_rate','RATE',null],['playMode','MODE',20],['phrase_base_velocity','VEL',17],['phrase_velocity_decay','V.DEC',15],['phrase_time_decay','T.DEC',14]]){
-   const p=phrase(b),fallback=key==='phrase_tune'?(source(b)?.tune??0):key==='phrase_rate'?(source(b)?.rate??1):key==='playMode'?['LOOP','ONCE','HOLD'][p?.mode]||'ONCE':p?.[{phrase_base_velocity:'baseVelocity',phrase_velocity_decay:'velocityDecay',phrase_time_decay:'timeDecay'}[key]]??1;
+   const p=phrase(b),fallback=key==='phrase_tune'?(source(b)?.tune??0):key==='phrase_rate'?(source(b)?.rate??1):key==='playMode'?(source(b)?.playMode||['LOOP','ONCE','HOLD','GATE','RETRIGGER','TOGGLE'][p?.mode])||'ONCE':p?.[{phrase_base_velocity:'baseVelocity',phrase_velocity_decay:'velocityDecay',phrase_time_decay:'timeDecay'}[key]]??1;
    if(key!=='playMode'){const d=key==='phrase_tune'?{min:-24,max:24,step:1}:key==='phrase_rate'?{min:.1,max:16,step:.01}:parameter(kind);side.append(conductorInheritedControl(title,b.overrides,key,fallback,d,()=>{checkpoint();editing=l.id;},()=>paint(true)));continue;}
    const row=node('label',title,'conductor-option'),policy=node('select');policy.setAttribute('aria-label',`${title} inheritance`);
    for(const value of ['INHERIT','OVERRIDE']){const o=node('option',value);o.value=value;policy.append(o);}policy.value=b.overrides[key]?.mode||'INHERIT';
    let value;
-   if(key==='playMode'){value=node('select');for(const text of ['LOOP','ONCE','HOLD']){const o=node('option',text);o.value=text;value.append(o);}value.value=b.overrides[key]?.value??fallback;}
+   if(key==='playMode'){value=node('select');for(const text of ['LOOP','ONCE','HOLD',...(latest.nativeGesturePhraseModes?['GATE','RETRIGGER','TOGGLE']:[])]){const o=node('option',text);o.value=text;value.append(o);}value.value=b.overrides[key]?.value??fallback;}
    else{value=node('input');const d=key==='phrase_tune'?{min:-24,max:24,step:1}:key==='phrase_rate'?{min:.1,max:16,step:.01}:parameter(kind);value.type='range';value.min=d.min;value.max=d.max;value.step=d.step;value.value=b.overrides[key]?.value??fallback;}
    value.setAttribute('aria-label',`${title} override`);value.disabled=policy.value!=='OVERRIDE';const output=node('output',value.value);
    const update=()=>{checkpoint();b.overrides[key]=policy.value==='INHERIT'?{mode:'INHERIT'}:{mode:'OVERRIDE',value:key==='playMode'?value.value:Number(value.value)};paint();properties(s,l);};

@@ -14,7 +14,7 @@ GROUP_VERSION = 3
 # Existing control channel byte ceiling, not a musical STEPS/LAYERS limit (Q3).
 MAX_BYTES = 16000000
 OPTIONS = {
-    'playMode': ('LOOP', 'ONCE', 'HOLD'),
+    'playMode': ('LOOP', 'ONCE', 'HOLD', 'GATE', 'RETRIGGER', 'TOGGLE'),
     'trigger': ('PRESS', 'HOLD', 'LONG_HOLD', 'RELEASE', 'SUPERCHARGE_RELEASE'),
     'instancePolicy': ('JOIN_EXISTING', 'RESTART', 'NEW_INSTANCE'),
     'join': ('TRIGGER', 'JOIN_NOW', 'JOIN_AT_LOOP_START'),
@@ -138,7 +138,8 @@ def validate(data):
     slots = set()
     sources = {}
     for source in data['sources']:
-        fields(source, (('id', 'type', 'slot', 'muteGroup') if data['version']==GROUP_VERSION else ('id', 'type', 'slot')) + tuple(k for k in ('tune','rate') if k in source))
+        fields(source, (('id', 'type', 'slot', 'muteGroup') if data['version']==GROUP_VERSION else ('id', 'type', 'slot')) + tuple(k for k in ('tune','rate','playMode') if k in source))
+        if 'playMode' in source and source['playMode'] not in ('GATE','RETRIGGER','TOGGLE'):raise ValueError('Invalid native phrase playback mode')
         if 'tune' in source: integer(source['tune'], -24, 24)
         if 'rate' in source: playback_rate(source['rate'])
         if data['version']==GROUP_VERSION: integer(source['muteGroup'], 0, 16777215)

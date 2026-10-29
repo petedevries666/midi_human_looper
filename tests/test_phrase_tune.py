@@ -22,6 +22,13 @@ class PhraseTune(unittest.TestCase):
         for policies in invalid:
             m,_=self.model();m['bassPolicies']=policies
             with self.assertRaises(ValueError):conductor.validate(m)
+    def test_gesture_phrase_modes_roundtrip(self):
+        for mode in ('GATE','RETRIGGER','TOGGLE'):
+            m,b=self.model();m['sources'][0]['playMode']=mode;b['overrides']['playMode']=dict(mode='OVERRIDE',value=mode)
+            self.assertEqual(conductor.decode(conductor.encode(m)),m)
+        for invalid in ('ONCE','OTHER',True,None,3):
+            m,_=self.model();m['sources'][0]['playMode']=invalid
+            with self.assertRaises(ValueError):conductor.validate(m)
     def test_old_documents_remain_unchanged(self):
         m,_=self.model();before=copy.deepcopy(m)
         self.assertEqual(conductor.decode(conductor.encode(m)),before)

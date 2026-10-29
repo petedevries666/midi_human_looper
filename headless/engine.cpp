@@ -167,7 +167,7 @@ struct Snapshot {
   std::array<Switch, 64> switches{};
   std::array<Instrument, 8> instruments{};
   std::array<Phrase, 128> phrases{};
-  unsigned phraseCapacity=16,switchCapacity=16,schema=7;bool nativeDirectionAvailable=false;
+  unsigned phraseCapacity=16,switchCapacity=16,schema=7;
   bool nativeGesturePhraseModes=false;bool nativePhraseDirection=false;
   controller::Configuration controllerConfig;
   uint32_t learnTarget = 0;
@@ -235,7 +235,7 @@ static void execute(ysfx_t *fx, const char *text) {
   NSEEL_code_free(p);
 }
 struct Model {
-  unsigned phraseCapacity=16,switchCapacity=16,schema=7;
+  unsigned phraseCapacity=16,switchCapacity=16,schema=7;bool nativeDirectionAvailable=false;
   std::array<EEL_F*,128> phraseSpecialModes{};
   std::array<std::array<EEL_F*,128>,64> switchFields;
   std::array<std::array<EEL_F*,8>,64> conductorFields;

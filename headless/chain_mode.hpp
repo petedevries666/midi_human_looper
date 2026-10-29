@@ -208,7 +208,6 @@ struct ChainMode {
   }
   void cancel() {
     if(!gridCapture) {
-      if(action==2 && !recording && !armed && phraseDirections[selected] && *phraseDirections[selected]>0 && *phraseCounts[selected]>0)return false;
       finishFree();
       *musicalState=4; // STATE_STOPPED: caller performs existing owned-note PANIC
       armed=recording=run=false;
@@ -230,6 +229,7 @@ struct ChainMode {
       *target=selected;NSEEL_code_execute(freeStop);*target=phrase;observe();return true;
     }
     if(!gridCapture) {
+      if(action==2 && !recording && !armed && phraseDirections[selected] && *phraseDirections[selected]>0 && *phraseCounts[selected]>0)return false;
       observe();
       if((recording || armed) && selected!=phrase && action!=0 && action!=4)return false;
       // STOP finishes the current recording target, not the HTTP placeholder 0.

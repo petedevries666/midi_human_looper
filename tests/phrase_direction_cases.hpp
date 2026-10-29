@@ -19,6 +19,7 @@ static void phrase_direction_cases(const char* source){
  {
   Host h(source);direction_fixture(h,2);h.run("mem[NATIVE_PHRASE_PLAY_MODE_BASE]=4;");
   for(int pass=0;pass<3;++pass){trigger(h,false);auto e=h.events();check(bass_count(e,146,pass%2?67:60)==1,"PING-PONG RETRIGGER alternates each successful press");for(int n=0;n<9;++n){h.block();h.events();}}
+  h.run("phrase_toggle_stop(0,0);");h.block();h.events();trigger(h,false);check(bass_count(h.events(),146,60)==1,"scoped STOP resets source PING-PONG");
   h.run("reset_note_runtime();");trigger(h,false);check(bass_count(h.events(),146,60)==1,"STOP/PANIC resets PING-PONG to forward");
  }
  {

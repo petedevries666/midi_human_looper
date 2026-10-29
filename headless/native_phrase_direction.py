@@ -42,7 +42,7 @@ function native_direction_reversed(v,cycle) local(d)
 '''
 
 WRAPPER = r'''
-function process_phrase_trigger(start_offset,play_only) local(p,d,mode,ctx,parity,before,oldcode)
+function process_phrase_trigger(start_offset,play_only) local(p,d,mode,ctx,parity,before,oldcode,oldreplace)
 (
  p=trigger_request;p>=0 && p<LAYERS?(
   d=mem[NATIVE_DIRECTION_SOURCE+p];mode=native_phrase_mode(p);ctx=(native_gate_switch+1)*LAYERS+p;
@@ -51,7 +51,7 @@ function process_phrase_trigger(start_offset,play_only) local(p,d,mode,ctx,parit
    trigger_request=-1;instance_last_admitted=0;instance_error=3;instance_rejected+=1;
   ):(
    oldcode=native_direction_current;native_direction_current=d==2?2+parity:d;
-   instance_last_admitted=0;native_direction_trigger_core(start_offset,play_only);
+   oldreplace=native_direction_replacing;native_direction_replacing=mode==4;instance_last_admitted=0;native_direction_trigger_core(start_offset,play_only);native_direction_replacing=oldreplace;
    instance_last_admitted>0 || (!before && mem[TRIG_BASE+p]>0)?mem[NATIVE_DIRECTION_NEXT+ctx]=d==2?1-parity:0;
    mode==5 && !native_phrase_active(p)?mem[NATIVE_DIRECTION_NEXT+ctx]=0;
    mode==0 && before && mem[TRIG_BASE+p]==0?mem[NATIVE_DIRECTION_NEXT+ctx]=0;
@@ -85,6 +85,10 @@ function instance_discard_all()''')
            '(memset(NATIVE_DIRECTION_NEXT+(si+1)*128,0,128);mem[CONDUCTOR_GESTURE_BASE+si*8+3]=0;')
     change('function process_phrase_trigger(start_offset,play_only)', 'function native_direction_trigger_core(start_offset,play_only)')
     change('function phrase_admit_independent(layer,offs)',WRAPPER+'\nfunction phrase_admit_independent(layer,offs)')
+    change('function phrase_toggle_stop(layer,offs)', 'function native_direction_toggle_stop_core(layer,offs)')
+    change('function phrase_group_admit(layer,offs)', r'''function phrase_toggle_stop(layer,offs) local(c)
+    (!native_direction_replacing?(c=0;loop(65,mem[NATIVE_DIRECTION_NEXT+c*128+layer]=0;c+=1;););native_direction_toggle_stop_core(layer,offs););
+    function phrase_group_admit(layer,offs)''')
     change('function phrase_loop_source_trigger(layer,offs)', 'function native_direction_loop_core(layer,offs)')
     change('function native_hold_can_play(layer)', r'''function phrase_loop_source_trigger(layer,offs)
     (mem[TRIG_BASE+layer]>.5 || mem[NATIVE_DIRECTION_SOURCE+layer]==0 || native_reverse_prepare(layer)?native_direction_loop_core(layer,offs):(instance_error=3;instance_rejected+=1;free_play_error=layer+1;););

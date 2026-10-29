@@ -26,12 +26,19 @@ function native_random_stats(p) local(i,b,lo,hi,mask)
   mem[b]=1;mem[b+1]=mask;mem[b+2]=lo;mem[b+3]=hi;
  );b;
 );
-function native_random_pitch_allowed(p,tune,delta,mask) local(stats,shift,rot)
+function native_random_quantize(note,mask,direction) local(distance,lo,hi,found,result)
 (
- stats=native_random_stats(p);shift=tune+delta-12*floor((tune+delta)/12);
- rot=((mem[stats+1]<<shift)|(mem[stats+1]>>(12-shift)))&4095;
- mem[stats+3]>=0 && mem[stats+2]+tune+delta>=0 && mem[stats+3]+tune+delta<=127 && (rot&(4095-mask))==0;
+ note=max(0,min(127,note));result=note;distance=0;found=0;
+ while(distance<12 && !found)(
+  lo=note-distance;hi=note+distance;
+  direction>0 && hi<=127 && (mask&(1<<(hi%12)))?(result=hi;found=1;):
+  lo>=0 && (mask&(1<<(lo%12)))?(result=lo;found=1;):
+  hi<=127 && (mask&(1<<(hi%12)))?(result=hi;found=1;);
+  distance+=1;
+ );result;
 );
+function native_random_pitch_allowed(p,tune,delta,mask) local(stats)
+(stats=native_random_stats(p);mem[stats+3]>=0 && mask>0;);
 function native_random_pitch_commit(p,plan)
 (plan>=0 && mem[plan+3]>0?(mem[NATIVE_RANDOM_PITCH_LAST+p]=mem[plan+8];mem[NATIVE_RANDOM_PITCH_READY+p]=1;););
 function native_random_pitch(p,tune,cfg) local(delta,n,choices,pick,result,last,ready,valid)
@@ -237,6 +244,8 @@ def extend(source):
         if source.count(old)!=count:raise ValueError('Randomization contract changed: '+old[:110])
         source=source.replace(old,new)
     change('function instance_discard_all()',DECLARATIONS+'\nfunction instance_discard_all()')
+    change('d1=max(0,min(127,d1+mem[NATIVE_VOICE_TUNE_BASE+once_route_voice]));',
+           'd1=native_random_quantize(d1+mem[NATIVE_VOICE_TUNE_BASE+once_route_voice],mem[NATIVE_RANDOM_CFG+once_route_voice*8+3]>0?mem[NATIVE_RANDOM_CFG+once_route_voice*8+6]:4095,mem[NATIVE_RANDOM_STATE+once_route_voice*16+6]);')
     # Native ORIGINAL follows each instrument's MIDI OUT for pedal ownership,
     # just as it already does for note attacks. The frozen legacy source stays intact.
     change('ch=policy>0 && policy<=16?policy-1:st&15;destmask=policy==17?65535:1<<ch;',

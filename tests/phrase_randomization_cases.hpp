@@ -1,3 +1,4 @@
+static int pitch_quantize_expected(int note,int mask,int direction=0){note=std::max(0,std::min(127,note));int best=-1,distance=1000;for(int n=0;n<128;++n)if(mask&(1<<(n%12)))if(std::abs(n-note)<distance||(direction>0&&std::abs(n-note)==distance)){best=n;distance=std::abs(n-note);}return best;}
 static std::string random_layer_json(bool fixed=false,bool hold=false){
  std::ostringstream s;s<<"{\"version\":1,\"sources\":[";
  for(unsigned i=0;i<3;++i){if(i)s<<',';s<<"{\"id\":\""<<conductor_uuid(i+1)<<"\",\"type\":\"PHRASE\",\"slot\":"<<i+1<<'}';}
@@ -8,6 +9,12 @@ static std::string random_layer_json(bool fixed=false,bool hold=false){
  }s<<"]}]}]}";return s.str();
 }
 static void phrase_randomization_cases(const char* source){
+ for(auto test:std::vector<std::vector<int>>{{60,1,62},{62,-1,60},{61,0,60},{60,-1,60},{127,24,122},{0,-24,0}}){
+  Host h(source);fixture(h,false);h.run("clear_layer(0);store_event(0,0,144,"+std::to_string(test[0])+",90,0);store_event(0,640,128,"+std::to_string(test[0])+",0,0);mem[LEN_BASE]=1024;mem[NATIVE_RANDOM_SOURCE+3]=1;mem[NATIVE_RANDOM_SOURCE+4]="+std::to_string(test[1])+";mem[NATIVE_RANDOM_SOURCE+5]="+std::to_string(test[1])+";mem[NATIVE_RANDOM_SOURCE+6]=5;");trigger(h,false);check(bass_count(h.events(),146,test[2])==1,"nearest allowed pitch resolves ties by transposition direction and clamps MIDI bounds");for(int i=0;i<10;++i){h.block();h.events();}h.eq("mem[NOTE_REF_BASE+2*128+"+std::to_string(test[2])+"]",0,"quantized Note Off releases the actual pitch");
+ }
+ {
+  Host h(source);fixture(h,false);h.run("clear_layer(0);store_event(0,0,144,60,90,0);store_event(0,0,144,61,90,0);store_event(0,384,128,60,0,0);store_event(0,640,128,61,0,0);mem[LEN_BASE]=1024;mem[NATIVE_RANDOM_SOURCE+3]=1;mem[NATIVE_RANDOM_SOURCE+4]=0;mem[NATIVE_RANDOM_SOURCE+5]=0;mem[NATIVE_RANDOM_SOURCE+6]=1;");trigger(h,false);check(bass_count(h.events(),146,60)==2,"two source notes may quantize to one output pitch");h.eq("mem[NOTE_REF_BASE+2*128+60]",2,"quantized collision retains both owners");for(int n=0;n<3;++n){h.block();h.events();}h.eq("mem[NOTE_REF_BASE+2*128+60]",1,"first quantized release cannot cut the second source note");for(int n=0;n<5;++n){h.block();h.events();}h.eq("mem[NOTE_REF_BASE+2*128+60]",0,"last quantized release frees the shared pitch");
+ }
  {
   Host h(source);fixture(h,false);h.run("native_random_seed=2147483646;native_random_begin();");
   long long expected=2147483646LL;for(int n=0;n<64;++n){expected=(expected*16807)%2147483647;h.run("test_draw=native_random_draw();");h.eq("native_random_work",double(expected),"Park-Miller sequence matches exactly on ARM and x86");check(h.eval("test_draw")>0&&h.eval("test_draw")<1,"random draw stays inside the open unit interval");}
@@ -17,12 +24,12 @@ static void phrase_randomization_cases(const char* source){
  }
  {
   Host h(source);fixture(h,false);h.run("clear_layer(4);store_event(4,0,144,48,90,0);store_event(4,0,144,51,90,0);store_event(4,0,144,54,90,0);store_event(4,0,144,56,90,0);store_event(4,640,128,48,0,0);store_event(4,640,128,51,0,0);store_event(4,640,128,54,0,0);store_event(4,640,128,56,0,0);mem[LEN_BASE+4]=1024;mem[MODE_BASE+4]=1;mem[PHRASE_GROUP_BASE+4]=0;mem[NATIVE_RANDOM_SOURCE+4*8+3]=1;mem[NATIVE_RANDOM_SOURCE+4*8+4]=0;mem[NATIVE_RANDOM_SOURCE+4*8+5]=12;mem[NATIVE_RANDOM_SOURCE+4*8+6]=3925;native_random_seed=2147483646;");
-  int previous=-1;for(int n=0;n<10;++n){h.run("trigger_request=4;");h.block();auto e=h.events();int delta=int(h.eval("mem[NATIVE_RANDOM_PITCH_LAST+4]"));check((delta==6||delta==8)&&delta!=previous,"PHRASE 05 chord gets a different legal transposition at every successful admission");check(bass_count(e,146,48+delta)==1&&bass_count(e,146,51+delta)==1&&bass_count(e,146,54+delta)==1&&bass_count(e,146,56+delta)==1,"no-repeat pitch retains the complete recorded chord");previous=delta;for(int k=0;k<10;++k){h.block();h.events();}}
+  int previous=-1;for(int n=0;n<10;++n){h.run("trigger_request=4;");h.block();auto e=h.events();int delta=int(h.eval("mem[NATIVE_RANDOM_PITCH_LAST+4]"));check(delta>=0&&delta<=12&&delta!=previous,"PHRASE 05 chord draws a different offset inside the full requested range at every successful admission");std::map<int,int> expected;for(int note:{48,51,54,56})++expected[pitch_quantize_expected(note+delta,3925,delta)];for(auto pair:expected)check(bass_count(e,146,pair.first)==pair.second,"each transposed note is quantized to the nearest checked class");previous=delta;for(int k=0;k<10;++k){h.block();h.events();}}
   h.run("mem[NATIVE_RANDOM_SOURCE+4*8+6]=0;test_seed=native_random_seed;trigger_request=4;");h.block();h.events();h.eq("mem[NATIVE_RANDOM_PITCH_LAST+4]",previous,"refused pitch preserves last admitted history");h.eq("native_random_seed",h.eval("test_seed"),"refused pitch preserves random stream");
  }
  {
   Host h(source);fixture(h,false);h.run("mem[NATIVE_RANDOM_SOURCE+3]=1;mem[NATIVE_RANDOM_SOURCE+4]=-12;mem[NATIVE_RANDOM_SOURCE+5]=12;mem[NATIVE_RANDOM_SOURCE+6]=1;native_random_seed=1;");
-  trigger(h,false);auto e=h.events();check(bass_count(e,146,36)==1,"RANDOM PITCH chooses a whole-phrase legal octave");
+  trigger(h,false);auto e=h.events();check(bass_count(e,146,36)==1,"RANDOM PITCH applies its offset then snaps to the checked pitch class");
   for(int n=0;n<10;++n){h.block();h.events();}h.eq("mem[NOTE_REF_BASE+2*128+36]",0,"random pitch release follows actual admitted pitch");
  }
  {

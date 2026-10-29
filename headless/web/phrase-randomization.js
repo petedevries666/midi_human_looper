@@ -2,13 +2,13 @@
 window.MBMF_RANDOM={
  defaults:{startJitter:{amount:0,mode:'NOTE',redraw:'TRIGGER'},randomPitch:{enabled:0,low:-12,high:12,notes:4095}},
  validOffsets(stats,pitch){
-  if(!stats||stats.maxPitch<0||!stats.noteClasses)return [];
-  const result=[],tune=Number(stats.tune||0);
-  for(let d=Number(pitch.low);d<=Number(pitch.high);d++){
-   if(stats.minPitch+tune+d<0||stats.maxPitch+tune+d>127)continue;
-   const shift=((tune+d)%12+12)%12,rotated=((stats.noteClasses<<shift)|(stats.noteClasses>>(12-shift)))&4095;
-   if((rotated&(4095-Number(pitch.notes)))===0)result.push(d);
-  }return result;
+  if(!stats||stats.maxPitch<0||!stats.noteClasses||!Number(pitch.notes))return [];
+  const result=[];for(let d=Number(pitch.low);d<=Number(pitch.high);d++)result.push(d);return result;
+ },
+ quantize(note,mask,direction=0){
+  note=Math.max(0,Math.min(127,note));for(let d=0;d<12;d++){
+   const lo=note-d,hi=note+d;if(direction>0&&hi<=127&&(mask&(1<<(hi%12))))return hi;if(lo>=0&&(mask&(1<<(lo%12))))return lo;if(hi<=127&&(mask&(1<<(hi%12))))return hi;
+  }return note;
  },
  editor({startJitter,randomPitch,prefix='',changed=()=>{},stats=()=>null}){
   const jitter=structuredClone(startJitter||this.defaults.startJitter),pitch=structuredClone(randomPitch||this.defaults.randomPitch);
@@ -30,7 +30,7 @@ window.MBMF_RANDOM={
    if(invalid){warning.textContent='BORNES INVALIDES · −24 à +24, LOW ≤ HIGH';warning.dataset.invalid='true';return;}
    if(!pitch.enabled){warning.textContent='OFF · TUNE conservé';warning.dataset.invalid='false';return;}
    const current=stats(),offsets=this.validOffsets(current,pitch);
-   warning.textContent=current&&current.maxPitch>=0?(offsets.length?'TRANSPOSITIONS : '+offsets.map(v=>v>0?'+'+v:v).join(' · '):'AUCUNE TRANSPOSITION POSSIBLE · lecture refusée'):'Phrase sans analyse de notes disponible';
+   warning.textContent=current&&current.maxPitch>=0?(offsets.length?'TIRAGE : '+offsets.map(v=>v>0?'+'+v:v).join(' · ')+' · puis recalage sur les notes cochées':'AUCUNE TRANSPOSITION · coche au moins une note'):'Phrase sans analyse de notes disponible';
    warning.dataset.invalid=String(!!current&&current.maxPitch>=0&&!offsets.length);
   };
   for(const [key,title] of [['low','LOW'],['high','HIGH']]){const input=node('input');input.type='number';input.min=-24;input.max=24;input.step=1;input.value=pitch[key];input.setAttribute('aria-label',('RANDOM PITCH '+title+' '+prefix).trim());input.onchange=()=>{pitch[key]=Number(input.value);describe();changed('randomPitch',structuredClone(pitch));};labelled(bounds,title,input);}
@@ -40,7 +40,7 @@ window.MBMF_RANDOM={
    const label=node('label',undefined,'random-note');label.append(box,node('span',name));palette.append(label);boxes.push(box);
   }
   const choose=mask=>{pitch.notes=mask;boxes.forEach((box,i)=>box.checked=!!(mask&(1<<i)));describe();changed('randomPitch',structuredClone(pitch));};
-  pf.append(button('TOUTES LES NOTES',()=>choose(4095)),button('AUCUNE NOTE',()=>choose(0)),node('small','Sans répétition immédiate si plusieurs choix · une transposition pour toute la phrase · bornes en demi-tons après TUNE, avant les transformateurs.'),warning);
+  pf.append(button('TOUTES LES NOTES',()=>choose(4095)),button('AUCUNE NOTE',()=>choose(0)),node('small','Tirage dans LOW/HIGH sans répétition immédiate si plusieurs choix, puis chaque note est recalée au plus proche sur les cases cochées (égalité : sens de transposition ; zéro : vers le bas). Les intervalles peuvent changer. Après TUNE, avant les transformateurs.'),warning);
   enabled.onchange=()=>{pitch.enabled=Number(enabled.checked);describe();changed('randomPitch',structuredClone(pitch));};describe();
   return {root,fields,value:()=>({startJitter:structuredClone(jitter),randomPitch:structuredClone(pitch)}),describe};
  }

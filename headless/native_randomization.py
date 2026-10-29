@@ -59,7 +59,7 @@ function native_random_start(p,cfg,rev,time,repeats) local(window,limit,i,b,last
 );
 function native_random_rebase_start(p,cfg,rev,time,repeats,desired) local(limit,window,i,b,distance,best,result)
 (limit=max(0,mem[LEN_BASE+p]-(repeats?ceil(max(128,samplesblock/8)/max(.000001,time)):1));window=min(limit,floor((mem[LEN_BASE+p]-1)*mem[cfg]));result=min(desired,window);
- mem[cfg+1]<=0?(result=0;best=1e30;i=0;loop(layer_count(p),b=native_random_view(p,i,rev);mem[b]<=window && (mem[b+1]&240)==144 && mem[b+3]>0?(distance=abs(mem[b]-desired);distance<best?(best=distance;result=mem[b];););i+=1;););result;);
+ mem[cfg+1]<=0?(result=0;best=1000000000000000000000000000000;i=0;loop(layer_count(p),b=native_random_view(p,i,rev);mem[b]<=window && (mem[b+1]&240)==144 && mem[b+3]>0?(distance=abs(mem[b]-desired);distance<best?(best=distance;result=mem[b];););i+=1;););result;);
 function native_random_cycle_start(p,cfg,rev,time) local(old,result)
 (old=native_random_work;native_random_work=max(1,native_random_cycle_seed);result=native_random_start(p,cfg,rev,time,1);native_random_cycle_seed=native_random_work;native_random_work=old;result;);
 function native_random_plan(p,mode,time,cfg,tune,rev,plan) local(j,delta,start)

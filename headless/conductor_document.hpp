@@ -141,6 +141,7 @@ inline bool validDocument(const std::vector<unsigned> &bytes){
             require(v.at("from").type=='n'&&v.at("to").type=='n'&&v.at("from").number>=low&&v.at("from").number<=high&&v.at("to").number>=low&&v.at("to").number<=high&&v.at("factor").type=='n'&&v.at("factor").number>=0&&v.at("factor").number<=16);
           }
         }
+        if(step.object.count("layerSelection")&&!choice(step.at("layerSelection"),{"ALL"})){unsigned candidates=0;for(const auto& l:layers.array)if(l.at("block").type!='z'&&(!l.object.count("selectionRole")||!choice(l.at("selectionRole"),{"FIXED"})))++candidates;require(candidates<=256);}
         for(unsigned i=0;i<layers.array.size();++i){
           const auto &layer=layers.array[i];fieldsOptional(layer,{"id","block"},{"selectionRole"});if(layer.object.count("selectionRole"))require(choice(layer.at("selectionRole"),{"FIXED","CANDIDATE"}));unique(layer.at("id"));const auto &b=layer.at("block");if(b.type=='z')continue;
           if(choice(b.at("type"),{"ACTION"})){

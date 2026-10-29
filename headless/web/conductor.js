@@ -41,7 +41,8 @@ function paintConductorRuntime(state){
  const runtime=state.switches.find(s=>s.id===conductorView.switchId)?.conductor;
  const unchanged=state.engineSessionId===conductorView.session&&state.revision===conductorView.revision;
  conductorView.root.querySelectorAll('[data-step-position]').forEach(el=>{el.classList.toggle('active-step',unchanged&&Number(el.dataset.stepPosition)===runtime?.step);const queued=unchanged&&Number(el.dataset.stepPosition)===runtime?.queuedStep&&runtime.queuedStep>0;el.classList.toggle('queued-step',queued);const badge=el.querySelector('.queued-badge');if(badge)badge.hidden=!queued;});
- conductorView.status.textContent=!unchanged?'CONFIGURATION CHANGED · reopen before DONE':runtime?.result?({1:'MISSING SOURCE',2:'12 VOICES · REFUSED',3:'UNSAFE SOURCE',4:'UNSUPPORTED',5:'INSTANCE ID LIMIT'}[runtime.result]||'REFUSED'):runtime?.queuedStep?`STEP ${runtime.step} → ${runtime.queuedStep} EN ATTENTE`:`ACTIVE ${runtime?.step||'—'} / ${runtime?.steps||0}${runtime?.repeatTotal>1?` · REPEAT ${runtime.repeatCount}/${runtime.repeatTotal}`:''}`;
+ const randomPaint=[unchanged,runtime?.step,runtime?.randomLayer].join(':');if(conductorView.root.dataset.randomPaint!==randomPaint){conductorView.root.dataset.randomPaint=randomPaint;conductorView.root.querySelectorAll('[data-layer-position]').forEach(cell=>{const step=cell.closest('[data-step-position]');cell.classList.toggle('is-random-selected',unchanged&&Number(step?.dataset.stepPosition)===runtime?.step&&step?.dataset.layerSelection!=='ALL'&&(cell.dataset.selectionRole==='FIXED'||Number(cell.dataset.layerPosition)===runtime?.randomLayer));});}
+ conductorView.status.textContent=!unchanged?'CONFIGURATION CHANGED · reopen before DONE':runtime?.result?({1:'MISSING SOURCE',2:'12 VOICES · REFUSED',3:'UNSAFE SOURCE',4:'UNSUPPORTED',5:'INSTANCE ID LIMIT',20:'RANDOM PITCH · AUCUNE TRANSPOSITION',21:'START JITTER · SOURCE INCOMPLÈTE',22:'RANDOM LAYER · AUCUNE CANDIDATE'}[runtime.result]||'REFUSED'):runtime?.queuedStep?`STEP ${runtime.step} → ${runtime.queuedStep} EN ATTENTE`:`ACTIVE ${runtime?.step||'—'} / ${runtime?.steps||0}${runtime?.repeatTotal>1?` · REPEAT ${runtime.repeatCount}/${runtime.repeatTotal}`:''}`;
 }
 async function editConductor(sw){
  const dialog=$('editor');if(dialog.open)return;
@@ -227,9 +228,16 @@ async function editConductor(sw){
    const update=()=>{checkpoint();b.overrides[key]=policy.value==='INHERIT'?{mode:'INHERIT'}:{mode:'OVERRIDE',value:['playMode','direction'].includes(key)?value.value:Number(value.value)};paint();properties(s,l);};
    policy.onchange=update;value.oninput=()=>output.value=value.value;value.onchange=update;row.append(policy,value,output);side.append(row);
   }
+  if(latest.nativeRandomization&&window.MBMF_RANDOM){
+    const src=source(b),settings={};for(const key of ['startJitter','randomPitch'])settings[key]=b.overrides[key]?.mode==='OVERRIDE'?b.overrides[key].value:src?.[key];
+    const editor=MBMF_RANDOM.editor({...settings,prefix:'BLOCK',stats:()=>({...phrase(b),tune:b.overrides.phrase_tune?.mode==='OVERRIDE'?b.overrides.phrase_tune.value:src?.tune||0}),changed:(key,value)=>{checkpoint();b.overrides[key]={mode:'OVERRIDE',value};}});
+    for(const key of ['startJitter','randomPitch']){const f=editor.fields[key],local=b.overrides[key]?.mode==='OVERRIDE';f.disabled=!local;
+      const policy=action(key+' inheritance',()=>{checkpoint();b.overrides[key]=local?{mode:'INHERIT'}:{mode:'OVERRIDE',value:structuredClone(settings[key]||MBMF_RANDOM.defaults[key])};properties(s,l);});policy.textContent=local?'LOCAL · REVENIR À LA SOURCE':'SOURCE · PERSONNALISER';const group=node('div',undefined,'phrase-randomization');group.append(policy,f);side.append(group);
+    }
+  }
   const effectiveMode=b.overrides.playMode?.mode==='OVERRIDE'?b.overrides.playMode.value:source(b)?.playMode;
   if(effectiveMode==='GATE'&&b.overrides.trigger?.mode==='OVERRIDE'&&['RELEASE','SUPERCHARGE_RELEASE'].includes(b.overrides.trigger.value))side.append(node('small','GATE needs PRESS, HOLD or LONG HOLD: release is its STOP edge.','conductor-group-warning'));
-  const unsupported=Object.entries(b.overrides).filter(([k,v])=>v.mode==='OVERRIDE'&&!['direction','trigger','entry','release','revealCC','revealFadeSeconds','playMode','phrase_tune','phrase_rate','phrase_base_velocity','phrase_velocity_decay','phrase_time_decay'].includes(k));
+  const unsupported=Object.entries(b.overrides).filter(([k,v])=>v.mode==='OVERRIDE'&&!['startJitter','randomPitch','direction','trigger','entry','release','revealCC','revealFadeSeconds','playMode','phrase_tune','phrase_rate','phrase_base_velocity','phrase_velocity_decay','phrase_time_decay'].includes(k));
   if(unsupported.length)side.append(node('small','Other existing options preserved · '+unsupported.map(([k])=>k).join(', ')));
   const moves=node('details');moves.append(node('summary','MOVE / REPLACE'));
   const destination=node('select');destination.setAttribute('aria-label','Block destination');
@@ -239,6 +247,7 @@ async function editConductor(sw){
   side.append(action('CLOSE PROPERTIES',hideProperties));
  }
  function paint(keepProperties=false){
+  delete root.dataset.randomPaint;
   removeMenu();if(!keepProperties)hideProperties();board.replaceChildren();
   const columns=[...sequence.steps];if(!columns.length||columns.at(-1).layers.some(l=>l.block)){empty=step();columns.push(empty);}
   columns.forEach((s,index)=>{
@@ -258,6 +267,10 @@ async function editConductor(sw){
     const update=value=>{if(!Number.isInteger(value)||value<1||value>999){error.textContent='REPEAT : entier de 1 à 999';count.value=s.repeat??1;return;}change(()=>{if(value===1)delete s.repeat;else s.repeat=value;});};
     const minus=action(`REDUCE REPEAT STEP ${index+1}`,()=>update((s.repeat??1)-1)),plus=action(`INCREASE REPEAT STEP ${index+1}`,()=>update((s.repeat??1)+1));minus.textContent='−';plus.textContent='+';minus.disabled=(s.repeat??1)<=1;plus.disabled=s.repeat>=999;count.onchange=()=>update(Number(count.value));count.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();count.blur();}};
     controls.append(charge,caption,minus,count,plus);column.append(controls);
+    if(latest.nativeRandomization){const row=node('label','LAYERS','conductor-layer-selection'),selection=node('select');selection.setAttribute('aria-label','LAYER SELECTION STEP '+(index+1));
+      for(const [value,label] of [['ALL','TOUTES'],['RANDOM','RANDOM · 1'],['RANDOM_NO_REPEAT','RANDOM · SANS RÉPÉTITION']]){const o=node('option',label);o.value=value;selection.append(o);}selection.value=s.layerSelection||'ALL';selection.onchange=()=>change(()=>{if(selection.value==='ALL')delete s.layerSelection;else s.layerSelection=selection.value;});row.append(selection);column.append(row);
+    }
+
    }
    const groups=new Map();for(const l of s.layers){const src=l.block?.type==='PHRASE'?source(l.block):null;if(src?.muteGroup){const ids=groups.get(src.muteGroup)||new Set();ids.add(src.slot);groups.set(src.muteGroup,ids);}}
    for(const [group,ids] of groups)if(ids.size>1){const warning=node('small',`GROUP ${group} · PHRASE ${Math.min(...ids)} wins`,'conductor-group-warning');warning.setAttribute('role','status');column.append(warning);}
@@ -265,8 +278,10 @@ async function editConductor(sw){
    if(s.layers.some(l=>l.block?.type==='PHRASE'&&l.block.overrides.entry?.mode==='OVERRIDE'&&l.block.overrides.entry.value==='REVEAL')){
     const warning=node('small','REVEAL · CHANNEL-WIDE','conductor-group-warning');warning.setAttribute('role','status');warning.title='REVEAL affects every instrument on its MIDI channels. Shared channels are allowed; use independent channels for isolation.';column.append(warning);
    }
+   column.dataset.layerSelection=s.layerSelection||'ALL';
    s.layers.forEach((l,li)=>{
-    const cell=node('div',undefined,'conductor-layer'),layerActions=[];cell.dataset.layerId=l.id;cell.classList.toggle('is-editing',editing===l.id);cell.classList.toggle('is-empty',!l.block);cell.append(node('small',li===0?'01 MASTER':String(li+1).padStart(2,'0')));
+    const cell=node('div',undefined,'conductor-layer'),layerActions=[];cell.dataset.layerPosition=li+1;cell.dataset.selectionRole=l.selectionRole||'CANDIDATE';cell.dataset.layerId=l.id;cell.classList.toggle('is-editing',editing===l.id);cell.classList.toggle('is-empty',!l.block);cell.append(node('small',li===0?'01 MASTER':String(li+1).padStart(2,'0')));
+    if(l.block&&s.layerSelection&&s.layerSelection!=='ALL'){const role=action('LAYER '+(li+1)+' ROLE',()=>change(()=>{if(l.selectionRole==='FIXED')delete l.selectionRole;else l.selectionRole='FIXED';}));role.textContent=l.selectionRole==='FIXED'?'FIXE':'CANDIDATE';role.title='Les layers fixes jouent à chaque passage ; une seule candidate est tirée au sort.';cell.append(role);}
     if(l.block){const b=l.block;cell.dataset.blockId=b.id;cell.classList.toggle('missing-source',b.type!=='ACTION'&&!source(b));const edit=action('EDIT BLOCK',()=>properties(s,l));edit.textContent=label(b);edit.className='conductor-block-open';cell.append(edit,node('output',b.type==='PHRASE'?`${mode(b)} · ${b.overrides?.trigger?.value||'PRESS'}${b.overrides.entry?.mode==='OVERRIDE'&&b.overrides.entry.value==='REVEAL'?' · REVEAL '+(b.overrides.release?.value||'LATCH'):''}`:b.type==='MOVEMENT'?`${b.overrides?.movementDuration?.mode==='OVERRIDE'?b.overrides.movementDuration.value:source(b)?.duration??'—'}s · ${b.overrides?.trigger?.value||'PRESS'} · ${(b.overrides?.movementPlayMode?.mode==='OVERRIDE'?b.overrides.movementPlayMode.value:source(b)?.playMode)==='GATED'?'MAINTENU':'ONE SHOT'}`:b.type==='ACTION'?`${b.trigger} · ${b.target.type}`:'UNSUPPORTED · preserved'));
      layerActions.push(action('REMOVE BLOCK',()=>change(()=>l.block=null)),action('REPLACE BLOCK',()=>choose(s,l,edit)));
     }else{const add=action(`Add PHRASE STEP ${index+1} LAYER ${li+1}`,()=>choose(s,l,add));add.textContent='+';add.className='conductor-add';cell.append(add);}

@@ -1,0 +1,15 @@
+const assert=require('node:assert/strict');
+const fs=require('node:fs'),vm=require('node:vm'),path=require('node:path');
+const context={window:{},structuredClone};vm.createContext(context);
+vm.runInContext(fs.readFileSync(path.join(__dirname,'../headless/web/phrase-randomization.js'),'utf8'),context);
+const api=context.window.MBMF_RANDOM;
+const chord={noteClasses:145,minPitch:60,maxPitch:67,tune:0};
+const offsets=(p,c)=>Array.from(api.validOffsets(p,c));
+assert.deepEqual(offsets(chord,{low:-12,high:12,notes:145}),[-12,0,12]);
+assert.deepEqual(offsets(chord,{low:-2,high:2,notes:4095}),[-2,-1,0,1,2]);
+assert.deepEqual(offsets(chord,{low:-24,high:24,notes:0}),[]);
+assert.deepEqual(offsets({...chord,tune:5},{low:0,high:0,notes:545}),[0]);
+assert.deepEqual(offsets({...chord,minPitch:120,maxPitch:127},{low:1,high:12,notes:4095}),[]);
+assert.deepEqual(offsets({...chord,minPitch:0,maxPitch:7,tune:-1},{low:0,high:0,notes:4095}),[]);
+assert.deepEqual(offsets(null,{low:0,high:0,notes:4095}),[]);
+console.log('PASS RANDOM PITCH preview: chord intervals, TUNE composition, palette and MIDI boundaries');

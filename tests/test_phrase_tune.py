@@ -36,6 +36,18 @@ class PhraseTune(unittest.TestCase):
         for invalid in ('BACKWARDS',2,None,True):
             m,b=self.model();m['sources'][0]['direction']=invalid
             with self.assertRaises(ValueError):conductor.validate(m)
+    def test_phrase_randomization_roundtrip_and_bounds(self):
+        jitter=dict(amount=75,mode='FREE',redraw='CYCLE');pitch=dict(enabled=1,low=-12,high=12,notes=145)
+        m,b=self.model();m['sources'][0].update(startJitter=jitter,randomPitch=pitch)
+        b['overrides'].update(startJitter=dict(mode='OVERRIDE',value=jitter),randomPitch=dict(mode='OVERRIDE',value=pitch))
+        step=m['switches'][0]['steps'][0];step['layerSelection']='RANDOM_NO_REPEAT';step['layers'][0]['selectionRole']='FIXED'
+        self.assertEqual(conductor.decode(conductor.encode(m)),m)
+        for key,value in [('amount',101),('amount',-1),('amount',True),('mode','UNKNOWN'),('redraw','ALWAYS')]:
+            bad=copy.deepcopy(m);bad['sources'][0]['startJitter'][key]=value
+            with self.assertRaises(ValueError):conductor.validate(bad)
+        for key,value in [('low',-25),('low',13),('high',25),('notes',4096),('notes',-1),('enabled',True)]:
+            bad=copy.deepcopy(m);bad['sources'][0]['randomPitch'][key]=value
+            with self.assertRaises(ValueError):conductor.validate(bad)
     def test_old_documents_remain_unchanged(self):
         m,_=self.model();before=copy.deepcopy(m)
         self.assertEqual(conductor.decode(conductor.encode(m)),before)

@@ -321,3 +321,24 @@ dialog[data-contextual][open]{position:relative;inset:auto;width:100%;max-width:
 @media(min-width:700px) and (max-width:1199px){.conductor-properties:not(:empty){display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:18px;padding:10px}.conductor-properties>h3,.conductor-properties>small,.conductor-properties>details,.conductor-properties>button,.conductor-properties>.rail-curve{grid-column:1/-1}}
 @media(min-width:1200px){.has-inspector .conductor-workspace{display:grid;grid-template-columns:minmax(0,1fr) 320px;align-items:start}.has-inspector .conductor-properties{order:0;grid-column:2;grid-row:1;position:sticky;top:8px;max-height:calc(100vh - 70px);overflow:auto}.has-inspector .conductor-board{grid-column:1;grid-row:1}}
 @media(pointer:coarse){.conductor-actions>summary{min-height:44px;width:36px}.conductor-action-items>button{min-height:44px}.conductor-layer.is-empty{grid-template-columns:55px minmax(0,1fr) 36px;min-height:44px}.conductor-layer.is-empty .conductor-add{min-height:44px}.conductor-layer .conductor-block-open{min-height:44px;padding-right:40px}.conductor-step-header>button,.conductor-add-layer{min-height:44px}}
+
+/* Phrase randomization: explicit musical ranges and accessible pitch classes. */
+.phrase-randomization{display:grid;gap:8px;margin:8px 0;min-width:0}
+.phrase-randomization fieldset{min-width:0;margin:0;padding:8px;border:1px solid #666}
+.phrase-randomization legend{color:#eee600;font-size:12px}
+.phrase-randomization .random-control{display:inline-flex;gap:5px;align-items:center;flex-wrap:wrap;margin:3px 8px 3px 0;font-size:11px}
+.phrase-randomization input[type=range]{width:130px;max-width:100%}
+.phrase-randomization input[type=number]{width:60px;box-sizing:border-box}
+.phrase-randomization input[type=checkbox]{width:18px;height:18px;margin:0;accent-color:#eee600}
+.phrase-randomization select{max-width:100%;min-width:0}
+.random-note-palette{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:4px;margin:8px 0}
+.random-note{display:flex;align-items:center;justify-content:center;gap:3px;border:1px solid #666;min-height:30px;font-size:12px;cursor:pointer}
+.random-note:has(input:checked){color:#eee600;border-color:#eee600;background:#272600}
+.phrase-randomization small,.phrase-randomization output[role=status]{display:block;margin-top:5px;font-size:10px;overflow-wrap:anywhere}
+.phrase-randomization output[data-invalid=true]{color:#ffb25a}
+.phrase-randomization fieldset:disabled{opacity:.55}
+.conductor-layer-selection{display:flex;align-items:center;gap:4px;font-size:10px;margin:4px 0}
+.conductor-layer-selection select{min-width:0;width:100%;font-size:10px}
+.conductor-layer.is-random-selected{box-shadow:inset 3px 0 #eee600;background-color:#252300}
+
+@media(max-width:480px){.random-note-palette{grid-template-columns:repeat(4,minmax(0,1fr))}}

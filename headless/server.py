@@ -343,6 +343,7 @@ class Handler(BaseHTTPRequestHandler):
                  '/midi-thru.js': ('midi-thru.js', 'text/javascript; charset=utf-8'),
                  '/midi-thru.css': ('midi-thru.css', 'text/css; charset=utf-8'),
                  '/block-tools.js': ('block-tools.js', 'text/javascript; charset=utf-8'),
+                 '/phrase-randomization.js': ('phrase-randomization.js', 'text/javascript; charset=utf-8'),
                  '/conductor.js': ('conductor.js', 'text/javascript; charset=utf-8'),
                  '/movement.js': ('movement.js', 'text/javascript; charset=utf-8'),
                  '/update.js': ('update.js', 'text/javascript; charset=utf-8'),

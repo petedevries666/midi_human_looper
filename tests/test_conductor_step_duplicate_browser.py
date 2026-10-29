@@ -209,6 +209,53 @@ try:
         page.locator('#editor-content').get_by_role('button',name='CANCEL',exact=True).click()
         api.patch('save');api.patch('load')
         assert json.load(urllib.request.urlopen(api.base+'/api/v1/conductor'))['model']['sources'][0]['direction']=='PING_PONG'
+        state=api.call();assert state['nativeRandomization']
+        api.c.request(op=35,target=0,arg=1,phrase=dict(lengthSeconds=1,events=[[0,144,60,100],[.8,128,60,0]]),revision=state['revision'],session=state['engineSessionId'])
+        api.patch('save');api.patch('load')
+        original=api.c.request(op=35,target=0,arg=0,revision=-1)['phraseData']
+        page.locator('.phrase[data-phrase-id="1"]').get_by_role('button',name='PHRASE OPTIONS',exact=True).click()
+        jitter=page.get_by_label('START JITTER Phrase 1',exact=True);expect(jitter).to_be_enabled()
+        jitter.evaluate("e=>{e.value='25';e.dispatchEvent(new Event('input',{bubbles:true}));e.dispatchEvent(new Event('change',{bubbles:true}));}")
+        page.get_by_label('START MODE Phrase 1',exact=True).select_option('FREE')
+        page.get_by_label('START REDRAW Phrase 1',exact=True).select_option('CYCLE')
+        page.get_by_label('RANDOM PITCH Phrase 1',exact=True).check()
+        page.get_by_role('button',name='AUCUNE NOTE',exact=True).click()
+        expect(page.locator('[data-random-section="randomPitch"] output')).to_contain_text('AUCUNE TRANSPOSITION')
+        page.get_by_role('button',name='APPLIQUER VARIATIONS',exact=True).click()
+        expect(page.locator('#editor-content [role="alert"]')).to_contain_text('VARIATIONS ENREGISTRÉES')
+        page.locator('#editor-content').get_by_role('button',name='CANCEL',exact=True).click()
+        api.command('phrase_play',phraseId=1)
+        api.wait_for(lambda:api.call()['randomizationError']==20,'empty palette refusal')
+        assert not api.call()['instances'],'invalid random pitch emitted a voice'
+        expect(page.locator('#randomization-status')).to_contain_text('aucune transposition')
+        page.locator('.phrase[data-phrase-id="1"]').get_by_role('button',name='PHRASE OPTIONS',exact=True).click()
+        page.get_by_label('C autorisé Phrase 1',exact=True).check()
+        page.get_by_role('button',name='APPLIQUER VARIATIONS',exact=True).click()
+        expect(page.locator('#editor-content [role="alert"]')).to_contain_text('VARIATIONS ENREGISTRÉES')
+        page.locator('#editor-content').get_by_role('button',name='CANCEL',exact=True).click()
+        api.command('phrase_play',phraseId=1);api.wait_for(lambda:bool(api.call()['instances']),'valid random pitch admission');api.command('panic')
+        api.patch('save');api.patch('load')
+        saved=json.load(urllib.request.urlopen(api.base+'/api/v1/conductor'))['model']['sources'][0]
+        assert saved['startJitter']==dict(amount=25,mode='FREE',redraw='CYCLE') and saved['randomPitch']['notes']==1
+        assert api.c.request(op=35,target=0,arg=0,revision=-1)['phraseData']==original,'randomization rewrote recorded MIDI'
+        page.locator('[data-switch-id="1"]').get_by_role('button',name='CONDUCTOR',exact=True).click()
+        page.get_by_label('LAYER SELECTION STEP 1',exact=True).select_option('RANDOM_NO_REPEAT')
+        first=page.locator('.conductor-step').first
+        first.get_by_role('button',name='LAYER 1 ROLE',exact=True).click()
+        first.get_by_role('button',name='EDIT BLOCK',exact=True).first.click()
+        page.get_by_role('button',name='startJitter inheritance',exact=True).click()
+        local_jitter=page.get_by_label('START JITTER BLOCK',exact=True);expect(local_jitter).to_be_enabled()
+        local_jitter.evaluate("e=>{e.value='40';e.dispatchEvent(new Event('input',{bubbles:true}));e.dispatchEvent(new Event('change',{bubbles:true}));}")
+        page.get_by_role('button',name='randomPitch inheritance',exact=True).click()
+        page.get_by_label('RANDOM PITCH BLOCK',exact=True).check()
+        page.get_by_label('RANDOM PITCH LOW BLOCK',exact=True).fill('-5');page.get_by_label('RANDOM PITCH LOW BLOCK',exact=True).press('Tab')
+        page.get_by_label('RANDOM PITCH HIGH BLOCK',exact=True).fill('5');page.get_by_label('RANDOM PITCH HIGH BLOCK',exact=True).press('Tab')
+        page.get_by_role('button',name='TOUTES LES NOTES',exact=True).click()
+        save_draft(page,api)
+        step=json.load(urllib.request.urlopen(api.base+'/api/v1/conductor'))['model']['switches'][0]['steps'][0]
+        assert step['layerSelection']=='RANDOM_NO_REPEAT' and step['layers'][0]['selectionRole']=='FIXED'
+        assert step['layers'][0]['block']['overrides']['startJitter']['value']['amount']==40
+        assert step['layers'][0]['block']['overrides']['randomPitch']['value']==dict(enabled=1,low=-5,high=5,notes=4095)
         browser.close()
     print('PASS real editor: ALT step copy, empty-column insertion, touch button, UNDO and native persistence')
 finally:

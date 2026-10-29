@@ -1,6 +1,6 @@
 # Phrase randomization — design backlog
 
-Requested by Pierre. These are design notes, not implemented capabilities.
+Requested by Pierre. Implementation and qualification are in progress on PR #111; not installed on the Pi.
 Native Zynthian engine and Web editor only; source MIDI remains unchanged.
 
 ## START JITTER
@@ -68,3 +68,37 @@ trigger. Never silently clamp individual chord notes or bypass the palette.
 For whole-phrase transposition, checking every resulting pitch class preserves
 intervals but may leave no valid candidate for some chords or chromatic phrases.
 The editor should make this visible before playback.
+
+## Implemented contract for qualification
+
+- Source pencil editor: START JITTER and RANDOM PITCH; apply variations explicitly.
+- Conductor blocks: independent SOURCE / LOCAL override for each complete setting.
+- Jitter percentage 0–100, NOTE/FREE, trigger/cycle draw; the permitted window is
+  measured in the current direction. NOTE draws distinct onsets; an attack-free
+  window falls back to the original start. END stays fixed, so the played segment
+  and loop duration shorten. In trigger-only PING-PONG, the opposite direction
+  retains the closest legal onset to the chosen offset, without a fresh draw.
+  RATE scales this segment. A minimal LOOP duration
+  preserves the existing bounded renderer budget.
+- FREE and NOTE starts reconstruct crossing keys and sustain, including a note
+  whose key was released while its pedal remained down. Prefix pedal state is
+  routed to the same output destinations as its owned notes.
+- RANDOM PITCH: one offset per admission, bounds in semitones −24..+24, after
+  effective TUNE. Every recorded note must fit MIDI 0..127 and the 12 checked pitch
+  classes; intervals are preserved. No candidate refuses admission, never clamps
+  individual notes or bypasses the palette. No additional per-note mode is implied.
+- The editor previews legal offsets when native note analysis is available.
+- RANDOM LAYER: ALL, RANDOM, RANDOM_NO_REPEAT per step; FIXED/CANDIDATE per layer.
+  Missing/empty candidates are excluded. Fixed layers play with the selected
+  candidate; existing mute groups/routing still apply. All-fixed steps play fixed
+  layers; no available candidate is an explicit refusal. Up to 256 candidate
+  layers fit the random pool, subject to the compiled memory budget and existing
+  voice capacity. This does not increase simultaneous polyphony.
+- One successful draw per step entry/REPEAT; PRESS/HOLD/LONG HOLD/RELEASE retain
+  the same selection. The previous successful candidate is avoided when another
+  is available. STOP/reset clears selection history; runtime choices are not saved.
+- Trigger admission uses a transactional private PRNG; refusals consume no draw.
+  Live LOOP jitter cycles use an independent stream. Neither uses a Web timer.
+- Reverse/jitter/pitch settings are copied with phrase content. Recorded MIDI and
+  legacy default behavior remain unchanged. Recording/overdub requires disabling
+  randomization on the source and its currently playing Conductor occurrence.

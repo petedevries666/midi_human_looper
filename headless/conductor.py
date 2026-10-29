@@ -227,6 +227,7 @@ def validate(data):
             unique(step['id'])
             if step['transition'] not in ('INHERIT', 'IMMEDIATE', 'END_OF_PHRASE') or not isinstance(step['layers'], list) or not step['layers']:
                 raise ValueError('CONDUCTOR invalid STEP')
+            if step.get('layerSelection','ALL')!='ALL' and sum(bool(l.get('block')) and l.get('selectionRole','CANDIDATE')!='FIXED' for l in step['layers'] if isinstance(l,dict))>256:raise ValueError('RANDOM LAYER: maximum 256 candidates per STEP')
             for index, layer in enumerate(step['layers']):
                 fields(layer, ('id', 'block') + (('selectionRole',) if 'selectionRole' in layer else ())); unique(layer['id'])
                 if 'selectionRole' in layer and layer['selectionRole'] not in ('FIXED','CANDIDATE'):raise ValueError('Invalid random layer role')

@@ -39,6 +39,11 @@ try:
         first.get_by_role('button',name='Add PHRASE STEP 1 LAYER 2',exact=True).click()
         first.get_by_role('button',name=__import__('re').compile('^PHRASE 02 ·')).click()
         first.get_by_role('button',name='EDIT BLOCK',exact=True).first.click()
+        assert first.locator('.conductor-layer.is-empty').count()==0
+        expect(page.locator('.conductor-editor')).to_have_class(__import__('re').compile('has-inspector'))
+        inspector=page.locator('.conductor-properties').bounding_box()
+        assert inspector['y']>=0 and inspector['y']<900,'selected block inspector must be visible'
+        assert page.locator('.conductor-actions').first.locator('summary').is_visible()
         assert page.get_by_label('TUNE override',exact=True).get_attribute('data-inheritance')=='INHERIT'
         assert page.get_by_label('TUNE override',exact=True).input_value()=='12'
         tune_local=page.get_by_label('TUNE override',exact=True)

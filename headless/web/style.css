@@ -291,3 +291,33 @@ dialog[data-contextual][open]{position:relative;inset:auto;width:100%;max-width:
 .conductor-inherited-control.is-local .is-number input{border-color:#fff020}
 @media(max-width:500px){.conductor-properties .conductor-option.conductor-inherited-control{grid-template-columns:60px minmax(55px,1fr) minmax(34px,auto)}}
 @media(pointer:coarse){.conductor-inherited-track{min-height:44px}.conductor-inherited-control .conductor-inherited-track input[type=range]{height:44px}.conductor-source-marker{bottom:6px}}
+
+/* Conductor compact authoring: same sequence order and musical model. */
+.conductor-workspace{display:flex;flex-direction:column;gap:8px;min-width:0}
+.conductor-properties{order:-1;background:#0c0c0c;margin:0;min-width:0}
+.conductor-properties h3{color:#fff020;margin:2px 0 4px;font-size:12px}
+.conductor-toolbar{gap:6px;padding-bottom:6px;border-bottom:1px solid #444}
+.conductor-step{position:relative;padding:5px}
+.conductor-step-header{align-items:center;flex-wrap:nowrap;gap:4px}
+.conductor-step-header>button{min-height:28px}
+.conductor-step>.conductor-option{grid-template-columns:48px minmax(0,1fr);font-size:9px;margin:5px 0;gap:4px}
+.conductor-step>.conductor-option select{font-size:10px;padding:3px}
+.conductor-layer{padding:5px 0;gap:3px;align-items:center}
+.conductor-layer>small:first-child{font-size:10px;padding-right:30px}
+.conductor-layer .conductor-block-open{display:block;flex-basis:100%;width:100%;padding:3px 28px 3px 0;text-align:left;white-space:normal;overflow-wrap:anywhere;color:#fff020;font-size:11px;border:0;background:transparent;min-height:26px}
+.conductor-layer>output{font-size:10px;padding:0 28px 3px 0}
+.conductor-layer.is-editing{box-shadow:inset 2px 0 #fff020;padding-left:6px}
+.conductor-layer.is-empty{display:grid;grid-template-columns:55px minmax(0,1fr) 28px;gap:3px;min-height:34px;padding:2px 0}
+.conductor-layer.is-empty>small:first-child{padding:0;font-size:9px}
+.conductor-layer.is-empty .conductor-add{width:100%;min-height:30px;font-size:18px;padding:0}
+.conductor-add-layer{width:100%;min-height:27px;padding:3px;font-size:10px;color:#aaa}
+.conductor-actions{position:relative;flex:none;margin:0;padding:0}
+.conductor-layer:not(.is-empty)>.conductor-actions{position:absolute;right:0;top:4px}
+.conductor-actions>summary{display:grid;place-items:center;list-style:none;width:27px;min-height:27px;box-sizing:border-box;border:1px solid #555;background:#111;color:#ddd;font-size:16px;cursor:pointer}
+.conductor-actions>summary::-webkit-details-marker{display:none}
+.conductor-actions[open]>.conductor-action-items{display:flex;flex-direction:column;position:absolute;right:0;top:calc(100% + 3px);z-index:30;min-width:170px;max-width:230px;padding:5px;gap:3px;background:#141414;border:1px solid #888;box-shadow:0 4px 12px #000}
+.conductor-action-items>button{display:block;width:100%;padding:6px;text-align:left;font-size:10px;white-space:normal;min-height:28px}
+.conductor-actions[open]>summary{border-color:#fff020;color:#fff020}
+@media(min-width:700px) and (max-width:1199px){.conductor-properties:not(:empty){display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:18px;padding:10px}.conductor-properties>h3,.conductor-properties>small,.conductor-properties>details,.conductor-properties>button,.conductor-properties>.rail-curve{grid-column:1/-1}}
+@media(min-width:1200px){.has-inspector .conductor-workspace{display:grid;grid-template-columns:minmax(0,1fr) 320px;align-items:start}.has-inspector .conductor-properties{order:0;grid-column:2;grid-row:1;position:sticky;top:8px;max-height:calc(100vh - 70px);overflow:auto}.has-inspector .conductor-board{grid-column:1;grid-row:1}}
+@media(pointer:coarse){.conductor-actions>summary{min-height:44px;width:36px}.conductor-action-items>button{min-height:44px}.conductor-layer.is-empty{grid-template-columns:55px minmax(0,1fr) 36px;min-height:44px}.conductor-layer.is-empty .conductor-add{min-height:44px}.conductor-layer .conductor-block-open{min-height:44px;padding-right:40px}.conductor-step-header>button,.conductor-add-layer{min-height:44px}}

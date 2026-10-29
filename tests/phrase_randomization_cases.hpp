@@ -9,6 +9,18 @@ static std::string random_layer_json(bool fixed=false,bool hold=false){
 }
 static void phrase_randomization_cases(const char* source){
  {
+  Host h(source);fixture(h,false);h.run("native_random_seed=2147483646;native_random_begin();");
+  long long expected=2147483646LL;for(int n=0;n<64;++n){expected=(expected*16807)%2147483647;h.run("test_draw=native_random_draw();");h.eq("native_random_work",double(expected),"Park-Miller sequence matches exactly on ARM and x86");check(h.eval("test_draw")>0&&h.eval("test_draw")<1,"random draw stays inside the open unit interval");}
+ }
+ {
+  Host h(source);fixture(h,false);h.run("mem[NATIVE_RANDOM_SOURCE+3]=1;mem[NATIVE_RANDOM_SOURCE+4]=-1;mem[NATIVE_RANDOM_SOURCE+5]=-1;mem[NATIVE_RANDOM_SOURCE+6]=2048;");trigger(h,false);check(bass_count(h.events(),146,47)==1,"negative semitone palette uses mathematical pitch classes");
+ }
+ {
+  Host h(source);fixture(h,false);h.run("clear_layer(4);store_event(4,0,144,48,90,0);store_event(4,0,144,51,90,0);store_event(4,0,144,54,90,0);store_event(4,0,144,56,90,0);store_event(4,640,128,48,0,0);store_event(4,640,128,51,0,0);store_event(4,640,128,54,0,0);store_event(4,640,128,56,0,0);mem[LEN_BASE+4]=1024;mem[MODE_BASE+4]=1;mem[PHRASE_GROUP_BASE+4]=0;mem[NATIVE_RANDOM_SOURCE+4*8+3]=1;mem[NATIVE_RANDOM_SOURCE+4*8+4]=0;mem[NATIVE_RANDOM_SOURCE+4*8+5]=12;mem[NATIVE_RANDOM_SOURCE+4*8+6]=3925;native_random_seed=2147483646;");
+  int previous=-1;for(int n=0;n<10;++n){h.run("trigger_request=4;");h.block();auto e=h.events();int delta=int(h.eval("mem[NATIVE_RANDOM_PITCH_LAST+4]"));check((delta==6||delta==8)&&delta!=previous,"PHRASE 05 chord gets a different legal transposition at every successful admission");check(bass_count(e,146,48+delta)==1&&bass_count(e,146,51+delta)==1&&bass_count(e,146,54+delta)==1&&bass_count(e,146,56+delta)==1,"no-repeat pitch retains the complete recorded chord");previous=delta;for(int k=0;k<10;++k){h.block();h.events();}}
+  h.run("mem[NATIVE_RANDOM_SOURCE+4*8+6]=0;test_seed=native_random_seed;trigger_request=4;");h.block();h.events();h.eq("mem[NATIVE_RANDOM_PITCH_LAST+4]",previous,"refused pitch preserves last admitted history");h.eq("native_random_seed",h.eval("test_seed"),"refused pitch preserves random stream");
+ }
+ {
   Host h(source);fixture(h,false);h.run("mem[NATIVE_RANDOM_SOURCE+3]=1;mem[NATIVE_RANDOM_SOURCE+4]=-12;mem[NATIVE_RANDOM_SOURCE+5]=12;mem[NATIVE_RANDOM_SOURCE+6]=1;native_random_seed=1;");
   trigger(h,false);auto e=h.events();check(bass_count(e,146,36)==1,"RANDOM PITCH chooses a whole-phrase legal octave");
   for(int n=0;n<10;++n){h.block();h.events();}h.eq("mem[NOTE_REF_BASE+2*128+36]",0,"random pitch release follows actual admitted pitch");
@@ -40,6 +52,13 @@ static void phrase_randomization_cases(const char* source){
   Host h(source);direction_fixture(h,1);h.run("mem[NATIVE_RANDOM_SOURCE]=1;native_random_seed=65536;");trigger(h,false);auto e=h.events();
   double start=h.eval("mem[NATIVE_RANDOM_STATE]");check(start==0||start==896,"SUR NOTE chooses an attack in the effective reverse direction");
   check(bass_count(e,146,start==0?67:60)>=1,"reverse onset jitter emits a real selected attack");
+ }
+ {
+  Host h(source);fixture(h,true);auto doc=conductor_model(1,false,1);std::string text(doc.begin(),doc.end());
+  for(unsigned i=2;i<=4;++i){const auto old="\"sourceId\":\""+conductor_uuid(i)+"\"";size_t at;while((at=text.find(old))!=std::string::npos)text.replace(at,old.size(),"\"sourceId\":\""+conductor_uuid(1)+"\"");}
+  auto at=text.find("\"slot\":1}");check(at!=std::string::npos,"Conductor pitch source fixture");text.replace(at,9,"\"slot\":1,\"randomPitch\":{\"enabled\":1,\"low\":0,\"high\":12,\"notes\":4095}}");
+  doc.assign(text.begin(),text.end());conductor_install(h,doc);int previous=-1;
+  for(int pass=0;pass<8;++pass){trigger(h,true);auto e=h.events();int delta=int(h.eval("mem[NATIVE_RANDOM_PITCH_LAST]"));check(delta!=previous&&bass_count(e,146,48+delta)==1,"Conductor admissions commit distinct successive random pitches");previous=delta;for(int n=0;n<10;++n){h.block();h.events();}}
  }
  for(bool fixed:{false,true}){
   Host h(source);fixture(h,true);h.run("clear_layer(1);store_event(1,0,144,60,90,0);store_event(1,640,128,60,0,0);mem[LEN_BASE+1]=1024;clear_layer(2);store_event(2,0,144,72,90,0);store_event(2,640,128,72,0,0);mem[LEN_BASE+2]=1024;native_random_seed=1;");

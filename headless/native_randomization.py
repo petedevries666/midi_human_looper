@@ -6,13 +6,15 @@ NATIVE_RANDOM_PEDALS=NATIVE_RANDOM_PREFIX+140*2048;NATIVE_RANDOM_STATS=NATIVE_RA
 NATIVE_RANDOM_PLANS=NATIVE_RANDOM_STATS+128*4;NATIVE_RANDOM_LAYER=NATIVE_RANDOM_PLANS+12*10;
 NATIVE_RANDOM_EPOCH=NATIVE_RANDOM_LAYER+64;NATIVE_RANDOM_EPOCH_TMP=NATIVE_RANDOM_EPOCH+64;
 NATIVE_RANDOM_EVENT=NATIVE_RANDOM_EPOCH_TMP+16;NATIVE_RANDOM_DIRECT_PLAN=NATIVE_RANDOM_EVENT+8;
-NATIVE_RANDOM_ELIGIBLE=NATIVE_RANDOM_DIRECT_PLAN+16;NATIVE_RANDOM_END=NATIVE_RANDOM_ELIGIBLE+256;native_random_enabled=1;
+NATIVE_RANDOM_ELIGIBLE=NATIVE_RANDOM_DIRECT_PLAN+16;NATIVE_RANDOM_PITCH_LAST=NATIVE_RANDOM_ELIGIBLE+256;NATIVE_RANDOM_PITCH_READY=NATIVE_RANDOM_PITCH_LAST+128;NATIVE_RANDOM_END=NATIVE_RANDOM_PITCH_READY+128;native_random_enabled=1;
 native_random_seed=123457;native_random_cycle_seed=98761;native_random_current=-1;native_random_preplanned=0;native_random_transaction=0;
 '''
 
 BASIC = r'''
 function native_random_begin() (native_random_work=max(1,native_random_seed);native_random_error=0;);
-function native_random_draw() (native_random_work=(native_random_work*16807)%2147483647;native_random_work/2147483647;);
+// Schrage reduction keeps every intermediate inside signed 31 bits on ARM.
+function native_random_draw() local(hi,lo)
+(hi=floor(native_random_work/127773);lo=native_random_work-hi*127773;native_random_work=16807*lo-2836*hi;native_random_work<=0?native_random_work+=2147483647;native_random_work/2147483647;);
 function native_random_commit() (native_random_seed=native_random_work;);
 function native_random_stats(p) local(i,b,lo,hi,mask)
 (
@@ -26,17 +28,20 @@ function native_random_stats(p) local(i,b,lo,hi,mask)
 );
 function native_random_pitch_allowed(p,tune,delta,mask) local(stats,shift,rot)
 (
- stats=native_random_stats(p);shift=((tune+delta)%12+12)%12;
+ stats=native_random_stats(p);shift=tune+delta-12*floor((tune+delta)/12);
  rot=((mem[stats+1]<<shift)|(mem[stats+1]>>(12-shift)))&4095;
  mem[stats+3]>=0 && mem[stats+2]+tune+delta>=0 && mem[stats+3]+tune+delta<=127 && (rot&(4095-mask))==0;
 );
-function native_random_pitch(p,tune,cfg) local(delta,n,pick,result)
+function native_random_pitch_commit(p,plan)
+(plan>=0 && mem[plan+3]>0?(mem[NATIVE_RANDOM_PITCH_LAST+p]=mem[plan+8];mem[NATIVE_RANDOM_PITCH_READY+p]=1;););
+function native_random_pitch(p,tune,cfg) local(delta,n,choices,pick,result,last,ready,valid)
 (
  result=0;mem[cfg+3]>0?(
-  delta=mem[cfg+4];n=0;loop(mem[cfg+5]-delta+1,n+=native_random_pitch_allowed(p,tune,delta,mem[cfg+6]);delta+=1;);
+  last=mem[NATIVE_RANDOM_PITCH_LAST+p];ready=mem[NATIVE_RANDOM_PITCH_READY+p];
+  delta=mem[cfg+4];n=0;choices=0;loop(mem[cfg+5]-delta+1,valid=native_random_pitch_allowed(p,tune,delta,mem[cfg+6]);n+=valid;valid && (!ready || delta!=last)?choices+=1;delta+=1;);
   n<=0?(native_random_error=20;result=1000;):(
-   pick=n>1?floor(native_random_draw()*n):0;delta=mem[cfg+4];
-   loop(mem[cfg+5]-delta+1,native_random_pitch_allowed(p,tune,delta,mem[cfg+6])?(pick==0?result=delta;pick-=1;);delta+=1;);
+   choices<=0?(choices=n;ready=0;);pick=choices>1?floor(native_random_draw()*choices):0;delta=mem[cfg+4];
+   loop(mem[cfg+5]-delta+1,native_random_pitch_allowed(p,tune,delta,mem[cfg+6]) && (!ready || delta!=last)?(pick==0?result=delta;pick-=1;);delta+=1;);
   );
  );result;
 );
@@ -189,7 +194,7 @@ function process_phrase_trigger(start_offset,play_only) local(p,mode,cfg,tune,ti
   );
   native_random_current==-2?(trigger_request=-1;instance_last_admitted=0;instance_error=native_random_error;instance_rejected+=1;):(
    native_random_trigger_core(start_offset,play_only);
-   instance_last_admitted>0?(free_play_error==p+1?free_play_error=0;localTransaction && native_random_current>=0?native_random_commit(););
+   instance_last_admitted>0?(native_random_pitch_commit(p,native_random_current);free_play_error==p+1?free_play_error=0;localTransaction && native_random_current>=0?native_random_commit(););
   );native_random_current=old;
  );
 );
@@ -275,7 +280,7 @@ def extend(source):
     (cfg=NATIVE_RANDOM_SOURCE+layer*8;old=native_random_current;v=MAX_ONCE_VOICES+layer;
      mem[TRIG_BASE+layer]>.5 || (mem[cfg]<=0 && mem[cfg+3]<=0)?native_random_loop_core(layer,offs):(
       native_random_begin();ok=native_random_plan(layer,0,1/native_phrase_rate(layer),cfg,mem[NATIVE_PHRASE_TUNE_BASE+layer],mem[NATIVE_DIRECTION_SOURCE+layer]==1,NATIVE_RANDOM_DIRECT_PLAN);
-      ok?(native_random_current=NATIVE_RANDOM_DIRECT_PLAN;mem[NATIVE_DIRECTION_VOICE+v]=mem[NATIVE_DIRECTION_SOURCE+layer];native_random_owner_begin(v,layer,1/native_phrase_rate(layer));native_random_loop_core(layer,offs);mem[TRIG_BASE+layer]>.5?(free_play_error==layer+1?free_play_error=0;native_random_commit(););):(
+      ok?(native_random_current=NATIVE_RANDOM_DIRECT_PLAN;mem[NATIVE_DIRECTION_VOICE+v]=mem[NATIVE_DIRECTION_SOURCE+layer];native_random_owner_begin(v,layer,1/native_phrase_rate(layer));native_random_loop_core(layer,offs);mem[TRIG_BASE+layer]>.5?(native_random_pitch_commit(layer,native_random_current);free_play_error==layer+1?free_play_error=0;native_random_commit(););):(
        instance_error=native_random_error;instance_rejected+=1;free_play_error=layer+1;
       );native_random_current=old;
      );
@@ -310,7 +315,7 @@ def extend(source):
     change('memset(NATIVE_DIRECTION_NEXT+(si+1)*128,0,128);',
            'mem[NATIVE_RANDOM_LAYER+si]=0;mem[NATIVE_RANDOM_EPOCH+si]+=1;memset(NATIVE_DIRECTION_NEXT+(si+1)*128,0,128);')
     change('memset(NATIVE_DIRECTION_NEXT,0,65*128);',
-           'native_random_error=0;memset(NATIVE_RANDOM_CFG,0,140*8);memset(NATIVE_RANDOM_STATE,0,140*16);memset(NATIVE_RANDOM_LAYER,0,64);v=0;loop(64,mem[NATIVE_RANDOM_EPOCH+v]+=1;v+=1;);memset(NATIVE_DIRECTION_NEXT,0,65*128);')
+           'native_random_error=0;memset(NATIVE_RANDOM_PITCH_READY,0,128);memset(NATIVE_RANDOM_CFG,0,140*8);memset(NATIVE_RANDOM_STATE,0,140*16);memset(NATIVE_RANDOM_LAYER,0,64);v=0;loop(64,mem[NATIVE_RANDOM_EPOCH+v]+=1;v+=1;);memset(NATIVE_DIRECTION_NEXT,0,65*128);')
     change('native_phrase_contract?(gi=0;loop(SW_COUNT,mem[CONDUCTOR_GESTURE_BASE+gi*8]=0;',
-           'native_phrase_contract?(native_random_error=0;memset(NATIVE_DIRECTION_NEXT,0,65*128);gi=0;loop(SW_COUNT,mem[NATIVE_RANDOM_LAYER+gi]=0;mem[NATIVE_RANDOM_EPOCH+gi]+=1;mem[CONDUCTOR_GESTURE_BASE+gi*8]=0;')
+           'native_phrase_contract?(native_random_error=0;memset(NATIVE_RANDOM_PITCH_READY,0,128);memset(NATIVE_DIRECTION_NEXT,0,65*128);gi=0;loop(SW_COUNT,mem[NATIVE_RANDOM_LAYER+gi]=0;mem[NATIVE_RANDOM_EPOCH+gi]+=1;mem[CONDUCTOR_GESTURE_BASE+gi*8]=0;')
     return source

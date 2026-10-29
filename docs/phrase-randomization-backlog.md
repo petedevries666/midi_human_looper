@@ -102,3 +102,5 @@ The editor should make this visible before playback.
 - Reverse/jitter/pitch settings are copied with phrase content. Recorded MIDI and
   legacy default behavior remain unchanged. Recording/overdub requires disabling
   randomization on the source and its currently playing Conductor occurrence.
+
+RANDOM PITCH avoids the previous successfully admitted offset of the same phrase source, across direct play and Conductor. A sole legal offset remains playable. Refusals do not update history; PANIC/global STOP clears it. ARM and x86 use the same overflow-safe Schrage PRNG; negative pitch classes use mathematical floor reduction, independent of EEL absolute-value modulo.

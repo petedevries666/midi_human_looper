@@ -40,7 +40,7 @@ window.MBMF_RANDOM={
    const label=node('label',undefined,'random-note');label.append(box,node('span',name));palette.append(label);boxes.push(box);
   }
   const choose=mask=>{pitch.notes=mask;boxes.forEach((box,i)=>box.checked=!!(mask&(1<<i)));describe();changed('randomPitch',structuredClone(pitch));};
-  pf.append(button('TOUTES LES NOTES',()=>choose(4095)),button('AUCUNE NOTE',()=>choose(0)),node('small','Une transposition pour toute la phrase · bornes en demi-tons après TUNE, avant les transformateurs.'),warning);
+  pf.append(button('TOUTES LES NOTES',()=>choose(4095)),button('AUCUNE NOTE',()=>choose(0)),node('small','Sans répétition immédiate si plusieurs choix · une transposition pour toute la phrase · bornes en demi-tons après TUNE, avant les transformateurs.'),warning);
   enabled.onchange=()=>{pitch.enabled=Number(enabled.checked);describe();changed('randomPitch',structuredClone(pitch));};describe();
   return {root,fields,value:()=>({startJitter:structuredClone(jitter),randomPitch:structuredClone(pitch)}),describe};
  }

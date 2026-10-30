@@ -176,7 +176,7 @@ function echoUnits(){
 async function commitEcho(instrumentId,unit,expectedRevision=revision){
  const units=echoUnits();if(!units){$('error').textContent='Format ECHOCITY indisponible ; configuration conservée.';return false;}
  const next=units.filter(v=>v[0]!==instrumentId);if(unit)next.push(unit);next.sort((a,b)=>a[0]-b[0]);
- const version=next.some(v=>v[15])?4:next.some(v=>v[14])?3:2,rows=next.map(v=>v.slice(0,version===4?35:version===3?15:14));
+ const version=next.some(v=>v[15]||v[16]||v[18])?4:next.some(v=>v[14])?3:2,rows=next.map(v=>v.slice(0,version===4?35:version===3?15:14));
  return command({action:'echocity_commit',expectedRevision,echocity:{version,configuration:[version,rows.length,...rows.flat()]}});
 }
 async function editEcho(instrument){

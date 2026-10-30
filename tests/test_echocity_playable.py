@@ -8,7 +8,7 @@ from server import Control
 
 class Wire(unittest.TestCase):
  def test_multichannel_roundtrip_and_refusals(self):
-  for routing in (1,2,3):
+  for routing in (0,1,2,3):
    cfg={'version':4,'configuration':[4,1,1,*DEFAULTS[1:],2,routing,18,1,4,1,4,1,15,*([0]*12)]}
    self.assertEqual(encode(decode(cfg)),cfg)
    for index,value in ((15,4),(16,65536),(17,True),(18,17),(19,16)):

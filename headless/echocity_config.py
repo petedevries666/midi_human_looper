@@ -37,7 +37,7 @@ def decode(extension):
 
 def encode(units):
     if not isinstance(units,list):raise ValueError('ECHOCITY units required')
-    version=4 if any(unit.get('routing',0) for unit in units if isinstance(unit,dict)) else 3 if any(unit.get('traversal',0) for unit in units if isinstance(unit,dict)) else 2
+    version=4 if any(set(ROUTE_FIELDS)&set(unit) for unit in units if isinstance(unit,dict)) else 3 if any(unit.get('traversal',0) for unit in units if isinstance(unit,dict)) else 2
     wire=[version,len(units)]
     for unit in units:
         if not isinstance(unit,dict) or set(FIELDS)-set(unit) or set(unit)-set(FIELDS)-{'traversal'}-set(ROUTE_FIELDS):raise ValueError('Complete ECHOCITY unit required')

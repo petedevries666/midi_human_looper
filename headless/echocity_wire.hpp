@@ -24,7 +24,7 @@ inline bool read(std::istream &in,Configurations &out){
   out=next;return true;
 }
 inline std::string json(const Configurations &all){
-  unsigned version=2;for(const auto &c:all)if(c.id){if(c.traversal!=Traversal::Forward)version=std::max(version,3u);if(c.routing!=Routing::Legacy)version=4;}
+  unsigned version=2;for(const auto &c:all)if(c.id){if(c.traversal!=Traversal::Forward)version=std::max(version,3u);if(c.routing!=Routing::Legacy||c.channelMask||c.patternLength)version=4;}
   std::ostringstream out;out<<std::setprecision(17)<<"{\"version\":"<<version<<",\"configuration\":["<<version<<',';
   unsigned count=0;for(const auto &c:all)count+=bool(c.id);out<<count;
   for(const auto &c:all)if(c.id){out<<','<<c.instrument<<','<<c.enabled<<','<<unsigned(c.unit)<<','<<c.interval<<','<<c.firstOffset<<','<<c.wet<<','<<c.decay<<','<<c.gate<<','<<c.gateDecay<<','<<c.repeats<<','<<c.pitchStep<<','<<c.pingPong<<','<<c.otherChannel<<','<<c.dry;if(version>=3)out<<','<<unsigned(c.traversal);if(version>=4){out<<','<<unsigned(c.routing)<<','<<c.channelMask<<','<<c.noRepeat<<','<<c.patternLength;for(auto ch:c.pattern)out<<','<<unsigned(ch);}}

@@ -186,7 +186,7 @@ async function editEcho(instrument){
  const session=engineSession,rev=revision,content=$('editor-content');let applying=false;
  selectedModule={instrumentId:instrument.id,moduleId:'ECHOCITY'};
  for(const card of document.querySelectorAll('.module'))card.classList.toggle('selected',Number(card.dataset.instrumentId)===instrument.id&&card.dataset.moduleId==='ECHOCITY');
- content.replaceChildren(node('h2',`${instrument.name||'INSTRUMENT '+instrument.id} / ECHOCITY`),node('p','Dernier dans la chaîne : répète les notes de l’instrument, ARP compris. Les modes REVERSE/ALTERNATE/CHAOS mémorisent un fragment de la durée INTERVALLE avant les échos ; DRY reste immédiat. ALTERNATE : avant/arrière par fragment. CHAOS : sens tiré au hasard par fragment.'));
+ content.replaceChildren(node('h2',`${instrument.name||'INSTRUMENT '+instrument.id} / ECHOCITY`),node('p','Dernier dans la chaîne : répète les notes de l’instrument, ARP compris. Les modes REVERSE/ALTERNATE/CHAOS mémorisent un fragment de la durée INTERVALLE avant les échos ; DRY reste immédiat. ALTERNATE : échos successifs avant/arrière. CHAOS : sens tiré au hasard pour chaque répétition, commun à toutes ses notes.'));
  const inputs=new Map();
  const fields=[
   [2,'TEMPS',null,null,null,['ms','beats']], [3,'INTERVALLE',.1,draft[2]?64:60000,.1],

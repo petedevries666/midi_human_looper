@@ -46,7 +46,7 @@ public:
   const Configuration &configuration()const{return config;}
   template<size_t Voices,size_t Sources>
   Admission plan(native_notes::Scheduler<Voices,Sources> &scheduler,native_notes::Token source,
-                    unsigned channel,unsigned pitch,unsigned velocity,uint64_t now,std::array<native_notes::Pair,32>&pairs,double tempo=0,uint64_t anchor=UINT64_MAX){
+                    unsigned channel,unsigned pitch,unsigned velocity,uint64_t now,std::array<native_notes::Pair,32>&pairs,double tempo=0,uint64_t anchor=UINT64_MAX,const std::array<uint64_t,32>*repeatAnchors=nullptr){
     Admission result{};result.dryVelocity=velocity<=127?velocity:0;
     const auto *parent=scheduler.sources.get(source);
     auto reject=[&](){++rejected;result.dryVelocity=velocity<=127?velocity:0;return result;};
@@ -72,7 +72,10 @@ public:
       const double relative=first+step*repeat;
       if(relative>scheduler.maxHorizon())return reject();
       auto &p=pairs[result.planned++];p.owner={config.instrument,config.id,config.continuation,parent->key.origin,parent->key.instance};
-      p.start=base+uint64_t(std::floor(relative+.5));p.end=(buffered?now:parent->start)+scheduler.maxHorizon();
+      const uint64_t repeatBase=repeatAnchors?(*repeatAnchors)[repeat]:base;
+      const uint64_t delay=uint64_t(std::floor(relative+.5));
+      if(repeatBase>UINT64_MAX-delay)return reject();
+      p.start=repeatBase+delay;p.end=(buffered?now:parent->start)+scheduler.maxHorizon();
       if(p.start<now || p.start>p.end)return reject();
       p.channel=uint8_t(config.pingPong && repeat%2==0?config.otherChannel:channel);
       p.pitch=uint8_t(nextPitch);p.velocity=uint8_t(nextVelocity);p.followSource=true;p.durationScale=gate;

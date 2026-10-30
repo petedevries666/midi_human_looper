@@ -202,8 +202,8 @@ pas de fragments vides. DRY reste immédiat ; les échos attendent la clôture,
 puis suivent PREMIER ÉCHO, RÉPÉTITIONS et l'intervalle existant.
 
 - REVERSE ALL : ordre des attaques inversé dans chaque fragment.
-- ALTERNATE : premier fragment en avant, suivant en arrière, puis alternance.
-- RANDOM CHAOS : choix avant/arrière à 50 % par fragment, commun à ses répétitions.
+- ALTERNATE : premier écho en avant, deuxième en arrière, puis alternance dans chaque série.
+- RANDOM CHAOS : choix avant/arrière à 50 % pour chaque répétition, commun à toutes ses notes.
 - Hauteurs et durées des notes sont conservées avant PAS DE HAUTEUR/GATE.
   Une note encore tenue conserve sa durée via son propriétaire source et son
   watchdog existant ; elle n'est pas coupée arbitrairement à la fin du fragment.

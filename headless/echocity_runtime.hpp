@@ -72,7 +72,7 @@ public:
         }else{Unit unit(rate);unit.configure(c);const auto result=unit.trigger(scheduler,token,e.key.channel,e.key.pitch,e.velocity,sample,tempo);velocity=result.dryVelocity;if(!result.ok)++rejected;}break;
       }}
       const Outputs::Routed note{0,e.key.channel,e.key.pitch,uint8_t(velocity)};
-      if(velocity && !outputs.attackBatch(token,&note,1,[&](const Outputs::Routed *batch,size_t count){return count==1 && emit(sample,true,batch[0].channel,batch[0].pitch,batch[0].velocity,false);},false,e.key.origin==Origin::Phrase && e.key.instance!=0)){failed=true;scheduler.cancelSource(token,sample,[&](const Event&v){return voice(v,emit);});releaseDry(token,sample,emit);return false;}
+      if(velocity && !outputs.attackBatch(token,&note,1,[&](const Outputs::Routed *batch,size_t count){return count==1 && emit(sample,true,batch[0].channel,batch[0].pitch,batch[0].velocity,false);},false,e.key.origin==Origin::Live || (e.key.origin==Origin::Phrase && e.key.instance!=0))){failed=true;scheduler.cancelSource(token,sample,[&](const Event&v){return voice(v,emit);});releaseDry(token,sample,emit);return false;}
       return true;
     }
     if(e.action==SourceAction::Off){

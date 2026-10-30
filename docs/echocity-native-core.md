@@ -189,7 +189,22 @@ de la chaîne : l’effet musical proposé ici est terminal.
 - Étendre ensuite Feedback/Freeze, parcours, taps et Reverse conformément au
   checkpoint #28 ; aucun de ces modes n’est annoncé livré par ce noyau.
 
-## Extension MIDI par fragments — en qualification (non installée)
+## Routage WET multicanal
+
+Le carrier v4 ajoute CYCLE (canaux cochés dans l'ordre), RANDOM (tirage par
+répétition, avec option sans répétition consécutive dans une série) et PATTERN
+(liste de 1 à 16 canaux, doublons autorisés, répétée si nécessaire). Les modes
+de lecture FORWARD, REVERSE ALL, ALTERNATE et RANDOM CHAOS restent indépendants.
+Le routage du DRY ne change pas. Un seul canal sélectionné reste utilisable en
+RANDOM, même si l'option sans répétition est cochée.
+
+Chaque répétition conserve son canal jusqu'au Note Off, même après modification
+des réglages. Toutes les notes d'un fragment partagent la destination choisie
+pour cette répétition ; FORWARD partage ce choix sur une fenêtre INTERVALLE sans
+retarder les attaques. Les canaux choisis doivent être routés dans Zynthian.
+Les anciens carriers v1/v2/v3 gardent exactement FIXE / PING-PONG.
+
+## Extension MIDI par fragments
 
 LECTURE propose FORWARD (comportement HARRIS existant), REVERSE ALL,
 ALTERNATE et RANDOM CHAOS. Ces modes réordonnent les attaques MIDI ; ils

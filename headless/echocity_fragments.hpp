@@ -8,6 +8,7 @@ class Fragments {
   struct Entry {native_notes::Token source{};uint64_t on=0;uint8_t velocity=0;};
   struct Window {
     Configuration config{};std::array<Entry,64> notes{};unsigned count=0;
+    std::array<uint8_t,32> channels{};
     uint64_t start=0,width=0;double tempo=0;
     uint32_t seed=0,nextSeed=0,reverseMask=0;bool seeded=false,open=false,overflow=false;
   };
@@ -29,7 +30,7 @@ class Fragments {
         if(boundary>UINT64_MAX-offset){ok=false;break;}anchors[repeat]=boundary+offset;
       }
       if(!ok)break;
-      const auto result=unit.plan(s,e.source,parent->key.channel,parent->key.pitch,e.velocity,boundary,scratch,w.tempo,boundary,&anchors);
+      const auto result=unit.plan(s,e.source,parent->key.channel,parent->key.pitch,e.velocity,boundary,scratch,w.tempo,boundary,&anchors,w.config.routing==Routing::Legacy?nullptr:&w.channels);
       if(!result.ok || total+result.planned>s.available() || total+result.planned>batch.size()){ok=false;break;}
       counts[i]=result.planned;std::copy_n(scratch.begin(),result.planned,batch.begin()+total);total+=result.planned;
     }
@@ -50,6 +51,7 @@ public:
       const double width=c.unit==TimeUnit::Milliseconds?c.interval*double(s.maxHorizon()/60)/1000.:c.interval*60.*double(s.maxHorizon()/60)/tempo;
       if(!std::isfinite(width)||width<1||width>double(s.maxHorizon())||sample>UINT64_MAX-uint64_t(std::floor(width+.5)))return false;
       w.config=c;w.start=sample;w.width=uint64_t(std::floor(width+.5));w.tempo=tempo;w.open=true;w.overflow=false;
+      routeChannels(c,0,sample,w.channels);
       if(!w.seeded){w.seed=0x9e3779b9u^(c.instrument*0x85ebca6bu);if(!w.seed)w.seed=1;w.seeded=true;}
       // One decision per repetition, shared by every note in this fragment.
       w.nextSeed=w.seed;w.reverseMask=0;

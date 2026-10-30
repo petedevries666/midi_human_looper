@@ -291,6 +291,17 @@ try:
             api.wait_for(lambda:api.call()['echocity']==expected,'fragment mode committed by real editor')
         api.patch('save');api.patch('load')
         assert api.call()['echocity']==expected,'fragment mode not restored from saved patch'
+        for routing in (1,2,3):
+            card.click();page.get_by_label('ECHOCITY ROUTAGE',exact=True).select_option(str(routing))
+            if routing in (1,2):
+                page.get_by_role('button',name='ECHOCITY CANAL 2',exact=True).click()
+                page.get_by_role('button',name='ECHOCITY CANAL 5',exact=True).click()
+            else:page.get_by_label('ECHOCITY PATTERN',exact=True).fill('2,5,2,16')
+            page.locator('#editor-content').get_by_role('button',name='APPLIQUER',exact=True).click()
+            api.wait_for(lambda:api.call()['echocity']['version']==4 and api.call()['echocity']['configuration'][17]==routing,'multichannel route committed')
+            actual=api.call()['echocity'];api.patch('save');api.patch('load');assert api.call()['echocity']==actual
+            # Restore a legacy row so the next mode starts with empty selections.
+            api.command('echocity_commit',echocity={'version':2,'configuration':[2,1,*row]})
         browser.close()
     print('PASS real editor: ALT step copy, empty-column insertion, touch button, UNDO and native persistence')
 finally:

@@ -200,7 +200,10 @@ class Runtime:
                         if chain:self.web_preflight(config,socket,temporary,verified)
                         if chain:
                             mode=state.get('chainCaptureMode','two-bar-grid')
-                        else:
+                        # Restore in the execution contract actually used by the
+                        # installed native runtime. Standalone legacy routing may
+                        # reject native controller targets even when CHAIN is safe.
+                        if chain==bool(config.get('expanded_capacity')):
                             portable=importlib.import_module('portable_project')
                             sync=importlib.import_module('project_sync')
                             for data in directory.glob('processor-*'):

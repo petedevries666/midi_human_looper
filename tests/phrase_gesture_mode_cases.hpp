@@ -3,6 +3,13 @@ static void gesture_fixture(Host& h,int mode){
  fixture(h,false);h.run("mem[NATIVE_PHRASE_PLAY_MODE_BASE]="+std::to_string(mode)+";");
 }
 static void phrase_gesture_mode_cases(const char* source){
+ {
+  Host h(source);fixture(h,false);
+  h.run("mem[NATIVE_OUTPUT_BASE+33]=7;gate_test_i=0;loop(12,mem[NATIVE_GATE_STROKE_BASE+gate_test_i]=gate_test_i+1;gate_test_i+=1;);");
+  h.eq("mem[NATIVE_OUTPUT_BASE+33]",7,"GATE stroke writes preserve source 34 output policy");
+  h.run("memset(NATIVE_GATE_STROKE_BASE,0,12);");
+  h.eq("mem[NATIVE_OUTPUT_BASE+33]",7,"GATE stroke restore clear preserves persisted output policy");
+ }
  for(int mode:{3,4,5}){
   Host h(source);gesture_fixture(h,mode);trigger(h,false);auto first=h.events();
   check(bass_count(first,146,48)==1,"new phrase mode starts one real MIDI attack");

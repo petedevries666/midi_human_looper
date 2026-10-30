@@ -60,7 +60,7 @@ def extend(source):
             raise ValueError('Native phrase modes contract changed: '+old[:100])
         source = source.replace(old, new)
     change('function instance_discard_all()', '''NATIVE_PHRASE_PLAY_MODE_BASE=CONDUCTOR_BASE-8400;
-NATIVE_GATE_STROKE_BASE=CONDUCTOR_BASE-8030;native_gate_switch=-1;
+NATIVE_GATE_STROKE_BASE=CONDUCTOR_BASE-8256;native_gate_switch=-1;
 function instance_discard_all()''')
     change('function native_hold_release(layer,offs)', HELPERS+'\nfunction native_hold_release(layer,offs)')
     change('  !native_phrase_contract && native_hold_enabled && mem[MODE_BASE+layer]==2',

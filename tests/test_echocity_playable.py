@@ -102,7 +102,8 @@ class RealEngine(unittest.TestCase):
   self.assertEqual(self.command(54,echo=cfg)['status'],'ok');saved=self.export();self.assertEqual(saved['echocity'],cfg)
   self.config([]);self.assertEqual(self.command(5,target=8,patch=saved)['status'],'ok');self.assertEqual(self.export()['echocity'],cfg)
   bad=copy.deepcopy(cfg);bad['configuration'][2+19]=16
-  self.assertNotEqual(self.command(54,echo=bad)['status'],'ok');self.assertEqual(self.export()['echocity'],cfg)
+  with self.assertRaises(ValueError):self.command(54,echo=bad)
+  self.assertEqual(self.export()['echocity'],cfg)
   self.config([])
  def test_02_isolated_jack_echoes_and_order(self):
   if not self.jack:self.skipTest('Set ECHOCITY_JACK=1 for actual isolated JACK ports')

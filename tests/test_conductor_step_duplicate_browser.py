@@ -275,6 +275,20 @@ try:
         assert [e[2] for e in captured['events']]==[61,61],'capture baked playback pitch into recorded MIDI'
         assert json.load(urllib.request.urlopen(api.base+'/api/v1/conductor'))['model']['sources'][0]==before_source,'recording changed variation settings'
         api.command('panic')
+        # Real ECHOCITY editor: old defaults remain v2; fragment modes persist in v3.
+        instrument=api.call()['instruments'][0]['id']
+        row=[instrument,1,0,25,0,.5,.7,1,1,2,0,0,1,1]
+        api.command('echocity_commit',echocity={'version':2,'configuration':[2,1,*row]})
+        card=page.locator('.module[data-module-id="ECHOCITY"]').first
+        for mode in (1,2,0,3):
+            card.click()
+            choice=page.get_by_label('ECHOCITY LECTURE',exact=True)
+            expect(choice).to_be_enabled();choice.select_option(str(mode))
+            page.locator('#editor-content').get_by_role('button',name='APPLIQUER',exact=True).click()
+            expected={'version':3,'configuration':[3,1,*row,mode]} if mode else {'version':2,'configuration':[2,1,*row]}
+            api.wait_for(lambda:api.call()['echocity']==expected,'fragment mode committed by real editor')
+        api.patch('save');api.patch('load')
+        assert api.call()['echocity']==expected,'fragment mode not restored from saved patch'
         browser.close()
     print('PASS real editor: ALT step copy, empty-column insertion, touch button, UNDO and native persistence')
 finally:

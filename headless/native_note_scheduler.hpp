@@ -166,6 +166,7 @@ public:
   Refusal lastRefusal=Refusal::None;
   explicit Scheduler(unsigned sampleRate=48000):horizon(uint64_t(sampleRate)*60){}
   size_t pending()const{return count;}
+  size_t available()const{return std::min({VoiceCapacity-active(),(heap.size()-count)/2,size_t(std::min<uint64_t>(VoiceCapacity,std::min<uint64_t>(UINT64_MAX-generation,(UINT64_MAX-ordinal)/2)))});}
   uint64_t maxHorizon()const{return horizon;}
   size_t active()const{size_t n=0;for(const auto &v:voices)n+=v.used;return n;}
   // A batch represents one musical generation. Both edges of EVERY pair are

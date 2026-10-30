@@ -169,23 +169,24 @@ document.addEventListener('pointerdown',e=>{const d=$('editor');if(d.open&&d.dat
 function editInstrument(i){const d=descriptor(0);if(!d)return;edit(d,i,d.parameters.map(id=>{const p=catalog.parameters.find(p=>p.id===id),canonical=parameter({enabled:21,input:22,output:23}[id]);const display=canonical?{...p,valueType:canonical.valueType,choices:canonical.choices}:p;return {descriptor:display,value:i[p.engineField],assignment:0};}),null);}
 function echoUnits(){
  const extension=latest?.echocity,wire=extension?.configuration;
- const width=extension?.version===1?13:14;
- if(![1,2].includes(extension?.version)||!Array.isArray(wire)||wire[0]!==extension.version||!Number.isInteger(wire[1])||wire[1]<0||wire[1]>8||wire.length!==2+width*wire[1])return null;
- return Array.from({length:wire[1]},(_,j)=>{const row=wire.slice(2+j*width,2+(j+1)*width);if(width===13)row.push(1-row[5]);return row;});
+ const width=extension?.version===1?13:extension?.version===3?15:14;
+ if(![1,2,3].includes(extension?.version)||!Array.isArray(wire)||wire[0]!==extension.version||!Number.isInteger(wire[1])||wire[1]<0||wire[1]>8||wire.length!==2+width*wire[1])return null;
+ return Array.from({length:wire[1]},(_,j)=>{const row=wire.slice(2+j*width,2+(j+1)*width);if(width===13)row.push(1-row[5]);if(width<15)row.push(0);return row;});
 }
 async function commitEcho(instrumentId,unit,expectedRevision=revision){
  const units=echoUnits();if(!units){$('error').textContent='Format ECHOCITY indisponible ; configuration conservée.';return false;}
  const next=units.filter(v=>v[0]!==instrumentId);if(unit)next.push(unit);next.sort((a,b)=>a[0]-b[0]);
- return command({action:'echocity_commit',expectedRevision,echocity:{version:2,configuration:[2,next.length,...next.flat()]}});
+ const version=next.some(v=>v[14])?3:2,rows=next.map(v=>version===3?v:v.slice(0,14));
+ return command({action:'echocity_commit',expectedRevision,echocity:{version,configuration:[version,rows.length,...rows.flat()]}});
 }
 async function editEcho(instrument){
  const dialog=$('editor');if(dialog.open){if(dialog.dataset.kind!=='module')return;if(await window.mbmfModuleFlush?.()===false)return;dialog.close();}
  const units=echoUnits();if(!units)return;
- const draft=[...(units.find(v=>v[0]===instrument.id)||[instrument.id,1,0,250,1,.5,.7,1,1,4,0,0,1,1])];
+ const draft=[...(units.find(v=>v[0]===instrument.id)||[instrument.id,1,0,250,1,.5,.7,1,1,4,0,0,1,1,0])];
  const session=engineSession,rev=revision,content=$('editor-content');let applying=false;
  selectedModule={instrumentId:instrument.id,moduleId:'ECHOCITY'};
  for(const card of document.querySelectorAll('.module'))card.classList.toggle('selected',Number(card.dataset.instrumentId)===instrument.id&&card.dataset.moduleId==='ECHOCITY');
- content.replaceChildren(node('h2',`${instrument.name||'INSTRUMENT '+instrument.id} / ECHOCITY`),node('p','Dernier dans la chaîne : répète les notes de l’instrument, ARP compris.'));
+ content.replaceChildren(node('h2',`${instrument.name||'INSTRUMENT '+instrument.id} / ECHOCITY`),node('p','Dernier dans la chaîne : répète les notes de l’instrument, ARP compris. Les modes REVERSE/ALTERNATE/CHAOS mémorisent un fragment de la durée INTERVALLE avant les échos ; DRY reste immédiat. ALTERNATE : avant/arrière par fragment. CHAOS : sens tiré au hasard par fragment.'));
  const inputs=new Map();
  const fields=[
   [2,'TEMPS',null,null,null,['ms','beats']], [3,'INTERVALLE',.1,draft[2]?64:60000,.1],
@@ -193,7 +194,8 @@ async function editEcho(instrument){
   [13,'DRY',0,1,.01], [5,'WET',0,1,.01], [6,'DÉCROISSANCE',0,1,.01],
   [7,'GATE',0,4,.01], [8,'DÉCROISSANCE GATE',0,1,.01],
   [10,'PAS DE HAUTEUR',-48,48,1], [11,'PING-PONG',null,null,null,['OFF','ON']],
-  [12,'AUTRE CANAL',null,null,null,Array.from({length:16},(_,i)=>String(i+1))]
+  [12,'AUTRE CANAL',null,null,null,Array.from({length:16},(_,i)=>String(i+1))],
+  [14,'LECTURE',null,null,null,['FORWARD','REVERSE ALL','ALTERNATE','RANDOM CHAOS']]
  ];
  for(const [index,label,min,max,step,choices] of fields){
   const row=node('label',label,'parameter'),input=node(choices?'select':'input');input.setAttribute('aria-label',`ECHOCITY ${label}`);

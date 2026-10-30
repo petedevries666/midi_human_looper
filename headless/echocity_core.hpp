@@ -3,6 +3,7 @@
 
 namespace echocity {
 enum class TimeUnit : uint8_t { Milliseconds, Beats };
+enum class Traversal : uint8_t { Forward, ReverseAll, Alternate, RandomChaos };
 // Configuration only. Runtime source/output leases belong to the one shared
 // native scheduler, so adding another unit never adds another event queue.
 struct Configuration {
@@ -14,6 +15,7 @@ struct Configuration {
   int pitchStep=0;
   bool pingPong=false;
   unsigned otherChannel=1;
+  Traversal traversal=Traversal::Forward;
 };
 inline bool valid(const Configuration &c){
   return c.id && c.id<=16777215 && c.instrument && c.instrument<=16777215 && c.continuation<=16777215 &&
@@ -25,7 +27,7 @@ inline bool valid(const Configuration &c){
     std::isfinite(c.decay) && c.decay>=0 && c.decay<=1 &&
     std::isfinite(c.gate) && c.gate>=0 && c.gate<=4 &&
     std::isfinite(c.gateDecay) && c.gateDecay>=0 && c.gateDecay<=1 &&
-    c.repeats>=1 && c.repeats<=32 && c.pitchStep>=-48 && c.pitchStep<=48 && c.otherChannel<16;
+    c.repeats>=1 && c.repeats<=32 && c.pitchStep>=-48 && c.pitchStep<=48 && c.otherChannel<16 && unsigned(c.traversal)<=3;
 }
 struct Admission {
   unsigned dryVelocity=0,planned=0,admitted=0;
@@ -43,8 +45,8 @@ public:
   }
   const Configuration &configuration()const{return config;}
   template<size_t Voices,size_t Sources>
-  Admission trigger(native_notes::Scheduler<Voices,Sources> &scheduler,native_notes::Token source,
-                    unsigned channel,unsigned pitch,unsigned velocity,uint64_t now,double tempo=0){
+  Admission plan(native_notes::Scheduler<Voices,Sources> &scheduler,native_notes::Token source,
+                    unsigned channel,unsigned pitch,unsigned velocity,uint64_t now,std::array<native_notes::Pair,32>&pairs,double tempo=0,uint64_t anchor=UINT64_MAX){
     Admission result{};result.dryVelocity=velocity<=127?velocity:0;
     const auto *parent=scheduler.sources.get(source);
     auto reject=[&](){++rejected;result.dryVelocity=velocity<=127?velocity:0;return result;};
@@ -58,7 +60,8 @@ public:
     if(!std::isfinite(step) || !std::isfinite(first) || step<1 || first>scheduler.maxHorizon() || parent->start>UINT64_MAX-scheduler.maxHorizon()){
       return reject();
     }
-    std::array<native_notes::Pair,32> pairs{};
+    const bool buffered=anchor!=UINT64_MAX;const uint64_t base=buffered?anchor:parent->start;
+    if(base>UINT64_MAX-scheduler.maxHorizon() || now>UINT64_MAX-scheduler.maxHorizon())return reject();
     double amplitude=velocity*config.wet,gate=config.gate;
     for(unsigned repeat=0;repeat<config.repeats;++repeat){
       const int nextPitch=int(pitch)+int(repeat+1)*config.pitchStep;
@@ -69,7 +72,8 @@ public:
       const double relative=first+step*repeat;
       if(relative>scheduler.maxHorizon())return reject();
       auto &p=pairs[result.planned++];p.owner={config.instrument,config.id,config.continuation,parent->key.origin,parent->key.instance};
-      p.start=parent->start+uint64_t(std::floor(relative+.5));p.end=parent->start+scheduler.maxHorizon();
+      p.start=base+uint64_t(std::floor(relative+.5));p.end=(buffered?now:parent->start)+scheduler.maxHorizon();
+      if(p.start<now || p.start>p.end)return reject();
       p.channel=uint8_t(config.pingPong && repeat%2==0?config.otherChannel:channel);
       p.pitch=uint8_t(nextPitch);p.velocity=uint8_t(nextVelocity);p.followSource=true;p.durationScale=gate;
       if(!parent->held || gate==0){
@@ -80,8 +84,13 @@ public:
       amplitude*=config.decay;gate*=config.gateDecay;
     }
     if(!result.planned){result.ok=true;return result;}
-    result.ok=scheduler.admit(source,pairs.data(),result.planned,now);
-    if(result.ok)result.admitted=result.planned;else return reject();
+    result.ok=true;return result;
+  }
+  template<size_t Voices,size_t Sources>
+  Admission trigger(native_notes::Scheduler<Voices,Sources> &scheduler,native_notes::Token source,
+                    unsigned channel,unsigned pitch,unsigned velocity,uint64_t now,double tempo=0){
+    std::array<native_notes::Pair,32> pairs{};auto result=plan(scheduler,source,channel,pitch,velocity,now,pairs,tempo);
+    if(result.ok && result.planned){result.ok=scheduler.admit(source,pairs.data(),result.planned,now);if(result.ok)result.admitted=result.planned;else{++rejected;result.dryVelocity=velocity<=127?velocity:0;}}
     return result;
   }
 };

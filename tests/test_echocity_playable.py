@@ -20,6 +20,13 @@ class Wire(unittest.TestCase):
   for p in bad:
    with self.assertRaises(ValueError):decode(p)
 
+ def test_fragment_modes_roundtrip_and_refusals(self):
+  for mode in (1,2,3):
+   extension={'version':3,'configuration':[3,1,1,*DEFAULTS[1:],mode]}
+   self.assertEqual(encode(decode(extension)),extension)
+  for mode in (-1,4,True,1.5):
+   with self.assertRaises(ValueError):decode({'version':3,'configuration':[3,1,1,*DEFAULTS[1:],mode]})
+
 class RealEngine(unittest.TestCase):
  @classmethod
  def setUpClass(cls):
@@ -71,6 +78,14 @@ class RealEngine(unittest.TestCase):
   legacy={'version':1,'configuration':[1,1,*row[:13]]}
   self.assertEqual(self.command(54,echo=legacy)['status'],'ok')
   self.assertEqual(self.export()['echocity'],encode(decode(legacy)))
+  self.config([])
+ def test_01b_fragment_carrier_persistence(self):
+  row=[self.instrument,*DEFAULTS[1:]]
+  cfg={'version':3,'configuration':[3,1,*row,3]}
+  self.assertEqual(self.command(54,echo=cfg)['status'],'ok')
+  saved=self.export();self.assertEqual(saved['echocity'],cfg)
+  self.config([]);self.assertEqual(self.command(5,target=8,patch=saved)['status'],'ok')
+  self.assertEqual(self.export()['echocity'],cfg)
   self.config([])
  def test_02_isolated_jack_echoes_and_order(self):
   if not self.jack:self.skipTest('Set ECHOCITY_JACK=1 for actual isolated JACK ports')

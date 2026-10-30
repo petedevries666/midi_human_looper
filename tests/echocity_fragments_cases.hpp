@@ -39,6 +39,16 @@ static void fragmentTests(){
   CHECK(r.sources()==1&&!r.pending());CHECK(r.source(edge(false),50,120,emit));r.render(0,2000,emit);CHECK(out.count==2&&!r.sources());
  }
  {
+  Runtime r(8000);Output out;auto emit=[&](auto...args){return out(args...);};auto c=settings();c[0].traversal=Traversal::ReverseAll;c[0].unit=TimeUnit::Beats;c[0].interval=.02;c[0].firstOffset=0;c[0].repeats=1;r.configure(c);
+  CHECK(r.source(edge(true),0,120,emit));CHECK(r.source(edge(false),10,120,emit));r.render(0,200,emit);CHECK(out.events[2].sample==159);CHECK(!r.pending()&&!r.sources());
+ }
+ {
+  Runtime r(8000);Output out;auto emit=[&](auto...args){return out(args...);};auto c=settings();c[0].traversal=Traversal::ReverseAll;r.configure(c);
+  realtime=true;for(unsigned n=0;n<65;++n){CHECK(r.source(edge(true,Origin::Live,0,40+n),0,120,emit));}
+  for(unsigned n=0;n<65;++n){CHECK(r.source(edge(false,Origin::Live,0,40+n),40,120,emit));}r.render(0,2000,emit);realtime=false;
+  CHECK(r.rejected==1&&!r.pending()&&!r.sources()&&!r.failed&&!allocations);
+ }
+ {
   Configurations c{};std::istringstream v3("3 1 1 1 0 10 0 .5 1 1 1 1 0 0 1 1 3");CHECK(read(v3,c));CHECK(c[0].traversal==Traversal::RandomChaos);CHECK(json(c).find("\"version\":3")!=std::string::npos);
   std::istringstream bad("3 1 1 1 0 10 0 .5 1 1 1 1 0 0 1 1 4");CHECK(!read(bad,c));
  }

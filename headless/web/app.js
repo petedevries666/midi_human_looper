@@ -210,6 +210,8 @@ async function editEcho(instrument){
  const apply=button('APPLIQUER',async()=>{
   if(applying)return;if(engineSession!==session){error.textContent='Moteur redémarré ; rouvrir ECHOCITY.';return;}
   for(const input of inputs.values())if(!input.reportValidity())return;
+  const seconds=draft[2]?draft[3]*60/Math.max(1,Number(latest.chainBpm||120)):draft[3]/1000;
+  if(draft[14]&&draft[5]>0&&seconds*(draft[4]+draft[9])>60){error.textContent='Les fragments et répétitions dépasseraient 60 secondes. Réduire INTERVALLE, PREMIER ÉCHO ou RÉPÉTITIONS.';return;}
   applying=true;apply.disabled=true;
   try{if(await commitEcho(instrument.id,draft,rev)){dialog.close();renderedModel='';render(latest);}else error.textContent=$('error').textContent==='invalid'?'Relâcher les notes pour le premier ajout, puis réessayer.':$('error').textContent;}
   finally{applying=false;apply.disabled=false;}

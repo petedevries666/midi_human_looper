@@ -259,7 +259,9 @@ try:
         page.locator('.phrase[data-phrase-id="1"]').get_by_role('button',name='PHRASE OPTIONS',exact=True).click()
         page.get_by_label('Direction Phrase 1',exact=True).select_option('FORWARD')
         api.wait_for(lambda:json.load(urllib.request.urlopen(api.base+'/api/v1/conductor'))['model']['sources'][0].get('direction')=='FORWARD','forward fresh-record fixture')
+        expect(page.get_by_label('Direction Phrase 1',exact=True)).to_be_enabled()
         page.locator('#editor-content').get_by_role('button',name='CANCEL',exact=True).click()
+        page.locator('#editor').wait_for(state='hidden')
         # Fresh recording captures original notes with source variations enabled;
         # the same configuration on nonempty content still protects overdub.
         api.command('phrase_record',phraseId=1,expected=400)

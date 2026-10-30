@@ -41,6 +41,7 @@ public:
     if(selected==windows.size()){if(index<windows.size()&&!windows[index].open)selected=index;else for(unsigned i=0;i<windows.size();++i)if(!windows[i].open){selected=i;break;}if(selected==windows.size())return false;windows[selected]=Window{};}
     auto&w=windows[selected];
     if(!w.open){
+      if(c.unit==TimeUnit::Beats && (!std::isfinite(tempo)||tempo<=0||tempo>1000))return false;
       const double width=c.unit==TimeUnit::Milliseconds?c.interval*double(s.maxHorizon()/60)/1000.:c.interval*60.*double(s.maxHorizon()/60)/tempo;
       if(!std::isfinite(width)||width<1||width>double(s.maxHorizon())||sample>UINT64_MAX-uint64_t(std::floor(width+.5)))return false;
       w.config=c;w.start=sample;w.width=uint64_t(std::floor(width+.5));w.tempo=tempo;w.open=true;w.overflow=false;

@@ -9,6 +9,12 @@ static std::string random_layer_json(bool fixed=false,bool hold=false){
  }s<<"]}]}]}";return s.str();
 }
 static void phrase_randomization_cases(const char* source){
+ for(int variation:{1,2,3}){
+  Host h(source);fixture(h,false);h.run("clear_layer(0);mem[LEN_BASE]=0;mem[NATIVE_RANDOM_SOURCE]="+std::to_string(variation&1?1:0)+";mem[NATIVE_RANDOM_SOURCE+3]="+std::to_string(variation&2?1:0)+";mem[NATIVE_RANDOM_SOURCE+4]=12;mem[NATIVE_RANDOM_SOURCE+5]=12;mem[NATIVE_RANDOM_SOURCE+6]=1;select_phrase_record(0);");
+  h.eq("free_record_ready",1,"empty phrase can arm with pitch and/or start jitter enabled");h.midi(144,61,91);h.events();h.eq("free_record_active",1,"first raw incoming note starts recording despite playback variations");h.midi(128,61,0);h.events();h.run("finish_phrase_record();");
+  h.eq("mem[layer_base(0,0)+2]",61,"recording retains raw pitch outside the checked palette");h.eq("mem[layer_base(0,1)+2]",61,"recorded Note Off retains original input pitch");h.eq("mem[NATIVE_RANDOM_SOURCE]",variation&1?1:0,"recording keeps START JITTER configuration");h.eq("mem[NATIVE_RANDOM_SOURCE+3]",variation&2?1:0,"recording keeps RANDOM PITCH configuration");
+  h.run("select_phrase_record(0);");h.eq("overdub_armed+overdub_active",0,"nonempty randomized phrase still rejects unsafe overdub");
+ }
  for(auto test:std::vector<std::vector<int>>{{60,1,62},{62,-1,60},{61,0,60},{60,-1,60},{127,24,122},{0,-24,0}}){
   Host h(source);fixture(h,false);h.run("clear_layer(0);store_event(0,0,144,"+std::to_string(test[0])+",90,0);store_event(0,640,128,"+std::to_string(test[0])+",0,0);mem[LEN_BASE]=1024;mem[NATIVE_RANDOM_SOURCE+3]=1;mem[NATIVE_RANDOM_SOURCE+4]="+std::to_string(test[1])+";mem[NATIVE_RANDOM_SOURCE+5]="+std::to_string(test[1])+";mem[NATIVE_RANDOM_SOURCE+6]=5;");trigger(h,false);check(bass_count(h.events(),146,test[2])==1,"nearest allowed pitch resolves ties by transposition direction and clamps MIDI bounds");for(int i=0;i<10;++i){h.block();h.events();}h.eq("mem[NOTE_REF_BASE+2*128+"+std::to_string(test[2])+"]",0,"quantized Note Off releases the actual pitch");
  }

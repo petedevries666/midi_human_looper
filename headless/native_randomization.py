@@ -259,7 +259,7 @@ def extend(source):
     direction=source[start:end];source=source[:start]+source[end:]
     at=source.index('function native_random_begin()');source=source[:at]+direction+source[at:]
     change('busy=mem[NATIVE_DIRECTION_SOURCE+layer]>0;',
-           'busy=mem[NATIVE_DIRECTION_SOURCE+layer]>0 || mem[NATIVE_RANDOM_SOURCE+layer*8]>0 || mem[NATIVE_RANDOM_SOURCE+layer*8+3]>0;')
+           'busy=mem[NATIVE_DIRECTION_SOURCE+layer]>0 || (layer_count(layer)>0 && (mem[NATIVE_RANDOM_SOURCE+layer*8]>0 || mem[NATIVE_RANDOM_SOURCE+layer*8+3]>0));')
     change('mem[NATIVE_DIRECTION_VOICE+v]>0?busy=1;',
            '(mem[NATIVE_DIRECTION_VOICE+v]>0 || mem[NATIVE_RANDOM_CFG+v*8]>0 || mem[NATIVE_RANDOM_CFG+v*8+3]>0)?busy=1;')
     change('mem[NATIVE_REVERSE_READY+layer]=0;', 'mem[NATIVE_RANDOM_STATS+layer*4]=0;mem[NATIVE_REVERSE_READY+layer]=0;',2)

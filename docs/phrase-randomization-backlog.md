@@ -58,5 +58,4 @@ Selected layers are highlighted. STOP/reset clears selection history.
 Up to 256 candidate layers fit the compiled pool; existing simultaneous voice
 capacity and mute-group/routing rules remain unchanged.
 
-All three settings copy with phrase content. Recording/overdub requires disabling
-reverse/jitter/pitch variation on the source and its currently active occurrence.
+All three settings copy with phrase content. Fresh recording into an empty source is allowed with RANDOM PITCH and/or START JITTER enabled: capture stores original incoming notes and keeps playback settings unchanged. Overdub of existing randomized content and mutation of an active randomized occurrence remain protected. Reverse recording restrictions are unchanged.

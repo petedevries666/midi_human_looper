@@ -256,6 +256,25 @@ try:
         assert step['layerSelection']=='RANDOM_NO_REPEAT' and step['layers'][0]['selectionRole']=='FIXED'
         assert step['layers'][0]['block']['overrides']['startJitter']['value']['amount']==40
         assert step['layers'][0]['block']['overrides']['randomPitch']['value']==dict(enabled=1,low=-5,high=5,notes=4095)
+        page.locator('.phrase[data-phrase-id="1"]').get_by_role('button',name='PHRASE OPTIONS',exact=True).click()
+        page.get_by_label('Direction Phrase 1',exact=True).select_option('FORWARD')
+        api.wait_for(lambda:json.load(urllib.request.urlopen(api.base+'/api/v1/conductor'))['model']['sources'][0].get('direction')=='FORWARD','forward fresh-record fixture')
+        page.locator('#editor-content').get_by_role('button',name='CANCEL',exact=True).click()
+        # Fresh recording captures original notes with source variations enabled;
+        # the same configuration on nonempty content still protects overdub.
+        api.command('phrase_record',phraseId=1,expected=400)
+        api.command('phrase_clear',phraseId=1)
+        before_source=json.load(urllib.request.urlopen(api.base+'/api/v1/conductor'))['model']['sources'][0]
+        api.command('phrase_record',phraseId=1)
+        api.wait_for(lambda:api.call()['chainArmed'],'variation-enabled empty phrase armed')
+        api.command('midi',channel=1,note=61,value=91)
+        api.wait_for(lambda:api.call()['chainRecording'],'raw note starts variation-enabled capture')
+        api.command('midi',channel=1,note=61,value=0)
+        api.command('phrase_finish',phraseId=1)
+        captured=api.c.request(op=35,target=0,arg=0,revision=-1)['phraseData']
+        assert [e[2] for e in captured['events']]==[61,61],'capture baked playback pitch into recorded MIDI'
+        assert json.load(urllib.request.urlopen(api.base+'/api/v1/conductor'))['model']['sources'][0]==before_source,'recording changed variation settings'
+        api.command('panic')
         browser.close()
     print('PASS real editor: ALT step copy, empty-column insertion, touch button, UNDO and native persistence')
 finally:

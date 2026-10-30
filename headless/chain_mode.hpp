@@ -236,7 +236,7 @@ struct ChainMode {
     }
     if(!gridCapture) {
       if(action==2 && !recording && !armed){
-        for(unsigned k=0;k<2;++k)if(randomSourceFlags[selected][k]&&*randomSourceFlags[selected][k]>0)return false;
+        if(*phraseCounts[selected]>0)for(unsigned k=0;k<2;++k)if(randomSourceFlags[selected][k]&&*randomSourceFlags[selected][k]>0)return false;
         for(unsigned v=0;v<12;++v)if(randomVoiceFlags[v][0] && *voiceActive[v]>.5 && *directionVoiceLayers[v]==selected && (*randomVoiceFlags[v][0]>0||*randomVoiceFlags[v][1]>0))return false;
         if(phraseDirections[selected] && *phraseDirections[selected]>0)return false;
         for(unsigned i=0;i<12;++i)if(directionVoices[i] && *voiceActive[i]>.5 && *directionVoiceLayers[i]==selected && *directionVoices[i]>0)return false;

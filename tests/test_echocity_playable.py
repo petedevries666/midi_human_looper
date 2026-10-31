@@ -120,6 +120,28 @@ class RealEngine(unittest.TestCase):
   self.assertEqual(self.command(54,echo=cfg)['status'],'ok');saved=self.export();self.assertEqual(saved['echocity'],cfg)
   self.config([]);self.assertEqual(self.command(5,target=8,patch=saved)['status'],'ok');self.assertEqual(self.export()['echocity'],cfg)
   self.config([])
+ def test_01e_full_destination_handoff(self):
+  # Full production host callback, source journal, handoff, EEL and final ledger.
+  # A terminal/direct echo never creates a destination input in the VM.
+  for instrument in self.control.request()['instruments']:
+   if instrument['id']!=self.instrument:self.assertEqual(self.command(11,target=instrument['id'],arg=0,ch=0,note=0,value=127)['status'],'ok')
+  self.assertEqual(self.command(11,target=self.instrument,arg=1,ch=1,note=1,value=127)['status'],'ok')
+  row=[self.instrument,*DEFAULTS[1:]];row[3]=120;row[5]=1;row[6]=1;row[7]=4;row[9]=1
+  cfg={'version':5,'configuration':[5,1,*row,0,0,0,1,0,*([0]*16),2]}
+  self.assertEqual(self.command(54,echo=cfg)['status'],'ok')
+  try:
+   self.assertEqual(self.command(3,ch=0,note=79,value=100)['status'],'ok');time.sleep(.03)
+   self.assertEqual(self.command(3,ch=0,note=79,value=0)['status'],'ok')
+   self.assertEqual(self.control.request()['activeNotes'],0,'physical source must stop before the delayed destination attack')
+   seen=False;retired=False;deadline=time.monotonic()+3
+   while time.monotonic()<deadline:
+    state=self.control.request();seen|=state['activeNotes']>0
+    if seen and not state['activeNotes'] and not state['echocityPending'] and not state['echocitySources']:retired=True;break
+    time.sleep(.005)
+   self.assertTrue(seen,'scheduled full echo never entered the destination native instrument')
+   self.assertTrue(retired,'full destination handoff left active notes or echo leases')
+  finally:
+   self.command(2);self.config([])
  def test_02_isolated_jack_echoes_and_order(self):
   if not self.jack:self.skipTest('Set ECHOCITY_JACK=1 for actual isolated JACK ports')
   row=[self.instrument,*DEFAULTS[1:]];row[3]=80;row[5]=.5;row[6]=1;row[9]=2

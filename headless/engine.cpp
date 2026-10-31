@@ -3745,7 +3745,7 @@ int main(int argc, char **argv) {
           if(!found){c=echocity::Configuration{};removed=true;}}
         if(removed)echoRuntime.configure(alive);
       }
-      state.echoConfig=echoRuntime.configuration();state.echoPending=echoRuntime.pending();state.echoSources=echoRuntime.sources();state.echoRejected=echoRuntime.rejected;
+      state.echoConfig=echoRuntime.configuration();state.echoPending=echoRuntime.pending()+fullEcho->queue.pending()+fullEcho->queue.leases();state.echoSources=echoRuntime.sources();state.echoRejected=echoRuntime.rejected;
       state.expressivePending=unsigned(expressiveStream->pending());state.expressiveRejected=expressiveStream->rejected;state.expressiveClamped=expressiveStream->clamped;
       outputCount=movementOutputCount;
       // Apply per-instrument HUMANIZER and VELOCITY CURVES after the native

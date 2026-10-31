@@ -22,10 +22,10 @@ struct Configuration {
   bool noRepeat=true;
   unsigned patternLength=0;
   std::array<uint8_t,16> pattern{};
-  bool destinationTransforms=false;
+  unsigned destinationTransforms=0;
 };
 inline bool valid(const Configuration &c){
-  if(unsigned(c.routing)>3 || c.channelMask>65535 || c.patternLength>16)return false;
+  if(unsigned(c.routing)>3 || c.channelMask>65535 || c.patternLength>16 || c.destinationTransforms>2)return false;
   for(auto ch:c.pattern)if(ch>15)return false;
   if((c.routing==Routing::Cycle || c.routing==Routing::Random) && !c.channelMask)return false;
   if(c.routing==Routing::Pattern && !c.patternLength)return false;

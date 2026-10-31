@@ -17,7 +17,7 @@ inline bool read(std::istream &in,Configurations &out){
       c.routing=Routing(routing);c.noRepeat=noRepeat;
       for(auto&ch:c.pattern){unsigned value;if(!(in>>value)||value>15)return false;ch=uint8_t(value);}
     }
-    if(version>=5){unsigned destination;if(!(in>>destination)||destination>1)return false;c.destinationTransforms=destination;}
+    if(version>=5){unsigned destination;if(!(in>>destination)||destination>2)return false;c.destinationTransforms=destination;}
     c.id=c.instrument;c.enabled=enabled;c.unit=TimeUnit(unit);c.pingPong=ping;
     if(!valid(c))return false;
     for(unsigned k=0;k<j;++k)if(next[k].instrument==c.instrument)return false;

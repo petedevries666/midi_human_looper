@@ -35,6 +35,7 @@ jobs:
         run: |
           bash scripts/once-retrigger-test.sh
           bash scripts/m5-hold-wrap-test.sh
+          bash scripts/echocity-native-test.sh
           c++ -std=c++17 -O1 -Wall -Wextra tests/echocity_runtime.cpp -o .build/echocity-runtime-test
           .build/echocity-runtime-test
           python3 tests/test_echocity_playable.py Wire

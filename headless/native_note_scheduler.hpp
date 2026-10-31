@@ -10,7 +10,7 @@
 #include <limits>
 
 namespace native_notes {
-enum class Origin : uint8_t { Live, Phrase };
+enum class Origin : uint8_t { Live, Phrase, Echo };
 struct SourceKey {
   uint32_t instrument = 0;
   Origin origin = Origin::Live;
@@ -107,7 +107,7 @@ struct Pair {
   uint8_t channel=0,pitch=0,velocity=0;
   bool followSource=false;
   double durationScale=1;
-  bool destinationTransforms=false;
+  uint8_t destinationTransforms=0;
 };
 struct Event {
   Owner owner{};
@@ -116,7 +116,7 @@ struct Event {
   uint32_t offset=0;
   uint8_t channel=0,pitch=0,velocity=0;
   bool on=false;
-  bool destinationTransforms=false;
+  uint8_t destinationTransforms=0;
 };
 enum class Refusal { None, InvalidSource, InvalidPair, Horizon, Capacity, Generation };
 

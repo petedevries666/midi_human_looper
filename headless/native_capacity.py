@@ -152,6 +152,8 @@ NATIVE_SNAPSHOT_PARAMETER_BASE=CONDUCTOR_BASE-12000;native_snapshot_pending=0;
     source = conductor_actions(source)
     from native_arp import extend
     source = extend(source)
+    from native_echo_destination import extend as destination
+    from native_echo_destination import extend as destination
     from native_echo_sources import extend as echo_sources
     from native_midi_thru_source import extend as midi_thru
     from native_phrase_tune import extend as phrase_tune
@@ -161,7 +163,7 @@ NATIVE_SNAPSHOT_PARAMETER_BASE=CONDUCTOR_BASE-12000;native_snapshot_pending=0;
     from native_phrase_modes import extend as phrase_modes
     from native_phrase_direction import extend as direction
     from native_randomization import extend as randomization
-    return randomization(direction(phrase_modes(bass_policy(phrase_rate(conductor_repeat(phrase_tune(midi_thru(echo_sources(source)))))))))
+    return destination(randomization(direction(phrase_modes(bass_policy(phrase_rate(conductor_repeat(phrase_tune(midi_thru(echo_sources(source))))))))))
 
 def constants(source):
     """Resolve numeric allocation declarations, never execute EEL code."""

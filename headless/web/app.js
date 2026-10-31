@@ -196,7 +196,7 @@ async function editEcho(instrument){
   [10,'PAS DE HAUTEUR',-48,48,1], [11,'PING-PONG',null,null,null,['OFF','ON']],
   [12,'AUTRE CANAL',null,null,null,Array.from({length:16},(_,i)=>String(i+1))],
   [14,'LECTURE',null,null,null,['FORWARD','REVERSE ALL','ALTERNATE','RANDOM CHAOS']],
-  [35,'TRAITEMENT DESTINATAIRE',null,null,null,['DIRECT','VIA INSTRUMENT · TRANSPOSE / RANGE / VELOCITY']]
+  [35,'TRAITEMENT DESTINATAIRE',null,null,null,['DIRECT','PITCH / VELOCITY','VIA INSTRUMENT · CHAÎNE COMPLÈTE']]
  ];
  for(const [index,label,min,max,step,choices] of fields){
   const row=node('label',label,'parameter'),input=node(choices?'select':'input');input.setAttribute('aria-label',`ECHOCITY ${label}`);
@@ -214,7 +214,7 @@ async function editEcho(instrument){
  for(let ch=0;ch<16;ch++){const b=button(String(ch+1),()=>{draft[16]^=1<<ch;refreshRouting();});b.setAttribute('aria-label',`ECHOCITY CANAL ${ch+1}`);channels.append(b);channelButtons.push(b);}
  const randomRow=node('label'),noRepeat=node('input');noRepeat.type='checkbox';noRepeat.checked=Boolean(draft[17]);noRepeat.onchange=()=>{draft[17]=Number(noRepeat.checked);};randomRow.append(noRepeat,document.createTextNode(' Sans répétition consécutive de canal dans une série (si plusieurs canaux)'));
  const patternRow=node('label','PATTERN · jusqu’à 16 canaux','parameter'),patternInput=node('input');patternInput.type='text';patternInput.setAttribute('aria-label','ECHOCITY PATTERN');patternInput.placeholder='2,3,2,4';patternInput.value=draft.slice(19,19+draft[18]).map(ch=>ch+1).join(',');patternRow.append(patternInput);
- const routeHelp=node('p','Chaque écho conserve sa note et son canal jusqu’au Note Off. VIA INSTRUMENT applique TRANSPOSE, RANGE et VELOCITY à la réception sur un autre instrument MBMF identifié par son canal OUT. Pas de nouvel ARP, de polyphonie ou d’ECHOCITY. Canal sans instrument ou partagé : écho ignoré. DRY ne change pas.');
+ const routeHelp=node('p','Chaque écho conserve sa note et son canal jusqu’au Note Off. VIA INSTRUMENT traverse la chaîne complète du destinataire identifié par son canal OUT, ARP et polyphonie compris, avec un bloc audio de délai supplémentaire. Son ECHOCITY est ignoré pour éviter les boucles. PITCH / VELOCITY applique seulement TRANSPOSE, RANGE et VELOCITY sur un autre instrument. Canal sans instrument ou partagé : écho ignoré. DRY ne change pas.');
  function refreshRouting(){
   destinations.hidden=![1,2].includes(draft[15]);randomRow.hidden=draft[15]!==2;patternRow.hidden=draft[15]!==3;
   inputs.get(11).closest('label').hidden=draft[15]!==0;inputs.get(12).closest('label').hidden=draft[15]!==0;

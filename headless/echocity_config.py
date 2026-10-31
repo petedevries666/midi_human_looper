@@ -29,7 +29,7 @@ def decode(extension):
             route=dict(zip(ROUTE_FIELDS,(routing,mask,no_repeat,length,pattern)))
         if width>=36:
             destination=values[35]
-            if type(destination) is not int or destination not in (0,1):raise ValueError('Invalid ECHOCITY destination transforms')
+            if type(destination) is not int or destination not in (0,1,2):raise ValueError('Invalid ECHOCITY destination transforms')
             route['destinationTransforms']=destination
         values=values[:14]
         identifier,enabled,unit,interval,first,wet,decay,gate,gate_decay,repeats,pitch,ping,ch,dry=values
@@ -46,7 +46,7 @@ def encode(units):
     for unit in units:
         if not isinstance(unit,dict) or set(FIELDS)-set(unit) or set(unit)-set(FIELDS)-{'traversal','destinationTransforms'}-set(ROUTE_FIELDS):raise ValueError('Complete ECHOCITY unit required')
         destination=unit.get('destinationTransforms',0)
-        if type(destination) is not int or destination not in (0,1):raise ValueError('Invalid ECHOCITY destination transforms')
+        if type(destination) is not int or destination not in (0,1,2):raise ValueError('Invalid ECHOCITY destination transforms')
         wire.extend(unit[key] for key in FIELDS)
         if version>=3:wire.append(unit.get('traversal',0))
         if version>=4:

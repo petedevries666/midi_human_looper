@@ -27,12 +27,19 @@ class Runtime {
   using DestinationTransform=bool(*)(void*,uint32_t,uint8_t,uint8_t&,uint8_t&);
   DestinationTransform destinationTransform=nullptr;
   void *destinationContext=nullptr;
+  using DestinationIngress=bool(*)(void*,const native_notes::Event&);
+  DestinationIngress destinationIngress=nullptr;
+  void *ingressContext=nullptr;
   template<class Emit> bool releaseDry(native_notes::Token token,uint64_t sample,Emit emit){
     auto &d=dry[token.slot];if(!d.leased || !(d.token==token))return true;
     if(!outputs.release(token,[&](bool on,uint8_t ch,uint8_t pitch,uint8_t velocity){return emit(sample,on,ch,pitch,velocity,false);})){d.pending=true;d.off=sample;failed=true;return false;}
     d.leased=d.pending=false;scheduler.sources.drop(token);return true;
   }
   template<class Emit> bool voice(const native_notes::Event &e,Emit emit){
+    if(e.destinationTransforms==2){
+      const bool ok=destinationIngress && destinationIngress(ingressContext,e);
+      if(!ok){failed=true;++rejected;}return ok;
+    }
     if(!e.on)return outputs.release(e.voice,[&](bool on,uint8_t ch,uint8_t pitch,uint8_t vel){return emit(e.sample,on,ch,pitch,vel,false);});
     Outputs::Routed note{0,e.channel,e.pitch,e.velocity};
     if(e.destinationTransforms && (!destinationTransform || !destinationTransform(destinationContext,e.owner.instrument,e.channel,note.pitch,note.velocity)))return true;
@@ -44,6 +51,7 @@ public:
   bool failed=false;
   explicit Runtime(unsigned sampleRate):scheduler(sampleRate),rate(sampleRate){}
   void setDestinationTransform(DestinationTransform transform,void *context){destinationTransform=transform;destinationContext=context;}
+  void setDestinationIngress(DestinationIngress ingress,void *context){destinationIngress=ingress;ingressContext=context;}
   const Configurations &configuration()const{return config;}
   bool hasConfiguration()const{for(const auto &c:config)if(c.id)return true;return false;}
   size_t pending()const{return scheduler.active()+fragments.pending();}
@@ -76,7 +84,7 @@ public:
       auto token=scheduler.sources.begin(e.key,sample);if(!token){++rejected;failed=true;return false;}
       scheduler.sources.retain(token);dry[token.slot]={token,0,true,false};
       unsigned velocity=e.velocity;
-      for(unsigned index=0;index<config.size();++index){const auto &c=config[index];if(c.id && c.instrument==e.key.instrument){
+      for(unsigned index=0;index<config.size();++index){const auto &c=config[index];if(e.key.origin!=Origin::Echo && c.id && c.instrument==e.key.instrument){
         if(c.enabled && c.wet>0 && c.traversal!=Traversal::Forward){
           velocity=unsigned(std::floor(e.velocity*c.dry+.5));
           if(!fragments.add(index,c,token,e.velocity,sample,tempo,scheduler)){++rejected;velocity=e.velocity;}
@@ -94,12 +102,12 @@ public:
         }break;
       }}
       const Outputs::Routed note{0,e.key.channel,e.key.pitch,uint8_t(velocity)};
-      if(velocity && !outputs.attackBatch(token,&note,1,[&](const Outputs::Routed *batch,size_t count){return count==1 && emit(sample,true,batch[0].channel,batch[0].pitch,batch[0].velocity,false);},false,e.key.origin==Origin::Live || (e.key.origin==Origin::Phrase && e.key.instance!=0))){failed=true;scheduler.cancelSource(token,sample,[&](const Event&v){return voice(v,emit);});releaseDry(token,sample,emit);return false;}
+      if(velocity && !outputs.attackBatch(token,&note,1,[&](const Outputs::Routed *batch,size_t count){return count==1 && emit(sample,true,batch[0].channel,batch[0].pitch,batch[0].velocity,false);},false,e.key.origin!=Origin::Phrase || e.key.instance!=0)){failed=true;scheduler.cancelSource(token,sample,[&](const Event&v){return voice(v,emit);});releaseDry(token,sample,emit);return false;}
       return true;
     }
     if(e.action==SourceAction::Off){
       auto token=scheduler.sources.oldestHeld(e.key);
-      if(!token && !e.key.instance){auto alternate=e.key;alternate.origin=e.key.origin==Origin::Live?Origin::Phrase:Origin::Live;token=scheduler.sources.oldestHeld(alternate);}
+      if(!token && !e.key.instance && e.key.origin!=Origin::Echo){auto alternate=e.key;alternate.origin=e.key.origin==Origin::Live?Origin::Phrase:Origin::Live;token=scheduler.sources.oldestHeld(alternate);}
       if(!token){++unmatched;return true;}
       if(!releaseDry(token,sample,emit))return false;
       return scheduler.sealSource(token,sample,sample);

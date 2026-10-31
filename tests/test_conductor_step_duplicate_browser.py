@@ -297,13 +297,13 @@ try:
             fresh=api.call()
             page.wait_for_function('rev=>revision===rev',arg=fresh['revision'])
             card.click();page.get_by_label('ECHOCITY ROUTAGE',exact=True).select_option(str(routing))
-            page.get_by_label('ECHOCITY TRAITEMENT DESTINATAIRE',exact=True).select_option('1')
+            page.get_by_label('ECHOCITY TRAITEMENT DESTINATAIRE',exact=True).select_option('2')
             if routing in (1,2):
                 page.get_by_role('button',name='ECHOCITY CANAL 2',exact=True).click()
                 page.get_by_role('button',name='ECHOCITY CANAL 5',exact=True).click()
             else:page.get_by_label('ECHOCITY PATTERN',exact=True).fill('2,5,2,16')
             page.locator('#editor-content').get_by_role('button',name='APPLIQUER',exact=True).click()
-            try:api.wait_for(lambda:api.call()['echocity']['version']==5 and api.call()['echocity']['configuration'][17]==routing and api.call()['echocity']['configuration'][-1]==1,'multichannel destination transforms committed')
+            try:api.wait_for(lambda:api.call()['echocity']['version']==5 and api.call()['echocity']['configuration'][17]==routing and api.call()['echocity']['configuration'][-1]==2,'multichannel destination transforms committed')
             except AssertionError:
                 print('MULTICHANNEL EDIT FAILURE',routing,api.call()['echocity'],page.locator('#editor-content').inner_text(),page.locator('#error').inner_text(),flush=True)
                 raise

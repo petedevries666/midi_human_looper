@@ -8,13 +8,13 @@ from server import Control
 
 class Wire(unittest.TestCase):
  def test_destination_transforms_roundtrip_and_refusals(self):
-  cfg={'version':5,'configuration':[5,1,1,*DEFAULTS[1:],0,0,0,1,0,*([0]*16),1]}
+  cfg={'version':5,'configuration':[5,1,1,*DEFAULTS[1:],0,0,0,1,0,*([0]*16),2]}
   self.assertEqual(encode(decode(cfg)),cfg)
-  for value in (-1,2,True,.5):
+  for value in (-1,3,True,.5):
    bad=copy.deepcopy(cfg);bad['configuration'][-1]=value
    with self.assertRaises(ValueError):decode(bad)
   unit=decode(cfg)[0]
-  for value in (-1,2,True,.5):
+  for value in (-1,3,True,.5):
    unit['destinationTransforms']=value
    with self.assertRaises(ValueError):encode([unit])
  def test_multichannel_roundtrip_and_refusals(self):
@@ -116,7 +116,7 @@ class RealEngine(unittest.TestCase):
   self.assertEqual(self.export()['echocity'],cfg)
   self.config([])
  def test_01d_destination_transforms_persistence(self):
-  cfg={'version':5,'configuration':[5,1,self.instrument,*DEFAULTS[1:],0,0,0,1,0,*([0]*16),1]}
+  cfg={'version':5,'configuration':[5,1,self.instrument,*DEFAULTS[1:],0,0,0,1,0,*([0]*16),2]}
   self.assertEqual(self.command(54,echo=cfg)['status'],'ok');saved=self.export();self.assertEqual(saved['echocity'],cfg)
   self.config([]);self.assertEqual(self.command(5,target=8,patch=saved)['status'],'ok');self.assertEqual(self.export()['echocity'],cfg)
   self.config([])

@@ -11,6 +11,7 @@
 #include "panic_sweep.hpp"
 #include "phrase_trim.hpp"
 #include "echocity_runtime.hpp"
+#include "echocity_destination_queue.hpp"
 #include "snapshot_wire.hpp"
 #include "native_expressive_config.hpp"
 #include "midi_thru.hpp"
@@ -2077,6 +2078,32 @@ int main(int argc, char **argv) {
     Snapshot state;
     std::unique_ptr<echocity::Runtime> echoStorage(new echocity::Runtime(sampleRate));
     auto &echoRuntime=*echoStorage;
+    struct FullEchoDestination {
+      Model *model=nullptr;uint64_t sample=0;unsigned frames=0;
+      echocity::DestinationQueue queue;
+      EEL_F *count=nullptr,*read=nullptr,*epoch=nullptr;double lastEpoch=0;
+      std::array<EEL_F*,512*9> cells{};
+    };
+    auto fullEcho=std::make_unique<FullEchoDestination>();fullEcho->model=&model;
+    if(chainMode && model.schema==8){
+      auto available=ysfx_find_var(fx,"native_destination_available");
+      if(!available || *available!=1)throw std::runtime_error("ECHOCITY full destination ingress unavailable");
+      fullEcho->count=NSEEL_VM_regvar(fx->vm.get(),"native_destination_count");
+      fullEcho->read=NSEEL_VM_regvar(fx->vm.get(),"native_destination_read");
+      fullEcho->epoch=NSEEL_VM_regvar(fx->vm.get(),"native_destination_epoch");fullEcho->lastEpoch=*fullEcho->epoch;
+      for(unsigned j=0;j<fullEcho->cells.size();++j)fullEcho->cells[j]=cell(fx,29060000+j);
+      echoRuntime.setDestinationIngress([](void*context,const native_notes::Event&e){
+        auto &target=*static_cast<FullEchoDestination*>(context);
+        const unsigned offset=unsigned(e.sample>=target.sample?std::min<uint64_t>(target.frames-1,e.sample-target.sample):0);
+        if(!e.on)return target.queue.release(e,offset);
+        int destination=-1;
+        for(unsigned j=0;j<8;++j)if(*target.model->inst[j][0]>.5 && *target.model->inst[j][2]>.5 && unsigned(*target.model->inst[j][4])==unsigned(e.channel)+1){
+          if(destination>=0)return true;destination=int(j);
+        }
+        if(destination<0)return true;
+        return target.queue.attack(e,unsigned(*target.model->inst[destination][1]),offset);
+      },fullEcho.get());
+    }
     struct EchoDestination {
       Model *model=nullptr;
       EEL_F *instrument=nullptr,*pitch=nullptr,*velocity=nullptr;
@@ -2575,7 +2602,7 @@ int main(int argc, char **argv) {
       };
       bool recovering = overflowRecovery;
       if(echoRecovering && !panicSweep.remaining()){
-        echoRuntime.recovered();echoRecovering=false;*echoRead=*echoWrite=*echoOverflow=0;
+        echoRuntime.recovered();fullEcho->queue.reset();if(fullEcho->count)*fullEcho->count=*fullEcho->read=0;echoRecovering=false;*echoRead=*echoWrite=*echoOverflow=0;
         held.fill(false);state.active=0;
       }
       overflowRecovery = false;
@@ -3550,8 +3577,21 @@ int main(int argc, char **argv) {
       chain.finishSwitchStop();
       trace.mark(5);
       controllers.rawCCMasks(revealMasks);for(unsigned cc=0;cc<128;++cc){*revealMaskCells[cc]=revealMasks[cc];*revealMaskCells[128+cc]=0;}*revealExisting=revealMasks[7];*revealReserved=0;*revealFree=controllers.freeTargets();*nativeControlCount=0;
+      if(fullEcho->count){
+        if(*fullEcho->epoch!=fullEcho->lastEpoch){fullEcho->queue.reset();fullEcho->lastEpoch=*fullEcho->epoch;}
+        *fullEcho->count=0;*fullEcho->read=0;
+        fullEcho->queue.drain([&](const echocity::DestinationQueue::Entry&e){
+          const unsigned b=unsigned(*fullEcho->count)*9;
+          *fullEcho->cells[b]=e.voice.slot;*fullEcho->cells[b+1]=double(e.voice.generation);*fullEcho->cells[b+2]=e.target;
+          *fullEcho->cells[b+3]=e.channel;*fullEcho->cells[b+4]=e.pitch;*fullEcho->cells[b+5]=e.velocity;
+          *fullEcho->cells[b+6]=e.on;*fullEcho->cells[b+7]=std::min<unsigned>(frames-1,e.offset);*fullEcho->cells[b+8]=0;
+          *fullEcho->count+=1;
+        });
+      }
+      fullEcho->sample=state.samples;fullEcho->frames=frames;
       if(nativeClearCursor==nativeClearPages.size())
         ysfx_process_float(fx, nullptr, nullptr, 0, 0, frames);
+      if(fullEcho->epoch && *fullEcho->epoch!=fullEcho->lastEpoch){fullEcho->queue.reset();fullEcho->lastEpoch=*fullEcho->epoch;}
       trace.mark(6);
       // The shared output buffer rejected an owned event: cancel queued attacks
       // through the existing native emergency recovery on the next callback.

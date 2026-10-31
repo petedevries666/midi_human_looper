@@ -7,6 +7,16 @@ from native_capacity import build_source,layout
 from server import Control
 
 class Wire(unittest.TestCase):
+ def test_destination_transforms_roundtrip_and_refusals(self):
+  cfg={'version':5,'configuration':[5,1,1,*DEFAULTS[1:],0,0,0,1,0,*([0]*16),1]}
+  self.assertEqual(encode(decode(cfg)),cfg)
+  for value in (-1,2,True,.5):
+   bad=copy.deepcopy(cfg);bad['configuration'][-1]=value
+   with self.assertRaises(ValueError):decode(bad)
+  unit=decode(cfg)[0]
+  for value in (-1,2,True,.5):
+   unit['destinationTransforms']=value
+   with self.assertRaises(ValueError):encode([unit])
  def test_multichannel_roundtrip_and_refusals(self):
   for routing in (0,1,2,3):
    cfg={'version':4,'configuration':[4,1,1,*DEFAULTS[1:],2,routing,18,1,4,1,4,1,15,*([0]*12)]}
@@ -104,6 +114,11 @@ class RealEngine(unittest.TestCase):
   bad=copy.deepcopy(cfg);bad['configuration'][2+19]=16
   with self.assertRaises(ValueError):self.command(54,echo=bad)
   self.assertEqual(self.export()['echocity'],cfg)
+  self.config([])
+ def test_01d_destination_transforms_persistence(self):
+  cfg={'version':5,'configuration':[5,1,self.instrument,*DEFAULTS[1:],0,0,0,1,0,*([0]*16),1]}
+  self.assertEqual(self.command(54,echo=cfg)['status'],'ok');saved=self.export();self.assertEqual(saved['echocity'],cfg)
+  self.config([]);self.assertEqual(self.command(5,target=8,patch=saved)['status'],'ok');self.assertEqual(self.export()['echocity'],cfg)
   self.config([])
  def test_02_isolated_jack_echoes_and_order(self):
   if not self.jack:self.skipTest('Set ECHOCITY_JACK=1 for actual isolated JACK ports')

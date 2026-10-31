@@ -22,6 +22,11 @@ class Runtime {
   std::array<uint32_t,8> cancelled{};
   unsigned rate;
   bool clear=false;
+  // Bound once at startup. The host computes pitch/velocity without MIDI
+  // re-injection; ECHOCITY cannot recursively feed itself through this hook.
+  using DestinationTransform=bool(*)(void*,uint32_t,uint8_t,uint8_t&,uint8_t&);
+  DestinationTransform destinationTransform=nullptr;
+  void *destinationContext=nullptr;
   template<class Emit> bool releaseDry(native_notes::Token token,uint64_t sample,Emit emit){
     auto &d=dry[token.slot];if(!d.leased || !(d.token==token))return true;
     if(!outputs.release(token,[&](bool on,uint8_t ch,uint8_t pitch,uint8_t velocity){return emit(sample,on,ch,pitch,velocity,false);})){d.pending=true;d.off=sample;failed=true;return false;}
@@ -29,7 +34,8 @@ class Runtime {
   }
   template<class Emit> bool voice(const native_notes::Event &e,Emit emit){
     if(!e.on)return outputs.release(e.voice,[&](bool on,uint8_t ch,uint8_t pitch,uint8_t vel){return emit(e.sample,on,ch,pitch,vel,false);});
-    const Outputs::Routed note{0,e.channel,e.pitch,e.velocity};
+    Outputs::Routed note{0,e.channel,e.pitch,e.velocity};
+    if(e.destinationTransforms && (!destinationTransform || !destinationTransform(destinationContext,e.owner.instrument,e.channel,note.pitch,note.velocity)))return true;
     const bool ok=outputs.attackBatch(e.voice,&note,1,[&](const Outputs::Routed *batch,size_t count){return count==1 && emit(e.sample,true,batch[0].channel,batch[0].pitch,batch[0].velocity,batch[0].retrigger);},true);
     if(!ok){failed=true;++rejected;}return ok;
   }
@@ -37,6 +43,7 @@ public:
   uint64_t rejected=0,unmatched=0;
   bool failed=false;
   explicit Runtime(unsigned sampleRate):scheduler(sampleRate),rate(sampleRate){}
+  void setDestinationTransform(DestinationTransform transform,void *context){destinationTransform=transform;destinationContext=context;}
   const Configurations &configuration()const{return config;}
   bool hasConfiguration()const{for(const auto &c:config)if(c.id)return true;return false;}
   size_t pending()const{return scheduler.active()+fragments.pending();}

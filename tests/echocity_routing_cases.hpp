@@ -1,4 +1,26 @@
 static void routingTests(){
+ // Transform wet attacks at delivery, then release the captured final pitch.
+ // A filtered destination must neither mute DRY nor create an orphan Off.
+ for(bool filtered:{false,true}){
+  Runtime r(8000);Output out;auto emit=[&](auto...args){return out(args...);};auto c=settings();
+  c[0].destinationTransforms=true;c[0].routing=Routing::Cycle;c[0].channelMask=2;c[0].repeats=1;
+  struct Target {int transpose=12;bool filtered=false;unsigned calls=0;} target;target.filtered=filtered;
+  r.setDestinationTransform([](void*context,uint32_t origin,uint8_t ch,uint8_t&pitch,uint8_t&vel){
+   auto&t=*static_cast<Target*>(context);++t.calls;CHECK(origin==1&&ch==1);
+   if(t.filtered)return false;pitch=uint8_t(pitch+t.transpose);vel=25;return true;
+  },&target);r.configure(c);
+  realtime=true;CHECK(r.source(edge(true),0,120,emit));CHECK(r.source(edge(false),40,120,emit));
+  r.render(0,81,emit);target.transpose=-12;r.render(81,175,emit);realtime=false;
+  CHECK(target.calls==1&&!r.failed&&!r.pending()&&!r.sources()&&!allocations);
+  CHECK(out.count==(filtered?2u:4u));CHECK(out.events[0].pitch==60&&out.events[0].velocity==100);
+  if(!filtered){CHECK(out.events[2].on&&out.events[2].pitch==72&&out.events[2].velocity==25);CHECK(!out.events[3].on&&out.events[3].pitch==72);}
+ }
+ {
+  Configurations original{};auto &c=original[0];c.id=c.instrument=1;c.destinationTransforms=true;
+  const auto text=json(original);CHECK(text.find("\"version\":5")!=std::string::npos);
+  auto start=text.find('['),end=text.find(']');auto wire=text.substr(start+1,end-start-1);std::replace(wire.begin(),wire.end(),',',' ');
+  Configurations restored{};std::istringstream in(wire);CHECK(read(in,restored));CHECK(restored[0].destinationTransforms);
+ }
  for(auto traversal:{Traversal::Forward,Traversal::ReverseAll,Traversal::Alternate,Traversal::RandomChaos})
  for(auto routing:{Routing::Cycle,Routing::Random,Routing::Pattern}){
   Runtime r(8000);Output out;auto emit=[&](auto...args){return out(args...);};auto c=settings();

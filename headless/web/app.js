@@ -169,20 +169,20 @@ document.addEventListener('pointerdown',e=>{const d=$('editor');if(d.open&&d.dat
 function editInstrument(i){const d=descriptor(0);if(!d)return;edit(d,i,d.parameters.map(id=>{const p=catalog.parameters.find(p=>p.id===id),canonical=parameter({enabled:21,input:22,output:23}[id]);const display=canonical?{...p,valueType:canonical.valueType,choices:canonical.choices}:p;return {descriptor:display,value:i[p.engineField],assignment:0};}),null);}
 function echoUnits(){
  const extension=latest?.echocity,wire=extension?.configuration;
- const width=extension?.version===1?13:extension?.version===4?35:extension?.version===3?15:14;
- if(![1,2,3,4].includes(extension?.version)||!Array.isArray(wire)||wire[0]!==extension.version||!Number.isInteger(wire[1])||wire[1]<0||wire[1]>8||wire.length!==2+width*wire[1])return null;
- return Array.from({length:wire[1]},(_,j)=>{const row=wire.slice(2+j*width,2+(j+1)*width);if(width===13)row.push(1-row[5]);if(width<15)row.push(0);if(width<35)row.push(0,0,1,0,...Array(16).fill(0));return row;});
+ const width=extension?.version===1?13:extension?.version===5?36:extension?.version===4?35:extension?.version===3?15:14;
+ if(![1,2,3,4,5].includes(extension?.version)||!Array.isArray(wire)||wire[0]!==extension.version||!Number.isInteger(wire[1])||wire[1]<0||wire[1]>8||wire.length!==2+width*wire[1])return null;
+ return Array.from({length:wire[1]},(_,j)=>{const row=wire.slice(2+j*width,2+(j+1)*width);if(width===13)row.push(1-row[5]);if(width<15)row.push(0);if(width<35)row.push(0,0,1,0,...Array(16).fill(0));if(width<36)row.push(0);return row;});
 }
 async function commitEcho(instrumentId,unit,expectedRevision=revision){
  const units=echoUnits();if(!units){$('error').textContent='Format ECHOCITY indisponible ; configuration conservée.';return false;}
  const next=units.filter(v=>v[0]!==instrumentId);if(unit)next.push(unit);next.sort((a,b)=>a[0]-b[0]);
- const version=next.some(v=>v[15]||v[16]||v[18])?4:next.some(v=>v[14])?3:2,rows=next.map(v=>v.slice(0,version===4?35:version===3?15:14));
+ const version=next.some(v=>v[35])?5:next.some(v=>v[15]||v[16]||v[18])?4:next.some(v=>v[14])?3:2,rows=next.map(v=>v.slice(0,version===5?36:version===4?35:version===3?15:14));
  return command({action:'echocity_commit',expectedRevision,echocity:{version,configuration:[version,rows.length,...rows.flat()]}});
 }
 async function editEcho(instrument){
  const dialog=$('editor');if(dialog.open){if(dialog.dataset.kind!=='module')return;if(await window.mbmfModuleFlush?.()===false)return;dialog.close();}
  const units=echoUnits();if(!units)return;
- const draft=[...(units.find(v=>v[0]===instrument.id)||[instrument.id,1,0,250,1,.5,.7,1,1,4,0,0,1,1,0,0,0,1,0,...Array(16).fill(0)])];
+ const draft=[...(units.find(v=>v[0]===instrument.id)||[instrument.id,1,0,250,1,.5,.7,1,1,4,0,0,1,1,0,0,0,1,0,...Array(16).fill(0),0])];
  const session=engineSession,rev=revision,content=$('editor-content');let applying=false;
  selectedModule={instrumentId:instrument.id,moduleId:'ECHOCITY'};
  for(const card of document.querySelectorAll('.module'))card.classList.toggle('selected',Number(card.dataset.instrumentId)===instrument.id&&card.dataset.moduleId==='ECHOCITY');
@@ -195,7 +195,8 @@ async function editEcho(instrument){
   [7,'GATE',0,4,.01], [8,'DÉCROISSANCE GATE',0,1,.01],
   [10,'PAS DE HAUTEUR',-48,48,1], [11,'PING-PONG',null,null,null,['OFF','ON']],
   [12,'AUTRE CANAL',null,null,null,Array.from({length:16},(_,i)=>String(i+1))],
-  [14,'LECTURE',null,null,null,['FORWARD','REVERSE ALL','ALTERNATE','RANDOM CHAOS']]
+  [14,'LECTURE',null,null,null,['FORWARD','REVERSE ALL','ALTERNATE','RANDOM CHAOS']],
+  [35,'TRAITEMENT DESTINATAIRE',null,null,null,['DIRECT','VIA INSTRUMENT · TRANSPOSE / RANGE / VELOCITY']]
  ];
  for(const [index,label,min,max,step,choices] of fields){
   const row=node('label',label,'parameter'),input=node(choices?'select':'input');input.setAttribute('aria-label',`ECHOCITY ${label}`);
@@ -213,9 +214,9 @@ async function editEcho(instrument){
  for(let ch=0;ch<16;ch++){const b=button(String(ch+1),()=>{draft[16]^=1<<ch;refreshRouting();});b.setAttribute('aria-label',`ECHOCITY CANAL ${ch+1}`);channels.append(b);channelButtons.push(b);}
  const randomRow=node('label'),noRepeat=node('input');noRepeat.type='checkbox';noRepeat.checked=Boolean(draft[17]);noRepeat.onchange=()=>{draft[17]=Number(noRepeat.checked);};randomRow.append(noRepeat,document.createTextNode(' Sans répétition consécutive de canal dans une série (si plusieurs canaux)'));
  const patternRow=node('label','PATTERN · jusqu’à 16 canaux','parameter'),patternInput=node('input');patternInput.type='text';patternInput.setAttribute('aria-label','ECHOCITY PATTERN');patternInput.placeholder='2,3,2,4';patternInput.value=draft.slice(19,19+draft[18]).map(ch=>ch+1).join(',');patternRow.append(patternInput);
- const routeHelp=node('p','Chaque écho conserve son canal jusqu’au Note Off. DRY ne change pas. Les canaux doivent être reliés à leurs instruments dans Zynthian.');
+ const routeHelp=node('p','Chaque écho conserve sa note et son canal jusqu’au Note Off. VIA INSTRUMENT applique TRANSPOSE, RANGE et VELOCITY à la réception sur un autre instrument MBMF identifié par son canal OUT. Pas de nouvel ARP, de polyphonie ou d’ECHOCITY. Canal sans instrument ou partagé : écho ignoré. DRY ne change pas.');
  function refreshRouting(){
-  destinations.hidden=![1,2].includes(draft[15]);randomRow.hidden=draft[15]!==2;patternRow.hidden=draft[15]!==3;routeHelp.hidden=draft[15]===0;
+  destinations.hidden=![1,2].includes(draft[15]);randomRow.hidden=draft[15]!==2;patternRow.hidden=draft[15]!==3;
   inputs.get(11).closest('label').hidden=draft[15]!==0;inputs.get(12).closest('label').hidden=draft[15]!==0;
   channelButtons.forEach((b,ch)=>{const selected=Boolean(draft[16]&(1<<ch));b.setAttribute('aria-pressed',String(selected));b.style.color=selected?'#fff600':'';b.style.borderColor=selected?'#fff600':'';});
  }

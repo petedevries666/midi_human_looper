@@ -60,7 +60,7 @@ jobs:
           python3 tests/test_conductor_persistence.py
           python3 tests/test_phrase_tune.py
           python3 tests/test_zynthian_update.py
-          python3 tests/test_echocity_playable.py RealEngine.test_01_configuration_persistence RealEngine.test_01b_fragment_carrier_persistence RealEngine.test_01c_multichannel_carrier_persistence
+          python3 tests/test_echocity_playable.py RealEngine.test_01_configuration_persistence RealEngine.test_01b_fragment_carrier_persistence RealEngine.test_01c_multichannel_carrier_persistence RealEngine.test_01d_destination_transforms_persistence
           python3 tests/test_conductor_gestures_native.py
           python3 tests/test_conductor_reveal_native.py
           .build/test-venv/bin/python tests/test_conductor_legacy_contract.py

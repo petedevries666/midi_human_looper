@@ -107,6 +107,7 @@ struct Pair {
   uint8_t channel=0,pitch=0,velocity=0;
   bool followSource=false;
   double durationScale=1;
+  bool destinationTransforms=false;
 };
 struct Event {
   Owner owner{};
@@ -115,6 +116,7 @@ struct Event {
   uint32_t offset=0;
   uint8_t channel=0,pitch=0,velocity=0;
   bool on=false;
+  bool destinationTransforms=false;
 };
 enum class Refusal { None, InvalidSource, InvalidPair, Horizon, Capacity, Generation };
 
@@ -149,7 +151,7 @@ template<size_t VoiceCapacity=256,size_t SourceCapacity=256> class Scheduler {
   }
   Event event(Token token,uint64_t sample,uint64_t blockStart,bool on) {
     const auto &v=*get(token);const auto &p=v.pair;
-    return {p.owner,token,v.source,sample,uint32_t(sample-blockStart),p.channel,p.pitch,uint8_t(on?p.velocity:0),on};
+    return {p.owner,token,v.source,sample,uint32_t(sample-blockStart),p.channel,p.pitch,uint8_t(on?p.velocity:0),on,p.destinationTransforms};
   }
   template<class Emit> bool cancelOne(size_t i,uint64_t sample,Emit emit){
     auto &v=voices[i];Token token{uint32_t(i),v.generation,TokenDomain::Voice};v.cancelled=true;

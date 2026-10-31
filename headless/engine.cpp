@@ -2077,6 +2077,36 @@ int main(int argc, char **argv) {
     Snapshot state;
     std::unique_ptr<echocity::Runtime> echoStorage(new echocity::Runtime(sampleRate));
     auto &echoRuntime=*echoStorage;
+    struct EchoDestination {
+      Model *model=nullptr;
+      EEL_F *instrument=nullptr,*pitch=nullptr,*velocity=nullptr;
+      NSEEL_CODEHANDLE code=nullptr;
+      ~EchoDestination(){if(code)NSEEL_code_free(code);}
+    } echoDestination;
+    if(chainMode && model.schema==8){
+      echoDestination.model=&model;
+      echoDestination.instrument=NSEEL_VM_regvar(fx->vm.get(),"native_echo_target_instrument");
+      echoDestination.pitch=NSEEL_VM_regvar(fx->vm.get(),"native_echo_target_pitch");
+      echoDestination.velocity=NSEEL_VM_regvar(fx->vm.get(),"native_echo_target_velocity");
+      echoDestination.code=NSEEL_code_compile(fx->vm.get(),
+        "native_echo_target_pitch=tf_pitch(native_echo_target_instrument,native_echo_target_pitch);"
+        "native_echo_target_velocity=tf_velocity(native_echo_target_instrument,native_echo_target_velocity,1);",0);
+      if(!echoDestination.code)throw std::runtime_error("ECHOCITY destination transforms");
+      echoRuntime.setDestinationTransform([](void *context,uint32_t source,uint8_t channel,uint8_t &pitch,uint8_t &velocity){
+        auto &target=*static_cast<EchoDestination*>(context);int destination=-1;
+        // Only explicit, unique OUT channels identify a receiving instrument.
+        // Input channels can intentionally be shared and are not destinations.
+        for(unsigned j=0;j<8;++j)if(*target.model->inst[j][0]>.5 && *target.model->inst[j][2]>.5 && unsigned(*target.model->inst[j][4])==unsigned(channel)+1){
+          if(destination>=0)return false;destination=int(j);
+        }
+        if(destination<0)return false;
+        if(unsigned(*target.model->inst[destination][1])==source)return true;
+        *target.instrument=destination;*target.pitch=pitch;*target.velocity=velocity;
+        NSEEL_code_execute(target.code);
+        if(!std::isfinite(*target.pitch) || *target.pitch<0 || *target.pitch>127 || !std::isfinite(*target.velocity) || *target.velocity<1 || *target.velocity>127)return false;
+        pitch=uint8_t(*target.pitch);velocity=uint8_t(*target.velocity);return true;
+      },&echoDestination);
+    }
     std::unique_ptr<expressive::StreamRuntime<256>> expressiveStream(
         new expressive::StreamRuntime<256>(sampleRate));
     bool expressiveCancelPending=false;

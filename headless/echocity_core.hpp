@@ -22,6 +22,7 @@ struct Configuration {
   bool noRepeat=true;
   unsigned patternLength=0;
   std::array<uint8_t,16> pattern{};
+  bool destinationTransforms=false;
 };
 inline bool valid(const Configuration &c){
   if(unsigned(c.routing)>3 || c.channelMask>65535 || c.patternLength>16)return false;
@@ -109,6 +110,7 @@ public:
       if(p.start<now || p.start>p.end)return reject();
       p.channel=(*repeatChannels)[repeat];
       p.pitch=uint8_t(nextPitch);p.velocity=uint8_t(nextVelocity);p.followSource=true;p.durationScale=gate;
+      p.destinationTransforms=config.destinationTransforms;
       if(!parent->held || gate==0){
         const double duration=gate==0?0:std::min(double(scheduler.maxHorizon()),double(parent->end-parent->start)*gate);
         const uint64_t length=uint64_t(std::floor(duration+.5));

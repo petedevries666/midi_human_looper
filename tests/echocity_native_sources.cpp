@@ -4,6 +4,7 @@
 #include "../headless/echocity_source_journal.hpp"
 #include <algorithm>
 #include <limits>
+#include "../headless/echocity_runtime.hpp"
 
 using echocity::SourceEvent;
 using echocity::SourceAction;
@@ -77,8 +78,10 @@ static void decoderTests(){
   row[5]=128;check(!echocity::decodeSource(row,e,128),"right block edge refused by wire decoder");
   row[5]=0;row[2]=1;check(!echocity::decodeSource(row,e,128),"live source cannot impersonate phrase instance");
 }
+#include "echocity_destination_cases.hpp"
 int main(int argc,char**argv){
   check(argc==2,"generated native source argument");decoderTests();
+  destinationTests(argv[1]);
   for(unsigned rate:{44100u,48000u}){
     const unsigned frames=rate==44100?512:128;
     NativeHost h(argv[1],true,rate,frames);echocity::SourceBridge<> bridge(rate);std::vector<native_notes::Event> delayed;

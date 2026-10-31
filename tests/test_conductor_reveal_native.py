@@ -13,9 +13,11 @@ class Reveal(Gestures):
         self.reveal=self.model['switches'][0]['steps'][0]['layers'][1]['block']
         self.reveal['overrides']['entry']=dict(mode='OVERRIDE',value='REVEAL')
         # Separate actual recorded destinations, not an instrument OUT mutation.
+        first=self.c.request(op=35,target=0,arg=0,revision=-1)['phraseData']
         state=self.call()
         result=self.c.request(op=35,target=1,arg=1,phrase=dict(lengthSeconds=30,events=[[0,145,72,100],[29,129,72,0]]),revision=state['revision'],session=state['engineSessionId'])
         self.assertEqual(result['status'],'ok')
+        self.assertEqual(self.c.request(op=35,target=0,arg=0,revision=-1)['phraseData'],first,'import must not overwrite another source through an unavailable native cache')
         # End a physical pedal gesture left held by the preceding test.
         self.up()
 
@@ -49,7 +51,8 @@ class Reveal(Gestures):
         self.command('phrase_output',phraseId=2,channel=17)
         self.commit();self.down()
         self.wait_for(lambda:self.call()['reveals'] and self.call()['reveals'][0]['ownedChannels']==65535,'ALL CC7 targets reserved before attacks')
-        self.assertEqual(self.call()['activeNotes'],17,'one bass + sixteen actual broadcast pad attacks')
+        observed=self.call()
+        self.assertEqual(observed['activeNotes'],17,'one bass + sixteen actual broadcast pad attacks: '+__import__('json').dumps({k:observed.get(k) for k in ('schemaVersion','nativePhraseDirection','activeNotes','instances','reveals','phrases','outputOverflow')}))
         self.assertEqual(self.export(2),original,'routing must not bake CC7 or remap source MIDI')
         self.command('phrase_stop',phraseId=2)
         self.wait_for(lambda:not self.call()['reveals'],'targeted STOP releases all CC7 leases')

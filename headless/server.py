@@ -343,6 +343,7 @@ class Handler(BaseHTTPRequestHandler):
                  '/midi-thru.js': ('midi-thru.js', 'text/javascript; charset=utf-8'),
                  '/midi-thru.css': ('midi-thru.css', 'text/css; charset=utf-8'),
                  '/block-tools.js': ('block-tools.js', 'text/javascript; charset=utf-8'),
+                 '/phrase-randomization.js': ('phrase-randomization.js', 'text/javascript; charset=utf-8'),
                  '/conductor.js': ('conductor.js', 'text/javascript; charset=utf-8'),
                  '/movement.js': ('movement.js', 'text/javascript; charset=utf-8'),
                  '/update.js': ('update.js', 'text/javascript; charset=utf-8'),
@@ -713,10 +714,10 @@ class Handler(BaseHTTPRequestHandler):
                 target=data.get('phraseId')
                 if type(target) is not int or not 1<=target<=128:raise ValueError()
                 args=dict(op=40,target=target-1,arg=5)
-            elif action in ('phrase_play','phrase_record','phrase_finish','phrase_clear','phrase_release','phrase_cancel'):
+            elif action in ('phrase_play','phrase_record','phrase_finish','phrase_clear','phrase_trim','phrase_release','phrase_cancel'):
                 target=data.get('phraseId')
                 if type(target) is not int or not 1<=target<=128:raise ValueError('invalid phrase')
-                args=dict(op=40,target=target-1,arg=4) if action=='phrase_release' else dict(op=35,target=target-1,arg=2) if action=='phrase_clear' else dict(op={'phrase_play':6,'phrase_record':7,'phrase_finish':8}[action],target=target-1)
+                args=dict(op=40,target=target-1,arg=4) if action=='phrase_release' else dict(op=35,target=target-1,arg=3) if action=='phrase_trim' else dict(op=35,target=target-1,arg=2) if action=='phrase_clear' else dict(op={'phrase_play':6,'phrase_record':7,'phrase_finish':8}[action],target=target-1)
             elif action == 'midi':
                 channel, note, value = data.get('channel'), data.get('note'), data.get('value')
                 if any(type(v) is not int for v in (channel, note, value)) or not (1 <= channel <= 16 and 0 <= note <= 127 and 0 <= value <= 127):

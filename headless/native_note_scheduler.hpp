@@ -10,7 +10,7 @@
 #include <limits>
 
 namespace native_notes {
-enum class Origin : uint8_t { Live, Phrase };
+enum class Origin : uint8_t { Live, Phrase, Echo };
 struct SourceKey {
   uint32_t instrument = 0;
   Origin origin = Origin::Live;
@@ -47,7 +47,7 @@ public:
   }
   Token begin(SourceKey key, uint64_t sample) {
     if(!key.instrument || key.channel>15 || key.pitch>127 ||
-       (key.origin!=Origin::Live && key.origin!=Origin::Phrase) || generation==UINT64_MAX)return {};
+       (key.origin!=Origin::Live && key.origin!=Origin::Phrase && key.origin!=Origin::Echo) || generation==UINT64_MAX)return {};
     for(size_t i=0;i<Capacity;++i)if(!rows[i].used){
       auto &r=rows[i];r=Record{};r.key=key;r.start=sample;r.order=r.generation=++generation;r.used=r.held=true;
       return {uint32_t(i),r.generation,TokenDomain::Source};
@@ -107,6 +107,7 @@ struct Pair {
   uint8_t channel=0,pitch=0,velocity=0;
   bool followSource=false;
   double durationScale=1;
+  uint8_t destinationTransforms=0;
 };
 struct Event {
   Owner owner{};
@@ -115,6 +116,7 @@ struct Event {
   uint32_t offset=0;
   uint8_t channel=0,pitch=0,velocity=0;
   bool on=false;
+  uint8_t destinationTransforms=0;
 };
 enum class Refusal { None, InvalidSource, InvalidPair, Horizon, Capacity, Generation };
 
@@ -149,7 +151,7 @@ template<size_t VoiceCapacity=256,size_t SourceCapacity=256> class Scheduler {
   }
   Event event(Token token,uint64_t sample,uint64_t blockStart,bool on) {
     const auto &v=*get(token);const auto &p=v.pair;
-    return {p.owner,token,v.source,sample,uint32_t(sample-blockStart),p.channel,p.pitch,uint8_t(on?p.velocity:0),on};
+    return {p.owner,token,v.source,sample,uint32_t(sample-blockStart),p.channel,p.pitch,uint8_t(on?p.velocity:0),on,p.destinationTransforms};
   }
   template<class Emit> bool cancelOne(size_t i,uint64_t sample,Emit emit){
     auto &v=voices[i];Token token{uint32_t(i),v.generation,TokenDomain::Voice};v.cancelled=true;
@@ -166,6 +168,7 @@ public:
   Refusal lastRefusal=Refusal::None;
   explicit Scheduler(unsigned sampleRate=48000):horizon(uint64_t(sampleRate)*60){}
   size_t pending()const{return count;}
+  size_t available()const{return std::min({VoiceCapacity-active(),(heap.size()-count)/2,size_t(std::min<uint64_t>(VoiceCapacity,std::min<uint64_t>(UINT64_MAX-generation,(UINT64_MAX-ordinal)/2)))});}
   uint64_t maxHorizon()const{return horizon;}
   size_t active()const{size_t n=0;for(const auto &v:voices)n+=v.used;return n;}
   // A batch represents one musical generation. Both edges of EVERY pair are

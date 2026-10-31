@@ -3,6 +3,8 @@
 
 namespace echocity {
 enum class TimeUnit : uint8_t { Milliseconds, Beats };
+enum class Traversal : uint8_t { Forward, ReverseAll, Alternate, RandomChaos };
+enum class Routing : uint8_t { Legacy, Cycle, Random, Pattern };
 // Configuration only. Runtime source/output leases belong to the one shared
 // native scheduler, so adding another unit never adds another event queue.
 struct Configuration {
@@ -14,8 +16,19 @@ struct Configuration {
   int pitchStep=0;
   bool pingPong=false;
   unsigned otherChannel=1;
+  Traversal traversal=Traversal::Forward;
+  Routing routing=Routing::Legacy;
+  uint32_t channelMask=0;
+  bool noRepeat=true;
+  unsigned patternLength=0;
+  std::array<uint8_t,16> pattern{};
+  unsigned destinationTransforms=0;
 };
 inline bool valid(const Configuration &c){
+  if(unsigned(c.routing)>3 || c.channelMask>65535 || c.patternLength>16 || c.destinationTransforms>2)return false;
+  for(auto ch:c.pattern)if(ch>15)return false;
+  if((c.routing==Routing::Cycle || c.routing==Routing::Random) && !c.channelMask)return false;
+  if(c.routing==Routing::Pattern && !c.patternLength)return false;
   return c.id && c.id<=16777215 && c.instrument && c.instrument<=16777215 && c.continuation<=16777215 &&
     (c.unit==TimeUnit::Milliseconds || c.unit==TimeUnit::Beats) &&
     std::isfinite(c.interval) && c.interval>0 && c.interval<=(c.unit==TimeUnit::Milliseconds?60000:64) &&
@@ -25,7 +38,25 @@ inline bool valid(const Configuration &c){
     std::isfinite(c.decay) && c.decay>=0 && c.decay<=1 &&
     std::isfinite(c.gate) && c.gate>=0 && c.gate<=4 &&
     std::isfinite(c.gateDecay) && c.gateDecay>=0 && c.gateDecay<=1 &&
-    c.repeats>=1 && c.repeats<=32 && c.pitchStep>=-48 && c.pitchStep<=48 && c.otherChannel<16;
+    c.repeats>=1 && c.repeats<=32 && c.pitchStep>=-48 && c.pitchStep<=48 && c.otherChannel<16 && unsigned(c.traversal)<=3;
+}
+// Freeze the destination of every repetition before admission. Fragments share
+// this plan across all notes; the scheduler owns the matching Note Off channel.
+inline void routeChannels(const Configuration&c,unsigned original,uint64_t seed,std::array<uint8_t,32>&out){
+  std::array<uint8_t,16> pool{};unsigned count=0,last=16;
+  for(unsigned ch=0;ch<16;++ch)if(c.channelMask&(1u<<ch))pool[count++]=uint8_t(ch);
+  uint32_t random=uint32_t(seed)^uint32_t(seed>>32)^(c.instrument*0x85ebca6bu)^0x9e3779b9u;if(!random)random=1;
+  for(unsigned repeat=0;repeat<c.repeats;++repeat){unsigned channel=original;
+    if(c.routing==Routing::Cycle && count)channel=pool[repeat%count];
+    else if(c.routing==Routing::Pattern && c.patternLength)channel=c.pattern[repeat%c.patternLength];
+    else if(c.routing==Routing::Random && count){
+      random^=random<<13;random^=random>>17;random^=random<<5;
+      const bool exclude=c.noRepeat && count>1 && last<16;
+      unsigned choice=random%(count-unsigned(exclude));
+      for(unsigned i=0;i<count;++i)if(!exclude||pool[i]!=last){if(!choice){channel=pool[i];break;}--choice;}
+    }else if(c.routing==Routing::Legacy && c.pingPong && repeat%2==0)channel=c.otherChannel;
+    out[repeat]=uint8_t(channel);last=channel;
+  }
 }
 struct Admission {
   unsigned dryVelocity=0,planned=0,admitted=0;
@@ -43,8 +74,8 @@ public:
   }
   const Configuration &configuration()const{return config;}
   template<size_t Voices,size_t Sources>
-  Admission trigger(native_notes::Scheduler<Voices,Sources> &scheduler,native_notes::Token source,
-                    unsigned channel,unsigned pitch,unsigned velocity,uint64_t now,double tempo=0){
+  Admission plan(native_notes::Scheduler<Voices,Sources> &scheduler,native_notes::Token source,
+                    unsigned channel,unsigned pitch,unsigned velocity,uint64_t now,std::array<native_notes::Pair,32>&pairs,double tempo=0,uint64_t anchor=UINT64_MAX,const std::array<uint64_t,32>*repeatAnchors=nullptr,const std::array<uint8_t,32>*repeatChannels=nullptr){
     Admission result{};result.dryVelocity=velocity<=127?velocity:0;
     const auto *parent=scheduler.sources.get(source);
     auto reject=[&](){++rejected;result.dryVelocity=velocity<=127?velocity:0;return result;};
@@ -58,8 +89,11 @@ public:
     if(!std::isfinite(step) || !std::isfinite(first) || step<1 || first>scheduler.maxHorizon() || parent->start>UINT64_MAX-scheduler.maxHorizon()){
       return reject();
     }
-    std::array<native_notes::Pair,32> pairs{};
+    const bool buffered=anchor!=UINT64_MAX;const uint64_t base=buffered?anchor:parent->start;
+    if(base>UINT64_MAX-scheduler.maxHorizon() || now>UINT64_MAX-scheduler.maxHorizon())return reject();
     double amplitude=velocity*config.wet,gate=config.gate;
+    std::array<uint8_t,32> channels{};
+    if(!repeatChannels){routeChannels(config,channel,parent->start^(uint64_t(pitch)<<40),channels);repeatChannels=&channels;}
     for(unsigned repeat=0;repeat<config.repeats;++repeat){
       const int nextPitch=int(pitch)+int(repeat+1)*config.pitchStep;
       const unsigned nextVelocity=unsigned(std::floor(amplitude+.5));
@@ -69,9 +103,14 @@ public:
       const double relative=first+step*repeat;
       if(relative>scheduler.maxHorizon())return reject();
       auto &p=pairs[result.planned++];p.owner={config.instrument,config.id,config.continuation,parent->key.origin,parent->key.instance};
-      p.start=parent->start+uint64_t(std::floor(relative+.5));p.end=parent->start+scheduler.maxHorizon();
-      p.channel=uint8_t(config.pingPong && repeat%2==0?config.otherChannel:channel);
+      const uint64_t repeatBase=repeatAnchors?(*repeatAnchors)[repeat]:base;
+      const uint64_t delay=uint64_t(std::floor(relative+.5));
+      if(repeatBase>UINT64_MAX-delay)return reject();
+      p.start=repeatBase+delay;p.end=(buffered?now:parent->start)+scheduler.maxHorizon();
+      if(p.start<now || p.start>p.end)return reject();
+      p.channel=(*repeatChannels)[repeat];
       p.pitch=uint8_t(nextPitch);p.velocity=uint8_t(nextVelocity);p.followSource=true;p.durationScale=gate;
+      p.destinationTransforms=config.destinationTransforms;
       if(!parent->held || gate==0){
         const double duration=gate==0?0:std::min(double(scheduler.maxHorizon()),double(parent->end-parent->start)*gate);
         const uint64_t length=uint64_t(std::floor(duration+.5));
@@ -80,8 +119,13 @@ public:
       amplitude*=config.decay;gate*=config.gateDecay;
     }
     if(!result.planned){result.ok=true;return result;}
-    result.ok=scheduler.admit(source,pairs.data(),result.planned,now);
-    if(result.ok)result.admitted=result.planned;else return reject();
+    result.ok=true;return result;
+  }
+  template<size_t Voices,size_t Sources>
+  Admission trigger(native_notes::Scheduler<Voices,Sources> &scheduler,native_notes::Token source,
+                    unsigned channel,unsigned pitch,unsigned velocity,uint64_t now,double tempo=0,const std::array<uint8_t,32>*repeatChannels=nullptr){
+    std::array<native_notes::Pair,32> pairs{};auto result=plan(scheduler,source,channel,pitch,velocity,now,pairs,tempo,UINT64_MAX,nullptr,repeatChannels);
+    if(result.ok && result.planned){result.ok=scheduler.admit(source,pairs.data(),result.planned,now);if(result.ok)result.admitted=result.planned;else{++rejected;result.dryVelocity=velocity<=127?velocity:0;}}
     return result;
   }
 };

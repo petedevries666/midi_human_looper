@@ -251,3 +251,94 @@ dialog[data-contextual][open]{position:relative;inset:auto;width:100%;max-width:
 
 /* Keep the shared bypass control clear of module content. */
 .instrument .module>button[aria-label="BYPASS"]{position:absolute;grid-area:auto;top:4px;right:4px;margin:0;z-index:2}
+
+/* Phrase TUNE follows GROUP and keeps its compact numeric presentation. */
+.phrase-tune-cell{min-width:0}
+@media(min-width:701px){
+ #phrases,.phrase-columns{width:956px;max-width:100%}
+ .phrase-columns,.phrase{grid-template-columns:24px minmax(90px,150px) 22px 22px 18px 18px 48px 42px 42px repeat(3,minmax(52px,1fr)) 22px 25px 22px}
+}
+@media(max-width:700px){.phrase>.phrase-tune-cell{grid-column:span 2!important;grid-row:auto!important}}
+
+.conductor-step-controls{display:grid;grid-template-columns:auto auto 20px minmax(28px,1fr) 20px;align-items:center;gap:3px;margin:4px 0}
+.conductor-step-controls button{min-width:0;min-height:26px;padding:2px 4px;font-size:9px}
+.conductor-step-controls label{font-size:9px;color:#eee600}
+.conductor-step-controls input{width:100%;min-width:0;box-sizing:border-box;text-align:center;padding:2px;font-size:11px;height:26px;color:#eee600;appearance:textfield;-moz-appearance:textfield}
+.conductor-step-controls input::-webkit-inner-spin-button,.conductor-step-controls input::-webkit-outer-spin-button{appearance:none;margin:0}
+
+/* Source RATE is a playback multiplier, adjacent to TUNE. */
+.phrase-rate-cell{min-width:0}
+@media(min-width:701px){
+ #phrases,.phrase-columns{width:1014px;max-width:100%}
+ .phrase-columns,.phrase{grid-template-columns:24px minmax(90px,150px) 22px 22px 18px 18px 48px 42px 42px 54px repeat(3,minmax(52px,1fr)) 22px 25px 22px}
+}
+@media(max-width:700px){.phrase>.phrase-rate-cell{grid-column:span 2!important;grid-row:auto!important}}
+
+
+/* Implicit numeric inheritance: full-width rail, persistent source marker. */
+.conductor-properties .conductor-option.conductor-inherited-control{grid-template-columns:95px minmax(60px,1fr) minmax(42px,auto)}
+.conductor-inherited-track{position:relative;display:flex;align-items:center;min-width:0;min-height:38px;gap:6px}
+.conductor-inherited-control .conductor-inherited-track input[type=range]{appearance:none;-webkit-appearance:none;margin:0;height:38px;background:linear-gradient(#555,#555) center/100% 4px no-repeat;border:0;padding:0}
+.conductor-inherited-track input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;border:2px solid #ddd;background:#090909}
+.conductor-inherited-track input[type=range]::-moz-range-track{height:4px;background:#555}
+.conductor-inherited-track input[type=range]::-moz-range-thumb{width:10px;height:10px;border-radius:50%;border:2px solid #ddd;background:#090909}
+.conductor-inherited-control.is-local input[type=range]::-webkit-slider-thumb{border-color:#fff020;background:#fff020}
+.conductor-inherited-control.is-local input[type=range]::-moz-range-thumb{border-color:#fff020;background:#fff020}
+.conductor-source-marker{position:absolute;left:calc(7px + (100% - 14px)*var(--inherit-position));bottom:3px;height:7px;width:2px;background:#bbb;transform:translateX(-1px);pointer-events:none}
+.conductor-inherited-control output{grid-column:auto;min-width:0;text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+.conductor-inherited-control.is-local output{color:#fff020}
+.conductor-inherited-track.is-number small{white-space:nowrap;color:#aaa}
+.conductor-inherited-control.is-local .is-number input{border-color:#fff020}
+@media(max-width:500px){.conductor-properties .conductor-option.conductor-inherited-control{grid-template-columns:60px minmax(55px,1fr) minmax(34px,auto)}}
+@media(pointer:coarse){.conductor-inherited-track{min-height:44px}.conductor-inherited-control .conductor-inherited-track input[type=range]{height:44px}.conductor-source-marker{bottom:6px}}
+
+/* Conductor compact authoring: same sequence order and musical model. */
+.conductor-workspace{display:flex;flex-direction:column;gap:8px;min-width:0}
+.conductor-properties{order:-1;background:#0c0c0c;margin:0;min-width:0}
+.conductor-properties h3{color:#fff020;margin:2px 0 4px;font-size:12px}
+.conductor-toolbar{gap:6px;padding-bottom:6px;border-bottom:1px solid #444}
+.conductor-step{position:relative;padding:5px}
+.conductor-step-header{align-items:center;flex-wrap:nowrap;gap:4px}
+.conductor-step-header>button{min-height:28px}
+.conductor-step>.conductor-option{grid-template-columns:48px minmax(0,1fr);font-size:9px;margin:5px 0;gap:4px}
+.conductor-step>.conductor-option select{font-size:10px;padding:3px}
+.conductor-layer{padding:5px 0;gap:3px;align-items:center}
+.conductor-layer>small:first-child{font-size:10px;padding-right:30px}
+.conductor-layer .conductor-block-open{display:block;flex-basis:100%;width:100%;padding:3px 28px 3px 0;text-align:left;white-space:normal;overflow-wrap:anywhere;color:#fff020;font-size:11px;border:0;background:transparent;min-height:26px}
+.conductor-layer>output{font-size:10px;padding:0 28px 3px 0}
+.conductor-layer.is-editing{box-shadow:inset 2px 0 #fff020;padding-left:6px}
+.conductor-layer.is-empty{display:grid;grid-template-columns:55px minmax(0,1fr) 28px;gap:3px;min-height:34px;padding:2px 0}
+.conductor-layer.is-empty>small:first-child{padding:0;font-size:9px}
+.conductor-layer.is-empty .conductor-add{width:100%;min-height:30px;font-size:18px;padding:0}
+.conductor-add-layer{width:100%;min-height:27px;padding:3px;font-size:10px;color:#aaa}
+.conductor-actions{position:relative;flex:none;margin:0;padding:0}
+.conductor-layer:not(.is-empty)>.conductor-actions{position:absolute;right:0;top:4px}
+.conductor-actions>summary{display:grid;place-items:center;list-style:none;width:27px;min-height:27px;box-sizing:border-box;border:1px solid #555;background:#111;color:#ddd;font-size:16px;cursor:pointer}
+.conductor-actions>summary::-webkit-details-marker{display:none}
+.conductor-actions[open]>.conductor-action-items{display:flex;flex-direction:column;position:absolute;right:0;top:calc(100% + 3px);z-index:30;min-width:170px;max-width:230px;padding:5px;gap:3px;background:#141414;border:1px solid #888;box-shadow:0 4px 12px #000}
+.conductor-action-items>button{display:block;width:100%;padding:6px;text-align:left;font-size:10px;white-space:normal;min-height:28px}
+.conductor-actions[open]>summary{border-color:#fff020;color:#fff020}
+@media(min-width:700px) and (max-width:1199px){.conductor-properties:not(:empty){display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:18px;padding:10px}.conductor-properties>h3,.conductor-properties>small,.conductor-properties>details,.conductor-properties>button,.conductor-properties>.rail-curve{grid-column:1/-1}}
+@media(min-width:1200px){.has-inspector .conductor-workspace{display:grid;grid-template-columns:minmax(0,1fr) 320px;align-items:start}.has-inspector .conductor-properties{order:0;grid-column:2;grid-row:1;position:sticky;top:8px;max-height:calc(100vh - 70px);overflow:auto}.has-inspector .conductor-board{grid-column:1;grid-row:1}}
+@media(pointer:coarse){.conductor-actions>summary{min-height:44px;width:36px}.conductor-action-items>button{min-height:44px}.conductor-layer.is-empty{grid-template-columns:55px minmax(0,1fr) 36px;min-height:44px}.conductor-layer.is-empty .conductor-add{min-height:44px}.conductor-layer .conductor-block-open{min-height:44px;padding-right:40px}.conductor-step-header>button,.conductor-add-layer{min-height:44px}}
+
+/* Phrase randomization: explicit musical ranges and accessible pitch classes. */
+.phrase-randomization{display:grid;gap:8px;margin:8px 0;min-width:0}
+.phrase-randomization fieldset{min-width:0;margin:0;padding:8px;border:1px solid #666}
+.phrase-randomization legend{color:#eee600;font-size:12px}
+.phrase-randomization .random-control{display:inline-flex;gap:5px;align-items:center;flex-wrap:wrap;margin:3px 8px 3px 0;font-size:11px}
+.phrase-randomization input[type=range]{width:130px;max-width:100%}
+.phrase-randomization input[type=number]{width:60px;box-sizing:border-box}
+.phrase-randomization input[type=checkbox]{width:18px;height:18px;margin:0;accent-color:#eee600}
+.phrase-randomization select{max-width:100%;min-width:0}
+.random-note-palette{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:4px;margin:8px 0}
+.random-note{display:flex;align-items:center;justify-content:center;gap:3px;border:1px solid #666;min-height:30px;font-size:12px;cursor:pointer}
+.random-note:has(input:checked){color:#eee600;border-color:#eee600;background:#272600}
+.phrase-randomization small,.phrase-randomization output[role=status]{display:block;margin-top:5px;font-size:10px;overflow-wrap:anywhere}
+.phrase-randomization output[data-invalid=true]{color:#ffb25a}
+.phrase-randomization fieldset:disabled{opacity:.55}
+.conductor-layer-selection{display:flex;align-items:center;gap:4px;font-size:10px;margin:4px 0}
+.conductor-layer-selection select{min-width:0;width:100%;font-size:10px}
+.conductor-layer.is-random-selected{box-shadow:inset 3px 0 #eee600;background-color:#252300}
+
+@media(max-width:480px){.random-note-palette{grid-template-columns:repeat(4,minmax(0,1fr))}}

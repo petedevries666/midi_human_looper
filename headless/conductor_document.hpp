@@ -79,20 +79,28 @@ inline void destination(const Value &v){
     fields(v,{"type","instrumentId","moduleId","kind"});require(choice(v.at("type"),{"PARAMETER"})&&integer(v.at("instrumentId"),1,16777215)&&integer(v.at("moduleId"),0,16777215)&&integer(v.at("kind"),0,26));
   }
 }
+inline void startJitter(const Value& v){fields(v,{"amount","mode","redraw"});require(v.at("amount").type=='n'&&v.at("amount").number>=0&&v.at("amount").number<=100&&choice(v.at("mode"),{"NOTE","FREE"})&&choice(v.at("redraw"),{"TRIGGER","CYCLE"}));}
+inline void randomPitch(const Value& v){fields(v,{"enabled","low","high","notes"});require(integer(v.at("enabled"),0,1)&&integer(v.at("low"),-24,24)&&integer(v.at("high"),-24,24)&&v.at("low").number<=v.at("high").number&&integer(v.at("notes"),0,4095));}
+inline bool usesRandomization(const Value& v){
+  for(const auto& kv:v.object){if(kv.first=="startJitter"||kv.first=="randomPitch"||(kv.first=="layerSelection"&&!choice(kv.second,{"ALL"})))return true;if(usesRandomization(kv.second))return true;}
+  for(const auto& x:v.array)if(usesRandomization(x))return true;return false;
+}
 inline bool validDocument(const std::vector<unsigned> &bytes){
   try {
     std::string s; s.reserve(bytes.size());for(auto c:bytes)s+=char(c);
     Parser p(s);auto root=p.value();require(p.pos==s.size());require(integer(root.at("version"),1,3));
     bool groupVersion=root.at("version").number==3;
     bool movementVersion=root.at("version").number>=2;
-    if(movementVersion)fieldsOptional(root,{"version","sources","switches","movements","ccRate"},{"supercharge"});
-    else fieldsOptional(root,{"version","sources","switches"},{"supercharge"});
+    if(movementVersion)fieldsOptional(root,{"version","sources","switches","movements","ccRate"},{"supercharge","bassPolicies"});
+    else fieldsOptional(root,{"version","sources","switches"},{"supercharge","bassPolicies"});
+    if(root.object.count("bassPolicies")){const auto &policies=root.at("bassPolicies");require(policies.type=='a');std::set<std::pair<unsigned,unsigned>> targets;
+      for(const auto &p:policies.array){fields(p,{"instrumentId","moduleId","mode"});require(integer(p.at("instrumentId"),1,16777215)&&integer(p.at("moduleId"),1,16777215)&&integer(p.at("mode"),0,2));require(targets.insert({unsigned(p.at("instrumentId").number),unsigned(p.at("moduleId").number)}).second);}}
     double chargeThreshold=600,chargeFull=2000;
     if(root.object.count("supercharge")){const auto &c=root.at("supercharge");fields(c,{"thresholdMs","fullMs"});require(integer(c.at("thresholdMs"),0,30000)&&integer(c.at("fullMs"),1,120000)&&c.at("fullMs").number>=c.at("thresholdMs").number);chargeThreshold=c.at("thresholdMs").number;chargeFull=c.at("fullMs").number;}
     std::set<std::string> ids,sources,movements;std::set<unsigned> slots,switchIds;
     auto unique=[&](const Value &v){require(ids.insert(uuid(v)).second);};
     const auto &src=root.at("sources");require(src.type=='a');
-    for(const auto &v:src.array){if(groupVersion){fields(v,{"id","type","slot","muteGroup"});require(integer(v.at("muteGroup"),0,16777215));}else fields(v,{"id","type","slot"});unique(v.at("id"));require(choice(v.at("type"),{"PHRASE"})&&integer(v.at("slot"),1,128)&&slots.insert(unsigned(v.at("slot").number)).second);sources.insert(uuid(v.at("id")));}
+    for(const auto &v:src.array){if(groupVersion){fieldsOptional(v,{"id","type","slot","muteGroup"},{"tune","rate","playMode","direction","startJitter","randomPitch"});require(integer(v.at("muteGroup"),0,16777215));}else fieldsOptional(v,{"id","type","slot"},{"tune","rate","playMode","direction","startJitter","randomPitch"});if(v.object.count("startJitter"))startJitter(v.at("startJitter"));if(v.object.count("randomPitch"))randomPitch(v.at("randomPitch"));if(v.object.count("direction"))require(choice(v.at("direction"),{"FORWARD","REVERSE","PING_PONG"}));if(v.object.count("playMode"))require(choice(v.at("playMode"),{"GATE","RETRIGGER","TOGGLE"}));if(v.object.count("tune"))require(integer(v.at("tune"),-24,24));if(v.object.count("rate"))require(v.at("rate").type=='n'&&v.at("rate").number>=.1&&v.at("rate").number<=16);unique(v.at("id"));require(choice(v.at("type"),{"PHRASE"})&&integer(v.at("slot"),1,128)&&slots.insert(unsigned(v.at("slot").number)).second);sources.insert(uuid(v.at("id")));}
     if(movementVersion){
       const auto &rate=root.at("ccRate");require(integer(rate,10,100)&&(rate.number==10||rate.number==25||rate.number==50||rate.number==100));
       const auto &library=root.at("movements");require(library.type=='a');
@@ -116,7 +124,7 @@ inline bool validDocument(const std::vector<unsigned> &bytes){
       require(choice(sw.at("traversal"),{"SEQUENTIAL","BACKWARD","PING_PONG","RANDOM","SHUFFLE_BAG"})&&choice(sw.at("transition"),{"IMMEDIATE","END_OF_PHRASE"})&&choice(sw.at("gesture"),{"INSTANT","EXCLUSIVE"}));
       const auto &steps=sw.at("steps");require(steps.type=='a'&&!steps.array.empty());
       for(const auto &step:steps.array){
-        fieldsOptional(step,{"id","transition","layers"},{"supercharge"});unique(step.at("id"));require(choice(step.at("transition"),{"INHERIT","IMMEDIATE","END_OF_PHRASE"}));
+        fieldsOptional(step,{"id","transition","layers"},{"supercharge","repeat","layerSelection"});if(step.object.count("layerSelection"))require(choice(step.at("layerSelection"),{"ALL","RANDOM","RANDOM_NO_REPEAT"}));if(step.object.count("repeat"))require(integer(step.at("repeat"),1,999));unique(step.at("id"));require(choice(step.at("transition"),{"INHERIT","IMMEDIATE","END_OF_PHRASE"}));
         const auto &layers=step.at("layers");require(layers.type=='a'&&!layers.array.empty());
         if(step.object.count("supercharge")){
           const auto &c=step.at("supercharge");fieldsOptional(c,{"bindings"},{"thresholdMs","fullMs"});double threshold=c.object.count("thresholdMs")?c.at("thresholdMs").number:chargeThreshold,full=c.object.count("fullMs")?c.at("fullMs").number:chargeFull;require((!c.object.count("thresholdMs")||integer(c.at("thresholdMs"),0,30000))&&(!c.object.count("fullMs")||integer(c.at("fullMs"),1,120000))&&full>=threshold&&c.at("bindings").type=='a');
@@ -133,8 +141,9 @@ inline bool validDocument(const std::vector<unsigned> &bytes){
             require(v.at("from").type=='n'&&v.at("to").type=='n'&&v.at("from").number>=low&&v.at("from").number<=high&&v.at("to").number>=low&&v.at("to").number<=high&&v.at("factor").type=='n'&&v.at("factor").number>=0&&v.at("factor").number<=16);
           }
         }
+        if(step.object.count("layerSelection")&&!choice(step.at("layerSelection"),{"ALL"})){unsigned candidates=0;for(const auto& l:layers.array)if(l.at("block").type!='z'&&(!l.object.count("selectionRole")||!choice(l.at("selectionRole"),{"FIXED"})))++candidates;require(candidates<=256);}
         for(unsigned i=0;i<layers.array.size();++i){
-          const auto &layer=layers.array[i];fields(layer,{"id","block"});unique(layer.at("id"));const auto &b=layer.at("block");if(b.type=='z')continue;
+          const auto &layer=layers.array[i];fieldsOptional(layer,{"id","block"},{"selectionRole"});if(layer.object.count("selectionRole"))require(choice(layer.at("selectionRole"),{"FIXED","CANDIDATE"}));unique(layer.at("id"));const auto &b=layer.at("block");if(b.type=='z')continue;
           if(choice(b.at("type"),{"ACTION"})){
             fields(b,{"id","type","action","target","trigger"});unique(b.at("id"));require(i>0&&choice(b.at("action"),{"STOP","PAUSE","RESUME","RESET_CURSOR","RESET_SHUFFLE_BAG","STOP_RESET","PANIC"})&&choice(b.at("trigger"),{"PRESS","HOLD","LONG_HOLD","RELEASE","SUPERCHARGE_RELEASE"}));
             const auto &t=b.at("target");
@@ -153,23 +162,27 @@ inline bool validDocument(const std::vector<unsigned> &bytes){
           for(const auto &entry:overrides.object){
             const auto &key=entry.first;const auto &local=entry.second;
             std::map<std::string,std::vector<std::string>> opts={
-              {"playMode",{"LOOP","ONCE","HOLD"}},{"trigger",{"PRESS","HOLD","LONG_HOLD","RELEASE","SUPERCHARGE_RELEASE"}},
+              {"direction",{"FORWARD","REVERSE","PING_PONG"}},{"playMode",{"LOOP","ONCE","HOLD","GATE","RETRIGGER","TOGGLE"}},{"trigger",{"PRESS","HOLD","LONG_HOLD","RELEASE","SUPERCHARGE_RELEASE"}},
               {"instancePolicy",{"JOIN_EXISTING","RESTART","NEW_INSTANCE"}},
               {"join",{"TRIGGER","JOIN_NOW","JOIN_AT_LOOP_START"}},{"referenceTime",{"CYCLE","ELAPSED"}},
               {"entry",{"TRIGGER","REVEAL"}},{"release",{"LATCH","GATE"}},
               {"movementCycle",{"ONCE","LOOP","PING_PONG"}},{"movementPlayMode",{"ONE_SHOT","GATED"}},{"retrigger",{"SOFT_RESTART","DIRECT"}}};
-            bool parameter=key=="phrase_time_decay"||key=="phrase_velocity_decay"||key=="phrase_base_velocity";
+            bool tune=key=="phrase_tune",rate=key=="phrase_rate";bool parameter=tune||rate||key=="phrase_time_decay"||key=="phrase_velocity_decay"||key=="phrase_base_velocity";
+            bool random=key=="startJitter"||key=="randomPitch";
             bool revealNumber=key=="revealCC"||key=="revealFadeSeconds";
             bool movementNumber=key=="releaseSeconds"||key=="restValue"||key=="movementDuration";
-            require(opts.count(key)||key=="destination"||parameter||movementNumber||revealNumber);
-            bool onlyPhrase=key=="playMode"||key=="instancePolicy"||key=="entry"||key=="release"||parameter||revealNumber;
+            require(opts.count(key)||key=="destination"||parameter||movementNumber||revealNumber||random);
+            bool onlyPhrase=random||key=="direction"||key=="playMode"||key=="instancePolicy"||key=="entry"||key=="release"||parameter||revealNumber;
             bool onlyMovement=key=="movementCycle"||key=="movementPlayMode"||key=="retrigger"||key=="destination"||movementNumber;
             require(!(onlyPhrase&&!phrase)&&!(onlyMovement&&phrase));
             if(choice(local.at("mode"),{"INHERIT"})){fields(local,{"mode"});continue;}
             fields(local,{"mode","value"});require(choice(local.at("mode"),{"OVERRIDE"}));auto &v=local.at("value");
-            if(revealNumber)require(key=="revealCC"?(integer(v,0,119)&&v.number!=64):(v.type=='n'&&v.number>=0&&v.number<=60));
+            if(random){if(key=="startJitter")startJitter(v);else randomPitch(v);}
+            else if(revealNumber)require(key=="revealCC"?(integer(v,0,119)&&v.number!=64):(v.type=='n'&&v.number>=0&&v.number<=60));
             else if(movementNumber)require(v.type=='n'&&v.number>=(key=="movementDuration"?.001:0)&&v.number<=(key=="movementDuration"?86400:key=="releaseSeconds"?60:1));
             else if(key=="destination")destination(v);
+            else if(tune)require(integer(v,-24,24));
+            else if(rate)require(v.type=='n'&&v.number>=.1&&v.number<=16);
             else if(parameter){unsigned kind=key=="phrase_time_decay"?14:key=="phrase_velocity_decay"?15:17;const auto &descriptor=performance::parameters[kind];require(v.type=='n'&&v.number>=descriptor.low&&v.number<=descriptor.high);}
             else {require(v.type=='s');auto &allowed=opts.at(key);require(std::find(allowed.begin(),allowed.end(),v.text)!=allowed.end());}
           }

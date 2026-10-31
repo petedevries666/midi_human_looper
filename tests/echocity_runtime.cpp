@@ -1,4 +1,5 @@
 #include "../headless/echocity_runtime.hpp"
+#include "../headless/echocity_destination_queue.hpp"
 #include <cstdio>
 #include <cstdlib>
 #include <new>
@@ -18,7 +19,13 @@ struct Output {
 };
 static Configurations settings(){Configurations c{};c[0].id=c[0].instrument=1;c[0].interval=10;c[0].repeats=2;c[0].decay=1;return c;}
 static SourceEvent edge(bool on,Origin origin=Origin::Live,uint64_t instance=0,unsigned pitch=60){return {on?SourceAction::On:SourceAction::Off,{1,origin,instance,0,uint8_t(pitch)},on?100u:0u,0};}
+#include "echocity_fragments_cases.hpp"
+#include "echocity_routing_cases.hpp"
+#include "echocity_destination_queue_cases.hpp"
 int main(){
+ fragmentTests();
+ routingTests();
+ destinationQueueTests();
  {
   Runtime r(8000);Output out;auto emit=[&](auto...args){return out(args...);};r.configure(settings());
   realtime=true;r.begin(0,emit);CHECK(r.source(edge(true),0,120,emit));CHECK(r.source(edge(false),40,120,emit));r.render(0,256,emit);realtime=false;

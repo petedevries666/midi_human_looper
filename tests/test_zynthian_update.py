@@ -97,6 +97,21 @@ class Updates(unittest.TestCase):
         revision=runtime.preflight({'binary':os.environ['HEADLESS_BINARY'],'repository':str(ROOT),'expanded_capacity':True},self.directory)
         self.assertTrue(revision)
     @unittest.skipUnless(os.environ.get('HEADLESS_BINARY'),'Actual engine not configured')
+    def test_project_restore_uses_actual_target_execution_contract(self):
+        data=self.directory/'processor-1';data.mkdir()
+        for expanded in (False,True):
+            runtime=u.Runtime(ROOT);observed=[];test=self
+            class CaptureStore:
+                def __init__(self,directory,control):self.control=control
+                def manifest(self):return None
+                def restore(self):
+                    state=self.control.request();observed.append(bool(state['chainMode']))
+                    test.assertEqual(bool(state['chainMode']),expanded,'project was restored in a different execution contract')
+            runtime.ProjectStore=CaptureStore
+            with patch.object(runtime,'web_preflight'):
+                runtime.preflight(dict(binary=os.environ['HEADLESS_BINARY'],repository=str(ROOT),expanded_capacity=expanded,chain_timing_version=2),self.directory)
+            self.assertEqual(observed,[expanded])
+    @unittest.skipUnless(os.environ.get('HEADLESS_BINARY'),'Actual engine not configured')
     def test_authenticated_real_web_health_and_revision(self):
         runtime=u.Runtime(ROOT);data=self.directory/'processor-1';data.mkdir()
         socket=data/'control.sock';token=self.directory/'token';token.write_text('test-private-token')

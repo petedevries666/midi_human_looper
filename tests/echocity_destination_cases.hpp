@@ -9,6 +9,24 @@ static void destinationQueue(NativeHost&h,std::initializer_list<std::array<unsig
 }
 static void destinationTests(const char*path){
  {
+  NativeHost h(path);h.run("clear_layer(10);record_layer=10;state=STATE_READY;free_record_ready=1;controller_learn=0;learn_candidate=-1;");
+  destinationQueue(h,{{0,60,100,1,16}});h.block();h.sources();h.events();
+  h.eq("layer_count(10)",0,"destination ingress never records into an armed phrase");
+  h.eq("free_record_active",0,"destination ingress never starts recording");
+  h.eq("controller_learn",0,"destination ingress cannot consume MIDI Learn");h.eq("learn_candidate",-1,"destination ingress cannot become a Learn candidate");
+  destinationQueue(h,{{0,60,0,0,16}});h.block();h.sources();h.events();
+ }
+ {
+  NativeHost h(path);h.run("mem[INST_TRANSFORM_COUNT_BASE]=1;mem[INST_TRANSFORM_TYPE_BASE]=3;mem[INST_NOTE_MODE_BASE]=2;");
+  destinationQueue(h,{{0,60,100,1,16}});uint8_t bytes[]={144,64,100};ysfx_midi_event_t packet{};packet.data=bytes;packet.size=3;packet.offset=8;
+  check(ysfx_send_midi(h.f,&packet),"enqueue real physical note alongside destination ingress");h.block();auto events=h.sources();h.events();
+  check(events.size()==3 && events[0].key.origin==Origin::Live && events[0].key.pitch==64 && events[0].offset==8,"physical MIDI precedes a later echo at its original offset");
+  destinationQueue(h,{{0,60,0,0,16}});h.block();events=h.sources();h.events();
+  bool fallback=false;for(const auto&e:events)fallback|=e.action==SourceAction::On && e.key.pitch==64 && e.key.origin==Origin::Live;
+  check(fallback,"mono release of routed echo restores the still-held physical note");
+  destinationQueue(h,{});h.midi(128,64,0);h.sources();h.events();h.eq("mem[MONO_ACTIVE_NOTE_BASE]",-1,"mixed physical/echo mono ownership retires");
+ }
+ {
   NativeHost h(path);h.run("mem[INST_TRANSFORM_COUNT_BASE]=2;mem[INST_TRANSFORM_TYPE_BASE]=1;mem[INST_TRANSFORM_TYPE_BASE+1]=4;mem[INST_TRANSPOSE_BASE]=12;mem[INST_VEL_BASE]=.5;");
   destinationQueue(h,{{0,60,100,1,16}});h.block();auto on=h.sources();h.events();
   check(on.size()==1 && on[0].action==SourceAction::On && on[0].key.origin==Origin::Echo && on[0].key.pitch==72 && on[0].velocity==50 && on[0].offset==16,"full destination applies native transpose and velocity at scheduled attack");

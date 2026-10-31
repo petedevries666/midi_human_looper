@@ -47,7 +47,7 @@ public:
   }
   Token begin(SourceKey key, uint64_t sample) {
     if(!key.instrument || key.channel>15 || key.pitch>127 ||
-       (key.origin!=Origin::Live && key.origin!=Origin::Phrase) || generation==UINT64_MAX)return {};
+       (key.origin!=Origin::Live && key.origin!=Origin::Phrase && key.origin!=Origin::Echo) || generation==UINT64_MAX)return {};
     for(size_t i=0;i<Capacity;++i)if(!rows[i].used){
       auto &r=rows[i];r=Record{};r.key=key;r.start=sample;r.order=r.generation=++generation;r.used=r.held=true;
       return {uint32_t(i),r.generation,TokenDomain::Source};

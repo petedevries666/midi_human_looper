@@ -30,7 +30,7 @@ inline bool supportedBlock(const Value& b) {
   for(const auto& item:b.at("overrides").object) {
     if(choice(item.second.at("mode"),{"INHERIT"}))continue;
     const auto& k=item.first;const auto& v=item.second.at("value");
-    if(k=="playMode" || k=="phrase_base_velocity" || k=="phrase_velocity_decay" || k=="phrase_time_decay")continue;
+    if(k=="startJitter" || k=="randomPitch" || k=="direction" || k=="phrase_rate" || k=="phrase_tune" || k=="playMode" || k=="phrase_base_velocity" || k=="phrase_velocity_decay" || k=="phrase_time_decay")continue;
     if(k=="revealCC" || k=="revealFadeSeconds")continue;
     if(k=="entry" && choice(v,{"TRIGGER","REVEAL"}))continue;
     if(k=="release" && choice(v,{"LATCH","GATE"}))continue;
@@ -41,14 +41,25 @@ inline bool supportedBlock(const Value& b) {
   }
   return true;
 }
+inline std::array<double,8> randomConfiguration(const Value* source,const Value* block=nullptr){
+  std::array<double,8> result{{0,0,0,0,-12,12,4095,0}};
+  for(const auto* key:{"startJitter","randomPitch"}){
+    const Value* v=source&&source->object.count(key)?&source->at(key):nullptr;
+    if(block){auto it=block->at("overrides").object.find(key);if(it!=block->at("overrides").object.end()&&choice(it->second.at("mode"),{"OVERRIDE"}))v=&it->second.at("value");}
+    if(!v)continue;
+    if(std::string(key)=="startJitter"){result[0]=v->at("amount").number/100;result[1]=choice(v->at("mode"),{"FREE"});result[2]=choice(v->at("redraw"),{"CYCLE"});}
+    else{result[3]=v->at("enabled").number;result[4]=v->at("low").number;result[5]=v->at("high").number;result[6]=v->at("notes").number;}
+  }return result;
+}
 template<std::size_t SwitchCapacity>
-inline std::vector<double> compile(const std::vector<unsigned>& bytes,double base,
+inline std::vector<double> compileRoot(const Value& root,double base,
                                   const std::array<unsigned,SwitchCapacity>& owners,
-                                  const std::map<std::string,unsigned>& movements = {}) {
+                                  const std::map<std::string,unsigned>& movements,bool variations=true) {
   std::vector<double> out(SwitchCapacity*8,0);
-  if(bytes.empty())return out;
-  auto root=document(bytes);std::map<std::string,unsigned> slots;
-  std::array<unsigned,128> groups{};
+  std::map<std::string,unsigned> slots;
+  std::array<unsigned,128> groups{};std::array<double,128> tunes{};std::array<double,128> rates;rates.fill(1);
+  for(const auto& s:root.at("sources").array)if(s.object.count("rate"))rates[unsigned(s.at("slot").number)-1]=s.at("rate").number;
+  for(const auto& s:root.at("sources").array)if(s.object.count("tune"))tunes[unsigned(s.at("slot").number)-1]=s.at("tune").number;
   for(const auto& s:root.at("sources").array)if(s.object.count("muteGroup"))groups[unsigned(s.at("slot").number)-1]=unsigned(s.at("muteGroup").number);
   for(const auto& s:root.at("sources").array)slots[s.at("id").text]=unsigned(s.at("slot").number)-1;
   for(const auto& sw:root.at("switches").array) {
@@ -59,7 +70,7 @@ inline std::vector<double> compile(const std::vector<unsigned>& bytes,double bas
     if(out[h+7]&&sw.object.count("advance")&&choice(sw.at("advance"),{"RELEASE"}))out[h+7]=2;
     unsigned stepStart=out.size();out.resize(out.size()+sw.at("steps").array.size()*80,0);unsigned stepIndex=0;
     for(const auto& step:sw.at("steps").array) {
-      std::array<double,80> record{};std::vector<double> admissions,heldAdmissions,longAdmissions,releaseAdmissions,chargeAdmissions,revealOptions,actions;unsigned longMask=0;bool chargeAction=false;
+      std::array<double,80> record{};std::vector<double> admissions,heldAdmissions,longAdmissions,releaseAdmissions,chargeAdmissions,revealOptions,actions,phraseTunes,phraseRates,phraseDirections,phraseRandoms;unsigned longMask=0;bool chargeAction=false;
       record[0]=choice(step.at("transition"),{"INHERIT","IMMEDIATE","END_OF_PHRASE"});
       record[71]=choice(step.at("transition"),{"END_OF_PHRASE"})||(choice(step.at("transition"),{"INHERIT"})&&choice(sw.at("transition"),{"END_OF_PHRASE"}));
       unsigned n=0;
@@ -114,12 +125,21 @@ inline std::vector<double> compile(const std::vector<unsigned>& bytes,double bas
         if(onHold(b))record[66]+=1u<<n;if(onLongHold(b))longMask+=1u<<n;
         if(revealBlock(b))record[68]+=1u<<n;
         if(gatedBlock(b))record[69]+=1u<<n;
-        if(&layer==&step.at("layers").array.front())record[70]=n+1;
+        if(&layer==&step.at("layers").array.front()||(!variations&&record[70]==0))record[70]=n+1;
         double cc=localNumber(b,"revealCC"),fade=localNumber(b,"revealFadeSeconds");revealOptions.push_back(cc<0?7:cc);revealOptions.push_back(fade<0?0:fade);
+        auto tune=b.at("overrides").object.find("phrase_tune");phraseTunes.push_back(tune!=b.at("overrides").object.end()&&choice(tune->second.at("mode"),{"OVERRIDE"})?tune->second.at("value").number:tunes[it->second]);
+        unsigned direction=0;for(const auto &src:root.at("sources").array)if(src.at("id").text==b.at("sourceId").text && src.object.count("direction"))direction=choice(src.at("direction"),{"REVERSE"})?1:choice(src.at("direction"),{"PING_PONG"})?2:0;
+        auto dir=b.at("overrides").object.find("direction");if(dir!=b.at("overrides").object.end()&&choice(dir->second.at("mode"),{"OVERRIDE"}))direction=choice(dir->second.at("value"),{"REVERSE"})?1:choice(dir->second.at("value"),{"PING_PONG"})?2:0;
+        phraseDirections.push_back(direction);
+        const Value* sourceConfig=nullptr;for(const auto& src:root.at("sources").array)if(src.at("id").text==b.at("sourceId").text)sourceConfig=&src;
+        auto random=randomConfiguration(sourceConfig,&b);phraseRandoms.insert(phraseRandoms.end(),random.begin(),random.end());
+        auto rate=b.at("overrides").object.find("phrase_rate");phraseRates.push_back(rate!=b.at("overrides").object.end()&&choice(rate->second.at("mode"),{"OVERRIDE"})?rate->second.at("value").number:rates[it->second]);
         unsigned row=4+n*5;record[row]=it->second;record[row+1]=-1;
         auto mode=b.at("overrides").object.find("playMode");
         if(mode!=b.at("overrides").object.end() && choice(mode->second.at("mode"),{"OVERRIDE"}))
-          record[row+1]=choice(mode->second.at("value"),{"LOOP"})?0:choice(mode->second.at("value"),{"ONCE"})?1:2;
+          record[row+1]=choice(mode->second.at("value"),{"LOOP"})?0:choice(mode->second.at("value"),{"ONCE"})?1:choice(mode->second.at("value"),{"HOLD"})?2:choice(mode->second.at("value"),{"GATE"})?3:choice(mode->second.at("value"),{"RETRIGGER"})?4:5;
+        if(record[row+1]<0)for(const auto &s:root.at("sources").array)if(s.at("id").text==b.at("sourceId").text&&s.object.count("playMode"))record[row+1]=choice(s.at("playMode"),{"GATE"})?3:choice(s.at("playMode"),{"RETRIGGER"})?4:5;
+        if(record[row+1]==3&&(releaseBlock(b)||chargeBlock(b)))record[0]=0;
         record[row+2]=localNumber(b,"phrase_base_velocity");record[row+3]=localNumber(b,"phrase_velocity_decay");record[row+4]=localNumber(b,"phrase_time_decay");++n;
       }
       record[2]=n;record[64]=admissions.size();record[65]=base+out.size();record[67]=heldAdmissions.size();
@@ -137,11 +157,38 @@ inline std::vector<double> compile(const std::vector<unsigned>& bytes,double bas
       }
       record[75]=chargeAdmissions.size();record[77]=base+out.size();out.insert(out.end(),chargeAdmissions.begin(),chargeAdmissions.end());record[78]=base+out.size();
       out.insert(out.end(),{threshold,full,double(binding.size()/7)});out.insert(out.end(),binding.begin(),binding.end());
-      record[79]=base+out.size();out.push_back(actions.size()/4);out.insert(out.end(),actions.begin(),actions.end());
+      record[79]=base+out.size();out.push_back(actions.size()/4);out.insert(out.end(),actions.begin(),actions.end());out.insert(out.end(),phraseTunes.begin(),phraseTunes.end());out.push_back(step.object.count("repeat")?step.at("repeat").number:1);out.insert(out.end(),phraseRates.begin(),phraseRates.end());out.insert(out.end(),phraseDirections.begin(),phraseDirections.end());out.insert(out.end(),phraseRandoms.begin(),phraseRandoms.end());unsigned randomPointer=out.size();out.push_back(0);
       std::copy(record.begin(),record.end(),out.begin()+stepStart+(stepIndex-1)*80);
+      if(variations && step.object.count("layerSelection") && !choice(step.at("layerSelection"),{"ALL"})){
+        std::vector<std::pair<double,double>> options;
+        std::vector<unsigned> candidates;bool fixed=false;
+        for(unsigned li=0;li<step.at("layers").array.size();++li){const auto& layer=step.at("layers").array[li];if(layer.at("block").type=='z')continue;
+          if(layer.object.count("selectionRole")&&choice(layer.at("selectionRole"),{"FIXED"}))fixed=true;else candidates.push_back(li);}
+        if(candidates.empty()&&fixed)candidates.push_back(unsigned(-1));
+        for(unsigned selected:candidates){
+          Value variantRoot=root,variantSwitch=sw,variantStep=step;
+          auto& filtered=variantStep.object["layers"].array;filtered.clear();variantStep.object.erase("layerSelection");
+          for(unsigned li=0;li<step.at("layers").array.size();++li){const auto& layer=step.at("layers").array[li];if(layer.at("block").type!='z'&&(li==selected||(layer.object.count("selectionRole")&&choice(layer.at("selectionRole"),{"FIXED"}))))filtered.push_back(layer);}
+          variantSwitch.object["steps"].array={variantStep};variantRoot.object["switches"].array={variantSwitch};
+          auto variant=compileRoot(variantRoot,base+out.size()-SwitchCapacity*8,owners,movements,false);
+          unsigned start=SwitchCapacity*8;
+          if(variant.size()<=start||variant[start]==0||variant[start+1]>0)continue;
+          if(out.size()+variant.size()-start>2000000)throw std::runtime_error("RANDOM LAYER compiled memory budget exceeded");
+          options.push_back({base+out.size(),selected==unsigned(-1)?0:double(selected+1)});
+          out.insert(out.end(),variant.begin()+start,variant.end());
+        }
+        out[randomPointer]=base+out.size();out.insert(out.end(),{choice(step.at("layerSelection"),{"RANDOM_NO_REPEAT"})?2.:1.,double(options.size()),-1.,-1.});
+        for(auto option:options){out.push_back(option.first);out.push_back(option.second);}
+      }
+
 
     }
   }
   return out;
 }
+template<std::size_t SwitchCapacity>
+inline std::vector<double> compile(const std::vector<unsigned>& bytes,double base,const std::array<unsigned,SwitchCapacity>& owners,const std::map<std::string,unsigned>& movements={}){
+  return bytes.empty()?std::vector<double>(SwitchCapacity*8,0):compileRoot(document(bytes),base,owners,movements);
+}
+
 }

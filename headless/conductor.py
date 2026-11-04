@@ -14,7 +14,8 @@ GROUP_VERSION = 3
 # Existing control channel byte ceiling, not a musical STEPS/LAYERS limit (Q3).
 MAX_BYTES = 16000000
 OPTIONS = {
-    'playMode': ('LOOP', 'ONCE', 'HOLD'),
+    'direction': ('FORWARD', 'REVERSE', 'PING_PONG'),
+    'playMode': ('LOOP', 'ONCE', 'HOLD', 'GATE', 'RETRIGGER', 'TOGGLE'),
     'trigger': ('PRESS', 'HOLD', 'LONG_HOLD', 'RELEASE', 'SUPERCHARGE_RELEASE'),
     'instancePolicy': ('JOIN_EXISTING', 'RESTART', 'NEW_INSTANCE'),
     'join': ('TRIGGER', 'JOIN_NOW', 'JOIN_AT_LOOP_START'),
@@ -25,13 +26,26 @@ OPTIONS = {
     'movementCycle': ('ONCE', 'LOOP', 'PING_PONG'),
     'retrigger': ('SOFT_RESTART', 'DIRECT'),
 }
-PHRASE_OPTIONS = {'playMode', 'trigger', 'instancePolicy', 'join', 'referenceTime', 'entry', 'release', 'phrase_time_decay', 'phrase_velocity_decay', 'phrase_base_velocity', 'revealCC', 'revealFadeSeconds'}
+PHRASE_OPTIONS = {'startJitter', 'randomPitch', 'direction', 'playMode', 'trigger', 'instancePolicy', 'join', 'referenceTime', 'entry', 'release', 'phrase_time_decay', 'phrase_velocity_decay', 'phrase_base_velocity', 'phrase_tune', 'phrase_rate', 'revealCC', 'revealFadeSeconds'}
 MOVEMENT_OPTIONS = {'trigger', 'join', 'referenceTime', 'movementPlayMode', 'retrigger', 'destination', 'releaseSeconds', 'restValue', 'movementDuration', 'movementCycle'}
 
 
 def fields(value, required):
     if not isinstance(value, dict) or set(value) != set(required):
         raise ValueError('CONDUCTOR unknown or missing fields')
+
+
+def start_jitter(value):
+    fields(value, ('amount','mode','redraw'))
+    amount=value['amount']
+    if type(amount) not in (int,float) or not math.isfinite(amount) or not 0<=amount<=100:raise ValueError('START JITTER: 0–100 percent')
+    if value['mode'] not in ('NOTE','FREE') or value['redraw'] not in ('TRIGGER','CYCLE'):raise ValueError('Invalid START JITTER mode')
+
+
+def random_pitch(value):
+    fields(value, ('enabled','low','high','notes'))
+    integer(value['enabled'],0,1);integer(value['low'],-24,24);integer(value['high'],-24,24);integer(value['notes'],0,4095)
+    if value['low']>value['high']:raise ValueError('RANDOM PITCH: LOW exceeds HIGH')
 
 
 def identity(value):
@@ -48,6 +62,11 @@ def identity(value):
 def integer(value, lo, hi):
     if type(value) is not int or not lo <= value <= hi:
         raise ValueError('CONDUCTOR invalid integer')
+
+
+def playback_rate(value):
+    if type(value) not in (int,float) or not math.isfinite(value) or not .1<=value<=16:
+        raise ValueError('RATE must be between 0.1 and 16')
 
 
 def destination(value):
@@ -108,7 +127,16 @@ def validate_charge(step,defaults):
 def validate(data):
     if not isinstance(data, dict):
         raise ValueError('CONDUCTOR document required')
-    fields(data, (('version', 'sources', 'switches', 'movements', 'ccRate') if data.get('version') in (DOCUMENT_VERSION, GROUP_VERSION) else ('version', 'sources', 'switches')) + (('supercharge',) if 'supercharge' in data else ()))
+    fields(data, (('version', 'sources', 'switches', 'movements', 'ccRate') if data.get('version') in (DOCUMENT_VERSION, GROUP_VERSION) else ('version', 'sources', 'switches')) + tuple(k for k in ('supercharge','bassPolicies') if k in data))
+    policies=data.get('bassPolicies',[])
+    if not isinstance(policies,list):raise ValueError('BASS policies array required')
+    targets=set()
+    for policy in policies:
+        fields(policy,('instrumentId','moduleId','mode'))
+        integer(policy['instrumentId'],1,16777215);integer(policy['moduleId'],1,16777215);integer(policy['mode'],0,2)
+        key=(policy['instrumentId'],policy['moduleId'])
+        if key in targets:raise ValueError('Duplicate BASS policy target')
+        targets.add(key)
     defaults=data.get('supercharge',dict(thresholdMs=600,fullMs=2000));fields(defaults,('thresholdMs','fullMs'));integer(defaults['thresholdMs'],0,30000);integer(defaults['fullMs'],1,120000)
     if defaults['fullMs']<defaults['thresholdMs']:raise ValueError('Full patch charge must follow its threshold')
     if type(data['version']) is not int or data['version'] not in (VERSION, DOCUMENT_VERSION, GROUP_VERSION):
@@ -124,7 +152,13 @@ def validate(data):
     slots = set()
     sources = {}
     for source in data['sources']:
-        fields(source, ('id', 'type', 'slot', 'muteGroup') if data['version']==GROUP_VERSION else ('id', 'type', 'slot'))
+        fields(source, (('id', 'type', 'slot', 'muteGroup') if data['version']==GROUP_VERSION else ('id', 'type', 'slot')) + tuple(k for k in ('tune','rate','playMode','direction','startJitter','randomPitch') if k in source))
+        if 'startJitter' in source:start_jitter(source['startJitter'])
+        if 'randomPitch' in source:random_pitch(source['randomPitch'])
+        if 'direction' in source and source['direction'] not in OPTIONS['direction']:raise ValueError('Invalid phrase direction')
+        if 'playMode' in source and source['playMode'] not in ('GATE','RETRIGGER','TOGGLE'):raise ValueError('Invalid native phrase playback mode')
+        if 'tune' in source: integer(source['tune'], -24, 24)
+        if 'rate' in source: playback_rate(source['rate'])
         if data['version']==GROUP_VERSION: integer(source['muteGroup'], 0, 16777215)
         unique(source['id'])
         # Only the existing PHRASE pool has a production storage binding today.
@@ -186,13 +220,17 @@ def validate(data):
         if not isinstance(switch['steps'], list) or not switch['steps']:
             raise ValueError('CONDUCTOR at least one STEP required')
         for step in switch['steps']:
-            fields(step, ('id', 'transition', 'layers') + (('supercharge',) if 'supercharge' in step else ()))
+            fields(step, ('id', 'transition', 'layers') + tuple(k for k in ('supercharge','repeat','layerSelection') if k in step))
+            if 'layerSelection' in step and step['layerSelection'] not in ('ALL','RANDOM','RANDOM_NO_REPEAT'):raise ValueError('Invalid random layer selection')
+            if 'repeat' in step: integer(step['repeat'],1,999)
             if 'supercharge' in step:validate_charge(step,defaults)
             unique(step['id'])
             if step['transition'] not in ('INHERIT', 'IMMEDIATE', 'END_OF_PHRASE') or not isinstance(step['layers'], list) or not step['layers']:
                 raise ValueError('CONDUCTOR invalid STEP')
+            if step.get('layerSelection','ALL')!='ALL' and sum(bool(l.get('block')) and l.get('selectionRole','CANDIDATE')!='FIXED' for l in step['layers'] if isinstance(l,dict))>256:raise ValueError('RANDOM LAYER: maximum 256 candidates per STEP')
             for index, layer in enumerate(step['layers']):
-                fields(layer, ('id', 'block')); unique(layer['id'])
+                fields(layer, ('id', 'block') + (('selectionRole',) if 'selectionRole' in layer else ())); unique(layer['id'])
+                if 'selectionRole' in layer and layer['selectionRole'] not in ('FIXED','CANDIDATE'):raise ValueError('Invalid random layer role')
                 block = layer['block']
                 if block is None:
                     continue
@@ -231,7 +269,9 @@ def validate(data):
                         raise ValueError('CONDUCTOR override mode required')
                     fields(local, ('mode',) if local['mode'] == 'INHERIT' else ('mode', 'value'))
                     if local['mode'] == 'OVERRIDE':
-                        if name == 'destination':
+                        if name == 'startJitter':start_jitter(local['value'])
+                        elif name == 'randomPitch':random_pitch(local['value'])
+                        elif name == 'destination':
                             destination(local['value'])
                         elif name in ('revealCC','revealFadeSeconds'):
                             v=local['value']
@@ -242,6 +282,10 @@ def validate(data):
                         elif name in ('releaseSeconds','restValue','movementDuration'):
                             v=local['value']
                             if type(v) not in (int,float) or not math.isfinite(v) or not (0<v<=86400 if name=='movementDuration' else 0<=v<=(60 if name=='releaseSeconds' else 1)):raise ValueError('MOVEMENT invalid release override')
+                        elif name == 'phrase_rate':
+                            playback_rate(local['value'])
+                        elif name == 'phrase_tune':
+                            integer(local['value'], -24, 24)
                         elif name.startswith('phrase_'):
                             from registry import REGISTRY
                             descriptor=REGISTRY.parameters[name];v=local['value']

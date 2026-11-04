@@ -1,0 +1,63 @@
+# Native phrase playback: GATE, RETRIGGER, TOGGLE
+
+Existing LOOP, ONCE and latched HOLD retain their meanings.
+
+| Mode | Press | Release | Natural end |
+|---|---|---|---|
+| GATE | Start once from the beginning | Stop the owned occurrence and release its notes/pedals | Stop; keeping the pedal down never loops |
+| RETRIGGER | Stop previous occurrences of this source, then restart it | No action | Stop |
+| TOGGLE | Start if stopped; otherwise stop this source without readmission | No action | Stop; next press starts from the beginning |
+
+Different phrase sources remain independent, subject to existing mute groups.
+Replacement uses the production ownership ledger and preserves MIDI ordering:
+previous Note Off precedes the fresh Note On. Another phrase's notes and sustain
+owners are retained. STOP and PANIC retain their existing cleanup paths.
+
+Conductor blocks can inherit or override these modes. GATE owners are associated
+with the stable switch identity and the admission's press generation, rather than
+the current step index. Its release therefore still finds the original occurrence
+after a cursor change. PRESS, HOLD and LONG HOLD may start GATE; RELEASE and
+SUPERCHARGE RELEASE cannot start a maintained occurrence and are marked unsupported.
+A GATE queued until a phrase boundary is not admitted after its pedal has already
+been released.
+
+The phrase's optional native source metadata stores `playMode` as GATE, RETRIGGER
+or TOGGLE. The legacy source MODE carrier is ONCE for these new modes; existing
+controller curves retain their original 0..2 normalization. An explicit gesture
+mode takes precedence while selected. Returning to LOOP/ONCE/HOLD removes the
+native option. COPY/PASTE and SWAP carry it with the phrase.
+
+The native engine exposes a capability flag; older engines and the frozen REAPER
+editor do not offer the new modes. No REAPER source changes are made. Source mode
+configuration uses stopped-state commits, while ordinary legacy mode edits retain
+their existing queued parameter path.
+
+Tests execute the generated production EEL and real MIDI output, plus Web/API
+metadata persistence, actual keyboard press/release and source-specific ownership.
+GATE release tests enqueue the production release edge inside the audio cycle;
+calling a MIDI-emitting helper outside processing is not a valid output trace.
+
+## Manual tail trim
+
+The phrase pencil editor offers **ROGNER LA FIN**. In native free-time mode,
+with playback/recording stopped, it moves END to the final recorded Note Off,
+or the CC64 release if sustain still holds notes. One sample keeps that final
+release inside the playback span. Only events after this boundary are discarded;
+remaining event bytes/times, phrase settings and Conductor references are retained.
+Empty/unbalanced takes and fixed-grid capture are refused without changing MIDI.
+Use SAVE to persist the result. This is a manual action, never automatic on capture.
+
+## Playback direction
+
+Phrase pencil options and Conductor blocks offer FORWARD (default), REVERSE and
+PING_PONG independently of playback mode. REVERSE pairs recorded notes FIFO per
+channel/pitch, preserving duration, attack velocity and release velocity. Sustain
+transitions restore their preceding value when mirrored. Source MIDI is untouched.
+PING_PONG alternates each direct or independent LOOP cycle, and each successful
+one-shot admission for ONCE/GATE/RETRIGGER/TOGGLE. Rejected admissions and stopping
+a TOGGLE do not consume an alternation. STOP/PANIC and Conductor cursor reset
+restart the corresponding alternation in the forward direction. Legacy HOLD
+excludes PING_PONG. Unbalanced notes or unreleased sustain refuse reverse playback.
+Overdub of a non-forward source is refused: choose FORWARD for recording.
+Pairing uses bounded, prewarmed native scratch/cache pages, prepared on the paused
+configuration worker and invalidated by capture, import, clear and trim.

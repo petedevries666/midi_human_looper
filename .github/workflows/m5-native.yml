@@ -35,6 +35,10 @@ jobs:
         run: |
           bash scripts/once-retrigger-test.sh
           bash scripts/m5-hold-wrap-test.sh
+          bash scripts/echocity-native-test.sh
+          c++ -std=c++17 -O1 -Wall -Wextra tests/echocity_runtime.cpp -o .build/echocity-runtime-test
+          .build/echocity-runtime-test
+          python3 tests/test_echocity_playable.py Wire
       - name: Verify physical MIDI THRU isolation and protected Learn paths
         env:
           HEADLESS_BINARY: ${{ github.workspace }}/.build/midi-headless-engine
@@ -55,6 +59,9 @@ jobs:
           python3 tests/test_m5_switch_native.py
           python3 tests/test_conductor_execution_native.py
           python3 tests/test_conductor_persistence.py
+          python3 tests/test_phrase_tune.py
+          python3 tests/test_zynthian_update.py
+          python3 tests/test_echocity_playable.py RealEngine.test_01_configuration_persistence RealEngine.test_01b_fragment_carrier_persistence RealEngine.test_01c_multichannel_carrier_persistence RealEngine.test_01d_destination_transforms_persistence RealEngine.test_01e_full_destination_handoff
           python3 tests/test_conductor_gestures_native.py
           python3 tests/test_conductor_reveal_native.py
           .build/test-venv/bin/python tests/test_conductor_legacy_contract.py
@@ -74,7 +81,12 @@ jobs:
           bash scripts/screenshots-setup.sh
           .build/browser-venv/bin/python -m playwright install-deps chromium
       - name: Capture and audit real native editor at five sizes
-        run: bash scripts/screenshots.sh
+        env:
+          HEADLESS_BINARY: ${{ github.workspace }}/.build/midi-headless-engine
+        run: |
+          node tests/test_conductor_step_duplicate.cjs
+          HEADLESS_SOURCE="$PWD/.build/once-retrigger/native.jsfx" .build/browser-venv/bin/python tests/test_conductor_step_duplicate_browser.py
+          bash scripts/screenshots.sh
       - name: Preserve visual evidence
         if: always()
         uses: actions/upload-artifact@v4

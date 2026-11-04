@@ -164,7 +164,6 @@ def run(output, performance=False):
                 col.get_by_role('button',name=re.compile('^PHRASE 02 ·')).click()
                 capture('conductor-four-step-editor')
                 col.get_by_role('button',name='EDIT BLOCK',exact=True).first.click()
-                page.get_by_label('VEL inheritance',exact=True).select_option('OVERRIDE')
                 page.get_by_label('VEL override',exact=True).fill('0.5')
                 capture('conductor-override-editor')
                 col.get_by_role('button',name='EDIT BLOCK',exact=True).nth(1).click()

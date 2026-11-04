@@ -188,3 +188,54 @@ de la chaîne : l’effet musical proposé ici est terminal.
 - Ajouter les descripteurs d’assignation aux contrôleurs/MOVEMENTS.
 - Étendre ensuite Feedback/Freeze, parcours, taps et Reverse conformément au
   checkpoint #28 ; aucun de ces modes n’est annoncé livré par ce noyau.
+
+## Routage WET multicanal
+
+Le carrier v4 ajoute CYCLE (canaux cochés dans l'ordre), RANDOM (tirage par
+répétition, avec option sans répétition consécutive dans une série) et PATTERN
+(liste de 1 à 16 canaux, doublons autorisés, répétée si nécessaire). Les modes
+de lecture FORWARD, REVERSE ALL, ALTERNATE et RANDOM CHAOS restent indépendants.
+Le routage du DRY ne change pas. Un seul canal sélectionné reste utilisable en
+RANDOM, même si l'option sans répétition est cochée.
+
+Chaque répétition conserve son canal jusqu'au Note Off, même après modification
+des réglages. Toutes les notes d'un fragment partagent la destination choisie
+pour cette répétition ; FORWARD partage ce choix sur une fenêtre INTERVALLE sans
+retarder les attaques. Les canaux choisis doivent être routés dans Zynthian.
+Les anciens carriers v1/v2/v3 gardent exactement FIXE / PING-PONG.
+
+## Extension MIDI par fragments
+
+LECTURE propose FORWARD (comportement HARRIS existant), REVERSE ALL,
+ALTERNATE et RANDOM CHAOS. Ces modes réordonnent les attaques MIDI ; ils
+ne retournent pas la forme d'onde du synthé.
+
+Pour les trois nouveaux modes, INTERVALLE sert aussi de durée de fragment,
+en ms ou en temps. Le fragment démarre à sa première attaque et se clôt
+après cette durée, même sans nouvelle note entrante. Les silences ne créent
+pas de fragments vides. DRY reste immédiat ; les échos attendent la clôture,
+puis suivent PREMIER ÉCHO, RÉPÉTITIONS et l'intervalle existant.
+
+- REVERSE ALL : ordre des attaques inversé dans chaque fragment.
+- ALTERNATE : premier écho en avant, deuxième en arrière, puis alternance dans chaque série.
+- RANDOM CHAOS : choix avant/arrière à 50 % pour chaque répétition, commun à toutes ses notes.
+- Hauteurs et durées des notes sont conservées avant PAS DE HAUTEUR/GATE.
+  Une note encore tenue conserve sa durée via son propriétaire source et son
+  watchdog existant ; elle n'est pas coupée arbitrairement à la fin du fragment.
+- Configuration capturée par fragment ; une modification vaut pour les fragments
+  suivants. Bypass/suppression annule le WET en attente et préserve le direct.
+  STOP ciblé respecte la provenance ; RESET/PANIC réinitialise le parcours.
+- Limites fixes : huit buffers de 64 attaques, ordonnanceur partagé de 256 voix.
+  Un fragment sans capacité de sortie est refusé en entier et libère ses sources.
+  Une saturation du buffer retire le fragment complet, sans Note Off oublié.
+  Le direct déjà joué garde son niveau ; il ne peut être corrigé rétroactivement.
+- Les échos restent bornés par l'horizon de 60 secondes. Des combinaisons trop
+  longues de fragment, premier écho et répétitions refusent le WET explicitement.
+- Les patches FORWARD continuent à être sauvegardés en extension v2. Les nouveaux
+  modes utilisent v3 ; v1/v2 se relisent en FORWARD. Un ancien moteur ne doit pas
+  charger silencieusement un patch v3. Revenir à FORWARD permet de sauvegarder v2.
+
+Qualification : banc C++ sans JACK avec interdiction des allocations temps réel,
+ordre MIDI/durées/annulations/capacité ; carrier Python/C++ et sauvegarde native ;
+édition réelle des quatre choix et rappel dans le test navigateur Conductor.
+Inspiration : https://freakshowindustries.com/backmask (adaptation MIDI, pas un clone audio).

@@ -75,6 +75,11 @@ class Capacity(unittest.TestCase):
   settings[12:]=[1,3,4,63,63,63]
   if network_gestures:settings[7:9]=[500,1000]
   return self.cmd('switch_commit',switchId=ident,settings=settings,sequence=[128],name='CAPACITY TEST',longHold={'milliseconds':1500 if network_gestures else 250,'action':6,'target':0})
+ def test_00_gate_restore_preserves_late_phrase_outputs(self):
+  p=self.export();cfg=layout(p);base=cfg['NATIVE_LEGACY_PAYLOAD']+1+128
+  p['memory'][base+33:base+45]=list(range(1,13))
+  self.load(p)
+  self.assertEqual(self.export()['memory'][base+33:base+45],list(range(1,13)))
  def test_01_dimensions_and_factory(self):
   s=self.control.request();self.assertEqual((s['schemaVersion'],s['phraseCapacity'],s['switchCapacity']),(8,128,64));self.assertEqual(len(s['phrases']),128)
   p=self.export();self.assertEqual(len(p['memory']),layout(p)['PATCH_PAYLOAD_SIZE']);validate_patch(p)

@@ -75,7 +75,7 @@ function native_destination_receive(q) local(b,slot,generation,id,ch,note,vel,on
 );
 '''
 NEXT=r'''
-function native_thru_next() local(done,result,b,echo_offset,budget)
+function native_destination_next() local(done,result,b,echo_offset,budget)
 (
  done=0;result=0;budget=513;
  while(!done && budget>0)(
@@ -116,6 +116,7 @@ def extend(source):
  change('  native_transform_voice=source_voice;\n);', '  native_transform_voice=source_voice;native_destination_mono_depth-=1;\n);')
  change('function send_to_instruments(offs, st, d1, d2, extra_gain)',RECEIVE+'\nfunction send_to_instruments(offs, st, d1, d2, extra_gain)')
  change('function native_thru_next()', 'function native_destination_physical_next()')
+ change('  native_thru_next() ?', '  (native_destination_count>0?native_destination_next():native_destination_physical_next()) ?')
  change('function native_thru_reset()', NEXT+'\nfunction native_thru_reset()')
  change('function native_thru_begin()\nlocal(slot,at,offs,st,data)\n(',
         'function native_thru_begin()\nlocal(slot,at,offs,st,data)\n(native_destination_physical_ready=0;native_destination_read=0;')

@@ -21,6 +21,12 @@ function phrase_time_factor(layer)''')
     change('  exp(exponent);', '  exp(exponent)/native_phrase_rate(layer);')
     change('t=exp(max(-log(64),min(log(64),log(ratio)*repeats)));',
            't=exp(max(-log(64),min(log(64),log(ratio)*repeats)))/native_conductor_rate(b,j);')
+    # Quantize before comparing callback boundaries, so a floating-point
+    # event just below the right edge cannot round into the next block.
+    change('(instant?evt_t==0:(evt_t>=once_start && evt_t<once_end',
+           '(instant?evt_t==0:(floor(evt_t+.5)>=once_start && floor(evt_t+.5)<once_end')
+    change('out_offs=evt_t-mem[VOICE_POS_BASE+vi];',
+           'out_offs=floor(evt_t+.5)-mem[VOICE_POS_BASE+vi];')
     # Admission snapshots the effective time multiplier. The source's setting
     # is restored before any other layer is admitted, including the same phrase.
     change('oldtime=mem[phrase_time_addr(p)];',
